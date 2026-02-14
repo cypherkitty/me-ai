@@ -105,8 +105,11 @@
   async function fetchProfile() {
     loadingProfile = true;
     try {
-      profile = await getProfile(accessToken);
+      const result = await getProfile(accessToken);
+      if (!accessToken) return; // signed out during fetch
+      profile = result;
     } catch (e) {
+      if (!accessToken) return;
       error = `Profile fetch failed: ${e.message}`;
     } finally {
       loadingProfile = false;
@@ -121,6 +124,8 @@
       if (append && nextPageToken) opts.pageToken = nextPageToken;
 
       const result = await listMessages(accessToken, opts);
+      if (!accessToken) return; // signed out during fetch
+
       const ids = (result.messages || []).map((m) => m.id);
       nextPageToken = result.nextPageToken || null;
 
@@ -130,10 +135,12 @@
       }
 
       const fullMessages = await getMessagesBatch(accessToken, ids);
-      const parsed = fullMessages.map(parseMessage);
+      if (!accessToken) return; // signed out during fetch
 
+      const parsed = fullMessages.map(parseMessage);
       emailMessages = append ? [...emailMessages, ...parsed] : parsed;
     } catch (e) {
+      if (!accessToken) return;
       error = `Failed to fetch messages: ${e.message}`;
     } finally {
       loadingMessages = false;
@@ -148,6 +155,7 @@
       try {
         const { getMessage } = await import("./lib/gmail-api.js");
         const full = await getMessage(accessToken, msg.id, "full");
+        if (!accessToken) return; // signed out during fetch
         const body = getBody(full);
         selectedMessage = { ...msg, body };
         // Update in the list too
@@ -155,6 +163,7 @@
           m.id === msg.id ? { ...m, body } : m
         );
       } catch (e) {
+        if (!accessToken) return;
         error = `Failed to load message: ${e.message}`;
       } finally {
         loadingDetail = false;
