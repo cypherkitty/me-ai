@@ -131,19 +131,35 @@ In the UI, thinking is shown as a collapsible `<details>` element with word coun
 2. `localStorage.getItem("googleClientId")` (entered in-app)
 3. If neither → Dashboard shows setup guide with step-by-step instructions
 
+### Google Cloud setup (one-time, required)
+Users must create a Google Cloud project, enable Gmail API, and create an OAuth 2.0 Client ID.
+The Dashboard has a built-in step-by-step setup guide for this.
+- Authorized JS origins: `http://localhost:5173`
+- Authorized redirect URIs: `http://localhost:5173`
+- "Google hasn't verified this app" warning is expected — click Advanced → "Go to app (unsafe)"
+- App verification is only needed for publishing to external users, not personal/dev use
+
 ### Gmail API
 - Direct `fetch()` to `https://gmail.googleapis.com/gmail/v1/users/me/*`
 - `Authorization: Bearer {token}` header
 - Message list returns IDs only → batch-fetch details with `getMessagesBatch()` (8 parallel)
 - Body parsing: finds `text/plain` part, falls back to `text/html` (stripped), handles nested multipart
-- Base64url decoding: replaces `-`→`+`, `_`→`/`, then `atob()` + `TextDecoder`
+- Base64url decoding: replaces `-`→`+`, `_`→`/`, **restores `=` padding** (Gmail sends unpadded), then `atob()` + `TextDecoder`
+
+### Stale request guard pattern
+All async Gmail functions (`fetchProfile`, `fetchMessages`, `viewMessage`) check `if (!accessToken) return` after every `await`. This prevents in-flight API responses from writing stale data into state if the user signs out while a request is pending.
+
+```js
+const result = await listMessages(accessToken, opts);
+if (!accessToken) return; // signed out during fetch
+```
 
 ### Error handling
-`Dashboard.svelte` has a `parseError()` function that detects common Google API errors and returns structured guidance:
+`Dashboard.svelte` has a `parseError()` function that detects common Google API errors and returns structured error cards with title, description, fix instructions, and optional action links:
 
 | Error pattern | User sees |
 |--------------|-----------|
-| "has not been used in project" | "Gmail API not enabled" + direct enable link with project ID |
+| "has not been used in project" | "Gmail API not enabled" + direct enable link (extracts project ID from error) |
 | "Invalid Credentials" / 401 | "Session expired" + Sign Out & Retry button |
 | "insufficient scope" | "Insufficient permissions" + re-auth instructions |
 | "access_denied" | "Access denied" + retry prompt |
@@ -153,18 +169,37 @@ In the UI, thinking is shown as a collapsible `<details>` element with word coun
 
 ## Styling
 
-- **Dark theme**: background `#0f0f0f`, text `#e8e8e8`, accents `#3b82f6` (blue), `#4ade80` (green)
+- **Dark theme**: background `#0f0f0f`, text `#e8e8e8`, accents `#3b82f6` (blue), `#4ade80` (green), `#f87171` (red errors)
 - **Global resets** in `App.svelte`: box-sizing, body font/color/height, `#app` flex layout
 - **Component-scoped** styles in each `.svelte` file (Svelte auto-scopes)
 - **No shared CSS file** — button/card styles are duplicated where needed (acceptable for small project)
 - Font stack: system fonts (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, ...`)
 - Animations: `@keyframes` for spinners, dot pulses, blinking cursor, progress bar shimmer
+- Error cards: left red border accent, title/description/fix layout, optional action button or link
+
+## Known Gotchas
+
+1. **`DataCloneError`**: Svelte 5 `$state` proxies cannot be passed to `postMessage`. Always map to plain objects first.
+2. **OAuth popups don't work in Cursor's embedded browser.** GIS needs real popup windows. Test auth flow in regular Chrome at `http://localhost:5173/#dashboard`.
+3. **Model downloads can lack `Content-Length` header.** The progress UI handles this with indeterminate progress bars and showing only downloaded bytes.
+4. **Gmail base64url payloads are unpadded.** The `decodeBase64Url` function must add `=` padding before `atob()` or decoding will throw.
+5. **`svelte.config.js` linter error** (`Cannot find package @sveltejs/vite-plugin-svelte`) is a pre-existing IDE issue. The app runs fine — Vite handles the plugin directly.
+6. **Model switching doesn't re-download.** Transformers.js caches in IndexedDB. Only GPU resources (`model.dispose()`) are released. Re-loading from cache is fast but still needs shader compilation.
+7. **Async state after signout.** Every Gmail async function must guard state writes with `if (!accessToken) return` after each `await` to prevent stale data from in-flight requests.
 
 ## Key Conventions
 
 - **Keep dependencies minimal.** No router, no state lib, no CSS framework.
 - **Everything in the browser.** No backend, no API keys on server, no proxies.
 - **Progressive disclosure.** Landing → model selection → loading → chat. Dashboard: setup → auth → inbox.
-- **WebGPU is required.** Show fallback screen if `navigator.gpu` is undefined.
+- **WebGPU is required.** Show fallback screen if `navigator.gpu` is undefined. Supported: Chrome 113+, Edge 113+.
 - **Model files are large** (190 MB to 2.6 GB). Progress UI must handle unknown `Content-Length` (indeterminate bars) and show precise bytes.
-- **Accessibility warnings** from Svelte are suppressed on the modal overlay with `<!-- svelte-ignore -->` comments (non-interactive `<div>` with click handler).
+- **User-friendly errors.** Never show raw API errors. Always parse through `parseError()` and show actionable guidance.
+- **Accessibility.** Svelte a11y warnings on the modal overlay are suppressed with `<!-- svelte-ignore -->` comments. Escape key closes the modal via a window-level keydown listener.
+
+## GitHub
+
+- Repo: `cypherkitty/me-ai` (private)
+- Branch: `main`
+- CI: None configured yet
+- PR reviews: bugbot (automated) provides code review on PRs
