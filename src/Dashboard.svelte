@@ -206,6 +206,90 @@
     const name = extractName(fromStr);
     return name.charAt(0).toUpperCase();
   }
+
+  // ── Error intelligence ────────────────────────────────────────────
+  // Parses raw API errors into user-friendly guidance
+  function parseError(rawError) {
+    const msg = rawError || "";
+
+    // Gmail API not enabled
+    if (msg.includes("has not been used in project") || msg.includes("is disabled")) {
+      const projectMatch = msg.match(/project\s+(\d+)/);
+      const projectId = projectMatch?.[1];
+      const enableUrl = projectId
+        ? `https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=${projectId}`
+        : "https://console.cloud.google.com/apis/library/gmail.googleapis.com";
+      return {
+        title: "Gmail API not enabled",
+        description: "The Gmail API needs to be enabled in your Google Cloud project before it can be used.",
+        fix: "Click the link below to enable it, then wait ~30 seconds and retry.",
+        link: { url: enableUrl, label: "Enable Gmail API" },
+      };
+    }
+
+    // Invalid / expired token
+    if (msg.includes("Invalid Credentials") || msg.includes("401") || msg.includes("invalid_token")) {
+      return {
+        title: "Session expired",
+        description: "Your access token has expired or is invalid.",
+        fix: "Sign out and sign in again to get a fresh token.",
+        action: "signout",
+      };
+    }
+
+    // Insufficient scopes
+    if (msg.includes("insufficient") && msg.includes("scope")) {
+      return {
+        title: "Insufficient permissions",
+        description: "The app doesn't have the required permissions to access Gmail.",
+        fix: "Sign out, sign in again, and make sure to grant the Gmail read permission in the consent screen.",
+        action: "signout",
+      };
+    }
+
+    // User denied consent
+    if (msg.includes("access_denied") || msg.includes("user_denied")) {
+      return {
+        title: "Access denied",
+        description: "You declined the Gmail permission request.",
+        fix: "Click 'Sign in with Google' again and grant the Gmail read-only permission when prompted.",
+      };
+    }
+
+    // Popup blocked
+    if (msg.includes("popup") || msg.includes("blocked")) {
+      return {
+        title: "Popup blocked",
+        description: "The sign-in popup was blocked by your browser.",
+        fix: "Allow popups for localhost:5173 in your browser settings, then try again.",
+      };
+    }
+
+    // Rate limit
+    if (msg.includes("Rate Limit") || msg.includes("429") || msg.includes("quota")) {
+      return {
+        title: "Rate limit exceeded",
+        description: "Too many requests to the Gmail API.",
+        fix: "Wait a minute and try again.",
+      };
+    }
+
+    // Network error
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("network")) {
+      return {
+        title: "Network error",
+        description: "Could not reach the Gmail API.",
+        fix: "Check your internet connection and try again.",
+      };
+    }
+
+    // Fallback: show the raw error
+    return {
+      title: "Something went wrong",
+      description: msg,
+      fix: null,
+    };
+  }
 </script>
 
 <div class="dashboard">
@@ -283,7 +367,22 @@
         </p>
 
         {#if error}
-          <p class="error">{error}</p>
+          {@const parsed = parseError(error)}
+          <div class="error-card">
+            <div class="error-card-title">{parsed.title}</div>
+            <p class="error-card-desc">{parsed.description}</p>
+            {#if parsed.fix}
+              <p class="error-card-fix">{parsed.fix}</p>
+            {/if}
+            {#if parsed.link}
+              <a class="error-card-link" href={parsed.link.url} target="_blank" rel="noopener">
+                {parsed.link.label} →
+              </a>
+            {/if}
+            {#if parsed.action === "signout"}
+              <button class="btn small error-action" onclick={signOut}>Sign Out & Retry</button>
+            {/if}
+          </div>
         {/if}
 
         <button class="btn google-btn" onclick={signIn} disabled={loadingAuth}>
@@ -312,9 +411,24 @@
     <!-- ── Authenticated Dashboard ────────────────────────────────── -->
     <div class="main-content">
       {#if error}
-        <div class="error-bar">
-          <span>{error}</span>
-          <button class="btn-link" onclick={() => error = null}>Dismiss</button>
+        {@const parsed = parseError(error)}
+        <div class="error-card">
+          <div class="error-card-header">
+            <div class="error-card-title">{parsed.title}</div>
+            <button class="error-dismiss" onclick={() => error = null}>✕</button>
+          </div>
+          <p class="error-card-desc">{parsed.description}</p>
+          {#if parsed.fix}
+            <p class="error-card-fix">{parsed.fix}</p>
+          {/if}
+          {#if parsed.link}
+            <a class="error-card-link" href={parsed.link.url} target="_blank" rel="noopener">
+              {parsed.link.label} →
+            </a>
+          {/if}
+          {#if parsed.action === "signout"}
+            <button class="btn small error-action" onclick={signOut}>Sign Out & Retry</button>
+          {/if}
         </div>
       {/if}
 
@@ -623,23 +737,70 @@
     text-decoration: underline;
   }
 
-  /* ── Error ─────────────────────────────────────────────────────── */
-  .error {
-    color: #f87171;
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
+  /* ── Error Card ──────────────────────────────────────────────────── */
+  .error-card {
+    background: rgba(248, 113, 113, 0.06);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    border-left: 4px solid #f87171;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
   }
-  .error-bar {
+  .error-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.6rem 1rem;
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.3);
-    border-radius: 8px;
+    gap: 0.5rem;
+  }
+  .error-card-title {
+    font-size: 0.9rem;
+    font-weight: 700;
     color: #f87171;
-    font-size: 0.85rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.35rem;
+  }
+  .error-dismiss {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .error-dismiss:hover {
+    color: #f87171;
+  }
+  .error-card-desc {
+    font-size: 0.82rem;
+    color: #ccc;
+    line-height: 1.5;
+    margin-bottom: 0.35rem;
+  }
+  .error-card-fix {
+    font-size: 0.8rem;
+    color: #4ade80;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+  }
+  .error-card-link {
+    display: inline-block;
+    font-size: 0.82rem;
+    color: #60a5fa;
+    text-decoration: none;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+  }
+  .error-card-link:hover {
+    text-decoration: underline;
+  }
+  .error-action {
+    margin-top: 0.5rem;
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #f87171;
+  }
+  .error-action:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.1);
   }
 
   /* ── Profile Card ──────────────────────────────────────────────── */
