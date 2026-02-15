@@ -5,6 +5,29 @@
   let { clientIdInput = $bindable(), onsave } = $props();
 
   onMount(() => mountLog("SetupGuide"));
+
+  let copiedField = $state(null);
+
+  async function copy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedField = text;
+      setTimeout(() => { copiedField = null; }, 1500);
+    } catch {
+      // fallback: select text in a temp input
+      const el = document.createElement("input");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      copiedField = text;
+      setTimeout(() => { copiedField = null; }, 1500);
+    }
+  }
+
+  const LOCALHOST = "http://localhost:5173";
+  const PAGES = "https://cypherkitty.github.io";
 </script>
 
 <div class="setup-container">
@@ -19,40 +42,72 @@
       <div class="step">
         <span class="step-num">1</span>
         <div>
-          Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">
-            Google Cloud Console
-          </a> and create a project (or use existing)
+          <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">
+            Create a Google Cloud project
+          </a>
+          (or use an existing one)
         </div>
       </div>
+
       <div class="step">
         <span class="step-num">2</span>
         <div>
-          Enable the <strong>Gmail API</strong> under
-          <em>APIs & Services → Library</em>
+          <a href="https://console.cloud.google.com/apis/library/gmail.googleapis.com" target="_blank" rel="noopener">
+            Enable the Gmail API
+          </a>
+          for your project
         </div>
       </div>
+
       <div class="step">
         <span class="step-num">3</span>
         <div>
-          Go to <em>APIs & Services → Credentials</em> and create an
-          <strong>OAuth 2.0 Client ID</strong> (type: Web application)
+          <a href="https://console.cloud.google.com/apis/credentials/oauthclient" target="_blank" rel="noopener">
+            Create an OAuth 2.0 Client ID
+          </a>
+          (type: <strong>Web application</strong>)
         </div>
       </div>
+
       <div class="step">
         <span class="step-num">4</span>
         <div>
-          Add these to your OAuth client:
-          <ul>
-            <li>Authorized JavaScript origins: <code>http://localhost:5173</code></li>
-            <li>Authorized redirect URIs: <code>http://localhost:5173</code></li>
-          </ul>
-          If deploying to GitHub Pages, also add:
-          <ul>
-            <li>Authorized JavaScript origins: <code>https://cypherkitty.github.io</code></li>
-            <li>Authorized redirect URIs: <code>https://cypherkitty.github.io</code></li>
-          </ul>
+          <p class="step-label">Add these URLs to your OAuth client. Click to copy:</p>
+
+          <div class="url-section">
+            <span class="url-section-title">Authorized JavaScript origins:</span>
+            <div class="url-chips">
+              <button class="url-chip" onclick={() => copy(LOCALHOST)}>
+                <code>{LOCALHOST}</code>
+                <span class="copy-icon">{copiedField === LOCALHOST ? "✓" : "⧉"}</span>
+              </button>
+              <button class="url-chip" onclick={() => copy(PAGES)}>
+                <code>{PAGES}</code>
+                <span class="copy-icon">{copiedField === PAGES ? "✓" : "⧉"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="url-section">
+            <span class="url-section-title">Authorized redirect URIs:</span>
+            <div class="url-chips">
+              <button class="url-chip" onclick={() => copy(LOCALHOST)}>
+                <code>{LOCALHOST}</code>
+                <span class="copy-icon">{copiedField === LOCALHOST ? "✓" : "⧉"}</span>
+              </button>
+              <button class="url-chip" onclick={() => copy(PAGES)}>
+                <code>{PAGES}</code>
+                <span class="copy-icon">{copiedField === PAGES ? "✓" : "⧉"}</span>
+              </button>
+            </div>
+          </div>
+
+          <p class="step-hint">
+            Both localhost (for development) and GitHub Pages (for production) are needed.
+          </p>
         </div>
       </div>
+
       <div class="step">
         <span class="step-num">5</span>
         <div>Copy the <strong>Client ID</strong> and paste it below</div>
@@ -86,7 +141,7 @@
     border: 1px solid #2a2a2a;
     border-radius: 12px;
     padding: 2rem;
-    max-width: 560px;
+    max-width: 580px;
     width: 100%;
   }
   .setup-card h2 {
@@ -105,7 +160,7 @@
   .setup-steps {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.85rem;
     margin-bottom: 1.5rem;
   }
   .step {
@@ -118,6 +173,7 @@
   .step a {
     color: #60a5fa;
     text-decoration: none;
+    font-weight: 500;
   }
   .step a:hover {
     text-decoration: underline;
@@ -136,19 +192,62 @@
     font-weight: 700;
     margin-top: 0.05rem;
   }
-  .step ul {
-    margin: 0.3rem 0 0 1rem;
-    list-style: disc;
+  .step-label {
+    margin-bottom: 0.5rem;
+    color: #aaa;
   }
-  .step li {
-    margin-bottom: 0.2rem;
+  .step-hint {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 0.5rem;
+    font-style: italic;
   }
-  .step code {
-    background: #222;
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
+
+  /* ── URL sections ────────────────────────────────────────────────── */
+  .url-section {
+    margin-bottom: 0.6rem;
+  }
+  .url-section-title {
+    display: block;
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 0.3rem;
+  }
+  .url-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .url-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+    color: inherit;
+  }
+  .url-chip:hover {
+    border-color: #4a90e2;
+    background: #1f1f1f;
+  }
+  .url-chip code {
+    font-size: 0.78rem;
     color: #e8e8e8;
+    background: none;
+    padding: 0;
+  }
+  .copy-icon {
+    font-size: 0.75rem;
+    color: #666;
+    transition: color 0.15s;
+  }
+  .url-chip:hover .copy-icon {
+    color: #60a5fa;
   }
 
   /* ── Client ID Form ──────────────────────────────────────────────── */
