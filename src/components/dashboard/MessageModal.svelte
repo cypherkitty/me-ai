@@ -1,11 +1,18 @@
 <script>
   import { onMount } from "svelte";
   import { formatDate } from "../../lib/email-utils.js";
+  import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
   import { mountLog } from "../../lib/debug.js";
 
   let { message, loading = false, onclose } = $props();
 
   onMount(() => mountLog("MessageModal"));
+
+  function exportMarkdown() {
+    const md = emailToMarkdown(message);
+    const filename = emailFilename(message);
+    downloadText(md, filename);
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -18,7 +25,14 @@
   <div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
     <div class="modal-header">
       <h3 class="modal-subject">{message.subject}</h3>
-      <button class="modal-close" onclick={onclose}>✕</button>
+      <div class="header-actions">
+        {#if message.body}
+          <button class="action-btn" onclick={exportMarkdown} title="Export as Markdown">
+            .md
+          </button>
+        {/if}
+        <button class="modal-close" onclick={onclose}>✕</button>
+      </div>
     </div>
     <div class="modal-meta">
       <div class="meta-row">
@@ -83,6 +97,28 @@
     font-size: 1.1rem;
     font-weight: 600;
     line-height: 1.4;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+  }
+  .action-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #aaa;
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-family: monospace;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .action-btn:hover {
+    border-color: #3b82f6;
+    color: #e8e8e8;
   }
   .modal-close {
     background: none;
