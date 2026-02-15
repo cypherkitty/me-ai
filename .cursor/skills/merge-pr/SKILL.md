@@ -7,7 +7,17 @@ description: Merge a pull request safely with all required checks. Use when the 
 
 Safely merge a PR with all mandatory checks. Never skip steps.
 
+**CRITICAL: Never merge automatically.** After completing all checks (CI, comments), always stop and ask the user for explicit confirmation before merging. The user may have additional instructions, want to review something first, or need to coordinate timing.
+
 ## Procedure
+
+### Step 0: Ask for confirmation
+
+After creating a PR or when the user mentions merging, **always ask the user first**:
+- Report: CI status, comment status, PR summary
+- Then ask: "Ready to merge?" or "Shall I squash merge this?"
+- **Wait for explicit "yes" / confirmation before proceeding to the merge step.**
+- Do NOT merge just because all checks pass. The user decides when.
 
 ### Step 1: Identify the PR
 
@@ -69,6 +79,7 @@ Report to the user:
 
 ## Rules
 
+- **Always ask before merging.** Never merge without explicit user confirmation. Report status, then wait for a "yes".
 - **Never push directly to main.** All changes go through PRs.
 - **Never merge with failing CI.** Wait or fix first.
 - **Never merge with unaddressed comments.** Resolve everything.
