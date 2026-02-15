@@ -1,5 +1,7 @@
 <script>
   import { onMount } from "svelte";
+  import { marked } from "marked";
+  import DOMPurify from "dompurify";
   import { formatDate } from "../../lib/email-utils.js";
   import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
   import { mountLog } from "../../lib/debug.js";
@@ -7,6 +9,14 @@
   let { message, loading = false, onclose } = $props();
 
   onMount(() => mountLog("MessageModal"));
+
+  // ── Configure marked ──────────────────────────────────────────────
+  const renderer = new marked.Renderer();
+  renderer.link = ({ href, title, text }) => {
+    const t = title ? ` title="${title}"` : "";
+    return `<a href="${href}"${t} target="_blank" rel="noopener">${text}</a>`;
+  };
+  marked.setOptions({ breaks: true, gfm: true, renderer });
 
   // ── Markdown preview state ────────────────────────────────────────
   let showMarkdown = $state(false);
@@ -23,33 +33,20 @@
     downloadText(markdownText, emailFilename(message));
   }
 
-  // ── Render markdown to simple HTML for preview ────────────────────
+  /** Render markdown to sanitized HTML using marked + DOMPurify */
   function renderMarkdown(md) {
-    return md
-      // Images: ![alt](url)
-      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:4px;margin:0.5rem 0">')
-      // Links: [text](url)
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#60a5fa">$1</a>')
-      // H1
-      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-      // Bold
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      // Italic
-      .replace(/\*(.+?)\*/g, "<em>$1</em>")
-      // Horizontal rule
-      .replace(/^---$/gm, "<hr>")
-      // Table rows: | cell | cell |
-      .replace(/^\|(.+)\|$/gm, (_, cells) => {
-        const tds = cells.split("|").map(c => c.trim());
-        if (tds.every(td => /^-+$/.test(td))) return "";
-        return "<tr>" + tds.map(td => `<td>${td}</td>`).join("") + "</tr>";
-      })
-      // Wrap consecutive <tr> in <table>
-      .replace(/((?:<tr>.*<\/tr>\n?)+)/g, "<table>$1</table>")
-      // Paragraphs: lines that aren't already wrapped in tags
-      .replace(/^(?!<[a-z])((?!^$).+)$/gm, "<p>$1</p>")
-      // Clean up empty paragraphs
-      .replace(/<p>\s*<\/p>/g, "");
+    const raw = marked.parse(md);
+    return DOMPurify.sanitize(raw, {
+      ADD_ATTR: ["target"],
+      ALLOW_TAGS: [
+        "h1", "h2", "h3", "h4", "h5", "h6",
+        "p", "br", "hr", "blockquote", "pre", "code",
+        "strong", "b", "em", "i", "a", "img",
+        "ul", "ol", "li",
+        "table", "thead", "tbody", "tr", "th", "td",
+        "del", "s",
+      ],
+    });
   }
 
   // ── Sandboxed HTML iframe ─────────────────────────────────────────
@@ -367,22 +364,43 @@
     font-size: 0.9rem;
     color: #ddd;
     line-height: 1.6;
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   .md-preview :global(h1) {
     font-size: 1.3rem;
     font-weight: 700;
-    margin: 0 0 0.75rem;
+    margin: 0.75rem 0;
+    color: #e8e8e8;
+  }
+  .md-preview :global(h2) {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 0.6rem 0;
+    color: #e8e8e8;
+  }
+  .md-preview :global(h3) {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0.5rem 0;
     color: #e8e8e8;
   }
   .md-preview :global(table) {
     border-collapse: collapse;
     margin-bottom: 1rem;
     font-size: 0.82rem;
+    width: auto;
   }
+  .md-preview :global(th),
   .md-preview :global(td) {
     padding: 0.3rem 0.6rem;
     border: 1px solid #333;
     color: #ccc;
+  }
+  .md-preview :global(th) {
+    background: #1e1e1e;
+    font-weight: 600;
+    color: #e8e8e8;
   }
   .md-preview :global(hr) {
     border: none;
@@ -394,6 +412,50 @@
   }
   .md-preview :global(strong) {
     color: #e8e8e8;
+  }
+  .md-preview :global(a) {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+  .md-preview :global(a:hover) {
+    text-decoration: underline;
+  }
+  .md-preview :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    margin: 0.5rem 0;
+  }
+  .md-preview :global(blockquote) {
+    border-left: 3px solid #444;
+    padding-left: 0.75rem;
+    margin: 0.5rem 0;
+    color: #aaa;
+  }
+  .md-preview :global(code) {
+    background: #1e1e1e;
+    padding: 0.15rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+  }
+  .md-preview :global(pre) {
+    background: #1e1e1e;
+    padding: 0.75rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+  }
+  .md-preview :global(pre code) {
+    background: none;
+    padding: 0;
+  }
+  .md-preview :global(ul),
+  .md-preview :global(ol) {
+    padding-left: 1.5rem;
+    margin: 0.3rem 0;
+  }
+  .md-preview :global(li) {
+    margin: 0.15rem 0;
   }
 
   /* ── Loading ────────────────────────────────────────────────────── */

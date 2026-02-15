@@ -61,7 +61,8 @@ export function htmlToMarkdownBody(html) {
  * - No src or data: URIs
  * - Tracking pixels (1x1, tiny images)
  * - Spacer GIFs (common in email templates)
- * - Amazon/email tracking redirect URLs for transparent images
+ * - Amazon/email tracking redirect URLs (these wrap real images behind click-trackers)
+ * - Generic email tracking pixels
  */
 function isSkippableImage(node, src) {
   if (!src || src.startsWith("data:")) return true;
@@ -76,9 +77,13 @@ function isSkippableImage(node, src) {
   if (lower.includes("spacer") || lower.includes("transparent") || lower.includes("transp.gif")) return true;
   if (lower.includes("/track") && lower.includes("pixel")) return true;
 
-  // Amazon tracking redirect URLs that wrap a tiny image
-  // Pattern: amazon.com/gp/r.html?...&M=urn:...  (these are click-tracking wrappers, not real images)
-  if (/amazon\.com\/gp\/r\.html\?/.test(src) && /transp|spacer|nav%2F/i.test(src)) return true;
+  // Amazon tracking redirect URLs — any /gp/r.html? img src is a click-tracking wrapper
+  if (/amazon\.com\/gp\/r\.html\?/.test(src)) return true;
+
+  // Generic email open-tracking pixels (common patterns)
+  if (/[?&](open|track|beacon|pixel|img)=/i.test(lower)) return true;
+  if (lower.includes("mail.google.com/mail/u/") && lower.includes("view=fimg")) return false; // Gmail inline images are OK
+  if (/ci\d+\.\w+\.com\//.test(lower) || lower.endsWith(".gif") && lower.includes("1x1")) return true;
 
   return false;
 }
