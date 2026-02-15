@@ -222,9 +222,35 @@ if (!accessToken) return; // signed out during fetch
 - **User-friendly errors.** Never show raw API errors. Always parse through `parseError()` and show actionable guidance.
 - **Accessibility.** Svelte a11y warnings on the modal overlay are suppressed with `<!-- svelte-ignore -->` comments. Escape key closes the modal via a window-level keydown listener.
 
-## GitHub
+## Git Workflow
+
+### Branch & PR policy (MANDATORY)
+
+- **NEVER push directly to `main`.**
+- **Every feature, refactor, bug fix, or docs update** must go through a pull request.
+- If no feature branch exists yet, create one before committing (e.g. `feature/component-refactoring`, `fix/base64-padding`, `docs/update-rules`).
+- Branch naming: `feature/*`, `fix/*`, `refactor/*`, `docs/*`, `chore/*`.
+- Open a PR using `gh pr create` with a clear summary and test plan.
+- Wait for review (bugbot or human) before merging.
+- The **only** exception to pushing directly to `main` is if the user explicitly says "push to main without a PR".
+
+### PR requirements
+
+- **Title**: concise, describes the change (e.g. "refactor: extract Chat into smaller components").
+- **Body**: must include a `## Summary` section with 1-3 bullet points explaining what changed and why, and a `## Test plan` section with verification steps.
+- Always push the branch with `git push -u origin HEAD` before creating the PR.
+- Use `gh pr create` — never create PRs through other means.
+- Return the PR URL to the user when done.
+
+### Commit conventions
+
+- Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.
+- Keep commits focused — one logical change per commit.
+- Write commit messages that explain **why**, not just **what**.
+
+### Repository
 
 - Repo: `cypherkitty/me-ai` (private)
-- Branch: `main`
+- Default branch: `main`
 - CI: None configured yet
 - PR reviews: bugbot (automated) provides code review on PRs
