@@ -1,6 +1,10 @@
 <script>
+  import { onMount } from "svelte";
   import MessageBubble from "./MessageBubble.svelte";
   import GpuPanel from "./GpuPanel.svelte";
+  import { mountLog } from "../../lib/debug.js";
+
+  onMount(() => mountLog("ChatView"));
 
   let {
     messages = [],
@@ -35,7 +39,6 @@
 
 <div class="chat-wrapper">
   <header>
-    <h1>me-ai</h1>
     {#if gpuInfo}
       <button class="gpu-badge" onclick={() => showGpuPanel = !showGpuPanel}>
         WebGPU {showGpuPanel ? "▲" : "▼"}
@@ -53,6 +56,7 @@
     {:else if tps && isRunning}
       <span class="stats">{tps.toFixed(1)} tok/s</span>
     {/if}
+    <span class="spacer"></span>
     <button class="btn small" onclick={onreset} disabled={isRunning}>Reset</button>
   </header>
 
@@ -102,18 +106,12 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid #1f1f1f;
     flex-shrink: 0;
   }
-  header h1 {
-    font-size: 1.1rem;
+  .spacer {
     flex: 1;
-  }
-  h1 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
   }
   .stats {
     font-size: 0.75rem;

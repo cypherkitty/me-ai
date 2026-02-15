@@ -1,7 +1,11 @@
 <script>
+  import { onMount } from "svelte";
   import { formatDate, extractName, initial } from "../../lib/email-utils.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { messages = [], onselect } = $props();
+
+  onMount(() => mountLog("MessageList"));
 </script>
 
 <div class="message-list">

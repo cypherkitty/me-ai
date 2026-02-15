@@ -1,7 +1,11 @@
 <script>
+  import { onMount } from "svelte";
   import ErrorCard from "../shared/ErrorCard.svelte";
+  import { mountLog } from "../../lib/debug.js";
 
   let { clientId, error = null, loadingAuth = false, onsignin, onclear, onsignout } = $props();
+
+  onMount(() => mountLog("AuthCard"));
 </script>
 
 <div class="auth-container">

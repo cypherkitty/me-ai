@@ -1,7 +1,11 @@
 <script>
+  import { onMount } from "svelte";
   import { formatBytes } from "../../lib/format.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { gpuInfo } = $props();
+
+  onMount(() => mountLog("GpuPanel"));
 </script>
 
 <div class="gpu-panel">
