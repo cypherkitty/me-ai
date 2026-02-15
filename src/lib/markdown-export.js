@@ -2,8 +2,9 @@ import { formatDate } from "./email-utils.js";
 
 /**
  * Convert a parsed email message to Markdown format.
+ * If the message has htmlBody, images and links are preserved as markdown syntax.
  *
- * @param {{ subject: string, from: string, to: string, date: string, body: string | null }} message
+ * @param {{ subject: string, from: string, to: string, date: string, body: string | null, htmlBody?: string | null }} message
  * @returns {string} Markdown-formatted email
  */
 export function emailToMarkdown(message) {
@@ -19,7 +20,13 @@ export function emailToMarkdown(message) {
   lines.push("");
   lines.push("---");
   lines.push("");
-  lines.push(message.body || "*(no body)*");
+
+  // Use HTML body (with images/links) when available, fall back to plain text
+  const bodyMd = message.htmlBody
+    ? htmlToMarkdownBody(message.htmlBody)
+    : null;
+
+  lines.push(bodyMd || message.body || "*(no body)*");
   lines.push("");
 
   return lines.join("\n");
@@ -28,6 +35,99 @@ export function emailToMarkdown(message) {
 /** Escape pipe characters inside a Markdown table cell */
 function escapeCell(text) {
   return (text || "").replace(/\|/g, "\\|");
+}
+
+/**
+ * Convert HTML to Markdown, preserving images, links, bold, and structure.
+ * Uses DOMParser for accurate conversion.
+ */
+function htmlToMarkdownBody(html) {
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    // Remove style and script elements
+    for (const el of doc.querySelectorAll("style, script, head")) el.remove();
+
+    return nodeToMarkdown(doc.body).replace(/\n{3,}/g, "\n\n").trim();
+  } catch {
+    // Fallback if DOMParser unavailable
+    return null;
+  }
+}
+
+/**
+ * Recursively convert a DOM node tree to Markdown text.
+ */
+function nodeToMarkdown(node) {
+  if (node.nodeType === 3) {
+    // Text node — collapse whitespace
+    return node.textContent.replace(/[ \t]+/g, " ");
+  }
+
+  if (node.nodeType !== 1) return "";
+
+  const tag = node.tagName.toLowerCase();
+
+  // Self-closing / leaf elements
+  if (tag === "br") return "\n";
+  if (tag === "hr") return "\n\n---\n\n";
+
+  if (tag === "img") {
+    const src = node.getAttribute("src") || "";
+    const alt = node.getAttribute("alt") || "";
+    if (!src || src.startsWith("data:")) return ""; // skip inline data URIs / tracking pixels
+    return `![${alt}](${src})`;
+  }
+
+  // Recurse into children
+  const inner = Array.from(node.childNodes).map(nodeToMarkdown).join("");
+  const trimmed = inner.trim();
+
+  if (!trimmed && !["img", "br", "hr"].includes(tag)) return inner;
+
+  // Block elements
+  if (tag === "p" || tag === "div") return `\n\n${trimmed}\n\n`;
+  if (tag === "blockquote") return `\n\n> ${trimmed.replace(/\n/g, "\n> ")}\n\n`;
+  if (/^h[1-6]$/.test(tag)) {
+    const level = Number(tag[1]);
+    return `\n\n${"#".repeat(level)} ${trimmed}\n\n`;
+  }
+  if (tag === "ul" || tag === "ol") return `\n\n${inner}\n\n`;
+  if (tag === "li") {
+    const marker = node.parentElement?.tagName.toLowerCase() === "ol" ? "1." : "-";
+    return `${marker} ${trimmed}\n`;
+  }
+
+  // Inline elements
+  if (tag === "a") {
+    const href = node.getAttribute("href") || "";
+    if (!href || href.startsWith("mailto:")) return trimmed;
+    if (trimmed === href) return href; // don't double-wrap bare URLs
+    return `[${trimmed}](${href})`;
+  }
+  if (tag === "strong" || tag === "b") return `**${trimmed}**`;
+  if (tag === "em" || tag === "i") return `*${trimmed}*`;
+  if (tag === "code") return `\`${trimmed}\``;
+
+  // Table support
+  if (tag === "table") return `\n\n${inner}\n\n`;
+  if (tag === "tr") {
+    const cells = Array.from(node.children)
+      .map(td => nodeToMarkdown(td).trim())
+      .join(" | ");
+    return `| ${cells} |\n`;
+  }
+  if (tag === "td" || tag === "th") return inner;
+  if (tag === "thead") {
+    const headerRow = inner.trim();
+    const colCount = (headerRow.match(/\|/g) || []).length - 1;
+    const sep = "| " + Array(Math.max(colCount, 1)).fill("---").join(" | ") + " |";
+    return `${headerRow}${sep}\n`;
+  }
+  if (tag === "tbody" || tag === "tfoot") return inner;
+
+  // Everything else: just return children
+  return inner;
 }
 
 /**
