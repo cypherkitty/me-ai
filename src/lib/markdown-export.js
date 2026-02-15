@@ -198,9 +198,10 @@ function shortDate(dateStr) {
  *
  * @param {string} content  File contents
  * @param {string} filename Suggested filename
+ * @param {string} [mimeType="text/markdown;charset=utf-8"] MIME type for the blob
  */
-export function downloadText(content, filename) {
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+export function downloadText(content, filename, mimeType = "text/markdown;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

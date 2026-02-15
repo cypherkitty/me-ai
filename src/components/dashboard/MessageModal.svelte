@@ -4,6 +4,7 @@
   import DOMPurify from "dompurify";
   import { formatDate } from "../../lib/email-utils.js";
   import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
+  import { emailToJsonString, emailJsonFilename } from "../../lib/json-export.js";
   import { mountLog } from "../../lib/debug.js";
 
   let { message, loading = false, onclose } = $props();
@@ -18,19 +19,26 @@
   };
   marked.setOptions({ breaks: true, gfm: true, renderer });
 
-  // ── Markdown preview state ────────────────────────────────────────
-  let showMarkdown = $state(false);
-  let mdTab = $state("raw"); // "raw" | "preview"
+  // ── View mode state ──────────────────────────────────────────────
+  // "email" | "markdown" | "json"
+  let viewMode = $state("email");
 
   let markdownText = $derived(message.body ? emailToMarkdown(message) : "");
+  let jsonText = $derived(emailToJsonString(message));
 
-  function toggleMarkdown() {
-    showMarkdown = !showMarkdown;
-    mdTab = "raw";
+  let mdTab = $state("raw"); // "raw" | "preview"
+
+  function setViewMode(mode) {
+    viewMode = viewMode === mode ? "email" : mode;
+    if (mode === "markdown") mdTab = "raw";
   }
 
   function downloadMd() {
     downloadText(markdownText, emailFilename(message));
+  }
+
+  function downloadJson() {
+    downloadText(jsonText, emailJsonFilename(message), "application/json;charset=utf-8");
   }
 
   /** Render markdown to sanitized HTML using marked + DOMPurify */
@@ -53,7 +61,7 @@
   let iframeEl = $state(null);
 
   $effect(() => {
-    if (iframeEl && message.htmlBody && !loading && !showMarkdown) {
+    if (iframeEl && message.htmlBody && !loading && viewMode === "email") {
       // Write HTML into the sandboxed iframe
       const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
       if (doc) {
@@ -100,11 +108,19 @@
     <div class="modal-header">
       <h3 class="modal-subject">{message.subject}</h3>
       <div class="header-actions">
+        <button
+          class="action-btn"
+          class:active={viewMode === "json"}
+          onclick={() => setViewMode("json")}
+          title="View as JSON"
+        >
+          .json
+        </button>
         {#if message.body}
           <button
             class="action-btn"
-            class:active={showMarkdown}
-            onclick={toggleMarkdown}
+            class:active={viewMode === "markdown"}
+            onclick={() => setViewMode("markdown")}
             title="View as Markdown"
           >
             .md
@@ -114,7 +130,19 @@
       </div>
     </div>
 
-    {#if showMarkdown}
+    {#if viewMode === "json"}
+      <!-- ── JSON view ─────────────────────────────────────────────── -->
+      <div class="md-toolbar">
+        <span class="toolbar-label">JSON</span>
+        <button class="action-btn download-btn" onclick={downloadJson} title="Download .json file">
+          Download
+        </button>
+      </div>
+      <div class="md-body">
+        <pre class="md-raw">{jsonText}</pre>
+      </div>
+
+    {:else if viewMode === "markdown"}
       <!-- ── Markdown view ─────────────────────────────────────────── -->
       <div class="md-toolbar">
         <div class="md-tabs">
@@ -142,6 +170,7 @@
           </div>
         {/if}
       </div>
+
     {:else}
       <!-- ── Email view ────────────────────────────────────────────── -->
       <div class="modal-meta">
@@ -338,6 +367,13 @@
     background: #222;
     border-color: #333;
     color: #e8e8e8;
+  }
+  .toolbar-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
   .download-btn {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
