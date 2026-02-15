@@ -13,7 +13,9 @@ alwaysApply: true
 - **@huggingface/transformers** v3.8 — ONNX model inference via WebGPU
 - **Google Identity Services (GIS)** — implicit OAuth token flow
 - **Gmail REST API** — direct `fetch()` with Bearer token
-- **Vitest** — unit testing
+- **marked** — GFM-compliant markdown-to-HTML renderer (for email preview)
+- **DOMPurify** — HTML sanitization (XSS protection for rendered markdown)
+- **Vitest** + **jsdom** — unit testing
 - **No** backend, router library, or state management library
 
 ## File Structure
@@ -39,21 +41,22 @@ src/
       DashboardView.svelte   — Authenticated: profile + search + message list + modal
       ProfileCard.svelte     — Avatar, email, stats, sign out button
       MessageList.svelte     — Rows of messages with sender/subject/date/snippet
-      MessageModal.svelte    — Full message detail modal + Markdown export button
+      MessageModal.svelte    — Full message detail modal, HTML iframe, Markdown preview (marked + DOMPurify)
     shared/
       ErrorCard.svelte       — Reusable error display with parseError() integration
   lib/
     google-auth.js     — GIS wrapper: initGoogleAuth, requestAccessToken, revokeToken
     gmail-api.js       — Gmail REST: getProfile, listMessages, getMessage,
-                         getMessagesBatch, getHeader, getBody, base64url decode
-    markdown-export.js — emailToMarkdown, emailFilename, downloadText
+                         getMessagesBatch, getHeader, getBody, getHtmlBody, base64url decode
+    markdown-export.js — emailToMarkdown, htmlToMarkdownBody, emailFilename, downloadText
     models.js          — MODELS array constant (shared between components)
     format.js          — formatBytes, formatBytesPrecise, progressPct
     error-parser.js    — parseError() — structured error guidance for API errors
     email-utils.js     — parseMessage, formatDate, extractName, initial
     debug.js           — Optional debug logger controlled by localStorage("debug")
     __tests__/
-      markdown-export.test.js — Unit tests for markdown export
+      markdown-export.test.js    — Unit tests for emailToMarkdown, emailFilename
+      html-to-markdown.test.js   — Unit tests for htmlToMarkdownBody (jsdom env)
 index.html             — Entry HTML (no external scripts — GIS loads dynamically)
 .env.example           — VITE_GOOGLE_CLIENT_ID template
 ```
@@ -176,12 +179,15 @@ The Dashboard has a built-in step-by-step setup guide with direct deep links to 
 - HTML stripping uses **`DOMParser`** for correct decoding of all HTML entities (named like `&quot;` and numeric like `&#x27;`), with regex fallback for non-browser contexts
 - Base64url decoding: replaces `-`→`+`, `_`→`/`, **restores `=` padding** (Gmail sends unpadded), then `atob()` + `TextDecoder`
 
-### Markdown export
+### Markdown export & preview
 - `lib/markdown-export.js` converts email messages to `.md` format
-- Output: H1 subject heading, metadata table (From, To, Date), horizontal rule, body text
+- **HTML-to-Markdown conversion**: When `htmlBody` is available, `htmlToMarkdownBody()` uses `DOMParser` to walk the DOM tree and convert to Markdown, preserving images, links, bold, headings, tables, and lists
+- **Tracking pixel filtering**: `isSkippableImage()` filters out 1x1 pixels, data: URIs, spacer GIFs, Amazon `/gp/r.html?` redirect URLs, and generic email open-tracking pixels
+- Output: H1 subject heading, metadata table (From, To, Date), horizontal rule, body content
 - Filenames auto-generated: `YYYY-MM-DD_subject-slug.md`
+- **Preview rendering**: `MessageModal` uses **marked** (GFM mode, `breaks: true`) to render Markdown as HTML, sanitized through **DOMPurify** before injection via `{@html}`. Links open in new tabs via custom renderer.
 - Download triggered via Blob URL + invisible anchor click
-- Export button (`.md`) appears in `MessageModal` header when body is loaded
+- Export button (`.md`) in `MessageModal` header toggles between email view and Markdown preview (Raw/Preview tabs)
 
 ### Stale request guard pattern
 All async Gmail functions check `if (!accessToken) return` after every `await`. This prevents in-flight API responses from writing stale data into state if the user signs out while a request is pending.
@@ -223,7 +229,7 @@ All UI components use `mountLog()` to log lifecycle events. This is useful for v
 
 ## Key Conventions
 
-- **Keep dependencies minimal.** No router, no state lib, no CSS framework.
+- **Keep dependencies minimal.** No router, no state lib, no CSS framework. Only add libs when hand-rolled code is too fragile (e.g. `marked` replaced a broken regex-based markdown renderer).
 - **Everything in the browser.** No backend, no API keys on server, no proxies.
 - **Progressive disclosure.** Landing → model selection → loading → chat. Dashboard: setup → auth → inbox.
 - **WebGPU is required.** Show fallback screen if `navigator.gpu` is undefined. Supported: Chrome 113+, Edge 113+.
@@ -242,3 +248,5 @@ All UI components use `mountLog()` to log lifecycle events. This is useful for v
 7. **Async state after signout.** Every Gmail async function must guard state writes with `if (!accessToken) return` after each `await`.
 8. **GitHub Pages OAuth needs `/me-ai/` subpath.** The redirect URI must include the full deployment path, not just the origin.
 9. **Google Cloud Console propagation delay.** After updating OAuth client settings, changes can take a few minutes to take effect.
+10. **Never use real PII in test fixtures.** Use placeholder data (e.g. `elon@spacex.com`, `Elon Musk`) in tests. The repo is public.
+11. **Always sanitize rendered HTML.** Any `{@html}` usage must go through DOMPurify to prevent XSS. Never inject raw user/API content as HTML.

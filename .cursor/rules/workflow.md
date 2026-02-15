@@ -82,7 +82,8 @@ Both workflows are independent — tests gate PRs, deploy handles releases.
 ### Framework
 
 - **Vitest** — native Vite integration, zero extra config, reuses `vite.config.js`
-- Tests run in Node (not browser) — fast, no DOM overhead for pure logic
+- Tests run in Node by default — fast, no DOM overhead for pure logic
+- Tests that need DOM APIs (e.g. `DOMParser`) use `@vitest-environment jsdom` directive at the top of the file
 
 ### Scripts
 
@@ -99,7 +100,8 @@ Tests live next to the source they cover:
 src/lib/
   markdown-export.js
   __tests__/
-    markdown-export.test.js
+    markdown-export.test.js       — pure logic tests (Node env)
+    html-to-markdown.test.js      — DOM-dependent tests (jsdom env)
 ```
 
 Convention: `src/lib/__tests__/<module>.test.js`
