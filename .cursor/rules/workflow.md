@@ -43,9 +43,12 @@ test/*       — test additions (test/markdown-export)
 
 ### Merging (MANDATORY — all checks must pass before merge)
 
-1. **CI must pass** — verify with `gh pr checks <PR_NUMBER>`. Do NOT merge if any check is failing or pending.
-2. **All PR comments must be addressed** — check with `gh api repos/{owner}/{repo}/pulls/{N}/comments`. Resolve every comment before merging. If a comment requests changes, make the fix, push, and verify CI again.
-3. **ALWAYS squash merge** — use `gh pr merge N --squash`. Never use regular merge or rebase merge. Squash keeps `main` history clean with one commit per feature/fix.
+**For the full step-by-step merge procedure, use the `merge-pr` skill (`.cursor/skills/merge-pr/SKILL.md`).**
+
+Core rules (non-negotiable):
+1. **CI must pass** — do NOT merge if any check is failing or pending.
+2. **All PR comments must be addressed** — resolve every comment before merging.
+3. **ALWAYS squash merge** — `gh pr merge N --squash`. Never regular merge or rebase. Squash keeps `main` history clean with one commit per feature/fix.
 4. After merge, the deploy workflow auto-triggers for `main` pushes.
 5. Pull latest main after merging: `git checkout main && git pull`
 
