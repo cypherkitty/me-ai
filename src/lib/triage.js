@@ -1,36 +1,33 @@
 /**
  * Email triage module.
  *
- * Scans recent emails through the LLM in batches, extracts actionable items
+ * Scans recent emails one-by-one through the LLM, extracts actionable items
  * (todos, calendar events, notes), and stores them in IndexedDB.
+ *
+ * Each email gets its own prompt — keeps context short, generation fast,
+ * and avoids confusing the LLM with multiple unrelated emails at once.
  */
 
 import { db } from "./store/db.js";
 import Dexie from "dexie";
 
 const DEFAULT_COUNT = 20;
-const DEFAULT_BATCH_SIZE = 5;
 
 // ── System prompt ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an email triage assistant. Analyze the emails below and identify which ones require action from the recipient.
+const SYSTEM_PROMPT = `You are an email triage assistant. Analyze the email and decide if it requires action from the recipient.
 
-For each email, output a JSON object. If it needs action, include the extracted items.
-Output ONLY a valid JSON array — no markdown, no explanation, no extra text.
+Output ONLY a valid JSON array of action items — no markdown, no explanation, no extra text.
+If no action is needed, output an empty array: []
 
 Format:
 [
   {
-    "emailIndex": 0,
-    "actions": [
-      {
-        "type": "todo",
-        "title": "Short action title",
-        "description": "Brief description of what needs to be done",
-        "dueDate": "YYYY-MM-DD or null",
-        "priority": "high"
-      }
-    ]
+    "type": "todo",
+    "title": "Short action title",
+    "description": "Brief description of what needs to be done",
+    "dueDate": "YYYY-MM-DD or null",
+    "priority": "high"
   }
 ]
 
@@ -38,7 +35,6 @@ Rules:
 - "type" must be one of: "todo", "calendar", "note"
 - "priority" must be one of: "high", "medium", "low"
 - "dueDate" should be a date string if mentioned, otherwise null
-- If an email needs NO action, use: {"emailIndex": N, "actions": []}
 - Use "todo" for tasks requiring a response or action
 - Use "calendar" for meetings, events, deadlines with specific dates/times
 - Use "note" for important information to remember (shipping updates, policy changes, etc.)
@@ -48,17 +44,17 @@ Rules:
 
 /**
  * Scan recent emails through the LLM to extract action items.
+ * Each email is processed individually for cleaner, faster results.
  *
  * @param {object} engine - Shared LLM engine from llm-engine.js
  * @param {object} options
  * @param {number} [options.count=20] - Number of recent emails to scan
- * @param {number} [options.batchSize=5] - Emails per LLM prompt
  * @param {function} [options.onProgress] - Progress callback
  * @returns {Promise<{scanned: number, actionsFound: number, errors: number}>}
  */
 export async function scanEmails(
   engine,
-  { count = DEFAULT_COUNT, batchSize = DEFAULT_BATCH_SIZE, onProgress = () => {} } = {}
+  { count = DEFAULT_COUNT, onProgress = () => {} } = {}
 ) {
   if (!engine.isReady) {
     throw new Error("Model not loaded. Please load a model first.");
@@ -79,46 +75,40 @@ export async function scanEmails(
     return { scanned: 0, actionsFound: 0, errors: 0 };
   }
 
-  // Step 2: Split into batches
-  const batches = [];
-  for (let i = 0; i < emails.length; i += batchSize) {
-    batches.push(emails.slice(i, i + batchSize));
-  }
-
   const scannedAt = Date.now();
   let totalActions = 0;
   let totalErrors = 0;
 
-  // Step 3: Process each batch
-  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
-    const batch = batches[batchIdx];
+  // Step 2: Process each email individually
+  for (let i = 0; i < emails.length; i++) {
+    const email = emails[i];
 
     onProgress({
       phase: "scanning",
-      message: `Scanning batch ${batchIdx + 1} of ${batches.length}...`,
-      batch: batchIdx + 1,
-      totalBatches: batches.length,
+      message: `Scanning email ${i + 1} of ${emails.length}...`,
+      current: i + 1,
+      total: emails.length,
       actionsFound: totalActions,
     });
 
     try {
-      const prompt = formatBatchPrompt(batch);
+      const prompt = formatEmailPrompt(email);
       const messages = [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ];
 
       const response = await engine.generateFull(messages);
-      const parsed = parseTriageResponse(response);
+      const actions = parseTriageResponse(response);
 
       // Store action items
-      const items = extractActionItems(parsed, batch, scannedAt);
+      const items = extractActionItems(actions, email, scannedAt);
       if (items.length > 0) {
         await db.actionItems.bulkAdd(items);
         totalActions += items.length;
       }
     } catch (e) {
-      console.error(`Triage batch ${batchIdx + 1} failed:`, e);
+      console.error(`Triage email ${i + 1} failed:`, e);
       totalErrors++;
     }
   }
@@ -180,28 +170,23 @@ export async function getActionCounts() {
 
 // ── Prompt formatting ────────────────────────────────────────────────
 
-function formatBatchPrompt(emails) {
-  return emails
-    .map((email, idx) => {
-      const date = email.date
-        ? new Date(email.date).toLocaleDateString("en-US", {
-            weekday: "short", year: "numeric", month: "short", day: "numeric",
-          })
-        : "Unknown date";
-      const body = truncate(email.body || email.snippet || "", 400);
+function formatEmailPrompt(email) {
+  const date = email.date
+    ? new Date(email.date).toLocaleDateString("en-US", {
+        weekday: "short", year: "numeric", month: "short", day: "numeric",
+      })
+    : "Unknown date";
+  const body = truncate(email.body || email.snippet || "", 500);
 
-      return [
-        `--- Email ${idx} ---`,
-        `Subject: ${email.subject}`,
-        `From: ${email.from}`,
-        `To: ${email.to || "me"}`,
-        `Date: ${date}`,
-        `Labels: ${(email.labels || []).join(", ")}`,
-        "",
-        body,
-      ].join("\n");
-    })
-    .join("\n\n");
+  return [
+    `Subject: ${email.subject}`,
+    `From: ${email.from}`,
+    `To: ${email.to || "me"}`,
+    `Date: ${date}`,
+    `Labels: ${(email.labels || []).join(", ")}`,
+    "",
+    body,
+  ].join("\n");
 }
 
 function truncate(str, maxLen) {
@@ -252,43 +237,47 @@ export function parseTriageResponse(response) {
 
 // ── Action item extraction ───────────────────────────────────────────
 
-function extractActionItems(parsed, emails, scannedAt) {
+/**
+ * Convert parsed action objects into storable action items for a single email.
+ *
+ * @param {Array} actions - Parsed actions array from LLM response
+ * @param {object} email - The source email
+ * @param {number} scannedAt - Timestamp of this scan
+ * @returns {Array} Action items ready for IndexedDB
+ */
+function extractActionItems(actions, email, scannedAt) {
   const items = [];
 
-  for (const entry of parsed) {
-    const emailIdx = entry.emailIndex;
-    const email = emails[emailIdx];
-    if (!email || !entry.actions || !Array.isArray(entry.actions)) continue;
+  if (!Array.isArray(actions)) return items;
 
-    for (const action of entry.actions) {
-      if (!action.type || !action.title) continue;
+  for (const action of actions) {
+    if (!action.type || !action.title) continue;
 
-      const type = ["todo", "calendar", "note"].includes(action.type) ? action.type : "note";
-      const priority = ["high", "medium", "low"].includes(action.priority) ? action.priority : "medium";
+    const type = ["todo", "calendar", "note"].includes(action.type) ? action.type : "note";
+    const priority = ["high", "medium", "low"].includes(action.priority) ? action.priority : "medium";
 
-      let dueDate = null;
-      if (action.dueDate && action.dueDate !== "null") {
-        try {
-          dueDate = new Date(action.dueDate).getTime();
-          if (isNaN(dueDate)) dueDate = null;
-        } catch {
-          dueDate = null;
-        }
+    let dueDate = null;
+    if (action.dueDate && action.dueDate !== "null") {
+      try {
+        dueDate = new Date(action.dueDate).getTime();
+        if (isNaN(dueDate)) dueDate = null;
+      } catch {
+        dueDate = null;
       }
-
-      items.push({
-        type,
-        status: "new",
-        title: String(action.title).slice(0, 200),
-        description: String(action.description || "").slice(0, 500),
-        sourceItemId: email.id,
-        sourceSubject: email.subject || "(no subject)",
-        priority,
-        dueDate,
-        createdAt: scannedAt,
-        scannedAt,
-      });
     }
+
+    items.push({
+      type,
+      status: "new",
+      title: String(action.title).slice(0, 200),
+      description: String(action.description || "").slice(0, 500),
+      sourceItemId: email.id,
+      sourceSubject: email.subject || "(no subject)",
+      priority,
+      dueDate,
+      createdAt: scannedAt,
+      scannedAt,
+    });
   }
 
   return items;

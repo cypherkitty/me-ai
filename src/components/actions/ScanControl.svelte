@@ -80,8 +80,8 @@
       <div class="progress-bar">
         <div
           class="progress-fill"
-          style:width="{scanProgress.totalBatches ? (scanProgress.batch / scanProgress.totalBatches) * 100 : 0}%"
-          class:indeterminate={!scanProgress.totalBatches}
+          style:width="{scanProgress.total ? (scanProgress.current / scanProgress.total) * 100 : 0}%"
+          class:indeterminate={!scanProgress.total}
         ></div>
       </div>
       <span class="progress-text">{scanProgress.message || "Scanning..."}</span>
