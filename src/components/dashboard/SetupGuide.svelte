@@ -1,5 +1,10 @@
 <script>
+  import { onMount } from "svelte";
+  import { mountLog } from "../../lib/debug.js";
+
   let { clientIdInput = $bindable(), onsave } = $props();
+
+  onMount(() => mountLog("SetupGuide"));
 </script>
 
 <div class="setup-container">

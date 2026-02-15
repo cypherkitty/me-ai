@@ -1,5 +1,9 @@
 <script>
+  import { onMount } from "svelte";
+  import { mountLog } from "../../lib/debug.js";
   let { msg, isLast = false, isRunning = false, generationPhase = null, numTokens = null } = $props();
+
+  onMount(() => mountLog(`MessageBubble[${msg.role}]`));
 </script>
 
 <div class="bubble {msg.role}">

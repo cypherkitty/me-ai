@@ -1,9 +1,13 @@
 <script>
+  import { onMount } from "svelte";
   import { parseError } from "../../lib/error-parser.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { error, ondismiss = null, onsignout = null } = $props();
 
   let parsed = $derived(parseError(error));
+
+  onMount(() => mountLog("ErrorCard"));
 </script>
 
 <div class="error-card">
