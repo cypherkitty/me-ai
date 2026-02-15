@@ -3,6 +3,25 @@ import { emailToJson, emailToJsonString, emailJsonFilename } from "../json-expor
 
 // ── Fixtures ────────────────────────────────────────────────────────────
 
+/** Simulates a stored message with the raw Gmail API response */
+const GMAIL_RAW = {
+  id: "abc123",
+  threadId: "thread456",
+  labelIds: ["INBOX", "UNREAD"],
+  snippet: "Hi Bob, How are you?",
+  internalDate: "1739558000000",
+  payload: {
+    headers: [
+      { name: "From", value: "Alice <alice@example.com>" },
+      { name: "To", value: "bob@example.com" },
+      { name: "Subject", value: "Hello World" },
+      { name: "Date", value: "Fri, 14 Feb 2026 12:52:00 -0500" },
+    ],
+    mimeType: "text/plain",
+    body: { data: "SGkgQm9i" },
+  },
+};
+
 const FULL_MESSAGE = {
   id: "gmail:abc123",
   sourceType: "gmail",
@@ -11,96 +30,65 @@ const FULL_MESSAGE = {
   type: "email",
   from: "Alice <alice@example.com>",
   to: "bob@example.com",
-  cc: "carol@example.com",
   subject: "Hello World",
-  snippet: "Hi Bob, How are you?",
-  body: "Hi Bob,\n\nHow are you?\n\nBest,\nAlice",
-  htmlBody: "<p>Hi Bob,</p><p>How are you?</p>",
   date: new Date("2026-02-14T12:52:00-05:00").getTime(),
   labels: ["INBOX", "UNREAD"],
-  messageId: "<msg1@example.com>",
-  inReplyTo: null,
-  references: null,
-  raw: { id: "abc123", threadId: "thread456" },
+  raw: GMAIL_RAW,
   syncedAt: 1739558000000,
 };
 
-const MINIMAL_MESSAGE = {
+const MESSAGE_NO_RAW = {
   id: "gmail:xyz",
-  subject: "Minimal",
+  subject: "No raw data",
   date: new Date("2026-01-01T00:00:00Z").getTime(),
 };
 
 // ── emailToJson ─────────────────────────────────────────────────────────
 
 describe("emailToJson", () => {
-  it("includes all content fields", () => {
+  it("returns the exact raw Gmail API response", () => {
     const json = emailToJson(FULL_MESSAGE);
-    expect(json.id).toBe("gmail:abc123");
-    expect(json.type).toBe("email");
-    expect(json.threadKey).toBe("gmail:thread456");
-    expect(json.subject).toBe("Hello World");
-    expect(json.from).toBe("Alice <alice@example.com>");
-    expect(json.to).toBe("bob@example.com");
-    expect(json.cc).toBe("carol@example.com");
+    expect(json).toBe(GMAIL_RAW);
+  });
+
+  it("preserves all Gmail API fields", () => {
+    const json = emailToJson(FULL_MESSAGE);
+    expect(json.id).toBe("abc123");
+    expect(json.threadId).toBe("thread456");
+    expect(json.labelIds).toEqual(["INBOX", "UNREAD"]);
     expect(json.snippet).toBe("Hi Bob, How are you?");
-    expect(json.body).toContain("Hi Bob");
-    expect(json.htmlBody).toContain("<p>Hi Bob,</p>");
-    expect(json.labels).toEqual(["INBOX", "UNREAD"]);
-    expect(json.messageId).toBe("<msg1@example.com>");
+    expect(json.payload.headers).toHaveLength(4);
+    expect(json.payload.mimeType).toBe("text/plain");
   });
 
-  it("includes both raw timestamp and formatted date", () => {
+  it("does not include our normalized fields", () => {
     const json = emailToJson(FULL_MESSAGE);
-    expect(typeof json.date).toBe("number");
-    expect(json.dateFormatted).toBeTruthy();
-    expect(json.dateFormatted).toContain("2026");
-  });
-
-  it("strips internal/sync fields", () => {
-    const json = emailToJson(FULL_MESSAGE);
-    expect(json).not.toHaveProperty("raw");
-    expect(json).not.toHaveProperty("syncedAt");
     expect(json).not.toHaveProperty("sourceType");
-    expect(json).not.toHaveProperty("sourceId");
+    expect(json).not.toHaveProperty("syncedAt");
+    expect(json).not.toHaveProperty("threadKey");
+    expect(json).not.toHaveProperty("type");
   });
 
-  it("handles minimal message with defaults", () => {
-    const json = emailToJson(MINIMAL_MESSAGE);
-    expect(json.id).toBe("gmail:xyz");
-    expect(json.subject).toBe("Minimal");
-    expect(json.from).toBeNull();
-    expect(json.to).toBeNull();
-    expect(json.cc).toBeNull();
-    expect(json.body).toBeNull();
-    expect(json.htmlBody).toBeNull();
-    expect(json.labels).toEqual([]);
-    expect(json.snippet).toBe("");
-    expect(json.type).toBe("email");
-    expect(json.threadKey).toBeNull();
-  });
-
-  it("handles message with no date", () => {
-    const json = emailToJson({ id: "test", subject: "No date" });
-    expect(json.date).toBeNull();
-    expect(json.dateFormatted).toBeNull();
+  it("returns null when raw field is missing", () => {
+    const json = emailToJson(MESSAGE_NO_RAW);
+    expect(json).toBeNull();
   });
 });
 
 // ── emailToJsonString ──────────────────────────────────────────────────
 
 describe("emailToJsonString", () => {
-  it("returns valid JSON string", () => {
+  it("returns valid JSON matching the raw Gmail response", () => {
     const str = emailToJsonString(FULL_MESSAGE);
     const parsed = JSON.parse(str);
-    expect(parsed.subject).toBe("Hello World");
-    expect(parsed.from).toBe("Alice <alice@example.com>");
+    expect(parsed.id).toBe("abc123");
+    expect(parsed.threadId).toBe("thread456");
+    expect(parsed.payload.headers[0].name).toBe("From");
   });
 
   it("is pretty-printed with 2-space indentation", () => {
     const str = emailToJsonString(FULL_MESSAGE);
     expect(str).toContain("\n");
-    // Second line should start with 2 spaces (first property)
     const lines = str.split("\n");
     expect(lines[1]).toMatch(/^ {2}"/);
   });
@@ -110,6 +98,11 @@ describe("emailToJsonString", () => {
     const parsed = JSON.parse(str);
     const str2 = JSON.stringify(parsed, null, 2);
     expect(str).toBe(str2);
+  });
+
+  it("returns 'null' when raw is missing", () => {
+    const str = emailToJsonString(MESSAGE_NO_RAW);
+    expect(str).toBe("null");
   });
 });
 
@@ -135,7 +128,6 @@ describe("emailJsonFilename", () => {
       subject: "A".repeat(100),
       date: new Date("2026-01-01").getTime(),
     });
-    // date prefix + _ + 60 chars max + .json
     expect(name.length).toBeLessThanOrEqual(10 + 1 + 60 + 5);
   });
 
