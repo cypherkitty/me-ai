@@ -66,6 +66,23 @@ export async function getMessagesBatch(token, messageIds, batchSize = 8) {
   return results;
 }
 
+/**
+ * List history events since a given historyId.
+ * Used for incremental sync — returns added/deleted messages since last sync.
+ * Returns { history: [...], historyId, nextPageToken }
+ */
+export function listHistory(
+  token,
+  { startHistoryId, pageToken, maxResults = 500 } = {}
+) {
+  const params = new URLSearchParams();
+  params.set("startHistoryId", startHistoryId);
+  params.set("maxResults", String(maxResults));
+  params.set("historyTypes", "messageAdded,messageDeleted");
+  if (pageToken) params.set("pageToken", pageToken);
+  return api(token, `/history?${params}`);
+}
+
 // ── Helpers for parsing Gmail Message objects ───────────────────────
 
 /** Extract a header value by name (case-insensitive) */
