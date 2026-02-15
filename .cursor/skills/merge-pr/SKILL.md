@@ -41,6 +41,27 @@ gh pr checks <PR_NUMBER>
 - **All checks must pass.** If any check is `pending`, wait and re-check (sleep 15–30s between attempts, up to 5 minutes).
 - If a check **fails**, stop. Report the failure to the user. Do NOT merge.
 
+### Step 2.5: Verify preview deployment
+
+If a `preview` check exists in the PR checks output:
+
+1. Find the preview URL from the PR issue comments (the bot posts it):
+
+```bash
+gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments --jq '.[].body' | grep 'pr-preview'
+```
+
+The preview URL follows the pattern: `https://cypherkitty.github.io/me-ai/pr-preview/pr-<PR_NUMBER>/`
+
+2. Navigate to the preview URL using the browser and verify the page loads:
+   - Use `browser_navigate` to open the preview URL
+   - Use `browser_snapshot` to confirm the page rendered (look for the nav bar with "me-ai", "Chat", "Dashboard" links)
+   - Take a screenshot for the user if needed
+
+3. Report the preview status alongside CI and comment status.
+
+If no `preview` check exists (e.g., docs-only changes), skip this step.
+
 ### Step 3: Check PR comments
 
 ```bash

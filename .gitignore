@@ -4,3 +4,5 @@ dist
 *.local
 .env
 .idea
+test-results
+playwright-report
