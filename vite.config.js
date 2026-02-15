@@ -6,4 +6,7 @@ export default defineConfig({
   // Fallback: "/me-ai/" in CI, "/" locally.
   base: process.env.VITE_BASE || (process.env.GITHUB_ACTIONS ? "/me-ai/" : "/"),
   plugins: [svelte()],
+  test: {
+    exclude: ["e2e/**", "node_modules/**"],
+  },
 });

@@ -12,6 +12,7 @@ alwaysApply: true
 - **NEVER push directly to `main`.**
 - **Every feature, refactor, bug fix, or docs update** must go through a pull request.
 - If no feature branch exists yet, create one before committing.
+- **If the current branch already has an open PR, reuse it.** Push new commits to the same branch — do NOT create a new branch or PR. The existing PR updates automatically.
 - The **only** exception is if the user explicitly says "push to main without a PR".
 
 ### Branch Naming
