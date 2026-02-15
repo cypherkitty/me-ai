@@ -1,46 +1,26 @@
-import { formatDate } from "./email-utils.js";
-
 /**
- * Convert a stored email message to a clean JSON-exportable object.
+ * Extract the raw Gmail API JSON from a stored message.
  *
- * This is the canonical intermediate format for all messages.
- * Pipeline: source (Gmail, etc.) → JSON → markdown / HTML / web page.
- *
- * Internal/sync fields (raw, syncedAt, sourceType, sourceId) are stripped.
- * The date is included both as a Unix timestamp and a human-readable string.
+ * Returns the exact response from GET /gmail/v1/users/me/messages/{id},
+ * as received from the Gmail API. This is the unmodified source-of-truth.
  *
  * @param {object} message - Stored message from IndexedDB
- * @returns {object} Clean JSON-exportable object
+ * @returns {object|null} Raw Gmail API response, or null if not available
  */
 export function emailToJson(message) {
-  return {
-    id: message.id,
-    type: message.type || "email",
-    threadKey: message.threadKey || null,
-    subject: message.subject || "(no subject)",
-    from: message.from || null,
-    to: message.to || null,
-    cc: message.cc || null,
-    date: message.date || null,
-    dateFormatted: message.date ? formatDate(message.date) : null,
-    labels: message.labels || [],
-    snippet: message.snippet || "",
-    body: message.body || null,
-    htmlBody: message.htmlBody || null,
-    messageId: message.messageId || null,
-    inReplyTo: message.inReplyTo || null,
-    references: message.references || null,
-  };
+  return message.raw || null;
 }
 
 /**
- * Serialize an email message to a pretty-printed JSON string.
+ * Serialize the raw Gmail API JSON to a pretty-printed string.
  *
  * @param {object} message - Stored message from IndexedDB
- * @returns {string} Pretty-printed JSON
+ * @returns {string} Pretty-printed JSON of the raw Gmail API response
  */
 export function emailToJsonString(message) {
-  return JSON.stringify(emailToJson(message), null, 2);
+  const raw = emailToJson(message);
+  if (!raw) return "null";
+  return JSON.stringify(raw, null, 2);
 }
 
 /**
