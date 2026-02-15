@@ -21,16 +21,21 @@ After creating a PR or when the user mentions merging, **always ask the user fir
 
 ### Step 1: Identify the PR
 
+First, check if the current branch already has an open PR:
+
+```bash
+gh pr list --head "$(git branch --show-current)"
+```
+
+**If the current branch has an open PR, always reuse it.** Push new commits to the same branch — do NOT create a new branch or a new PR. The existing PR will update automatically.
+
+If no PR exists for the current branch, list all open PRs:
+
 ```bash
 gh pr list --state open
 ```
 
 If multiple PRs are open, ask the user which one to merge.
-If on a feature branch, use the PR for the current branch:
-
-```bash
-gh pr list --head "$(git branch --show-current)"
-```
 
 ### Step 2: Check CI status
 
