@@ -114,6 +114,27 @@ export function getBody(message) {
   return "(no body)";
 }
 
+/**
+ * Extract raw HTML body from a Message resource.
+ * Returns the HTML string if available, or null if only plain text.
+ */
+export function getHtmlBody(message) {
+  const payload = message?.payload;
+  if (!payload) return null;
+
+  // Simple (non-multipart) message — check if it's HTML
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data);
+  }
+
+  // Multipart: find HTML part
+  const parts = payload.parts || [];
+  const html = findPart(parts, "text/html");
+  if (html?.body?.data) return decodeBase64Url(html.body.data);
+
+  return null;
+}
+
 function findPart(parts, mimeType) {
   for (const part of parts) {
     if (part.mimeType === mimeType) return part;
