@@ -26,6 +26,10 @@
   // ── Render markdown to simple HTML for preview ────────────────────
   function renderMarkdown(md) {
     return md
+      // Images: ![alt](url)
+      .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;border-radius:4px;margin:0.5rem 0">')
+      // Links: [text](url)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" style="color:#60a5fa">$1</a>')
       // H1
       .replace(/^# (.+)$/gm, "<h1>$1</h1>")
       // Bold
@@ -37,9 +41,7 @@
       // Table rows: | cell | cell |
       .replace(/^\|(.+)\|$/gm, (_, cells) => {
         const tds = cells.split("|").map(c => c.trim());
-        // Skip separator rows like |---|---|
         if (tds.every(td => /^-+$/.test(td))) return "";
-        const tag = tds.some(td => /^\*\*/.test(td)) ? "td" : "td";
         return "<tr>" + tds.map(td => `<td>${td}</td>`).join("") + "</tr>";
       })
       // Wrap consecutive <tr> in <table>

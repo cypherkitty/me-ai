@@ -12,11 +12,11 @@ const BASIC_MESSAGE = {
 };
 
 const AMAZON_MESSAGE = {
-  subject: "Viacheslav Petc, will you rate your transaction at Amazon.com?",
+  subject: "Elon Musk, will you rate your transaction at Amazon.com?",
   from: "Amazon Marketplace <marketplace-messages@amazon.com>",
-  to: "viacheslav.petc@gmail.com",
+  to: "elon@spacex.com",
   date: "Sat, 14 Feb 2026 12:52:00 +0000",
-  body: "Dear Viacheslav Petc,\nWill you share your experience?",
+  body: "Dear Elon Musk,\nWill you share your experience?",
 };
 
 // ── emailToMarkdown ─────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ describe("emailToMarkdown", () => {
 
     // H1
     expect(lines[0]).toBe(
-      "# Viacheslav Petc, will you rate your transaction at Amazon.com?"
+      "# Elon Musk, will you rate your transaction at Amazon.com?"
     );
     // blank line
     expect(lines[1]).toBe("");
@@ -105,7 +105,7 @@ describe("emailToMarkdown", () => {
     expect(lines[8]).toBe("---");
     expect(lines[9]).toBe("");
     // body
-    expect(lines[10]).toBe("Dear Viacheslav Petc,");
+    expect(lines[10]).toBe("Dear Elon Musk,");
   });
 });
 
