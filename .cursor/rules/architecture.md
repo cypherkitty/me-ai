@@ -250,7 +250,15 @@ if (!accessToken) return; // signed out during fetch
 
 ### Repository
 
-- Repo: `cypherkitty/me-ai` (private)
+- Repo: `cypherkitty/me-ai` (public)
 - Default branch: `main`
-- CI: None configured yet
+- CI: GitHub Actions deploys to GitHub Pages on push to `main`
 - PR reviews: bugbot (automated) provides code review on PRs
+
+## Deployment
+
+- **GitHub Pages**: `https://cypherkitty.github.io/me-ai/`
+- **Workflow**: `.github/workflows/deploy.yml` — builds with Vite, deploys `dist/` via `actions/deploy-pages`
+- **Vite base path**: set conditionally via `process.env.GITHUB_ACTIONS` — `/me-ai/` in CI, `/` for local dev
+- **WebGPU**: requires HTTPS (satisfied by GitHub Pages) and a compatible browser (Chrome 113+, Edge 113+)
+- **Google OAuth on Pages**: user must add `https://cypherkitty.github.io` to their OAuth client's Authorized JavaScript origins and redirect URIs in Google Cloud Console (alongside `http://localhost:5173` for local dev)
