@@ -15,6 +15,7 @@ alwaysApply: true
 - **Gmail REST API** — direct `fetch()` with Bearer token
 - **marked** — GFM-compliant markdown-to-HTML renderer (for email preview)
 - **DOMPurify** — HTML sanitization (XSS protection for rendered markdown)
+- **Dexie.js** — IndexedDB wrapper for universal local data store
 - **Vitest** + **jsdom** — unit testing
 - **No** backend, router library, or state management library
 
@@ -38,8 +39,9 @@ src/
     dashboard/
       SetupGuide.svelte      — 5-step OAuth setup with deep links + copy-to-clipboard
       AuthCard.svelte        — Sign-in button, Google icon, client ID display
-      DashboardView.svelte   — Authenticated: profile + search + message list + modal
+      DashboardView.svelte   — Authenticated: profile + sync + search + message list + modal
       ProfileCard.svelte     — Avatar, email, stats, sign out button
+      SyncStatus.svelte      — Local storage sync: progress bar, status, clear data
       MessageList.svelte     — Rows of messages with sender/subject/date/snippet
       MessageModal.svelte    — Full message detail modal, HTML iframe, Markdown preview (marked + DOMPurify)
     shared/
@@ -54,6 +56,10 @@ src/
     error-parser.js    — parseError() — structured error guidance for API errors
     email-utils.js     — parseMessage, formatDate, extractName, initial
     debug.js           — Optional debug logger controlled by localStorage("debug")
+    store/
+      db.js            — Dexie database definition, schema, makeItemId()
+      gmail-sync.js    — Gmail sync (full + incremental via History API)
+      query-layer.js   — LLM-friendly queries (search, summaries, context)
     __tests__/
       markdown-export.test.js    — Unit tests for emailToMarkdown, emailFilename
       html-to-markdown.test.js   — Unit tests for htmlToMarkdownBody (jsdom env)
@@ -237,6 +243,64 @@ All UI components use `mountLog()` to log lifecycle events. This is useful for v
 - **User-friendly errors.** Never show raw API errors. Always parse through `parseError()` and show actionable guidance.
 - **Accessibility.** Svelte a11y warnings on the modal overlay are suppressed with `<!-- svelte-ignore -->` comments. Escape key closes the modal via a window-level keydown listener.
 
+## Local Data Store (IndexedDB via Dexie.js)
+
+### Architecture
+
+The app includes a universal local data store designed to hold data from multiple sources (Gmail first, extensible to messengers, social networks, etc.). All data lives in IndexedDB, accessed via Dexie.js.
+
+```
+Data Sources (Gmail, future: Telegram, Twitter, etc.)
+    ↓
+Source Adapters (fetch, normalize, sync)
+    ↓
+Universal Data Store (IndexedDB via Dexie)
+    ↓
+Query Layer (LLM context, search, summaries)
+```
+
+### Store Files
+
+```
+src/lib/store/
+  db.js              — Dexie database definition, schema, makeItemId()
+  gmail-sync.js      — Gmail sync adapter (full + incremental via History API)
+  query-layer.js     — LLM-friendly query functions (search, summaries, context building)
+src/components/dashboard/
+  SyncStatus.svelte  — Sync progress UI (download button, progress bar, clear data)
+```
+
+### Database Schema (Dexie)
+
+**`items`** — Universal data items (emails, messages, posts):
+- `id` (PK): `"sourceType:sourceId"` — e.g. `"gmail:18e12345abcd"`
+- `sourceType`, `sourceId`, `threadKey`, `type`
+- `from`, `to`, `cc`, `subject`, `snippet`, `body`, `htmlBody`
+- `date`: Timestamp (indexed). `labels`: String array (multi-entry index)
+- `messageId`, `inReplyTo`, `references`: Email headers for graph building
+- `raw`: Full original API response. `syncedAt`: Download timestamp
+- Compound index: `[sourceType+date]` for efficient per-source date queries
+
+**`contacts`** — People extracted from data items:
+- `++id` (auto), `&email` (unique), `name`, `firstSeen`, `lastSeen`
+
+**`syncState`** — Sync metadata per source:
+- `sourceType` (PK), `historyId`, `lastSyncAt`, `totalItems`
+
+### Gmail Sync
+
+Two modes: **full sync** (first time: paginate up to 500 msgs, batch-fetch, store) and **incremental sync** (subsequent: Gmail History API for adds/deletes only). Falls back to full sync if historyId expired. Supports `AbortSignal` for cancellation.
+
+### LLM Integration
+
+Query layer provides `buildLLMContext()` (compact summary) and `buildEmailContext(query)` (rich context). In `Chat.svelte`, `send()` detects email-related queries via keyword matching and injects appropriate context as a system message.
+
+### Adding New Data Sources
+
+1. Create `src/lib/store/{source}-sync.js` following `gmail-sync.js` pattern
+2. Use `makeItemId("source", id)` for item IDs
+3. Normalize to same item shape. The query layer picks up all sources automatically.
+
 ## Known Gotchas
 
 1. **`DataCloneError`**: Svelte 5 `$state` proxies cannot be passed to `postMessage`. Always map to plain objects first.
@@ -250,3 +314,6 @@ All UI components use `mountLog()` to log lifecycle events. This is useful for v
 9. **Google Cloud Console propagation delay.** After updating OAuth client settings, changes can take a few minutes to take effect.
 10. **Never use real PII in test fixtures.** Use placeholder data (e.g. `elon@spacex.com`, `Elon Musk`) in tests. The repo is public.
 11. **Always sanitize rendered HTML.** Any `{@html}` usage must go through DOMPurify to prevent XSS. Never inject raw user/API content as HTML.
+12. **Gmail History API expiry.** `historyId` values expire after ~30 days. The sync adapter catches 404 errors and falls back to full re-sync automatically.
+13. **IndexedDB storage limits.** Browsers allow ~50-80% of disk. 500 emails ≈ 5-25MB, well within limits. Consider pruning `raw` fields if storage becomes an issue.
+14. **Sync during token expiry.** Long full syncs may outlast the OAuth token. The sync uses `Promise.allSettled` to handle individual fetch failures gracefully.
