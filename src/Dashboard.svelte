@@ -1,9 +1,9 @@
 <script>
   import { onMount } from "svelte";
   import { initGoogleAuth, requestAccessToken, revokeToken } from "./lib/google-auth.js";
-  import { getProfile, listMessages, getMessagesBatch, getBody, getHtmlBody } from "./lib/gmail-api.js";
-  import { parseMessage } from "./lib/email-utils.js";
-  import { syncGmail, getGmailSyncStatus, clearGmailData } from "./lib/store/gmail-sync.js";
+  import { getProfile } from "./lib/gmail-api.js";
+  import { syncGmail, syncGmailMore, getGmailSyncStatus, clearGmailData } from "./lib/store/gmail-sync.js";
+  import { getStoredEmails } from "./lib/store/query-layer.js";
   import SetupGuide from "./components/dashboard/SetupGuide.svelte";
   import AuthCard from "./components/dashboard/AuthCard.svelte";
   import DashboardView from "./components/dashboard/DashboardView.svelte";
@@ -31,33 +31,38 @@
 
   let accessToken = $state(null);
   let profile = $state(null);
-  let emailMessages = $state([]);
-  let nextPageToken = $state(null);
   let selectedMessage = $state(null);
   let searchQuery = $state("");
 
+  // Local message list (from IndexedDB)
+  let emailMessages = $state([]);
+  let totalLocalMessages = $state(0);
+  let localOffset = $state(0);
+  let loadingMessages = $state(false);
+
   let loadingAuth = $state(false);
   let loadingProfile = $state(false);
-  let loadingMessages = $state(false);
-  let loadingDetail = $state(false);
   let error = $state(null);
 
   // ── Sync state ─────────────────────────────────────────────────────
   let syncStatus = $state(null);
   let syncProgress = $state(null);
   let isSyncing = $state(false);
-  let syncAbortController = $state(null);
 
-  // Load sync status on mount and after sign-in
+  const LOCAL_PAGE_SIZE = 50;
+
+  // Load sync status and local messages after sign-in
   $effect(() => {
     if (accessToken) {
       refreshSyncStatus();
+      loadLocalMessages();
     }
   });
 
   // ── Derived state ─────────────────────────────────────────────────
   let needsSetup = $derived(!clientId);
   let isSignedIn = $derived(!!accessToken);
+  let hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
   // ── Initialize Google Auth when Client ID is available ────────────
   $effect(() => {
@@ -85,7 +90,7 @@
     accessToken = null;
     profile = null;
     emailMessages = [];
-    nextPageToken = null;
+    totalLocalMessages = 0;
   }
 
   async function signIn() {
@@ -115,7 +120,7 @@
     accessToken = null;
     profile = null;
     emailMessages = [];
-    nextPageToken = null;
+    totalLocalMessages = 0;
     selectedMessage = null;
     error = null;
   }
@@ -134,58 +139,42 @@
     }
   }
 
-  async function fetchMessages(append = false) {
-    error = null;
+  // ── Local message loading (from IndexedDB) ─────────────────────────
+  async function loadLocalMessages(append = false) {
     loadingMessages = true;
     try {
-      const opts = { maxResults: 20, q: searchQuery || undefined };
-      if (append && nextPageToken) opts.pageToken = nextPageToken;
-
-      const result = await listMessages(accessToken, opts);
-      if (!accessToken) return;
-
-      const ids = (result.messages || []).map((m) => m.id);
-      nextPageToken = result.nextPageToken || null;
-
-      if (ids.length === 0) {
-        if (!append) emailMessages = [];
-        return;
+      const offset = append ? localOffset : 0;
+      const result = await getStoredEmails({
+        query: searchQuery || undefined,
+        limit: LOCAL_PAGE_SIZE,
+        offset,
+      });
+      if (append) {
+        emailMessages = [...emailMessages, ...result.items];
+      } else {
+        emailMessages = result.items;
       }
-
-      const fullMessages = await getMessagesBatch(accessToken, ids);
-      if (!accessToken) return;
-
-      const parsed = fullMessages.map(parseMessage);
-      emailMessages = append ? [...emailMessages, ...parsed] : parsed;
+      totalLocalMessages = result.total;
+      localOffset = emailMessages.length;
     } catch (e) {
-      if (!accessToken) return;
-      error = `Failed to fetch messages: ${e.message}`;
+      error = `Failed to load messages: ${e.message}`;
     } finally {
       loadingMessages = false;
     }
   }
 
-  async function viewMessage(msg) {
+  function searchLocal() {
+    localOffset = 0;
+    loadLocalMessages(false);
+  }
+
+  function loadMoreLocal() {
+    loadLocalMessages(true);
+  }
+
+  function viewMessage(msg) {
+    // Messages from local store already have body and htmlBody
     selectedMessage = msg;
-    if (!msg.body) {
-      loadingDetail = true;
-      try {
-        const { getMessage } = await import("./lib/gmail-api.js");
-        const full = await getMessage(accessToken, msg.id, "full");
-        if (!accessToken) return;
-        const body = getBody(full);
-        const htmlBody = getHtmlBody(full);
-        selectedMessage = { ...msg, body, htmlBody };
-        emailMessages = emailMessages.map((m) =>
-          m.id === msg.id ? { ...m, body, htmlBody } : m
-        );
-      } catch (e) {
-        if (!accessToken) return;
-        error = `Failed to load message: ${e.message}`;
-      } finally {
-        loadingDetail = false;
-      }
-    }
   }
 
   function closeDetail() {
@@ -201,7 +190,7 @@
     }
   }
 
-  async function startSync() {
+  async function startSync(limit) {
     if (isSyncing || !accessToken) return;
 
     error = null;
@@ -209,16 +198,17 @@
     syncProgress = null;
 
     const controller = new AbortController();
-    syncAbortController = controller;
 
     try {
       await syncGmail(accessToken, {
+        limit,
         onProgress: (progress) => {
           syncProgress = { ...progress };
         },
         signal: controller.signal,
       });
       await refreshSyncStatus();
+      await loadLocalMessages(false);
     } catch (e) {
       if (e.name !== "AbortError") {
         if (!accessToken) return;
@@ -226,7 +216,35 @@
       }
     } finally {
       isSyncing = false;
-      syncAbortController = null;
+    }
+  }
+
+  async function startSyncMore(limit) {
+    if (isSyncing || !accessToken) return;
+
+    error = null;
+    isSyncing = true;
+    syncProgress = null;
+
+    const controller = new AbortController();
+
+    try {
+      await syncGmailMore(accessToken, {
+        limit,
+        onProgress: (progress) => {
+          syncProgress = { ...progress };
+        },
+        signal: controller.signal,
+      });
+      await refreshSyncStatus();
+      await loadLocalMessages(false);
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        if (!accessToken) return;
+        error = `Sync more failed: ${e.message}`;
+      }
+    } finally {
+      isSyncing = false;
     }
   }
 
@@ -234,6 +252,9 @@
     try {
       await clearGmailData();
       await refreshSyncStatus();
+      emailMessages = [];
+      totalLocalMessages = 0;
+      localOffset = 0;
     } catch (e) {
       error = `Failed to clear data: ${e.message}`;
     }
@@ -253,21 +274,22 @@
       {profile}
       {loadingProfile}
       {emailMessages}
-      {nextPageToken}
+      {totalLocalMessages}
+      {hasMoreLocal}
       {loadingMessages}
       {selectedMessage}
-      {loadingDetail}
       {syncStatus}
       {syncProgress}
       {isSyncing}
       bind:searchQuery
       onsignout={signOut}
-      onfetch={() => fetchMessages(false)}
-      onfetchmore={() => fetchMessages(true)}
+      onsearch={searchLocal}
+      onloadmore={loadMoreLocal}
       onviewmessage={viewMessage}
       onclosedetail={closeDetail}
       ondismisserror={() => error = null}
       onsync={startSync}
+      onsyncmore={startSyncMore}
       oncleardata={handleClearData}
     />
   {/if}

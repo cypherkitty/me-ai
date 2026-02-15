@@ -349,5 +349,61 @@ function extractShortName(fromStr) {
   return match ? match[1].trim() : fromStr.split("@")[0];
 }
 
+// ── Raw data queries (for UI, not LLM) ─────────────────────────────
+
+/**
+ * Get stored emails as raw objects for UI display.
+ * Sorted by date descending. Supports local text search and pagination.
+ *
+ * @param {object} options
+ * @param {string} [options.query] - Text search (subject, from, snippet)
+ * @param {number} [options.limit=50] - Max results
+ * @param {number} [options.offset=0] - Skip first N results
+ * @returns {Promise<{items: object[], total: number}>}
+ */
+export async function getStoredEmails({ query, limit = 50, offset = 0 } = {}) {
+  let collection;
+
+  if (query) {
+    const q = query.toLowerCase();
+    // Filter all gmail items by text match
+    const allMatching = await db.items
+      .where("sourceType")
+      .equals("gmail")
+      .filter(
+        (item) =>
+          item.subject?.toLowerCase().includes(q) ||
+          item.from?.toLowerCase().includes(q) ||
+          item.to?.toLowerCase().includes(q) ||
+          item.snippet?.toLowerCase().includes(q)
+      )
+      .toArray();
+
+    // Sort by date descending
+    allMatching.sort((a, b) => (b.date || 0) - (a.date || 0));
+
+    return {
+      items: allMatching.slice(offset, offset + limit),
+      total: allMatching.length,
+    };
+  }
+
+  // No query — get all, sorted by date descending
+  const total = await db.items
+    .where("sourceType")
+    .equals("gmail")
+    .count();
+
+  const items = await db.items
+    .where("[sourceType+date]")
+    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+    .reverse()
+    .offset(offset)
+    .limit(limit)
+    .toArray();
+
+  return { items, total };
+}
+
 // Re-export Dexie for use in queries that need min/max keys
 import Dexie from "dexie";

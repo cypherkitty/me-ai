@@ -78,7 +78,9 @@ export function listHistory(
   const params = new URLSearchParams();
   params.set("startHistoryId", startHistoryId);
   params.set("maxResults", String(maxResults));
-  params.set("historyTypes", "messageAdded,messageDeleted");
+  // Gmail API requires historyTypes as repeated params, not comma-separated
+  params.append("historyTypes", "messageAdded");
+  params.append("historyTypes", "messageDeleted");
   if (pageToken) params.set("pageToken", pageToken);
   return api(token, `/history?${params}`);
 }
