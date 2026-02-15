@@ -40,8 +40,9 @@ function escapeCell(text) {
 /**
  * Convert HTML to Markdown, preserving images, links, bold, and structure.
  * Uses DOMParser for accurate conversion.
+ * Exported for testing.
  */
-function htmlToMarkdownBody(html) {
+export function htmlToMarkdownBody(html) {
   try {
     const doc = new DOMParser().parseFromString(html, "text/html");
 
@@ -53,6 +54,33 @@ function htmlToMarkdownBody(html) {
     // Fallback if DOMParser unavailable
     return null;
   }
+}
+
+/**
+ * Detect images that should be skipped in markdown output:
+ * - No src or data: URIs
+ * - Tracking pixels (1x1, tiny images)
+ * - Spacer GIFs (common in email templates)
+ * - Amazon/email tracking redirect URLs for transparent images
+ */
+function isSkippableImage(node, src) {
+  if (!src || src.startsWith("data:")) return true;
+
+  // Check explicit dimensions — skip 1x1 or very small images (tracking pixels)
+  const w = parseInt(node.getAttribute("width"), 10);
+  const h = parseInt(node.getAttribute("height"), 10);
+  if ((w > 0 && w <= 3) || (h > 0 && h <= 3)) return true;
+
+  // Common tracking/spacer patterns in src URL
+  const lower = src.toLowerCase();
+  if (lower.includes("spacer") || lower.includes("transparent") || lower.includes("transp.gif")) return true;
+  if (lower.includes("/track") && lower.includes("pixel")) return true;
+
+  // Amazon tracking redirect URLs that wrap a tiny image
+  // Pattern: amazon.com/gp/r.html?...&M=urn:...  (these are click-tracking wrappers, not real images)
+  if (/amazon\.com\/gp\/r\.html\?/.test(src) && /transp|spacer|nav%2F/i.test(src)) return true;
+
+  return false;
 }
 
 /**
@@ -75,7 +103,7 @@ function nodeToMarkdown(node) {
   if (tag === "img") {
     const src = node.getAttribute("src") || "";
     const alt = node.getAttribute("alt") || "";
-    if (!src || src.startsWith("data:")) return ""; // skip inline data URIs / tracking pixels
+    if (isSkippableImage(node, src)) return "";
     return `![${alt}](${src})`;
   }
 
