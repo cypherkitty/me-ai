@@ -22,20 +22,45 @@ src/
   main.js              — mount(App, { target: #app })
   App.svelte           — Shell: top nav + hash routing (#chat / #dashboard)
                          Global CSS reset, dark theme base, page show/hide
-  Chat.svelte          — AI chat: model selector, loading progress, messages,
-                         generation status, thinking toggle, GPU info panel
-  Dashboard.svelte     — Gmail: OAuth setup guide, sign-in, profile card,
-                         message list with search/pagination, detail modal,
-                         smart error cards with parseError()
+  Chat.svelte          — Orchestrator: state + worker logic, delegates UI to children
+  Dashboard.svelte     — Orchestrator: state + auth logic, delegates UI to children
   worker.js            — Web Worker: model loading, WebGPU check, streaming
                          generation, <think> block detection
+  components/
+    chat/
+      ModelSelector.svelte   — Landing: title, model dropdown, GPU card, Load button
+      LoadingProgress.svelte — Download progress bars with bytes & percentages
+      ChatView.svelte        — Active chat: header, messages area, input row
+      MessageBubble.svelte   — Single message: role, thinking toggle, content, cursor
+      GpuPanel.svelte        — Expandable GPU details grid
+    dashboard/
+      SetupGuide.svelte      — 5-step OAuth Client ID setup card
+      AuthCard.svelte        — Sign-in button, Google icon, client ID display
+      DashboardView.svelte   — Authenticated: profile + search + message list + modal
+      ProfileCard.svelte     — Avatar, email, stats, sign out button
+      MessageList.svelte     — Rows of messages with sender/subject/date/snippet
+      MessageModal.svelte    — Full message detail modal
+    shared/
+      ErrorCard.svelte       — Reusable error display with parseError() integration
   lib/
     google-auth.js     — GIS wrapper: initGoogleAuth, requestAccessToken, revokeToken
     gmail-api.js       — Gmail REST: getProfile, listMessages, getMessage,
                          getMessagesBatch, getHeader, getBody, base64url decode
+    models.js          — MODELS array constant (shared between components)
+    format.js          — formatBytes, formatBytesPrecise, progressPct
+    error-parser.js    — parseError() — structured error guidance for API errors
+    email-utils.js     — parseMessage, formatDate, extractName, initial
 index.html             — Entry HTML (no external scripts — GIS loads dynamically)
 .env.example           — VITE_GOOGLE_CLIENT_ID template
 ```
+
+### Component architecture
+
+**Chat.svelte** (~130 lines) keeps all `$state` declarations, worker setup, and worker message handling. It delegates rendering to `ModelSelector`, `LoadingProgress`, or `ChatView` based on `status`.
+
+**Dashboard.svelte** (~170 lines) keeps all `$state` declarations, auth `$effect`, and async actions (sign in/out, fetch). It delegates rendering to `SetupGuide`, `AuthCard`, or `DashboardView` based on `needsSetup`/`isSignedIn`.
+
+**Prop passing**: Svelte 5 `$props()` in children. Callbacks passed as `onsend`, `onreset`, etc. Two-way binding via `bind:` for simple values (`selectedModel`, `searchQuery`, `clientIdInput`). No stores or context API — the tree is max 2 levels deep.
 
 ## Routing
 
@@ -155,7 +180,7 @@ if (!accessToken) return; // signed out during fetch
 ```
 
 ### Error handling
-`Dashboard.svelte` has a `parseError()` function that detects common Google API errors and returns structured error cards with title, description, fix instructions, and optional action links:
+`lib/error-parser.js` exports `parseError()` which detects common Google API errors and returns structured error cards with title, description, fix instructions, and optional action links. The `ErrorCard.svelte` shared component renders these:
 
 | Error pattern | User sees |
 |--------------|-----------|
