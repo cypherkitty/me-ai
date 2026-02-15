@@ -1,11 +1,14 @@
 <script>
+  import { onMount } from "svelte";
   import { formatBytesPrecise, progressPct } from "../../lib/format.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { message = "", items = [] } = $props();
+
+  onMount(() => mountLog("LoadingProgress"));
 </script>
 
 <div class="container center loading-container">
-  <h1>me-ai</h1>
   <p class="loading-msg">{message}</p>
   {#each items as item}
     {@const pct = item.total ? progressPct(item.loaded || 0, item.total) : null}
@@ -60,11 +63,6 @@
     text-align: center;
     height: 100%;
     gap: 0.75rem;
-  }
-  h1 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
   }
   .loading-container {
     max-width: 520px;

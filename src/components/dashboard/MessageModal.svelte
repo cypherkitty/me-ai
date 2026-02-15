@@ -1,7 +1,11 @@
 <script>
+  import { onMount } from "svelte";
   import { formatDate } from "../../lib/email-utils.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { message, loading = false, onclose } = $props();
+
+  onMount(() => mountLog("MessageModal"));
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

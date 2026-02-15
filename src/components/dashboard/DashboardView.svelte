@@ -1,8 +1,12 @@
 <script>
+  import { onMount } from "svelte";
   import ErrorCard from "../shared/ErrorCard.svelte";
   import ProfileCard from "./ProfileCard.svelte";
   import MessageList from "./MessageList.svelte";
   import MessageModal from "./MessageModal.svelte";
+  import { mountLog } from "../../lib/debug.js";
+
+  onMount(() => mountLog("DashboardView"));
 
   let {
     error = null,

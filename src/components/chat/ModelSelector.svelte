@@ -1,12 +1,15 @@
 <script>
+  import { onMount } from "svelte";
   import { MODELS } from "../../lib/models.js";
   import { formatBytes } from "../../lib/format.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { selectedModel = $bindable(), gpuInfo = null, error = null, onload } = $props();
+
+  onMount(() => mountLog("ModelSelector"));
 </script>
 
 <div class="container center">
-  <h1>me-ai</h1>
   <p class="subtitle">
     A private AI chat that runs <strong>entirely in your browser</strong> using WebGPU.
   </p>
@@ -74,11 +77,6 @@
     text-align: center;
     height: 100%;
     gap: 0.75rem;
-  }
-  h1 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
   }
   .subtitle {
     color: #aaa;

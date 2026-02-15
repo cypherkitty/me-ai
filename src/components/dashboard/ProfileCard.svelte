@@ -1,7 +1,11 @@
 <script>
+  import { onMount } from "svelte";
   import { initial } from "../../lib/email-utils.js";
+  import { mountLog } from "../../lib/debug.js";
 
   let { profile = null, loadingProfile = false, onsignout } = $props();
+
+  onMount(() => mountLog("ProfileCard"));
 </script>
 
 <div class="profile-card">
