@@ -27,7 +27,8 @@
   }
 
   const LOCALHOST = "http://localhost:5173";
-  const PAGES = "https://cypherkitty.github.io";
+  const PAGES_ORIGIN = "https://cypherkitty.github.io";
+  const PAGES_APP = "https://cypherkitty.github.io/me-ai/";
 </script>
 
 <div class="setup-container">
@@ -75,35 +76,41 @@
           <p class="step-label">Add these URLs to your OAuth client. Click to copy:</p>
 
           <div class="url-section">
-            <span class="url-section-title">Authorized JavaScript origins:</span>
+            <span class="url-section-title">Authorized JavaScript origins (no trailing slash):</span>
             <div class="url-chips">
               <button class="url-chip" onclick={() => copy(LOCALHOST)}>
                 <code>{LOCALHOST}</code>
                 <span class="copy-icon">{copiedField === LOCALHOST ? "✓" : "⧉"}</span>
               </button>
-              <button class="url-chip" onclick={() => copy(PAGES)}>
-                <code>{PAGES}</code>
-                <span class="copy-icon">{copiedField === PAGES ? "✓" : "⧉"}</span>
+              <button class="url-chip" onclick={() => copy(PAGES_ORIGIN)}>
+                <code>{PAGES_ORIGIN}</code>
+                <span class="copy-icon">{copiedField === PAGES_ORIGIN ? "✓" : "⧉"}</span>
               </button>
             </div>
           </div>
 
           <div class="url-section">
-            <span class="url-section-title">Authorized redirect URIs:</span>
+            <span class="url-section-title">Authorized redirect URIs (add all three):</span>
             <div class="url-chips">
               <button class="url-chip" onclick={() => copy(LOCALHOST)}>
                 <code>{LOCALHOST}</code>
                 <span class="copy-icon">{copiedField === LOCALHOST ? "✓" : "⧉"}</span>
               </button>
-              <button class="url-chip" onclick={() => copy(PAGES)}>
-                <code>{PAGES}</code>
-                <span class="copy-icon">{copiedField === PAGES ? "✓" : "⧉"}</span>
+              <button class="url-chip" onclick={() => copy(PAGES_ORIGIN)}>
+                <code>{PAGES_ORIGIN}</code>
+                <span class="copy-icon">{copiedField === PAGES_ORIGIN ? "✓" : "⧉"}</span>
+              </button>
+              <button class="url-chip" onclick={() => copy(PAGES_APP)}>
+                <code>{PAGES_APP}</code>
+                <span class="copy-icon">{copiedField === PAGES_APP ? "✓" : "⧉"}</span>
               </button>
             </div>
           </div>
 
           <p class="step-hint">
-            Both localhost (for development) and GitHub Pages (for production) are needed.
+            Both localhost (dev) and GitHub Pages (prod) are needed. The /me-ai/ path
+            is required because the app is deployed at a subpath. Changes may take a
+            few minutes to propagate after saving.
           </p>
         </div>
       </div>
