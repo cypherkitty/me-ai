@@ -82,6 +82,44 @@ gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews
 - If there are **unresolved comments or change requests**, stop. Show the comments to the user and address them. After fixing, push changes and go back to Step 2.
 - If there are **no comments** or all are resolved/approved, proceed.
 
+### Step 3.5: Resolve merge conflicts
+
+Check if the PR has merge conflicts:
+
+```bash
+gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
+```
+
+If `mergeable` is `CONFLICTING`:
+
+1. Update the local branch with latest `main`:
+
+```bash
+git fetch origin main
+git merge origin/main
+```
+
+2. Resolve all conflicts manually. Review each conflicted file carefully — do not blindly accept one side.
+
+3. After resolving, run **all tests locally** to verify nothing broke:
+
+```bash
+npm run test:ci       # unit tests
+npx playwright test   # E2E tests
+```
+
+4. Commit the merge resolution and push:
+
+```bash
+git add .
+git commit -m "merge: resolve conflicts with main"
+git push
+```
+
+5. **Go back to Step 2** — wait for CI to pass again on the updated branch. Do NOT proceed to merge until all PR checks are green.
+
+If `mergeable` is `MERGEABLE`, skip this step.
+
 ### Step 4: Squash merge
 
 **ALWAYS use squash merge. Never regular merge or rebase.**
@@ -110,4 +148,5 @@ Report to the user:
 - **Never merge with failing CI.** Wait or fix first.
 - **Never merge with unaddressed comments.** Resolve everything.
 - **Always squash merge.** Clean history, one commit per feature.
+- **Never merge with conflicts.** Resolve conflicts locally, run all tests, push, and wait for CI to pass again before merging.
 - **Never skip steps.** Even if the user says "just merge it", run all checks first and inform them of any issues.
