@@ -46,11 +46,12 @@ test/*       — test additions (test/markdown-export)
 **For the full step-by-step merge procedure, use the `merge-pr` skill (`.cursor/skills/merge-pr/SKILL.md`).**
 
 Core rules (non-negotiable):
-1. **CI must pass** — do NOT merge if any check is failing or pending.
-2. **All PR comments must be addressed** — resolve every comment before merging.
-3. **ALWAYS squash merge** — `gh pr merge N --squash`. Never regular merge or rebase. Squash keeps `main` history clean with one commit per feature/fix.
-4. After merge, the deploy workflow auto-triggers for `main` pushes.
-5. Pull latest main after merging: `git checkout main && git pull`
+1. **Always ask before merging** — never merge automatically. Report CI/comment status, then ask the user for explicit confirmation. The user may have additional instructions.
+2. **CI must pass** — do NOT merge if any check is failing or pending.
+3. **All PR comments must be addressed** — resolve every comment before merging.
+4. **ALWAYS squash merge** — `gh pr merge N --squash`. Never regular merge or rebase. Squash keeps `main` history clean with one commit per feature/fix.
+5. After merge, the deploy workflow auto-triggers for `main` pushes.
+6. Pull latest main after merging: `git checkout main && git pull`
 
 ## CI Pipeline
 
