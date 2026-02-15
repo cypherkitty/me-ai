@@ -41,6 +41,11 @@
             <li>Authorized JavaScript origins: <code>http://localhost:5173</code></li>
             <li>Authorized redirect URIs: <code>http://localhost:5173</code></li>
           </ul>
+          If deploying to GitHub Pages, also add:
+          <ul>
+            <li>Authorized JavaScript origins: <code>https://cypherkitty.github.io</code></li>
+            <li>Authorized redirect URIs: <code>https://cypherkitty.github.io</code></li>
+          </ul>
         </div>
       </div>
       <div class="step">
