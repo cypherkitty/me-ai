@@ -17,6 +17,13 @@ import Dexie from "dexie";
 export const db = new Dexie("me-ai-store");
 
 db.version(1).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+});
+
+db.version(2).stores({
   // ── Data items (emails, messages, posts, etc.) ─────────────────────
   // id: "sourceType:sourceId" — e.g. "gmail:18e12345abcd"
   items:
@@ -27,6 +34,11 @@ db.version(1).stores({
 
   // ── Sync state per source type ─────────────────────────────────────
   syncState: "sourceType",
+
+  // ── Action items extracted by LLM triage ───────────────────────────
+  // type: "todo" | "calendar" | "note"
+  // status: "new" | "done" | "dismissed"
+  actionItems: "++id, type, status, sourceItemId, createdAt, dueDate, [type+status]",
 });
 
 /**

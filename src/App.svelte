@@ -2,12 +2,20 @@
   import { onMount } from "svelte";
   import Chat from "./Chat.svelte";
   import Dashboard from "./Dashboard.svelte";
+  import Actions from "./Actions.svelte";
 
-  let page = $state(location.hash === "#dashboard" ? "dashboard" : "chat");
+  function getPage() {
+    const hash = location.hash;
+    if (hash === "#dashboard") return "dashboard";
+    if (hash === "#actions") return "actions";
+    return "chat";
+  }
+
+  let page = $state(getPage());
 
   onMount(() => {
     function onHashChange() {
-      page = location.hash === "#dashboard" ? "dashboard" : "chat";
+      page = getPage();
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -19,12 +27,16 @@
     <a class="nav-brand" href="#chat">me-ai</a>
     <div class="nav-links">
       <a href="#chat" class:active={page === "chat"}>Chat</a>
+      <a href="#actions" class:active={page === "actions"}>Actions</a>
       <a href="#dashboard" class:active={page === "dashboard"}>Dashboard</a>
     </div>
   </nav>
   <main>
     <div class="page-view" style:display={page === "chat" ? "flex" : "none"}>
       <Chat />
+    </div>
+    <div class="page-view" style:display={page === "actions" ? "flex" : "none"}>
+      <Actions />
     </div>
     <div class="page-view" style:display={page === "dashboard" ? "flex" : "none"}>
       <Dashboard />
