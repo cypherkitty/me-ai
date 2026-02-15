@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import ErrorCard from "../shared/ErrorCard.svelte";
   import ProfileCard from "./ProfileCard.svelte";
+  import SyncStatus from "./SyncStatus.svelte";
   import MessageList from "./MessageList.svelte";
   import MessageModal from "./MessageModal.svelte";
   import { mountLog } from "../../lib/debug.js";
@@ -17,6 +18,9 @@
     loadingMessages = false,
     selectedMessage = null,
     loadingDetail = false,
+    syncStatus = null,
+    syncProgress = null,
+    isSyncing = false,
     searchQuery = $bindable(),
     onsignout,
     onfetch,
@@ -24,6 +28,8 @@
     onviewmessage,
     onclosedetail,
     ondismisserror,
+    onsync,
+    oncleardata,
   } = $props();
 </script>
 
@@ -33,6 +39,9 @@
   {/if}
 
   <ProfileCard {profile} {loadingProfile} {onsignout} />
+
+  <!-- Local storage sync -->
+  <SyncStatus {syncStatus} {syncProgress} {isSyncing} {onsync} onclear={oncleardata} />
 
   <!-- Search & Fetch -->
   <div class="toolbar">

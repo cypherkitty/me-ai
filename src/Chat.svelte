@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from "svelte";
   import { MODELS } from "./lib/models.js";
+  import { buildLLMContext, buildEmailContext, searchData } from "./lib/store/query-layer.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
@@ -137,13 +138,34 @@
     worker.postMessage({ type: "load", modelId: selectedModel });
   }
 
-  function send(text) {
+  async function send(text) {
     if (!text || isRunning) return;
     messages = [...messages, { role: "user", content: text }];
     tps = null;
     isRunning = true;
+
+    // Build system context from stored data
+    let systemMessages = [];
+    try {
+      // Check if user's message seems email-related for richer context
+      const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail)\b/i;
+      let context;
+      if (emailKeywords.test(text)) {
+        // Provide richer email context for email-related queries
+        context = await buildEmailContext(text);
+      } else {
+        // Lightweight summary for general awareness
+        context = await buildLLMContext();
+      }
+      if (context) {
+        systemMessages = [{ role: "system", content: context }];
+      }
+    } catch {
+      // Non-critical — continue without context
+    }
+
     const plain = messages.map((m) => ({ role: m.role, content: m.content }));
-    worker.postMessage({ type: "generate", data: plain });
+    worker.postMessage({ type: "generate", data: [...systemMessages, ...plain] });
     scrollToBottom();
   }
 

@@ -3,6 +3,7 @@
   import { initGoogleAuth, requestAccessToken, revokeToken } from "./lib/google-auth.js";
   import { getProfile, listMessages, getMessagesBatch, getBody, getHtmlBody } from "./lib/gmail-api.js";
   import { parseMessage } from "./lib/email-utils.js";
+  import { syncGmail, getGmailSyncStatus, clearGmailData } from "./lib/store/gmail-sync.js";
   import SetupGuide from "./components/dashboard/SetupGuide.svelte";
   import AuthCard from "./components/dashboard/AuthCard.svelte";
   import DashboardView from "./components/dashboard/DashboardView.svelte";
@@ -40,6 +41,19 @@
   let loadingMessages = $state(false);
   let loadingDetail = $state(false);
   let error = $state(null);
+
+  // ── Sync state ─────────────────────────────────────────────────────
+  let syncStatus = $state(null);
+  let syncProgress = $state(null);
+  let isSyncing = $state(false);
+  let syncAbortController = $state(null);
+
+  // Load sync status on mount and after sign-in
+  $effect(() => {
+    if (accessToken) {
+      refreshSyncStatus();
+    }
+  });
 
   // ── Derived state ─────────────────────────────────────────────────
   let needsSetup = $derived(!clientId);
@@ -177,6 +191,53 @@
   function closeDetail() {
     selectedMessage = null;
   }
+
+  // ── Sync actions ───────────────────────────────────────────────────
+  async function refreshSyncStatus() {
+    try {
+      syncStatus = await getGmailSyncStatus();
+    } catch {
+      // Silently ignore — non-critical
+    }
+  }
+
+  async function startSync() {
+    if (isSyncing || !accessToken) return;
+
+    error = null;
+    isSyncing = true;
+    syncProgress = null;
+
+    const controller = new AbortController();
+    syncAbortController = controller;
+
+    try {
+      await syncGmail(accessToken, {
+        onProgress: (progress) => {
+          syncProgress = { ...progress };
+        },
+        signal: controller.signal,
+      });
+      await refreshSyncStatus();
+    } catch (e) {
+      if (e.name !== "AbortError") {
+        if (!accessToken) return;
+        error = `Sync failed: ${e.message}`;
+      }
+    } finally {
+      isSyncing = false;
+      syncAbortController = null;
+    }
+  }
+
+  async function handleClearData() {
+    try {
+      await clearGmailData();
+      await refreshSyncStatus();
+    } catch (e) {
+      error = `Failed to clear data: ${e.message}`;
+    }
+  }
 </script>
 
 <div class="dashboard">
@@ -196,6 +257,9 @@
       {loadingMessages}
       {selectedMessage}
       {loadingDetail}
+      {syncStatus}
+      {syncProgress}
+      {isSyncing}
       bind:searchQuery
       onsignout={signOut}
       onfetch={() => fetchMessages(false)}
@@ -203,6 +267,8 @@
       onviewmessage={viewMessage}
       onclosedetail={closeDetail}
       ondismisserror={() => error = null}
+      onsync={startSync}
+      oncleardata={handleClearData}
     />
   {/if}
 </div>
