@@ -4,4 +4,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? "/me-ai/" : "/",
   plugins: [svelte()],
+  test: {
+    exclude: ["e2e/**", "node_modules/**"],
+  },
 });
