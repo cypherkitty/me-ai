@@ -1,14 +1,17 @@
 /**
  * Gmail sync adapter.
  *
- * Handles two sync modes:
- * 1. Full sync — paginate through all messages (up to configurable limit),
- *    fetch full details, and store in IndexedDB.
- * 2. Incremental sync — use Gmail History API to efficiently fetch only
- *    changes (new messages, deletions) since the last sync.
+ * Three operations:
+ * 1. syncGmail()  — First time: full sync (configurable limit, default 50).
+ *                   Subsequent: incremental sync via History API (new + deleted).
+ * 2. syncGmailMore() — Continue downloading older messages beyond the initial sync.
+ * 3. clearGmailData() — Wipe all local Gmail data.
  *
- * Incremental sync falls back to full sync if the saved historyId has expired
- * (Gmail keeps history for ~30 days, varies by account).
+ * syncState tracks:
+ * - historyId — for incremental sync
+ * - oldestPageToken — resume point for "sync more" (null = all synced)
+ * - hasMore — whether there are older messages to download
+ * - totalItems — count of locally stored items
  */
 
 import { db, makeItemId } from "./db.js";
@@ -24,22 +27,27 @@ import {
 
 const SOURCE_TYPE = "gmail";
 const BATCH_SIZE = 8;
-const INITIAL_SYNC_LIMIT = 500;
+const DEFAULT_SYNC_LIMIT = 50;
 const PAGE_SIZE = 100;
 
 // ── Public API ──────────────────────────────────────────────────────
 
 /**
- * Main sync entry point. Decides between full and incremental sync.
+ * Main sync entry point.
+ * - First sync: downloads `limit` most recent messages.
+ * - Subsequent syncs: incremental via History API (adds + deletes).
  *
  * @param {string} token - OAuth access token
  * @param {object} options
- * @param {function} options.onProgress - Progress callback
- *   ({ phase, current, total, message })
- * @param {AbortSignal} [options.signal] - Optional abort signal to cancel sync
+ * @param {number} [options.limit=50] - Max messages for initial sync (0 = Infinity/all)
+ * @param {function} [options.onProgress] - Progress callback
+ * @param {AbortSignal} [options.signal] - Optional abort signal
  * @returns {Promise<{added: number, deleted: number, errors: number}>}
  */
-export async function syncGmail(token, { onProgress = () => {}, signal } = {}) {
+export async function syncGmail(
+  token,
+  { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
+) {
   const state = await db.syncState.get(SOURCE_TYPE);
 
   if (state?.historyId) {
@@ -50,34 +58,69 @@ export async function syncGmail(token, { onProgress = () => {}, signal } = {}) {
       if (
         e.message?.includes("404") ||
         e.message?.includes("notFound") ||
-        e.message?.includes("Start history id")
+        e.message?.includes("Start history id") ||
+        e.message?.includes("history_types")
       ) {
         onProgress({
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
+        // Clear stale state so full sync starts fresh
+        await db.syncState.delete(SOURCE_TYPE);
       } else {
         throw e;
       }
     }
   }
 
-  return await fullSync(token, onProgress, signal);
+  const effectiveLimit = limit === 0 ? Infinity : limit;
+  return await fullSync(token, effectiveLimit, onProgress, signal);
+}
+
+/**
+ * Continue downloading older messages beyond the initial sync.
+ * Resumes from where the last full sync left off.
+ *
+ * @param {string} token - OAuth access token
+ * @param {object} options
+ * @param {number} [options.limit=50] - How many more to download (0 = all remaining)
+ * @param {function} [options.onProgress] - Progress callback
+ * @param {AbortSignal} [options.signal] - Optional abort signal
+ * @returns {Promise<{added: number, errors: number}>}
+ */
+export async function syncGmailMore(
+  token,
+  { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
+) {
+  const state = await db.syncState.get(SOURCE_TYPE);
+  if (!state?.oldestPageToken) {
+    onProgress({ phase: "done", message: "All messages already synced" });
+    return { added: 0, errors: 0 };
+  }
+
+  const effectiveLimit = limit === 0 ? Infinity : limit;
+  return await continueFetch(
+    token,
+    state,
+    effectiveLimit,
+    onProgress,
+    signal
+  );
 }
 
 /**
  * Get current sync status for Gmail.
- * @returns {Promise<{synced: boolean, totalItems: number, lastSyncAt: number|null}>}
  */
 export async function getGmailSyncStatus() {
   const state = await db.syncState.get(SOURCE_TYPE);
-  if (!state) return { synced: false, totalItems: 0, lastSyncAt: null };
+  if (!state) return { synced: false, totalItems: 0, lastSyncAt: null, hasMore: false };
 
   return {
     synced: true,
     totalItems: state.totalItems || 0,
     lastSyncAt: state.lastSyncAt,
     historyId: state.historyId,
+    hasMore: !!state.oldestPageToken,
   };
 }
 
@@ -98,32 +141,29 @@ export async function getGmailItemCount() {
   return db.items.where("sourceType").equals(SOURCE_TYPE).count();
 }
 
-// ── Full sync ───────────────────────────────────────────────────────
+// ── Full sync (initial) ─────────────────────────────────────────────
 
-async function fullSync(token, onProgress, signal) {
+async function fullSync(token, limit, onProgress, signal) {
   onProgress({ phase: "counting", message: "Getting mailbox info..." });
   throwIfAborted(signal);
 
   const profile = await getProfile(token);
-  const totalEstimate = Math.min(
-    profile.messagesTotal || INITIAL_SYNC_LIMIT,
-    INITIAL_SYNC_LIMIT
-  );
 
-  // Step 1: Collect message IDs (paginated)
+  // Step 1: Collect message IDs (paginated, up to limit)
   onProgress({
     phase: "listing",
     message: "Listing messages...",
     current: 0,
-    total: totalEstimate,
+    total: Math.min(profile.messagesTotal || limit, limit),
   });
 
   const allIds = [];
   let pageToken = undefined;
+  let nextPageAfterLimit = null;
 
-  while (allIds.length < INITIAL_SYNC_LIMIT) {
+  while (allIds.length < limit) {
     throwIfAborted(signal);
-    const remaining = INITIAL_SYNC_LIMIT - allIds.length;
+    const remaining = limit - allIds.length;
     const result = await listMessages(token, {
       maxResults: Math.min(PAGE_SIZE, remaining),
       pageToken,
@@ -136,12 +176,15 @@ async function fullSync(token, onProgress, signal) {
       phase: "listing",
       message: `Listed ${allIds.length} messages...`,
       current: allIds.length,
-      total: totalEstimate,
+      total: Math.min(profile.messagesTotal || limit, limit),
     });
 
     pageToken = result.nextPageToken;
     if (!pageToken || ids.length === 0) break;
   }
+
+  // If we stopped before exhausting all messages, save the page token
+  nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
     await db.syncState.put({
@@ -149,58 +192,31 @@ async function fullSync(token, onProgress, signal) {
       historyId: profile.historyId,
       lastSyncAt: Date.now(),
       totalItems: 0,
+      oldestPageToken: null,
     });
     return { added: 0, deleted: 0, errors: 0 };
   }
 
-  // Step 2: Batch-fetch full message details and store
-  onProgress({
-    phase: "downloading",
-    message: "Downloading messages...",
-    current: 0,
-    total: allIds.length,
-  });
-
-  let added = 0;
-  let errors = 0;
-
-  for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
-    throwIfAborted(signal);
-
-    const batch = allIds.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map((id) => getMessage(token, id))
-    );
-
-    const items = [];
-    for (const result of results) {
-      if (result.status === "fulfilled") {
-        items.push(normalizeGmailMessage(result.value));
-      } else {
-        errors++;
-      }
-    }
-
-    if (items.length > 0) {
-      await db.items.bulkPut(items);
-      await upsertContacts(items);
-    }
-
-    added += items.length;
-    onProgress({
-      phase: "downloading",
-      message: `Downloaded ${added} of ${allIds.length} messages`,
-      current: added,
-      total: allIds.length,
-    });
-  }
+  // Step 2: Batch-fetch and store
+  const { added, errors } = await batchFetchAndStore(
+    token,
+    allIds,
+    onProgress,
+    signal
+  );
 
   // Step 3: Save sync state
+  const totalItems = await db.items
+    .where("sourceType")
+    .equals(SOURCE_TYPE)
+    .count();
+
   await db.syncState.put({
     sourceType: SOURCE_TYPE,
     historyId: profile.historyId,
     lastSyncAt: Date.now(),
-    totalItems: added,
+    totalItems,
+    oldestPageToken: nextPageAfterLimit,
   });
 
   onProgress({
@@ -211,6 +227,84 @@ async function fullSync(token, onProgress, signal) {
   });
 
   return { added, deleted: 0, errors };
+}
+
+// ── Continue fetch (sync more older messages) ───────────────────────
+
+async function continueFetch(token, state, limit, onProgress, signal) {
+  onProgress({
+    phase: "listing",
+    message: "Loading more messages...",
+    current: 0,
+  });
+  throwIfAborted(signal);
+
+  const allIds = [];
+  let pageToken = state.oldestPageToken;
+  let nextPageAfterLimit = null;
+
+  while (allIds.length < limit) {
+    throwIfAborted(signal);
+    const remaining = limit - allIds.length;
+    const result = await listMessages(token, {
+      maxResults: Math.min(PAGE_SIZE, remaining),
+      pageToken,
+    });
+
+    const ids = (result.messages || []).map((m) => m.id);
+    allIds.push(...ids);
+
+    onProgress({
+      phase: "listing",
+      message: `Listed ${allIds.length} more messages...`,
+      current: allIds.length,
+    });
+
+    pageToken = result.nextPageToken;
+    if (!pageToken || ids.length === 0) break;
+  }
+
+  nextPageAfterLimit = pageToken || null;
+
+  if (allIds.length === 0) {
+    await db.syncState.update(SOURCE_TYPE, {
+      oldestPageToken: null,
+      lastSyncAt: Date.now(),
+    });
+    onProgress({ phase: "done", message: "All messages synced" });
+    return { added: 0, errors: 0 };
+  }
+
+  // Batch-fetch and store
+  const { added, errors } = await batchFetchAndStore(
+    token,
+    allIds,
+    onProgress,
+    signal
+  );
+
+  // Update sync state
+  const totalItems = await db.items
+    .where("sourceType")
+    .equals(SOURCE_TYPE)
+    .count();
+
+  await db.syncState.update(SOURCE_TYPE, {
+    totalItems,
+    lastSyncAt: Date.now(),
+    oldestPageToken: nextPageAfterLimit,
+  });
+
+  onProgress({
+    phase: "done",
+    message: nextPageAfterLimit
+      ? `Downloaded ${added} more (more available)`
+      : `Downloaded ${added} more (all synced)`,
+    current: totalItems,
+    total: totalItems,
+  });
+
+  return { added, errors };
 }
 
 // ── Incremental sync ────────────────────────────────────────────────
@@ -242,10 +336,7 @@ async function incrementalSync(token, state, onProgress, signal) {
       // Handle added messages
       if (record.messagesAdded) {
         const newIds = record.messagesAdded.map((m) => m.message.id);
-        // Deduplicate — same message can appear in multiple history records
-        const uniqueIds = [
-          ...new Set(newIds.filter((id) => id)),
-        ];
+        const uniqueIds = [...new Set(newIds.filter((id) => id))];
 
         if (uniqueIds.length > 0) {
           const results = await Promise.allSettled(
@@ -300,6 +391,7 @@ async function incrementalSync(token, state, onProgress, signal) {
     historyId: newHistoryId,
     lastSyncAt: Date.now(),
     totalItems,
+    oldestPageToken: state.oldestPageToken, // preserve
   });
 
   onProgress({
@@ -315,12 +407,55 @@ async function incrementalSync(token, state, onProgress, signal) {
   return { added, deleted, errors };
 }
 
+// ── Shared: batch fetch and store ───────────────────────────────────
+
+async function batchFetchAndStore(token, ids, onProgress, signal) {
+  onProgress({
+    phase: "downloading",
+    message: "Downloading messages...",
+    current: 0,
+    total: ids.length,
+  });
+
+  let added = 0;
+  let errors = 0;
+
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    throwIfAborted(signal);
+
+    const batch = ids.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((id) => getMessage(token, id))
+    );
+
+    const items = [];
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        items.push(normalizeGmailMessage(result.value));
+      } else {
+        errors++;
+      }
+    }
+
+    if (items.length > 0) {
+      await db.items.bulkPut(items);
+      await upsertContacts(items);
+    }
+
+    added += items.length;
+    onProgress({
+      phase: "downloading",
+      message: `Downloaded ${added} of ${ids.length} messages`,
+      current: added,
+      total: ids.length,
+    });
+  }
+
+  return { added, errors };
+}
+
 // ── Normalization ───────────────────────────────────────────────────
 
-/**
- * Convert a Gmail API Message resource to our universal item format.
- * Preserves raw data for future graph building / analysis.
- */
 function normalizeGmailMessage(msg) {
   const from = getHeader(msg, "From");
   const to = getHeader(msg, "To");
@@ -333,7 +468,11 @@ function normalizeGmailMessage(msg) {
 
   let date;
   try {
-    date = dateStr ? new Date(dateStr).getTime() : msg.internalDate ? Number(msg.internalDate) : Date.now();
+    date = dateStr
+      ? new Date(dateStr).getTime()
+      : msg.internalDate
+        ? Number(msg.internalDate)
+        : Date.now();
   } catch {
     date = Date.now();
   }
@@ -353,11 +492,9 @@ function normalizeGmailMessage(msg) {
     htmlBody: getHtmlBody(msg),
     date,
     labels: msg.labelIds || [],
-    // Headers useful for graph building (reply chains, threading)
     messageId,
     inReplyTo,
     references,
-    // Preserve full API response for future analysis
     raw: msg,
     syncedAt: Date.now(),
   };
@@ -365,17 +502,12 @@ function normalizeGmailMessage(msg) {
 
 // ── Contact extraction ──────────────────────────────────────────────
 
-/**
- * Extract contacts from items and upsert into contacts table.
- * Builds the social graph incrementally.
- */
 async function upsertContacts(items) {
   const contactMap = new Map();
 
   for (const item of items) {
     for (const field of [item.from, item.to, item.cc]) {
       if (!field) continue;
-      // Handle comma-separated addresses
       const addresses = field
         .split(",")
         .map((s) => s.trim())
@@ -408,14 +540,11 @@ async function upsertContacts(items) {
         });
       }
     } catch {
-      // Silently skip duplicate/constraint errors during concurrent upserts
+      // Silently skip duplicate/constraint errors
     }
   }
 }
 
-/**
- * Parse "Name <email@example.com>" or plain "email@example.com" format.
- */
 function parseEmailAddress(str) {
   if (!str) return null;
   const match = str.match(/<([^>]+)>/);
@@ -427,7 +556,6 @@ function parseEmailAddress(str) {
       .trim();
     return { email, name };
   }
-  // Plain email address
   const email = str.toLowerCase().trim();
   if (email.includes("@")) {
     return { email, name: "" };

@@ -14,21 +14,22 @@
     profile = null,
     loadingProfile = false,
     emailMessages = [],
-    nextPageToken = null,
+    totalLocalMessages = 0,
+    hasMoreLocal = false,
     loadingMessages = false,
     selectedMessage = null,
-    loadingDetail = false,
     syncStatus = null,
     syncProgress = null,
     isSyncing = false,
     searchQuery = $bindable(),
     onsignout,
-    onfetch,
-    onfetchmore,
+    onsearch,
+    onloadmore,
     onviewmessage,
     onclosedetail,
     ondismisserror,
     onsync,
+    onsyncmore,
     oncleardata,
   } = $props();
 </script>
@@ -41,50 +42,62 @@
   <ProfileCard {profile} {loadingProfile} {onsignout} />
 
   <!-- Local storage sync -->
-  <SyncStatus {syncStatus} {syncProgress} {isSyncing} {onsync} onclear={oncleardata} />
+  <SyncStatus {syncStatus} {syncProgress} {isSyncing} {onsync} {onsyncmore} onclear={oncleardata} />
 
-  <!-- Search & Fetch -->
+  <!-- Local search -->
   <div class="toolbar">
     <input
       type="text"
       class="search-input"
-      placeholder="Search Gmail (e.g. from:alice subject:meeting)..."
+      placeholder="Search stored emails (subject, sender, snippet)..."
       bind:value={searchQuery}
-      onkeydown={(e) => e.key === "Enter" && onfetch()}
+      onkeydown={(e) => e.key === "Enter" && onsearch()}
     />
-    <button class="btn primary" onclick={onfetch} disabled={loadingMessages}>
-      {loadingMessages ? "Loading..." : "Fetch Messages"}
+    <button class="btn primary" onclick={onsearch} disabled={loadingMessages}>
+      {loadingMessages ? "Searching..." : "Search"}
     </button>
   </div>
 
-  <!-- Message List -->
+  <!-- Message List (from local store) -->
   {#if emailMessages.length > 0}
+    <div class="list-header">
+      <span class="list-count">
+        Showing {emailMessages.length} of {totalLocalMessages.toLocaleString()}
+        {searchQuery ? " matching" : ""} emails
+      </span>
+    </div>
     <MessageList messages={emailMessages} onselect={onviewmessage} />
 
-    {#if nextPageToken}
+    {#if hasMoreLocal}
       <div class="load-more">
-        <button class="btn" onclick={onfetchmore} disabled={loadingMessages}>
+        <button class="btn" onclick={onloadmore} disabled={loadingMessages}>
           {loadingMessages ? "Loading..." : "Load More"}
         </button>
       </div>
     {/if}
-  {:else if !loadingMessages}
-    <div class="empty-state">
-      <p>Click "Fetch Messages" to load your Gmail inbox.</p>
-    </div>
-  {/if}
-
-  {#if loadingMessages && emailMessages.length === 0}
+  {:else if loadingMessages}
     <div class="loading-state">
       <span class="spinner"></span>
       <span>Loading messages...</span>
+    </div>
+  {:else if syncStatus?.synced}
+    <div class="empty-state">
+      {#if searchQuery}
+        <p>No emails match "{searchQuery}".</p>
+      {:else}
+        <p>No emails in local storage. Click "Sync New" to download.</p>
+      {/if}
+    </div>
+  {:else}
+    <div class="empty-state">
+      <p>Sync your emails to browse them locally.</p>
     </div>
   {/if}
 </div>
 
 <!-- Message Detail Modal -->
 {#if selectedMessage}
-  <MessageModal message={selectedMessage} loading={loadingDetail} onclose={onclosedetail} />
+  <MessageModal message={selectedMessage} loading={false} onclose={onclosedetail} />
 {/if}
 
 <style>
@@ -112,6 +125,15 @@
   }
   .search-input:focus {
     border-color: #3b82f6;
+  }
+
+  /* ── List header ───────────────────────────────────────────────────── */
+  .list-header {
+    padding: 0.3rem 0.5rem 0.5rem;
+  }
+  .list-count {
+    font-size: 0.75rem;
+    color: #666;
   }
 
   /* ── Load More ───────────────────────────────────────────────────── */

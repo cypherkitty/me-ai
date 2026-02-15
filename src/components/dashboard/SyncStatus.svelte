@@ -9,10 +9,20 @@
     syncProgress = null,
     isSyncing = false,
     onsync,
+    onsyncmore,
     onclear,
   } = $props();
 
   let showClearConfirm = $state(false);
+  let syncLimit = $state(50);
+
+  const LIMIT_OPTIONS = [
+    { value: 50, label: "50" },
+    { value: 100, label: "100" },
+    { value: 200, label: "200" },
+    { value: 500, label: "500" },
+    { value: 0, label: "All" },
+  ];
 
   function formatTimeAgo(timestamp) {
     if (!timestamp) return "never";
@@ -49,6 +59,11 @@
         <span class="sync-meta">
           {syncStatus.totalItems.toLocaleString()} emails stored
           · synced {formatTimeAgo(syncStatus.lastSyncAt)}
+          {#if syncStatus.hasMore}
+            · more available
+          {:else}
+            · all synced
+          {/if}
         </span>
       {:else}
         <span class="sync-meta">Not synced yet</span>
@@ -66,19 +81,46 @@
           </svg>
         </button>
       {/if}
-      <button
-        class="btn sync-btn"
-        onclick={onsync}
-        disabled={isSyncing}
-      >
-        {#if isSyncing}
-          Syncing...
-        {:else if syncStatus?.synced}
-          Sync Now
-        {:else}
-          Download Emails
+    </div>
+  </div>
+
+  <!-- Sync controls -->
+  <div class="sync-controls">
+    <div class="limit-group">
+      <label class="limit-label" for="sync-limit">Batch:</label>
+      <select id="sync-limit" class="limit-select" bind:value={syncLimit} disabled={isSyncing}>
+        {#each LIMIT_OPTIONS as opt}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="sync-buttons">
+      {#if syncStatus?.synced}
+        <button
+          class="btn sync-btn"
+          onclick={() => onsync(syncLimit)}
+          disabled={isSyncing}
+        >
+          {isSyncing ? "Syncing..." : "Sync New"}
+        </button>
+        {#if syncStatus.hasMore}
+          <button
+            class="btn sync-btn primary"
+            onclick={() => onsyncmore(syncLimit)}
+            disabled={isSyncing}
+          >
+            {isSyncing ? "Loading..." : "Sync More"}
+          </button>
         {/if}
-      </button>
+      {:else}
+        <button
+          class="btn sync-btn primary"
+          onclick={() => onsync(syncLimit)}
+          disabled={isSyncing}
+        >
+          {isSyncing ? "Syncing..." : "Download Emails"}
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -158,14 +200,55 @@
     flex-shrink: 0;
   }
 
+  /* ── Sync controls row ──────────────────────────────────────────── */
+  .sync-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.6rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #222;
+  }
+
+  .limit-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .limit-label {
+    font-size: 0.75rem;
+    color: #666;
+  }
+
+  .limit-select {
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: #1a1a1a;
+    color: #e8e8e8;
+    font-size: 0.75rem;
+    outline: none;
+    cursor: pointer;
+  }
+  .limit-select:focus {
+    border-color: #3b82f6;
+  }
+
+  .sync-buttons {
+    display: flex;
+    gap: 0.4rem;
+  }
+
   /* ── Buttons ─────────────────────────────────────────────────────── */
   .sync-btn {
-    padding: 0.35rem 0.9rem;
+    padding: 0.3rem 0.8rem;
     border: 1px solid #3b82f6;
     border-radius: 8px;
     background: transparent;
     color: #3b82f6;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
@@ -178,6 +261,13 @@
   .sync-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .sync-btn.primary {
+    background: #3b82f6;
+    color: #fff;
+  }
+  .sync-btn.primary:hover:not(:disabled) {
+    background: #2563eb;
   }
 
   .btn-icon {
