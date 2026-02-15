@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { initGoogleAuth, requestAccessToken, revokeToken } from "./lib/google-auth.js";
-  import { getProfile, listMessages, getMessagesBatch, getBody } from "./lib/gmail-api.js";
+  import { getProfile, listMessages, getMessagesBatch, getBody, getHtmlBody } from "./lib/gmail-api.js";
   import { parseMessage } from "./lib/email-utils.js";
   import SetupGuide from "./components/dashboard/SetupGuide.svelte";
   import AuthCard from "./components/dashboard/AuthCard.svelte";
@@ -160,9 +160,10 @@
         const full = await getMessage(accessToken, msg.id, "full");
         if (!accessToken) return;
         const body = getBody(full);
-        selectedMessage = { ...msg, body };
+        const htmlBody = getHtmlBody(full);
+        selectedMessage = { ...msg, body, htmlBody };
         emailMessages = emailMessages.map((m) =>
-          m.id === msg.id ? { ...m, body } : m
+          m.id === msg.id ? { ...m, body, htmlBody } : m
         );
       } catch (e) {
         if (!accessToken) return;

@@ -8,11 +8,86 @@
 
   onMount(() => mountLog("MessageModal"));
 
-  function exportMarkdown() {
-    const md = emailToMarkdown(message);
-    const filename = emailFilename(message);
-    downloadText(md, filename);
+  // ── Markdown preview state ────────────────────────────────────────
+  let showMarkdown = $state(false);
+  let mdTab = $state("raw"); // "raw" | "preview"
+
+  let markdownText = $derived(message.body ? emailToMarkdown(message) : "");
+
+  function toggleMarkdown() {
+    showMarkdown = !showMarkdown;
+    mdTab = "raw";
   }
+
+  function downloadMd() {
+    downloadText(markdownText, emailFilename(message));
+  }
+
+  // ── Render markdown to simple HTML for preview ────────────────────
+  function renderMarkdown(md) {
+    return md
+      // H1
+      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+      // Bold
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      // Italic
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      // Horizontal rule
+      .replace(/^---$/gm, "<hr>")
+      // Table rows: | cell | cell |
+      .replace(/^\|(.+)\|$/gm, (_, cells) => {
+        const tds = cells.split("|").map(c => c.trim());
+        // Skip separator rows like |---|---|
+        if (tds.every(td => /^-+$/.test(td))) return "";
+        const tag = tds.some(td => /^\*\*/.test(td)) ? "td" : "td";
+        return "<tr>" + tds.map(td => `<td>${td}</td>`).join("") + "</tr>";
+      })
+      // Wrap consecutive <tr> in <table>
+      .replace(/((?:<tr>.*<\/tr>\n?)+)/g, "<table>$1</table>")
+      // Paragraphs: lines that aren't already wrapped in tags
+      .replace(/^(?!<[a-z])((?!^$).+)$/gm, "<p>$1</p>")
+      // Clean up empty paragraphs
+      .replace(/<p>\s*<\/p>/g, "");
+  }
+
+  // ── Sandboxed HTML iframe ─────────────────────────────────────────
+  let iframeEl = $state(null);
+
+  $effect(() => {
+    if (iframeEl && message.htmlBody && !loading && !showMarkdown) {
+      // Write HTML into the sandboxed iframe
+      const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                font-size: 14px;
+                line-height: 1.5;
+                color: #e0e0e0;
+                background: #1a1a1a;
+                margin: 0;
+                padding: 16px;
+                word-break: break-word;
+              }
+              a { color: #60a5fa; }
+              img { max-width: 100%; height: auto; }
+              table { border-collapse: collapse; max-width: 100%; }
+              td, th { padding: 4px 8px; }
+            </style>
+          </head>
+          <body>${message.htmlBody}</body>
+          </html>
+        `);
+        doc.close();
+      }
+    }
+  });
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -27,39 +102,83 @@
       <h3 class="modal-subject">{message.subject}</h3>
       <div class="header-actions">
         {#if message.body}
-          <button class="action-btn" onclick={exportMarkdown} title="Export as Markdown">
+          <button
+            class="action-btn"
+            class:active={showMarkdown}
+            onclick={toggleMarkdown}
+            title="View as Markdown"
+          >
             .md
           </button>
         {/if}
         <button class="modal-close" onclick={onclose}>✕</button>
       </div>
     </div>
-    <div class="modal-meta">
-      <div class="meta-row">
-        <span class="meta-label">From:</span>
-        <span>{message.from}</span>
-      </div>
-      <div class="meta-row">
-        <span class="meta-label">To:</span>
-        <span>{message.to}</span>
-      </div>
-      <div class="meta-row">
-        <span class="meta-label">Date:</span>
-        <span>{formatDate(message.date)}</span>
-      </div>
-    </div>
-    <div class="modal-body">
-      {#if loading}
-        <div class="loading-state">
-          <span class="spinner"></span>
-          <span>Loading message...</span>
+
+    {#if showMarkdown}
+      <!-- ── Markdown view ─────────────────────────────────────────── -->
+      <div class="md-toolbar">
+        <div class="md-tabs">
+          <button
+            class="md-tab"
+            class:active={mdTab === "raw"}
+            onclick={() => mdTab = "raw"}
+          >Raw</button>
+          <button
+            class="md-tab"
+            class:active={mdTab === "preview"}
+            onclick={() => mdTab = "preview"}
+          >Preview</button>
         </div>
-      {:else if message.body}
-        <pre class="message-text">{message.body}</pre>
-      {:else}
-        <p class="empty-body">Loading...</p>
-      {/if}
-    </div>
+        <button class="action-btn download-btn" onclick={downloadMd} title="Download .md file">
+          Download
+        </button>
+      </div>
+      <div class="md-body">
+        {#if mdTab === "raw"}
+          <pre class="md-raw">{markdownText}</pre>
+        {:else}
+          <div class="md-preview">
+            {@html renderMarkdown(markdownText)}
+          </div>
+        {/if}
+      </div>
+    {:else}
+      <!-- ── Email view ────────────────────────────────────────────── -->
+      <div class="modal-meta">
+        <div class="meta-row">
+          <span class="meta-label">From:</span>
+          <span>{message.from}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">To:</span>
+          <span>{message.to}</span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label">Date:</span>
+          <span>{formatDate(message.date)}</span>
+        </div>
+      </div>
+      <div class="modal-body">
+        {#if loading}
+          <div class="loading-state">
+            <span class="spinner"></span>
+            <span>Loading message...</span>
+          </div>
+        {:else if message.htmlBody}
+          <iframe
+            bind:this={iframeEl}
+            class="html-frame"
+            sandbox="allow-same-origin"
+            title="Email content"
+          ></iframe>
+        {:else if message.body}
+          <pre class="message-text">{message.body}</pre>
+        {:else}
+          <p class="empty-body">Loading...</p>
+        {/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -78,9 +197,9 @@
     background: #161616;
     border: 1px solid #2a2a2a;
     border-radius: 12px;
-    max-width: 720px;
+    max-width: 780px;
     width: 100%;
-    max-height: 80vh;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -114,11 +233,16 @@
     font-family: monospace;
     cursor: pointer;
     padding: 0.25rem 0.5rem;
-    transition: border-color 0.15s, color 0.15s;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
   }
   .action-btn:hover {
     border-color: #3b82f6;
     color: #e8e8e8;
+  }
+  .action-btn.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: #fff;
   }
   .modal-close {
     background: none;
@@ -133,6 +257,8 @@
   .modal-close:hover {
     color: #e8e8e8;
   }
+
+  /* ── Email meta ─────────────────────────────────────────────────── */
   .modal-meta {
     padding: 0.75rem 1.25rem;
     border-bottom: 1px solid #222;
@@ -152,10 +278,19 @@
     flex-shrink: 0;
     min-width: 3rem;
   }
+
+  /* ── Email body ─────────────────────────────────────────────────── */
   .modal-body {
-    padding: 1.25rem;
+    padding: 0;
     overflow-y: auto;
     flex: 1;
+  }
+  .html-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    border: none;
+    background: #1a1a1a;
   }
   .message-text {
     font-size: 0.85rem;
@@ -165,11 +300,101 @@
     word-break: break-word;
     font-family: inherit;
     margin: 0;
+    padding: 1.25rem;
   }
   .empty-body {
     color: #666;
     font-style: italic;
+    padding: 1.25rem;
   }
+
+  /* ── Markdown view ──────────────────────────────────────────────── */
+  .md-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1.25rem;
+    border-bottom: 1px solid #222;
+    background: #131313;
+  }
+  .md-tabs {
+    display: flex;
+    gap: 0.25rem;
+  }
+  .md-tab {
+    padding: 0.3rem 0.7rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    color: #888;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .md-tab:hover {
+    color: #ccc;
+  }
+  .md-tab.active {
+    background: #222;
+    border-color: #333;
+    color: #e8e8e8;
+  }
+  .download-btn {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+  .md-body {
+    overflow-y: auto;
+    flex: 1;
+  }
+  .md-raw {
+    font-size: 0.8rem;
+    color: #b8b8b8;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    margin: 0;
+    padding: 1.25rem;
+    background: #111;
+  }
+  .md-preview {
+    padding: 1.25rem;
+    font-size: 0.9rem;
+    color: #ddd;
+    line-height: 1.6;
+  }
+  .md-preview :global(h1) {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0 0 0.75rem;
+    color: #e8e8e8;
+  }
+  .md-preview :global(table) {
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.82rem;
+  }
+  .md-preview :global(td) {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid #333;
+    color: #ccc;
+  }
+  .md-preview :global(hr) {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 1rem 0;
+  }
+  .md-preview :global(p) {
+    margin: 0.3rem 0;
+  }
+  .md-preview :global(strong) {
+    color: #e8e8e8;
+  }
+
+  /* ── Loading ────────────────────────────────────────────────────── */
   .loading-state {
     display: flex;
     align-items: center;
