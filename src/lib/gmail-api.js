@@ -125,16 +125,32 @@ function findPart(parts, mimeType) {
   return null;
 }
 
+/**
+ * Convert HTML to readable plain text.
+ * Uses the browser's DOMParser to correctly decode ALL HTML entities
+ * (named like &amp; &quot; and numeric like &#x27; &#39;).
+ */
 function stripHtml(html) {
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    // Remove <style> and <script> content before extracting text
+    for (const el of doc.querySelectorAll("style, script")) el.remove();
+    return (doc.body.textContent || "").replace(/\s+/g, " ").trim();
+  } catch {
+    // Fallback: basic regex strip if DOMParser is unavailable (e.g. worker)
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+      .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 }
