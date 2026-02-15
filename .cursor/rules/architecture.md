@@ -1,9 +1,9 @@
 ---
-description: Project overview, architecture, conventions, and gotchas
+description: Project structure, components, patterns, and known gotchas
 alwaysApply: true
 ---
 
-# me-ai
+# me-ai — Architecture
 
 **Browser-only AI chat + Gmail dashboard.** No backend server. The LLM runs entirely in the browser via WebGPU, and Gmail uses client-side OAuth.
 
@@ -13,6 +13,7 @@ alwaysApply: true
 - **@huggingface/transformers** v3.8 — ONNX model inference via WebGPU
 - **Google Identity Services (GIS)** — implicit OAuth token flow
 - **Gmail REST API** — direct `fetch()` with Bearer token
+- **Vitest** — unit testing
 - **No** backend, router library, or state management library
 
 ## File Structure
@@ -21,40 +22,43 @@ alwaysApply: true
 src/
   main.js              — mount(App, { target: #app })
   App.svelte           — Shell: top nav + hash routing (#chat / #dashboard)
-                         Global CSS reset, dark theme base, page show/hide
   Chat.svelte          — Orchestrator: state + worker logic, delegates UI to children
   Dashboard.svelte     — Orchestrator: state + auth logic, delegates UI to children
   worker.js            — Web Worker: model loading, WebGPU check, streaming
                          generation, <think> block detection
   components/
     chat/
-      ModelSelector.svelte   — Landing: title, model dropdown, GPU card, Load button
+      ModelSelector.svelte   — Landing: model dropdown, GPU card, Load button
       LoadingProgress.svelte — Download progress bars with bytes & percentages
       ChatView.svelte        — Active chat: header, messages area, input row
       MessageBubble.svelte   — Single message: role, thinking toggle, content, cursor
       GpuPanel.svelte        — Expandable GPU details grid
     dashboard/
-      SetupGuide.svelte      — 5-step OAuth Client ID setup card
+      SetupGuide.svelte      — 5-step OAuth setup with deep links + copy-to-clipboard
       AuthCard.svelte        — Sign-in button, Google icon, client ID display
       DashboardView.svelte   — Authenticated: profile + search + message list + modal
       ProfileCard.svelte     — Avatar, email, stats, sign out button
       MessageList.svelte     — Rows of messages with sender/subject/date/snippet
-      MessageModal.svelte    — Full message detail modal
+      MessageModal.svelte    — Full message detail modal + Markdown export button
     shared/
       ErrorCard.svelte       — Reusable error display with parseError() integration
   lib/
     google-auth.js     — GIS wrapper: initGoogleAuth, requestAccessToken, revokeToken
     gmail-api.js       — Gmail REST: getProfile, listMessages, getMessage,
                          getMessagesBatch, getHeader, getBody, base64url decode
+    markdown-export.js — emailToMarkdown, emailFilename, downloadText
     models.js          — MODELS array constant (shared between components)
     format.js          — formatBytes, formatBytesPrecise, progressPct
     error-parser.js    — parseError() — structured error guidance for API errors
     email-utils.js     — parseMessage, formatDate, extractName, initial
+    debug.js           — Optional debug logger controlled by localStorage("debug")
+    __tests__/
+      markdown-export.test.js — Unit tests for markdown export
 index.html             — Entry HTML (no external scripts — GIS loads dynamically)
 .env.example           — VITE_GOOGLE_CLIENT_ID template
 ```
 
-### Component architecture
+## Component Architecture
 
 **Chat.svelte** (~130 lines) keeps all `$state` declarations, worker setup, and worker message handling. It delegates rendering to `ModelSelector`, `LoadingProgress`, or `ChatView` based on `status`.
 
@@ -76,8 +80,8 @@ This prevents Chat's Web Worker from being destroyed when switching to Dashboard
 Svelte 5 `$state` runes everywhere. No stores, no writable/readable.
 
 ```js
-let messages = $state([]);        // reactive array
-let status = $state(null);        // reactive primitive
+let messages = $state([]);             // reactive array
+let status = $state(null);             // reactive primitive
 let needsSetup = $derived(!clientId);  // computed value
 ```
 
@@ -106,7 +110,7 @@ All AI inference runs in `worker.js`. Main thread **never** imports `@huggingfac
 | status | key fields | purpose |
 |--------|-----------|---------|
 | `webgpu-info` | `data: { vendor, architecture, features, limits }` | GPU adapter details |
-| `loading` | `data: string` | Status text ("Loading model...", "Compiling shaders...") |
+| `loading` | `data: string` | Status text |
 | `initiate` | `file, total` | New file download started |
 | `progress` | `file, loaded, total, progress` | Download progress update |
 | `done` | `file` | File download complete |
@@ -158,39 +162,55 @@ In the UI, thinking is shown as a collapsible `<details>` element with word coun
 
 ### Google Cloud setup (one-time, required)
 Users must create a Google Cloud project, enable Gmail API, and create an OAuth 2.0 Client ID.
-The Dashboard has a built-in step-by-step setup guide for this.
-- Authorized JS origins: `http://localhost:5173`
-- Authorized redirect URIs: `http://localhost:5173`
+The Dashboard has a built-in step-by-step setup guide with direct deep links to each Google Cloud Console page and copy-to-clipboard URL chips.
+- **Authorized JS origins** (no path): `http://localhost:5173`, `https://cypherkitty.github.io`
+- **Authorized redirect URIs** (all three): `http://localhost:5173`, `https://cypherkitty.github.io`, `https://cypherkitty.github.io/me-ai/`
+- The `/me-ai/` subpath redirect URI is **required** because the app is deployed at a subpath on GitHub Pages
 - "Google hasn't verified this app" warning is expected — click Advanced → "Go to app (unsafe)"
-- App verification is only needed for publishing to external users, not personal/dev use
 
 ### Gmail API
 - Direct `fetch()` to `https://gmail.googleapis.com/gmail/v1/users/me/*`
 - `Authorization: Bearer {token}` header
 - Message list returns IDs only → batch-fetch details with `getMessagesBatch()` (8 parallel)
 - Body parsing: finds `text/plain` part, falls back to `text/html` (stripped), handles nested multipart
+- HTML stripping uses **`DOMParser`** for correct decoding of all HTML entities (named like `&quot;` and numeric like `&#x27;`), with regex fallback for non-browser contexts
 - Base64url decoding: replaces `-`→`+`, `_`→`/`, **restores `=` padding** (Gmail sends unpadded), then `atob()` + `TextDecoder`
 
-### Stale request guard pattern
-All async Gmail functions (`fetchProfile`, `fetchMessages`, `viewMessage`) check `if (!accessToken) return` after every `await`. This prevents in-flight API responses from writing stale data into state if the user signs out while a request is pending.
+### Markdown export
+- `lib/markdown-export.js` converts email messages to `.md` format
+- Output: H1 subject heading, metadata table (From, To, Date), horizontal rule, body text
+- Filenames auto-generated: `YYYY-MM-DD_subject-slug.md`
+- Download triggered via Blob URL + invisible anchor click
+- Export button (`.md`) appears in `MessageModal` header when body is loaded
 
-```js
-const result = await listMessages(accessToken, opts);
-if (!accessToken) return; // signed out during fetch
-```
+### Stale request guard pattern
+All async Gmail functions check `if (!accessToken) return` after every `await`. This prevents in-flight API responses from writing stale data into state if the user signs out while a request is pending.
 
 ### Error handling
-`lib/error-parser.js` exports `parseError()` which detects common Google API errors and returns structured error cards with title, description, fix instructions, and optional action links. The `ErrorCard.svelte` shared component renders these:
+`lib/error-parser.js` exports `parseError()` which detects common Google API errors and returns structured error cards:
 
 | Error pattern | User sees |
 |--------------|-----------|
-| "has not been used in project" | "Gmail API not enabled" + direct enable link (extracts project ID from error) |
+| "has not been used in project" | "Gmail API not enabled" + direct enable link |
 | "Invalid Credentials" / 401 | "Session expired" + Sign Out & Retry button |
 | "insufficient scope" | "Insufficient permissions" + re-auth instructions |
 | "access_denied" | "Access denied" + retry prompt |
 | "popup" / "blocked" | "Popup blocked" + browser settings hint |
 | "Rate Limit" / 429 | "Rate limit exceeded" + wait message |
 | "Failed to fetch" | "Network error" + connection check |
+
+## Debug Logging
+
+`lib/debug.js` provides optional logging controlled by `localStorage`:
+
+```js
+// Enable:  localStorage.setItem("debug", "true")  then reload
+// Disable: localStorage.removeItem("debug")        then reload
+import { mountLog } from "./lib/debug.js";
+onMount(() => mountLog("ComponentName"));  // logs mount + returns destroy callback
+```
+
+All UI components use `mountLog()` to log lifecycle events. This is useful for verifying component count, spotting unwanted re-mounts, and debugging.
 
 ## Styling
 
@@ -200,17 +220,6 @@ if (!accessToken) return; // signed out during fetch
 - **No shared CSS file** — button/card styles are duplicated where needed (acceptable for small project)
 - Font stack: system fonts (`-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, ...`)
 - Animations: `@keyframes` for spinners, dot pulses, blinking cursor, progress bar shimmer
-- Error cards: left red border accent, title/description/fix layout, optional action button or link
-
-## Known Gotchas
-
-1. **`DataCloneError`**: Svelte 5 `$state` proxies cannot be passed to `postMessage`. Always map to plain objects first.
-2. **OAuth popups don't work in Cursor's embedded browser.** GIS needs real popup windows. Test auth flow in regular Chrome at `http://localhost:5173/#dashboard`.
-3. **Model downloads can lack `Content-Length` header.** The progress UI handles this with indeterminate progress bars and showing only downloaded bytes.
-4. **Gmail base64url payloads are unpadded.** The `decodeBase64Url` function must add `=` padding before `atob()` or decoding will throw.
-5. **`svelte.config.js` linter error** (`Cannot find package @sveltejs/vite-plugin-svelte`) is a pre-existing IDE issue. The app runs fine — Vite handles the plugin directly.
-6. **Model switching doesn't re-download.** Transformers.js caches in IndexedDB. Only GPU resources (`model.dispose()`) are released. Re-loading from cache is fast but still needs shader compilation.
-7. **Async state after signout.** Every Gmail async function must guard state writes with `if (!accessToken) return` after each `await` to prevent stale data from in-flight requests.
 
 ## Key Conventions
 
@@ -222,43 +231,14 @@ if (!accessToken) return; // signed out during fetch
 - **User-friendly errors.** Never show raw API errors. Always parse through `parseError()` and show actionable guidance.
 - **Accessibility.** Svelte a11y warnings on the modal overlay are suppressed with `<!-- svelte-ignore -->` comments. Escape key closes the modal via a window-level keydown listener.
 
-## Git Workflow
+## Known Gotchas
 
-### Branch & PR policy (MANDATORY)
-
-- **NEVER push directly to `main`.**
-- **Every feature, refactor, bug fix, or docs update** must go through a pull request.
-- If no feature branch exists yet, create one before committing (e.g. `feature/component-refactoring`, `fix/base64-padding`, `docs/update-rules`).
-- Branch naming: `feature/*`, `fix/*`, `refactor/*`, `docs/*`, `chore/*`.
-- Open a PR using `gh pr create` with a clear summary and test plan.
-- Wait for review (bugbot or human) before merging.
-- The **only** exception to pushing directly to `main` is if the user explicitly says "push to main without a PR".
-
-### PR requirements
-
-- **Title**: concise, describes the change (e.g. "refactor: extract Chat into smaller components").
-- **Body**: must include a `## Summary` section with 1-3 bullet points explaining what changed and why, and a `## Test plan` section with verification steps.
-- Always push the branch with `git push -u origin HEAD` before creating the PR.
-- Use `gh pr create` — never create PRs through other means.
-- Return the PR URL to the user when done.
-
-### Commit conventions
-
-- Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`.
-- Keep commits focused — one logical change per commit.
-- Write commit messages that explain **why**, not just **what**.
-
-### Repository
-
-- Repo: `cypherkitty/me-ai` (public)
-- Default branch: `main`
-- CI: GitHub Actions deploys to GitHub Pages on push to `main`
-- PR reviews: bugbot (automated) provides code review on PRs
-
-## Deployment
-
-- **GitHub Pages**: `https://cypherkitty.github.io/me-ai/`
-- **Workflow**: `.github/workflows/deploy.yml` — builds with Vite, deploys `dist/` via `actions/deploy-pages`
-- **Vite base path**: set conditionally via `process.env.GITHUB_ACTIONS` — `/me-ai/` in CI, `/` for local dev
-- **WebGPU**: requires HTTPS (satisfied by GitHub Pages) and a compatible browser (Chrome 113+, Edge 113+)
-- **Google OAuth on Pages**: user must add `https://cypherkitty.github.io` to their OAuth client's Authorized JavaScript origins and redirect URIs in Google Cloud Console (alongside `http://localhost:5173` for local dev)
+1. **`DataCloneError`**: Svelte 5 `$state` proxies cannot be passed to `postMessage`. Always map to plain objects first.
+2. **OAuth popups don't work in Cursor's embedded browser.** GIS needs real popup windows. Test auth flow in regular Chrome at `http://localhost:5173/#dashboard`.
+3. **Model downloads can lack `Content-Length` header.** The progress UI handles this with indeterminate progress bars and showing only downloaded bytes.
+4. **Gmail base64url payloads are unpadded.** The `decodeBase64Url` function must add `=` padding before `atob()` or decoding will throw.
+5. **`svelte.config.js` linter error** (`Cannot find package @sveltejs/vite-plugin-svelte`) is a pre-existing IDE issue. The app runs fine — Vite handles the plugin directly.
+6. **Model switching doesn't re-download.** Transformers.js caches in IndexedDB. Only GPU resources (`model.dispose()`) are released.
+7. **Async state after signout.** Every Gmail async function must guard state writes with `if (!accessToken) return` after each `await`.
+8. **GitHub Pages OAuth needs `/me-ai/` subpath.** The redirect URI must include the full deployment path, not just the origin.
+9. **Google Cloud Console propagation delay.** After updating OAuth client settings, changes can take a few minutes to take effect.
