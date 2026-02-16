@@ -42,13 +42,12 @@ export const MODELS = [
     description: "Microsoft, good at reasoning"
   },
   { 
-    id: "onnx-community/Phi-3-mini-128k-instruct-ONNX", 
-    name: "Phi-3 Mini 128k", 
+    id: "microsoft/Phi-3-mini-4k-instruct-onnx-web", 
+    name: "Phi-3 Mini 4k", 
     size: "~2.6 GB", 
-    contextWindow: 131072,
-    maxEmailTokens: 16000, // Large context window
-    description: "128k context, reliable, excellent for long emails",
-    recommendedForEmailProcessing: true
+    contextWindow: 4096,
+    maxEmailTokens: 2000, // Limited 4k context
+    description: "WebGPU-optimized, Microsoft, 4k context"
   },
   { 
     id: "onnx-community/gemma-3-270m-it-ONNX", 
