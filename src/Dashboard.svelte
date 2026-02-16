@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { initGoogleAuth, requestAccessToken, revokeToken } from "./lib/google-auth.js";
+  import { initGoogleAuth, requestAccessToken, revokeToken, getSavedToken } from "./lib/google-auth.js";
   import { getProfile } from "./lib/gmail-api.js";
   import { syncGmail, syncGmailMore, getGmailSyncStatus, clearGmailData } from "./lib/store/gmail-sync.js";
   import { getStoredEmails } from "./lib/store/query-layer.js";
@@ -68,7 +68,17 @@
   $effect(() => {
     if (clientId && !authInitialized) {
       initGoogleAuth(clientId)
-        .then(() => { authInitialized = true; })
+        .then(() => {
+          authInitialized = true;
+          // Auto-restore session token (survives page refresh within same tab)
+          if (!accessToken) {
+            const saved = getSavedToken();
+            if (saved) {
+              accessToken = saved.access_token;
+              fetchProfile();
+            }
+          }
+        })
         .catch((e) => { error = `Auth init failed: ${e.message}`; });
     }
   });
