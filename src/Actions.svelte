@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { getEngine } from "./lib/llm-engine.js";
+  import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { MODELS } from "./lib/models.js";
   import {
     scanEmails,
@@ -13,7 +13,7 @@
   } from "./lib/triage.js";
   import ActionsView from "./components/actions/ActionsView.svelte";
 
-  const engine = getEngine();
+  const engine = getUnifiedEngine();
 
   // ── State ──────────────────────────────────────────────────────────
   let engineStatus = $state(engine.status);
