@@ -1,5 +1,5 @@
 <script>
-  import { actionColor, tagColor } from "../../lib/triage.js";
+  import { actionColor } from "../../lib/triage.js";
 
   let {
     pendingData = null,
@@ -10,256 +10,241 @@
     onaskai,
   } = $props();
 
-  let expandedGroup = $state(null);
+  let activeGroup = $state(null);
   let confirmClear = $state(null);
 
-  /** Expand or collapse a group; exposed so QuickActions can call it */
+  /** Expand/collapse a group; exposed so external controls can call it */
   export function toggleGroup(action) {
-    expandedGroup = expandedGroup === action ? null : action;
+    activeGroup = activeGroup === action ? null : action;
+    confirmClear = null;
   }
 
-  function formatLabel(str) {
-    return str
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ");
+  function fmt(str) {
+    return str.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
   }
 
-  function formatDate(timestamp) {
-    if (!timestamp) return "";
+  function shortDate(ts) {
+    if (!ts) return "";
     try {
-      return new Date(timestamp).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return "";
-    }
+      return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch { return ""; }
+  }
+
+  function shortSender(from) {
+    if (!from) return "";
+    const name = from.replace(/<.*>/, "").trim();
+    return name.length > 24 ? name.slice(0, 22) + "…" : name;
   }
 </script>
 
 {#if pendingData && pendingData.total > 0}
-  <div class="dashboard">
-    <div class="dash-header">
-      <svg class="dash-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="3" width="7" height="7" rx="1"/>
-        <rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/>
-        <rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      <span class="dash-title">{pendingData.total} pending action{pendingData.total !== 1 ? "s" : ""}</span>
+  <div class="widget">
+    <!-- ── Summary line ──────────────────────────────── -->
+    <div class="summary">
+      {pendingData.total} item{pendingData.total !== 1 ? "s" : ""} need attention
     </div>
 
-    <div class="group-grid">
+    <!-- ── Group chips ───────────────────────────────── -->
+    <div class="chips">
       {#each pendingData.order as action (action)}
         {@const items = pendingData.groups[action]}
         {@const color = actionColor(action)}
-        {@const isExpanded = expandedGroup === action}
-
-        <div class="group-card" class:expanded={isExpanded}>
-          <button class="group-btn" onclick={() => toggleGroup(action)}>
-            <span class="group-dot" style:background={color}></span>
-            <span class="group-label">{formatLabel(action)}</span>
-            <span class="group-count">{items.length}</span>
-            <svg
-              class="group-chevron"
-              class:open={isExpanded}
-              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            >
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </button>
-
-          {#if isExpanded}
-            <div class="group-body">
-              {#each items as item (item.emailId)}
-                <div class="email-row">
-                  <button class="email-info" onclick={() => onaskai?.(`Tell me about the email "${item.subject}" from ${item.from}`)}>
-                    <span class="email-subject">{item.subject}</span>
-                    <span class="email-meta">
-                      <span class="email-from">{item.from}</span>
-                      {#if item.date}
-                        <span class="email-date">{formatDate(item.date)}</span>
-                      {/if}
-                    </span>
-                    {#if item.summary}
-                      <span class="email-summary">{item.summary}</span>
-                    {/if}
-                    {#if item.tags && item.tags.length > 0}
-                      <span class="email-tags">
-                        {#each item.tags as tag}
-                          <span class="tag" style:background={tagColor(tag)}>{tag}</span>
-                        {/each}
-                      </span>
-                    {/if}
-                  </button>
-                  <div class="email-actions">
-                    <button class="icon-btn done-btn" title="Mark handled" onclick={() => onmarkacted?.(item.emailId)}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    </button>
-                    <button class="icon-btn dismiss-btn" title="Dismiss" onclick={() => ondismiss?.(item.emailId)}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                      </svg>
-                    </button>
-                    <button class="icon-btn remove-btn" title="Remove" onclick={() => onremove?.(item.emailId)}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M3 6h18"/>
-                        <path d="M8 6V4h8v2"/>
-                        <path d="m19 6-.867 12.142A2 2 0 0 1 16.138 20H7.862a2 2 0 0 1-1.995-1.858L5 6"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              {/each}
-
-              <div class="batch-bar">
-                {#if confirmClear !== action}
-                  <button class="batch-btn" onclick={() => onmarkacted && items.forEach(i => onmarkacted(i.emailId))}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    Mark All Handled
-                  </button>
-                  <button class="batch-btn danger" onclick={() => confirmClear = action}>
-                    Clear Group
-                  </button>
-                {:else}
-                  <span class="confirm-text">Clear {items.length} items?</span>
-                  <button class="batch-btn" onclick={() => confirmClear = null}>Cancel</button>
-                  <button class="batch-btn danger" onclick={() => { oncleargroup?.(action); confirmClear = null; }}>
-                    Delete
-                  </button>
-                {/if}
-              </div>
-            </div>
-          {/if}
-        </div>
+        {@const isActive = activeGroup === action}
+        <button
+          class="chip" class:active={isActive}
+          style:--c={color}
+          onclick={() => toggleGroup(action)}
+        >
+          <span class="dot" style:background={color}></span>
+          {fmt(action)}
+          <span class="cnt">{items.length}</span>
+        </button>
       {/each}
     </div>
+
+    <!-- ── Drilled-in group ──────────────────────────── -->
+    {#if activeGroup && pendingData.groups[activeGroup]}
+      {@const items = pendingData.groups[activeGroup]}
+      {@const color = actionColor(activeGroup)}
+      <div class="detail">
+        <div class="detail-head" style:border-color={color}>
+          <button class="back-btn" onclick={() => { activeGroup = null; confirmClear = null; }}>
+            ←
+          </button>
+          <span class="detail-title">{fmt(activeGroup)}</span>
+          <span class="detail-cnt">{items.length}</span>
+        </div>
+
+        <div class="emails">
+          {#each items as item (item.emailId)}
+            <div class="erow">
+              <button
+                class="einfo"
+                onclick={() => onaskai?.(`Tell me about the email "${item.subject}" from ${item.from}`)}
+                title="Ask AI about this email"
+              >
+                <span class="esubj">{item.subject}</span>
+                <span class="emeta">{shortSender(item.from)}{#if item.date}<span class="edate">{shortDate(item.date)}</span>{/if}</span>
+              </button>
+              <div class="ebtns">
+                <button class="abtn ok" title="Handled" onclick={() => onmarkacted?.(item.emailId)}>✓</button>
+                <button class="abtn no" title="Dismiss" onclick={() => ondismiss?.(item.emailId)}>✕</button>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <div class="batch">
+          {#if confirmClear !== activeGroup}
+            <button class="bbtn" onclick={() => items.forEach((i) => onmarkacted?.(i.emailId))}>All handled</button>
+            <button class="bbtn muted" onclick={() => confirmClear = activeGroup}>Clear group</button>
+          {:else}
+            <span class="bconf">Remove {items.length}?</span>
+            <button class="bbtn" onclick={() => confirmClear = null}>Cancel</button>
+            <button class="bbtn danger" onclick={() => { oncleargroup?.(activeGroup); confirmClear = null; activeGroup = null; }}>Delete</button>
+          {/if}
+        </div>
+      </div>
+    {/if}
   </div>
 {/if}
 
 <style>
-  .dashboard {
-    background: #161616;
-    border: 1px solid #2a2a2a;
+  /* ── Widget container ────────────────────────────── */
+  .widget {
+    background: #141414;
+    border: 1px solid #232323;
     border-radius: 12px;
-    padding: 0.6rem;
-    max-width: 90%;
+    padding: 0.55rem 0.65rem;
+    max-width: 420px;
     align-self: flex-start;
   }
 
-  .dash-header {
+  /* ── Summary ─────────────────────────────────────── */
+  .summary {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: #999;
+    margin-bottom: 0.4rem;
+  }
+
+  /* ── Chips ───────────────────────────────────────── */
+  .chips {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .chip {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.2rem 0.3rem 0.5rem;
-  }
-  .dash-icon {
-    color: #666;
-    flex-shrink: 0;
-  }
-  .dash-title {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #aaa;
-  }
-
-  /* ── Group grid ────────────────────────────────────────────────── */
-  .group-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .group-card {
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    overflow: hidden;
-    transition: border-color 0.15s;
-  }
-  .group-card.expanded {
-    border-color: #333;
-  }
-
-  .group-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    width: 100%;
-    padding: 0.45rem 0.55rem;
-    border: none;
+    gap: 0.25rem;
+    padding: 0.18rem 0.45rem;
     background: transparent;
+    border: 1px solid #282828;
+    border-radius: 14px;
+    color: #999;
+    font-size: 0.66rem;
+    font-weight: 500;
     cursor: pointer;
-    text-align: left;
-    color: #e8e8e8;
-    transition: background 0.12s;
+    transition: all 0.12s;
     font-family: inherit;
+    white-space: nowrap;
   }
-  .group-btn:hover {
+  .chip:hover {
     background: rgba(255, 255, 255, 0.03);
+    border-color: #3a3a3a;
+    color: #ccc;
+  }
+  .chip.active {
+    background: color-mix(in srgb, var(--c) 10%, transparent);
+    border-color: color-mix(in srgb, var(--c) 40%, transparent);
+    color: var(--c);
   }
 
-  .group-dot {
-    width: 8px;
-    height: 8px;
+  .dot {
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     flex-shrink: 0;
   }
 
-  .group-label {
-    font-size: 0.78rem;
-    font-weight: 500;
+  .cnt {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #666;
+    min-width: 14px;
+    text-align: center;
+  }
+  .chip.active .cnt {
+    color: inherit;
+    opacity: 0.7;
+  }
+
+  /* ── Drilled-in detail ───────────────────────────── */
+  .detail {
+    margin-top: 0.45rem;
+    border-top: 1px solid #1e1e1e;
+    padding-top: 0.4rem;
+  }
+
+  .detail-head {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid;
+    margin-bottom: 0.3rem;
+  }
+
+  .back-btn {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: color 0.12s;
+    line-height: 1;
+  }
+  .back-btn:hover { color: #ccc; }
+
+  .detail-title {
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #ccc;
     flex: 1;
   }
 
-  .group-count {
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #888;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 0.05rem 0.4rem;
-    border-radius: 10px;
-    min-width: 20px;
-    text-align: center;
+  .detail-cnt {
+    font-size: 0.62rem;
+    color: #666;
   }
 
-  .group-chevron {
-    color: #555;
-    flex-shrink: 0;
-    transition: transform 0.2s ease;
-  }
-  .group-chevron.open {
-    transform: rotate(180deg);
-  }
-
-  /* ── Expanded body ─────────────────────────────────────────────── */
-  .group-body {
-    border-top: 1px solid #222;
-  }
-
-  /* ── Email rows ────────────────────────────────────────────────── */
-  .email-row {
+  /* ── Email rows ──────────────────────────────────── */
+  .emails {
     display: flex;
-    align-items: flex-start;
-    gap: 0.3rem;
-    padding: 0.35rem 0.5rem;
-    transition: background 0.12s;
-  }
-  .email-row:hover {
-    background: rgba(255, 255, 255, 0.02);
+    flex-direction: column;
   }
 
-  .email-info {
+  .erow {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.28rem 0.15rem;
+    border-bottom: 1px solid #1a1a1a;
+  }
+  .erow:last-child {
+    border-bottom: none;
+  }
+
+  .einfo {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.05rem;
     background: none;
     border: none;
     cursor: pointer;
@@ -268,116 +253,91 @@
     padding: 0;
     font-family: inherit;
   }
+  .einfo:hover .esubj { color: #fff; }
 
-  .email-subject {
-    font-size: 0.76rem;
+  .esubj {
+    font-size: 0.72rem;
     font-weight: 500;
-    color: #ddd;
+    color: #ccc;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.12s;
   }
 
-  .email-meta {
+  .emeta {
+    font-size: 0.6rem;
+    color: #555;
     display: flex;
-    gap: 0.4rem;
-    font-size: 0.66rem;
-    color: #666;
+    gap: 0.35rem;
   }
-  .email-from {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 180px;
-  }
-  .email-date {
+
+  .edate {
+    color: #444;
     flex-shrink: 0;
   }
 
-  .email-summary {
-    font-size: 0.68rem;
-    color: #777;
-    line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .email-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.15rem;
-    margin-top: 0.05rem;
-  }
-  .tag {
-    font-size: 0.55rem;
-    font-weight: 600;
-    color: #ddd;
-    padding: 0.05rem 0.3rem;
-    border-radius: 3px;
-    white-space: nowrap;
-  }
-
-  /* ── Action buttons ────────────────────────────────────────────── */
-  .email-actions {
+  /* ── Action buttons ──────────────────────────────── */
+  .ebtns {
     display: flex;
     gap: 0.1rem;
     flex-shrink: 0;
-    padding-top: 0.05rem;
+    opacity: 0.4;
+    transition: opacity 0.12s;
   }
+  .erow:hover .ebtns { opacity: 1; }
 
-  .icon-btn {
+  .abtn {
+    width: 22px;
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
     border: none;
-    border-radius: 5px;
+    border-radius: 4px;
     background: transparent;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+    font-size: 0.68rem;
+    font-weight: 600;
+    transition: all 0.12s;
   }
-  .done-btn { color: #555; }
-  .done-btn:hover { background: rgba(52, 211, 153, 0.15); color: #34d399; }
-  .dismiss-btn { color: #555; }
-  .dismiss-btn:hover { background: rgba(248, 113, 113, 0.15); color: #f87171; }
-  .remove-btn { color: #444; }
-  .remove-btn:hover { background: rgba(255, 255, 255, 0.06); color: #888; }
+  .abtn.ok { color: #555; }
+  .abtn.ok:hover { background: rgba(52, 211, 153, 0.12); color: #34d399; }
+  .abtn.no { color: #555; }
+  .abtn.no:hover { background: rgba(248, 113, 113, 0.12); color: #f87171; }
 
-  /* ── Batch bar ─────────────────────────────────────────────────── */
-  .batch-bar {
+  /* ── Batch row ───────────────────────────────────── */
+  .batch {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.55rem;
-    border-top: 1px solid #1e1e1e;
     justify-content: flex-end;
+    gap: 0.35rem;
+    padding-top: 0.3rem;
+    margin-top: 0.15rem;
+    border-top: 1px solid #1a1a1a;
   }
 
-  .batch-btn {
-    font-size: 0.66rem;
+  .bbtn {
+    font-size: 0.62rem;
     font-weight: 500;
     color: #777;
     background: none;
     border: none;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.2rem 0.4rem;
+    padding: 0.15rem 0.35rem;
     border-radius: 4px;
-    transition: background 0.12s, color 0.12s;
+    transition: all 0.12s;
     font-family: inherit;
   }
-  .batch-btn:hover { background: rgba(255, 255, 255, 0.05); color: #aaa; }
-  .batch-btn.danger { color: #888; }
-  .batch-btn.danger:hover { color: #f87171; background: rgba(248, 113, 113, 0.08); }
+  .bbtn:hover { color: #aaa; background: rgba(255, 255, 255, 0.04); }
+  .bbtn.muted { color: #555; }
+  .bbtn.muted:hover { color: #888; }
+  .bbtn.danger { color: #888; }
+  .bbtn.danger:hover { color: #f87171; background: rgba(248, 113, 113, 0.08); }
 
-  .confirm-text {
-    font-size: 0.66rem;
+  .bconf {
+    font-size: 0.62rem;
     color: #888;
+    margin-right: auto;
   }
 </style>
