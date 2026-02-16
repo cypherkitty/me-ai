@@ -25,6 +25,7 @@
     oncleargroup,
     onclear,
     ondismisserror,
+    onstop,
   } = $props();
 
   let showClearConfirm = $state(false);
@@ -50,6 +51,7 @@
     bind:scanCount
     {onscan}
     {onrescan}
+    {onstop}
     oninspect={() => showInspector = true}
   />
 
