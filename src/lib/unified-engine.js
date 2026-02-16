@@ -15,6 +15,7 @@ import { getOllamaModelInfo } from "./ollama-models.js";
 
 let _currentBackend = null; // "webgpu" | "ollama"
 let _currentEngine = null;
+let _unifiedListeners = new Set(); // Listeners that should work across backends
 
 /**
  * Determine backend from model ID
@@ -47,6 +48,11 @@ export function getUnifiedEngine() {
         // Create new engine
         _currentBackend = backend;
         _currentEngine = backend === "webgpu" ? getWebGPUEngine() : getOllamaEngine();
+        
+        // Re-attach all unified listeners to the new engine
+        for (const fn of _unifiedListeners) {
+          _currentEngine.onMessage(fn);
+        }
       }
       
       // Load model on current engine
@@ -101,11 +107,14 @@ export function getUnifiedEngine() {
         _currentEngine = getWebGPUEngine();
         _currentBackend = "webgpu";
       }
+      // Add to unified listeners so it persists across backend switches
+      _unifiedListeners.add(fn);
       return _currentEngine.onMessage(fn);
     },
 
     /** Remove message listener */
     offMessage(fn) {
+      _unifiedListeners.delete(fn);
       _currentEngine?.offMessage(fn);
     },
 
