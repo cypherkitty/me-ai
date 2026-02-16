@@ -147,6 +147,12 @@
             <span class="sstat-val success">{progress.classified || 0}</span>
             <span class="sstat-label">classified</span>
           </div>
+          {#if progress.summary?.skippedLong > 0}
+            <div class="summary-stat">
+              <span class="sstat-val warn">{progress.summary.skippedLong}</span>
+              <span class="sstat-label">too long</span>
+            </div>
+          {/if}
           {#if progress.errors > 0}
             <div class="summary-stat">
               <span class="sstat-val err">{progress.errors}</span>
@@ -169,13 +175,15 @@
           </div>
         </div>
 
-        <!-- Prompt sizes -->
+        <!-- Model & Prompt info -->
         <div class="summary-section">
-          <div class="ssec-title">Prompt Configuration</div>
+          <div class="ssec-title">Model & Prompts</div>
           <div class="ssec-items">
+            <span class="ssec-item">Model: <strong>{progress.summary?.modelName || "Unknown"}</strong> (max {fmtTokens(progress.summary?.modelMaxEmailTokens || 0)} tokens)</span>
+            <span class="sep">·</span>
             <span class="ssec-item">System prompt: <strong>{fmtTokens(progress.summary?.systemPromptSize || 0)} chars</strong></span>
             <span class="sep">·</span>
-            <span class="ssec-item">Avg email prompt: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
+            <span class="ssec-item">Avg email: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
           </div>
         </div>
 
@@ -187,11 +195,13 @@
             </summary>
             <div class="results-list">
               {#each progress.results as result}
-                <div class="result-item" class:failed={!result.success}>
+                <div class="result-item" class:failed={!result.success} class:skipped={result.skipped}>
                   <div class="ri-head">
                     <span class="ri-subj">{result.email.subject || "(no subject)"}</span>
                     {#if result.success}
                       <span class="ri-action">{result.classification.action}</span>
+                    {:else if result.skipped}
+                      <span class="ri-skipped">SKIPPED</span>
                     {:else}
                       <span class="ri-error">ERROR</span>
                     {/if}
@@ -443,6 +453,7 @@
     font-variant-numeric: tabular-nums;
   }
   .sstat-val.success { color: #34d399; }
+  .sstat-val.warn { color: #fbbf24; }
   .sstat-val.err { color: #f87171; }
   .sstat-label {
     font-size: 0.6rem;
@@ -503,6 +514,10 @@
     background: rgba(248, 113, 113, 0.03);
     border-color: rgba(248, 113, 113, 0.15);
   }
+  .result-item.skipped {
+    background: rgba(251, 191, 36, 0.03);
+    border-color: rgba(251, 191, 36, 0.15);
+  }
   .ri-head {
     display: flex;
     align-items: center;
@@ -522,6 +537,13 @@
     font-size: 0.58rem;
     font-weight: 700;
     color: #34d399;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .ri-skipped {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #fbbf24;
     letter-spacing: 0.03em;
     flex-shrink: 0;
   }

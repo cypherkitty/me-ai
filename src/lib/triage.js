@@ -10,6 +10,7 @@ import { db } from "./store/db.js";
 import Dexie from "dexie";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
+import { getModelInfo, isModelSuitableForEmail } from "./models.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -127,15 +128,53 @@ export async function scanEmails(
   const scanStart = performance.now();
   let classified = 0;
   let errors = 0;
+  let skippedLong = 0; // Emails skipped due to length
   let totalOutputTokens = 0;
   let totalInputTokens = 0;
   const results = [];
+
+  // Check model capabilities
+  const currentModel = engine.modelId;
+  const modelInfo = getModelInfo(currentModel);
+  if (!modelInfo) {
+    throw new Error(`Unknown model: ${currentModel}`);
+  }
+
+  // Warn if using a model not recommended for email processing
+  if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
+    const { MODELS } = await import("./models.js");
+    const recommendedModels = MODELS
+      .filter(m => m.recommendedForEmailProcessing)
+      .map(m => m.name);
+    console.warn(
+      `⚠️ Current model (${modelInfo.name}) is not optimized for email processing. ` +
+      `For best results with long emails, consider using: ${recommendedModels.join(", ")}`
+    );
+  }
 
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
     const email = toProcess[i];
     const emailPrompt = formatEmailPrompt(email);
+    
+    // Validate email length against model capabilities
+    const estimatedTokens = estimateTokens(SYSTEM_PROMPT + emailPrompt);
+    const suitability = isModelSuitableForEmail(currentModel, estimatedTokens);
+    
+    if (!suitability.suitable) {
+      console.warn(`Skipping email "${email.subject}": ${suitability.reason}`);
+      skippedLong++;
+      results.push({
+        success: false,
+        email: { subject: email.subject, from: email.from, date: email.date },
+        error: `Email too long for ${modelInfo.name} (${suitability.reason})`,
+        promptSize: emailPrompt.length,
+        skipped: true,
+      });
+      continue;
+    }
+    
     const promptMessages = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: emailPrompt },
@@ -253,11 +292,14 @@ export async function scanEmails(
       systemPromptSize: SYSTEM_PROMPT.length,
       processed: toProcess.length,
       skipped,
+      skippedLong,
+      modelName: modelInfo.name,
+      modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
   });
 
-  return { scanned: toProcess.length, classified, skipped, errors };
+  return { scanned: toProcess.length, classified, skipped, skippedLong, errors };
 }
 
 /**
@@ -352,20 +394,20 @@ export async function getScanStats() {
 
 // ── Prompt formatting ────────────────────────────────────────────────
 
+/**
+ * Estimate token count for text (rough heuristic: 1 token ≈ 4 chars)
+ */
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
 export function formatEmailPrompt(email) {
   const date = email.date
     ? new Date(email.date).toLocaleDateString("en-US", {
         weekday: "short", year: "numeric", month: "short", day: "numeric",
       })
     : "Unknown date";
-  const rawBody = email.body || email.snippet || "";
-  
-  // Limit email body to prevent WebGPU memory errors on very long emails
-  // 8000 chars ≈ 2000 tokens, which is reasonable for classification
-  // while staying well under model context limits
-  const body = rawBody.length > 8000 
-    ? rawBody.slice(0, 8000) + "\n\n[... email truncated for processing ...]"
-    : rawBody;
+  const body = email.body || email.snippet || "";
 
   return [
     `Subject: ${email.subject}`,
