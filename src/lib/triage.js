@@ -70,35 +70,45 @@ export async function scanEmails(
 
   onProgress({ phase: "loading", message: "Loading recent emails..." });
 
-  const emails = await db.items
-    .where("[sourceType+date]")
-    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
-    .reverse()
-    .limit(count)
-    .toArray();
-
-  if (emails.length === 0) {
-    onProgress({ phase: "done", message: "No emails to scan." });
-    return { scanned: 0, classified: 0, skipped: 0, errors: 0 };
-  }
-
-  // Filter out already-classified emails unless force rescan
-  let toProcess = emails;
+  let toProcess;
   let skipped = 0;
-  if (!force) {
-    const existingIds = new Set(
+
+  if (force) {
+    // Rescan: take the N most recent emails regardless of classification status
+    toProcess = await db.items
+      .where("[sourceType+date]")
+      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+      .reverse()
+      .limit(count)
+      .toArray();
+  } else {
+    // Scan new: find unclassified emails, sorted by date desc, take N
+    const classifiedIds = new Set(
       (await db.emailClassifications.toArray()).map((c) => c.emailId)
     );
-    toProcess = emails.filter((e) => !existingIds.has(e.id));
-    skipped = emails.length - toProcess.length;
+    const allEmails = await db.items
+      .where("[sourceType+date]")
+      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+      .reverse()
+      .toArray();
+
+    skipped = 0;
+    toProcess = [];
+    for (const email of allEmails) {
+      if (classifiedIds.has(email.id)) {
+        skipped++;
+      } else {
+        toProcess.push(email);
+        if (toProcess.length >= count) break;
+      }
+    }
   }
 
   if (toProcess.length === 0) {
-    onProgress({
-      phase: "done",
-      message: `All ${emails.length} emails already classified. Use "Rescan All" to reclassify.`,
-      classified: 0,
-    });
+    const msg = force
+      ? "No emails to scan."
+      : `All emails already classified (${skipped} total). Use "Rescan All" to reclassify.`;
+    onProgress({ phase: "done", message: msg, classified: 0 });
     return { scanned: 0, classified: 0, skipped, errors: 0 };
   }
 
