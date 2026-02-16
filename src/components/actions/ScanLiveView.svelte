@@ -9,39 +9,58 @@
 
   $effect(() => {
     if (!progress) {
+      console.log("❌ No progress object");
       processedEmails = [];
       lastCapturedIndex = -1;
       return;
     }
 
-    // New scan started
+    console.log(`📊 Progress update: phase=${progress.phase}, current=${progress.current}, lastCaptured=${lastCapturedIndex}, processedCount=${processedEmails.length}`);
+
+    // New scan started - clear everything
     if (progress.phase === "loading") {
       console.log("🔄 Scan starting, clearing processedEmails");
       processedEmails = [];
       lastCapturedIndex = -1;
+      return;
     }
 
     // Capture each email when it finishes (classified phase has result + stats)
-    if (progress.phase === "classified" && progress.current !== lastCapturedIndex) {
-      console.log(`✅ Captured email ${progress.current}:`, {
-        subject: progress.email?.subject,
-        action: progress.result?.action,
-        hasStats: !!progress.emailStats,
-        hasRawResponse: !!progress.rawResponse
-      });
-      processedEmails = [...processedEmails, {
-        index: progress.current,
-        email: progress.email,
-        result: progress.result,
-        rawResponse: progress.rawResponse || "",
-        stats: progress.emailStats,
-      }];
-      lastCapturedIndex = progress.current;
+    if (progress.phase === "classified") {
+      if (progress.current !== lastCapturedIndex) {
+        console.log(`✅ CAPTURING email ${progress.current}:`, {
+          subject: progress.email?.subject,
+          action: progress.result?.action,
+          hasStats: !!progress.emailStats,
+          hasRawResponse: !!progress.rawResponse,
+          rawResponseLength: progress.rawResponse?.length || 0
+        });
+        
+        processedEmails = [...processedEmails, {
+          index: progress.current,
+          email: progress.email,
+          result: progress.result,
+          rawResponse: progress.rawResponse || "",
+          stats: progress.emailStats,
+        }];
+        lastCapturedIndex = progress.current;
+        
+        console.log(`   Total captured now: ${processedEmails.length}`);
+      } else {
+        console.log(`⚠️ Skipping duplicate email ${progress.current} (already captured)`);
+      }
     }
 
     // Log when scan completes
     if (progress.phase === "done") {
-      console.log(`🏁 Scan complete. processedEmails.length: ${processedEmails.length}, progress.results.length: ${progress.results?.length || 0}`);
+      console.log(`🏁 Scan complete!`);
+      console.log(`   - processedEmails.length: ${processedEmails.length}`);
+      console.log(`   - progress.results.length: ${progress.results?.length || 0}`);
+      console.log(`   - progress.classified: ${progress.classified}`);
+      console.log(`   - progress.errors: ${progress.errors}`);
+      if (progress.results) {
+        console.log(`   - First result:`, progress.results[0]);
+      }
     }
   });
 
@@ -80,6 +99,19 @@
   let pct = $derived(progress?.total ? Math.round((progress.current / progress.total) * 100) : 0);
   let eta = $derived(estimateRemaining(progress));
   let isDone = $derived(progress?.phase === "done");
+  
+  // Computed email list for display - prefer final results when scan is done
+  let useResults = $derived(progress?.phase === "done" && progress?.results?.length > 0);
+  let emailsList = $derived(useResults && progress?.results ? 
+    progress.results.map((r, idx) => ({
+      index: idx + 1,
+      email: r.email,
+      result: r.success ? r.classification : null,
+      rawResponse: r.rawResponse || "",
+      stats: r.stats,
+      error: r.success ? null : r.error
+    })) : processedEmails
+  );
 </script>
 
 {#if progress}
@@ -162,28 +194,30 @@
     <!-- ── Debug info ─────────────────────────────────── -->
     <div class="debug-info">
       Phase: {progress.phase} | 
-      Processed: {processedEmails.length} | 
+      Captured: {processedEmails.length} | 
       Results: {progress.results?.length || 0} | 
-      Current: {progress.current || 0}/{progress.total || 0}
+      Current: {progress.current || 0}/{progress.total || 0} |
+      Classified: {progress.classified || 0} |
+      Errors: {progress.errors || 0}
     </div>
 
-    <!-- ── Processed emails list (accumulates during scan) ── -->
-    <!-- Use progress.results when available (during and after scan), otherwise use our captured list -->
-    {#if (progress.results?.length > 0) || processedEmails.length > 0}
-      {@const emailsList = progress.results?.length > 0 ? 
-        progress.results.map((r, idx) => ({
-          index: idx + 1,
-          email: r.email,
-          result: r.success ? r.classification : null,
-          rawResponse: r.rawResponse || "",
-          stats: r.stats,
-          error: r.success ? null : r.error
-        })) : processedEmails}
-      <div class="processed-list">
-        <div class="processed-header">
-          <span class="processed-title">Processed Emails</span>
-          <span class="processed-count">{emailsList.length}{progress.total ? ` / ${progress.total}` : ""}</span>
+    <!-- ── Processed emails list - ALWAYS SHOW ── -->
+    <div class="processed-list">
+      <div class="processed-header">
+        <span class="processed-title">Processed Emails {useResults ? '(Final)' : '(Live)'}</span>
+        <span class="processed-count">{emailsList.length}{progress.total ? ` / ${progress.total}` : ""}</span>
+      </div>
+      {#if emailsList.length === 0}
+        <div class="processed-empty">
+          {#if progress.phase === "loading"}
+            Loading emails...
+          {:else if progress.phase === "done"}
+            No emails were processed (all may have been skipped)
+          {:else}
+            Waiting for first email to finish processing...
+          {/if}
         </div>
+      {:else}
         {#each emailsList as item}
           <div class="processed-item" class:failed={item.error}>
             <div class="pi-head">
@@ -232,8 +266,8 @@
             {/if}
           </div>
         {/each}
-      </div>
-    {/if}
+      {/if}
+    </div>
 
     <!-- ── Completion summary (phase=done) ─────────── -->
     {#if isDone}
@@ -454,6 +488,13 @@
     background: rgba(59, 130, 246, 0.1);
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
+  }
+  .processed-empty {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.7rem;
+    color: #666;
+    font-style: italic;
   }
   .processed-item {
     padding: 0.4rem 0.5rem;
