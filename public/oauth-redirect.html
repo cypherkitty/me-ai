@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google OAuth - Redirect Flow</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0a0a0a;
+      color: #e8e8e8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+    p {
+      color: #888;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 28px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: #2563eb;
+    }
+    .status {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      color: #3b82f6;
+    }
+    .status.success {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.3);
+      color: #34d399;
+    }
+    .status.error {
+      background: rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #f87171;
+    }
+    .token-info {
+      margin-top: 20px;
+      padding: 16px;
+      background: #0f0f0f;
+      border: 1px solid #222;
+      border-radius: 8px;
+      text-align: left;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #888;
+      word-break: break-all;
+    }
+    .google-icon {
+      width: 20px;
+      height: 20px;
+    }
+    .info-box {
+      margin-top: 20px;
+      padding: 16px;
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 8px;
+      font-size: 13px;
+      color: #888;
+      text-align: left;
+    }
+    .info-box strong {
+      color: #3b82f6;
+    }
+    code {
+      background: #0f0f0f;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: #34d399;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="content"></div>
+  </div>
+
+  <script>
+    const CLIENT_ID = '562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+    const TOKEN_KEY = 'me-ai:oauth-token';
+
+    function saveToken(accessToken, expiresIn) {
+      const expiresAt = Date.now() + expiresIn * 1000;
+      const tokenData = JSON.stringify({ access_token: accessToken, expires_at: expiresAt });
+      try {
+        sessionStorage.setItem(TOKEN_KEY, tokenData);
+        localStorage.setItem(TOKEN_KEY, tokenData);
+        return true;
+      } catch (e) {
+        console.error('Failed to save token:', e);
+        return false;
+      }
+    }
+
+    function parseHashParams() {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      return {
+        access_token: params.get('access_token'),
+        expires_in: params.get('expires_in'),
+        token_type: params.get('token_type'),
+        scope: params.get('scope'),
+        error: params.get('error'),
+        error_description: params.get('error_description')
+      };
+    }
+
+    function showInitialScreen() {
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+        `client_id=${encodeURIComponent(CLIENT_ID)}` +
+        `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+        `&response_type=token` +
+        `&scope=${encodeURIComponent(SCOPE)}` +
+        `&prompt=consent`;
+
+      document.getElementById('content').innerHTML = `
+        <h1>🔐 Google OAuth</h1>
+        <p>Sign in with your Google account to authorize me-ai to access your Gmail messages (read-only).</p>
+        
+        <a href="${authUrl}" class="btn">
+          <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Sign in with Google
+        </a>
+
+        <div class="info-box">
+          <strong>✓ Works in Cursor browser</strong><br>
+          This uses a redirect flow instead of popups, so it works perfectly in Cursor's embedded browser.
+          <br><br>
+          <strong>How it works:</strong><br>
+          1. Click the button above<br>
+          2. You'll be redirected to Google to sign in<br>
+          3. After approval, you'll be redirected back here<br>
+          4. Token will be saved automatically<br>
+          5. Return to <code>http://localhost:5173</code> to use the app
+        </div>
+      `;
+    }
+
+    function showSuccessScreen(accessToken, expiresIn) {
+      const saved = saveToken(accessToken, expiresIn);
+      const truncatedToken = accessToken.substring(0, 20) + '...' + accessToken.substring(accessToken.length - 20);
+      const expiresInMin = Math.floor(expiresIn / 60);
+
+      document.getElementById('content').innerHTML = `
+        <h1>✓ Success!</h1>
+        <p>You've successfully authenticated with Google.</p>
+        
+        <div class="status success">
+          Token saved to storage. You can now use the app!
+        </div>
+
+        <div class="token-info">
+          <strong>Token:</strong> ${truncatedToken}<br>
+          <strong>Expires in:</strong> ${expiresInMin} minutes<br>
+          <strong>Saved to:</strong> ${saved ? 'sessionStorage & localStorage ✓' : 'failed ✗'}
+        </div>
+
+        <div class="info-box">
+          <strong>Next steps:</strong><br>
+          1. Go back to <a href="http://localhost:5173" style="color: #3b82f6; text-decoration: none;">http://localhost:5173</a><br>
+          2. Navigate to the Dashboard tab<br>
+          3. Your Gmail messages should load automatically!
+        </div>
+
+        <a href="http://localhost:5173/#dashboard" class="btn" style="margin-top: 20px;">
+          Open Dashboard
+        </a>
+      `;
+
+      // Clear the hash from URL for cleaner appearance
+      history.replaceState(null, '', window.location.pathname);
+    }
+
+    function showErrorScreen(error, description) {
+      document.getElementById('content').innerHTML = `
+        <h1>❌ Authentication Failed</h1>
+        <p>There was an error during authentication.</p>
+        
+        <div class="status error">
+          <strong>Error:</strong> ${error}<br>
+          ${description ? `<strong>Details:</strong> ${description}` : ''}
+        </div>
+
+        <button class="btn" onclick="location.reload()" style="margin-top: 20px;">
+          Try Again
+        </button>
+      `;
+    }
+
+    // Main logic
+    window.onload = function() {
+      const params = parseHashParams();
+
+      if (params.error) {
+        showErrorScreen(params.error, params.error_description);
+      } else if (params.access_token && params.expires_in) {
+        showSuccessScreen(params.access_token, parseInt(params.expires_in));
+      } else {
+        showInitialScreen();
+      }
+    };
+  </script>
+</body>
+</html>

@@ -15,27 +15,33 @@ export const OLLAMA_MODELS = [
     displayName: "Qwen3 4B",
     params: "4B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "Latest Qwen, 128k context, enhanced reasoning",
     tags: ["multilingual", "reasoning", "general"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "qwen3:8b",
     displayName: "Qwen3 8B",
     params: "8B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "Powerful reasoning, 128k context, 100+ languages",
     tags: ["multilingual", "reasoning", "advanced"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "qwen3:14b",
     displayName: "Qwen3 14B",
     params: "14B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "Most capable Qwen3, best for complex tasks",
     tags: ["multilingual", "reasoning", "advanced"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
 
   // ── Ministral 3 Family (256k context, edge-optimized) ──────────────
@@ -44,27 +50,33 @@ export const OLLAMA_MODELS = [
     displayName: "Ministral 3 3B",
     params: "3B",
     contextWindow: 262144, // 256k
+    maxEmailTokens: 200000, // Ollama has no WebGPU limits
     description: "Mistral's smallest, 256k context, Apache 2.0",
     tags: ["fast", "long-context", "efficient"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "ministral-3:8b",
     displayName: "Ministral 3 8B",
     params: "8B",
     contextWindow: 262144, // 256k
+    maxEmailTokens: 200000, // Ollama has no WebGPU limits
     description: "Balanced performance, 256k context, vision capable",
     tags: ["general", "long-context", "vision"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "ministral-3:14b",
     displayName: "Ministral 3 14B",
     params: "14B",
     contextWindow: 262144, // 256k
+    maxEmailTokens: 200000, // Ollama has no WebGPU limits
     description: "Most capable Ministral, 256k context, function calling",
     tags: ["advanced", "long-context", "vision"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
 
   // ── GPT-OSS (OpenAI's open-weight reasoning model) ─────────────────
@@ -73,9 +85,11 @@ export const OLLAMA_MODELS = [
     displayName: "GPT-OSS 20B",
     params: "20B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "OpenAI's open model, strong reasoning, Apache 2.0",
     tags: ["reasoning", "cot", "openai"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
 
   // ── Gemma3 Family (Google, multimodal) ─────────────────────────────
@@ -84,18 +98,22 @@ export const OLLAMA_MODELS = [
     displayName: "Gemma3 4B",
     params: "4B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "Google, 128k context, multimodal (text + images)",
     tags: ["multimodal", "vision", "multilingual"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "gemma3:12b",
     displayName: "Gemma3 12B",
     params: "12B",
     contextWindow: 131072, // 128k
+    maxEmailTokens: 100000, // Ollama has no WebGPU limits
     description: "Powerful multimodal, 128k context, 140+ languages",
     tags: ["multimodal", "vision", "multilingual", "advanced"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
 
   // ── Gemma3N (Efficient with selective activation) ──────────────────
@@ -104,16 +122,20 @@ export const OLLAMA_MODELS = [
     displayName: "Gemma3N E2B",
     params: "2B effective",
     contextWindow: 32768,
+    maxEmailTokens: 25000, // Ollama has no WebGPU limits
     description: "Efficient 2B, multimodal, MatFormer architecture",
     tags: ["efficient", "multimodal", "fast"],
+    recommendedForEmailProcessing: false,
   },
   {
     name: "gemma3n:e4b",
     displayName: "Gemma3N E4B",
     params: "4B effective",
     contextWindow: 32768,
+    maxEmailTokens: 25000, // Ollama has no WebGPU limits
     description: "Efficient 4B, multimodal, selective parameter activation",
     tags: ["efficient", "multimodal", "balanced"],
+    recommendedForEmailProcessing: false,
   },
 
   // ── DeepSeek R1 (Strong reasoning, CoT) ────────────────────────────
@@ -122,18 +144,22 @@ export const OLLAMA_MODELS = [
     displayName: "DeepSeek R1 7B",
     params: "7B",
     contextWindow: 65536, // 64k
+    maxEmailTokens: 50000, // Ollama has no WebGPU limits
     description: "Strong chain-of-thought reasoning, research-focused",
     tags: ["reasoning", "cot"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
   {
     name: "deepseek-r1:14b",
     displayName: "DeepSeek R1 14B",
     params: "14B",
     contextWindow: 65536, // 64k
+    maxEmailTokens: 50000, // Ollama has no WebGPU limits
     description: "Advanced CoT reasoning, slower but thorough",
     tags: ["reasoning", "cot", "advanced"],
     recommended: true,
+    recommendedForEmailProcessing: true,
   },
 ];
 

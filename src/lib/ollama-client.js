@@ -127,23 +127,37 @@ export async function pullOllamaModel(modelName, onProgress = () => {}, url = ge
 export async function streamOllamaChat(
   modelName,
   messages,
-  { temperature = 0.7, maxTokens = 4096 } = {},
+  { temperature = 0.7, maxTokens = 4096, keepAlive } = {},
   onToken = () => {},
   url = getOllamaUrl()
 ) {
+  const body = {
+    model: modelName,
+    messages,
+    stream: true,
+    options: {
+      temperature,
+      num_predict: maxTokens,
+    },
+  };
+  // Keep model in memory (default 10m so it stays loaded when switching to Actions)
+  if (keepAlive !== undefined) {
+    body.keep_alive = keepAlive;
+  } else {
+    body.keep_alive = "10m";
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 min for slow model load
+
   const response = await fetch(`${url}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: modelName,
-      messages,
-      stream: true,
-      options: {
-        temperature,
-        num_predict: maxTokens,
-      },
-    }),
+    body: JSON.stringify(body),
+    signal: controller.signal,
   });
+
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const error = await response.text();

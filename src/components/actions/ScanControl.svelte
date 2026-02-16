@@ -12,6 +12,7 @@
     onrescan,
     oninspect,
     onstop,
+    oncloseprogress,
   } = $props();
 
   const COUNT_OPTIONS = [
@@ -41,12 +42,14 @@
   function canScan() {
     return engineStatus === "ready" && !isScanning;
   }
+
+  let isVisuallyScanning = $derived(isScanning && scanProgress?.phase !== "done");
 </script>
 
 <div class="scan-card">
   <div class="scan-header">
     <div class="scan-icon">
-      {#if isScanning}
+      {#if isVisuallyScanning}
         <span class="spinner"></span>
       {:else}
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -99,7 +102,7 @@
         onclick={onscan}
         disabled={!canScan()}
       >
-        {isScanning ? "Scanning..." : "Scan New"}
+        {isVisuallyScanning ? "Scanning..." : (isScanning ? "Finalizing..." : "Scan New")}
       </button>
       <button
         class="btn scan-btn"
@@ -117,7 +120,12 @@
   {/if}
 
   {#if isScanning || scanProgress?.phase === "done"}
-    <ScanLiveView progress={scanProgress} {onstop} />
+    <ScanLiveView 
+      progress={scanProgress} 
+      {onstop} 
+      {oninspect}
+      onclose={oncloseprogress}
+    />
   {/if}
 </div>
 

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { MODELS } from "./lib/models.js";
+  import { OLLAMA_MODELS } from "./lib/ollama-models.js";
   import {
     scanEmails,
     getClassificationsGrouped,
@@ -26,7 +27,7 @@
 
   let isScanning = $state(false);
   let scanProgress = $state(null);
-  let scanCount = $state(20);
+  let scanCount = $state(3);
   let error = $state(null);
   let scanAbort = $state(null);
 
@@ -35,16 +36,20 @@
     const unsub = engine.onMessage((msg) => {
       if (msg.status === "ready") {
         engineStatus = "ready";
-        const model = MODELS.find((m) => m.id === engine.modelId);
-        modelName = model?.name || engine.modelId || "";
+        const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
+        const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
+        const model = webgpuModel || ollamaModel;
+        modelName = model?.name || model?.displayName || engine.modelId || "";
       }
       if (msg.status === "loading") engineStatus = "loading";
     });
 
     engineStatus = engine.status;
     if (engine.modelId) {
-      const model = MODELS.find((m) => m.id === engine.modelId);
-      modelName = model?.name || engine.modelId || "";
+      const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
+      const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
+      const model = webgpuModel || ollamaModel;
+      modelName = model?.name || model?.displayName || engine.modelId || "";
     }
 
     loadData();
@@ -146,6 +151,7 @@
     ondismisserror={() => error = null}
     onstop={stopScan}
     onrefresh={loadData}
+    oncloseprogress={() => scanProgress = null}
     bind:scanCount
   />
 </div>
