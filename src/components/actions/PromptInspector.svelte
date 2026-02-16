@@ -62,7 +62,7 @@
         {:else if activeTab === "email"}
           <div class="section-desc">
             Each email is formatted into this template and sent as the user message.
-            The body is truncated to 500 characters.
+            The full email body is included.
           </div>
           <div class="template-format">
             <div class="format-label">Format:</div>
@@ -72,7 +72,7 @@ To: {"{email.to}"}
 Date: {"{formatted date}"}
 Labels: {"{email.labels}"}
 
-{"{email.body, truncated to 500 chars}"}</pre>
+{"{email.body (full content)"}</pre>
           </div>
           <div class="template-format">
             <div class="format-label">Sample:</div>
