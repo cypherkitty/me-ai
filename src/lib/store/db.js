@@ -17,8 +17,31 @@ import Dexie from "dexie";
 export const db = new Dexie("me-ai-store");
 
 db.version(1).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+});
+
+db.version(2).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+  actionItems: "++id, type, status, sourceItemId, createdAt, dueDate, [type+status]",
+});
+
+db.version(3).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+  emailClassifications: "emailId, action, date, scannedAt, status, [action+status]",
+  actionItems: null,
+});
+
+db.version(4).stores({
   // ── Data items (emails, messages, posts, etc.) ─────────────────────
-  // id: "sourceType:sourceId" — e.g. "gmail:18e12345abcd"
   items:
     "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
 
@@ -27,6 +50,12 @@ db.version(1).stores({
 
   // ── Sync state per source type ─────────────────────────────────────
   syncState: "sourceType",
+
+  // ── Email classifications by LLM triage ────────────────────────────
+  // action: dynamic UPPER_SNAKE_CASE string (e.g. DELETE, TRACK_DELIVERY)
+  // tags: multi-entry index for tag-based queries
+  // summary: LLM-generated summary of the email
+  emailClassifications: "emailId, action, date, scannedAt, status, *tags, [action+status]",
 });
 
 /**

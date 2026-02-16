@@ -14,9 +14,10 @@ test.describe("App shell", () => {
 
     // Nav links
     const navLinks = page.locator(".nav-links a");
-    await expect(navLinks).toHaveCount(2);
+    await expect(navLinks).toHaveCount(3);
     await expect(navLinks.nth(0)).toHaveText("Chat");
-    await expect(navLinks.nth(1)).toHaveText("Dashboard");
+    await expect(navLinks.nth(1)).toHaveText("Actions");
+    await expect(navLinks.nth(2)).toHaveText("Dashboard");
   });
 
   test("Chat link is active by default", async ({ page }) => {
@@ -143,5 +144,44 @@ test.describe("Dashboard page (with client ID)", () => {
 
     // Cleanup
     await page.evaluate(() => localStorage.removeItem("googleClientId"));
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// Actions page
+// ────────────────────────────────────────────────────────────
+test.describe("Actions page", () => {
+  test("navigates to Actions page and shows empty state", async ({ page }) => {
+    await page.goto("/#actions");
+
+    // Actions link should be active
+    const actionsLink = page.locator('.nav-links a[href="#actions"]');
+    await expect(actionsLink).toHaveClass(/active/);
+
+    // Should show the empty state
+    const heading = page.getByRole("heading", { name: "No emails classified yet" });
+    await expect(heading).toBeVisible();
+  });
+
+  test("shows scan control with model status", async ({ page }) => {
+    await page.goto("/#actions");
+
+    // Should see the Email Triage label
+    const triageLabel = page.getByText("Email Triage");
+    await expect(triageLabel).toBeVisible();
+
+    // Should see the Scan New button
+    const scanButton = page.getByRole("button", { name: "Scan New" });
+    await expect(scanButton).toBeVisible();
+  });
+
+  test("navigates from Chat to Actions", async ({ page }) => {
+    await page.goto("/");
+
+    await page.locator('.nav-links a[href="#actions"]').click();
+    await expect(page).toHaveURL(/#actions/);
+
+    const actionsLink = page.locator('.nav-links a[href="#actions"]');
+    await expect(actionsLink).toHaveClass(/active/);
   });
 });
