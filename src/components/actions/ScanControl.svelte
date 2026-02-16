@@ -1,4 +1,6 @@
 <script>
+  import ScanLiveView from "./ScanLiveView.svelte";
+
   let {
     engineStatus = "idle",
     modelName = "",
@@ -9,6 +11,7 @@
     onscan,
     onrescan,
     oninspect,
+    onstop,
   } = $props();
 
   const COUNT_OPTIONS = [
@@ -113,17 +116,8 @@
     <p class="scan-hint">Load a model on the Chat page first, then come back to scan.</p>
   {/if}
 
-  {#if isScanning && scanProgress}
-    <div class="scan-progress">
-      <div class="progress-bar">
-        <div
-          class="progress-fill"
-          style:width="{scanProgress.total ? (scanProgress.current / scanProgress.total) * 100 : 0}%"
-          class:indeterminate={!scanProgress.total}
-        ></div>
-      </div>
-      <span class="progress-text">{scanProgress.message || "Scanning..."}</span>
-    </div>
+  {#if isScanning || scanProgress?.phase === "done"}
+    <ScanLiveView progress={scanProgress} {onstop} />
   {/if}
 </div>
 
@@ -288,44 +282,6 @@
     font-size: 0.72rem;
     color: #666;
     font-style: italic;
-  }
-
-  .scan-progress {
-    margin-top: 0.6rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .progress-bar {
-    height: 4px;
-    background: #2a2a2a;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: #3b82f6;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
-
-  .progress-fill.indeterminate {
-    width: 100% !important;
-    animation: shimmer 1.5s infinite;
-    background: linear-gradient(90deg, transparent 0%, #3b82f6 50%, transparent 100%);
-    background-size: 200% 100%;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .progress-text {
-    font-size: 0.72rem;
-    color: #666;
   }
 
   .spinner {

@@ -11,7 +11,7 @@
  *   engine.loadModel("onnx-community/Qwen3-0.6B-ONNX");
  *   engine.onMessage(handler);
  *   engine.generate(messages);
- *   const response = await engine.generateFull(messages);
+ *   const { text, tps, numTokens, inputTokens } = await engine.generateFull(messages);
  */
 
 let _worker = null;
@@ -75,32 +75,43 @@ export function getEngine() {
     },
 
     /**
-     * Run generation and collect the full response as a string.
+     * Run generation and collect the full response with stats.
      * Returns a Promise that resolves when generation completes.
-     * Does NOT fire onMessage callbacks for token events.
      *
      * @param {Array<{role: string, content: string}>} messages
      * @param {object} [options] - Generation options
      * @param {number} [options.maxTokens=4096] - Max tokens to generate
      * @param {boolean} [options.enableThinking=true] - Allow thinking mode
-     * @returns {Promise<string>} The complete generated text
+     * @param {function} [onToken] - Optional callback fired on each token: ({ tps, numTokens })
+     * @returns {Promise<{text: string, tps: number|null, numTokens: number, inputTokens: number}>}
      */
-    generateFull(messages, options) {
+    generateFull(messages, options, onToken) {
       return new Promise((resolve, reject) => {
         let output = "";
+        let lastTps = null;
+        let lastNumTokens = 0;
+        let inputTokens = 0;
 
         const handler = (msg) => {
           switch (msg.status) {
+            case "start":
+              inputTokens = msg.inputTokens || 0;
+              break;
             case "thinking":
               break;
             case "thinking-done":
               break;
             case "update":
               output += msg.output;
+              lastTps = msg.tps ?? lastTps;
+              lastNumTokens = msg.numTokens ?? lastNumTokens;
+              if (onToken) {
+                try { onToken({ tps: lastTps, numTokens: lastNumTokens }); } catch {}
+              }
               break;
             case "complete":
               cleanup();
-              resolve(output);
+              resolve({ text: output, tps: lastTps, numTokens: lastNumTokens, inputTokens });
               break;
             case "error":
               cleanup();

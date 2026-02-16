@@ -25,6 +25,7 @@
     onremove,
     oncleargroup,
     ondismisserror,
+    onstop,
     onrefresh,
   } = $props();
 
@@ -50,6 +51,7 @@
     bind:scanCount
     {onscan}
     {onrescan}
+    {onstop}
     oninspect={() => showInspector = true}
   />
 
