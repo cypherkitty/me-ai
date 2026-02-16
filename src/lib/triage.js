@@ -8,7 +8,7 @@
 
 import { db } from "./store/db.js";
 import Dexie from "dexie";
-import { truncate, stringToHue } from "./format.js";
+import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 
 const DEFAULT_COUNT = 20;
@@ -278,7 +278,7 @@ export function formatEmailPrompt(email) {
         weekday: "short", year: "numeric", month: "short", day: "numeric",
       })
     : "Unknown date";
-  const body = truncate(email.body || email.snippet || "", 500);
+  const body = email.body || email.snippet || "";
 
   return [
     `Subject: ${email.subject}`,
