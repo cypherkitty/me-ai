@@ -9,58 +9,28 @@
 
   $effect(() => {
     if (!progress) {
-      console.log("❌ No progress object");
       processedEmails = [];
       lastCapturedIndex = -1;
       return;
     }
 
-    console.log(`📊 Progress update: phase=${progress.phase}, current=${progress.current}, lastCaptured=${lastCapturedIndex}, processedCount=${processedEmails.length}`);
-
     // New scan started - clear everything
     if (progress.phase === "loading") {
-      console.log("🔄 Scan starting, clearing processedEmails");
       processedEmails = [];
       lastCapturedIndex = -1;
       return;
     }
 
     // Capture each email when it finishes (classified phase has result + stats)
-    if (progress.phase === "classified") {
-      if (progress.current !== lastCapturedIndex) {
-        console.log(`✅ CAPTURING email ${progress.current}:`, {
-          subject: progress.email?.subject,
-          action: progress.result?.action,
-          hasStats: !!progress.emailStats,
-          hasRawResponse: !!progress.rawResponse,
-          rawResponseLength: progress.rawResponse?.length || 0
-        });
-        
-        processedEmails = [...processedEmails, {
-          index: progress.current,
-          email: progress.email,
-          result: progress.result,
-          rawResponse: progress.rawResponse || "",
-          stats: progress.emailStats,
-        }];
-        lastCapturedIndex = progress.current;
-        
-        console.log(`   Total captured now: ${processedEmails.length}`);
-      } else {
-        console.log(`⚠️ Skipping duplicate email ${progress.current} (already captured)`);
-      }
-    }
-
-    // Log when scan completes
-    if (progress.phase === "done") {
-      console.log(`🏁 Scan complete!`);
-      console.log(`   - processedEmails.length: ${processedEmails.length}`);
-      console.log(`   - progress.results.length: ${progress.results?.length || 0}`);
-      console.log(`   - progress.classified: ${progress.classified}`);
-      console.log(`   - progress.errors: ${progress.errors}`);
-      if (progress.results) {
-        console.log(`   - First result:`, progress.results[0]);
-      }
+    if (progress.phase === "classified" && progress.current !== lastCapturedIndex) {
+      processedEmails = [...processedEmails, {
+        index: progress.current,
+        email: progress.email,
+        result: progress.result,
+        rawResponse: progress.rawResponse || "",
+        stats: progress.emailStats,
+      }];
+      lastCapturedIndex = progress.current;
     }
   });
 
@@ -192,29 +162,92 @@
     {/if}
 
     <!-- ── Debug info ─────────────────────────────────── -->
-    <div class="debug-info">
-      Phase: {progress.phase} | 
-      Captured: {processedEmails.length} | 
-      Results: {progress.results?.length || 0} | 
-      Current: {progress.current || 0}/{progress.total || 0} |
-      Classified: {progress.classified || 0} |
-      Errors: {progress.errors || 0}
+    <div class="debug-panel">
+      <div class="debug-title">📊 Scan Debug Info</div>
+      <div class="debug-grid">
+        <div class="debug-item">
+          <span class="debug-label">Phase:</span>
+          <span class="debug-value">{progress.phase || '—'}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Current/Total:</span>
+          <span class="debug-value">{progress.current || 0} / {progress.total || 0}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Captured Emails:</span>
+          <span class="debug-value" class:good={processedEmails.length > 0}>{processedEmails.length}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Results Array:</span>
+          <span class="debug-value" class:good={progress.results?.length > 0}>{progress.results?.length || 0}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Classified:</span>
+          <span class="debug-value" class:good={progress.classified > 0}>{progress.classified || 0}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Errors:</span>
+          <span class="debug-value" class:bad={progress.errors > 0}>{progress.errors || 0}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Using:</span>
+          <span class="debug-value">{useResults ? 'progress.results (Final)' : 'processedEmails (Live)'}</span>
+        </div>
+        <div class="debug-item">
+          <span class="debug-label">Display Count:</span>
+          <span class="debug-value" class:good={emailsList.length > 0}>{emailsList.length}</span>
+        </div>
+      </div>
+      
+      {#if progress.phase === "done" && progress.results?.length > 0}
+        <details class="debug-details">
+          <summary class="debug-summary">View progress.results array (click to expand)</summary>
+          <pre class="debug-raw">{JSON.stringify(progress.results, null, 2)}</pre>
+        </details>
+      {/if}
+      
+      {#if processedEmails.length > 0}
+        <details class="debug-details">
+          <summary class="debug-summary">View processedEmails array (click to expand)</summary>
+          <pre class="debug-raw">{JSON.stringify(processedEmails, null, 2)}</pre>
+        </details>
+      {/if}
     </div>
 
     <!-- ── Processed emails list - ALWAYS SHOW ── -->
     <div class="processed-list">
       <div class="processed-header">
-        <span class="processed-title">Processed Emails {useResults ? '(Final)' : '(Live)'}</span>
+        <span class="processed-title">
+          📧 Processed Emails 
+          {#if useResults}
+            <span class="processed-badge final">Final Results</span>
+          {:else}
+            <span class="processed-badge live">Live Updates</span>
+          {/if}
+        </span>
         <span class="processed-count">{emailsList.length}{progress.total ? ` / ${progress.total}` : ""}</span>
       </div>
+      
       {#if emailsList.length === 0}
         <div class="processed-empty">
           {#if progress.phase === "loading"}
-            Loading emails...
+            ⏳ Loading emails from database...
           {:else if progress.phase === "done"}
-            No emails were processed (all may have been skipped)
+            ⚠️ <strong>No emails were processed!</strong>
+            <div class="empty-details">
+              • Captured during scan: {processedEmails.length}
+              • In results array: {progress.results?.length || 0}
+              • Classified count: {progress.classified || 0}
+              {#if progress.summary?.skipped}
+                <br>• Skipped: {progress.summary.skipped} (already classified)
+              {/if}
+            </div>
+          {:else if progress.phase === "scanning" || progress.phase === "generating"}
+            ⏳ Waiting for first email to complete...
+          {:else if progress.phase === "classified"}
+            ✅ First email just finished - should appear now!
           {:else}
-            Waiting for first email to finish processing...
+            Waiting... (Phase: {progress.phase})
           {/if}
         </div>
       {:else}
@@ -222,11 +255,11 @@
           <div class="processed-item" class:failed={item.error}>
             <div class="pi-head">
               <span class="pi-index">#{item.index}</span>
-              <span class="pi-subj">{item.email.subject || "(no subject)"}</span>
+              <span class="pi-subj" title={item.email.subject}>{item.email.subject || "(no subject)"}</span>
               {#if item.error}
-                <span class="pi-action error">ERROR</span>
+                <span class="pi-action error">❌ ERROR</span>
               {:else}
-                <span class="pi-action">{item.result?.action || "—"}</span>
+                <span class="pi-action">✅ {item.result?.action || "UNKNOWN"}</span>
               {/if}
             </div>
             <div class="pi-meta">
@@ -250,18 +283,36 @@
               {/if}
               {#if item.stats}
                 <div class="pi-stats">
-                  {item.stats.tps ? `${item.stats.tps.toFixed(0)} tok/s` : ""}
+                  <span class="pi-stat-item">
+                    ⚡ {item.stats.tps ? `${item.stats.tps.toFixed(0)} tok/s` : "—"}
+                  </span>
                   <span class="sep">·</span>
-                  {item.stats.inputTokens || 0} in + {item.stats.numTokens || 0} out tokens
+                  <span class="pi-stat-item">
+                    📥 {item.stats.inputTokens || 0} in
+                  </span>
                   <span class="sep">·</span>
-                  {fmtTime(item.stats.elapsed)}
+                  <span class="pi-stat-item">
+                    📤 {item.stats.numTokens || 0} out
+                  </span>
+                  <span class="sep">·</span>
+                  <span class="pi-stat-item">
+                    ⏱️ {fmtTime(item.stats.elapsed)}
+                  </span>
+                </div>
+              {:else}
+                <div class="pi-stats warning">
+                  ⚠️ No stats available
                 </div>
               {/if}
               {#if item.rawResponse}
                 <details class="pi-llm-details">
-                  <summary class="pi-llm-toggle">View raw LLM output</summary>
+                  <summary class="pi-llm-toggle">📄 View raw LLM output ({item.rawResponse.length} chars)</summary>
                   <div class="llm-output-content">{item.rawResponse}</div>
                 </details>
+              {:else}
+                <div class="pi-no-response">
+                  ⚠️ No raw LLM response captured
+                </div>
               {/if}
             {/if}
           </div>
@@ -421,16 +472,79 @@
   .stat-val { font-size: 0.78rem; font-weight: 700; color: #e8e8e8; font-variant-numeric: tabular-nums; }
   .stat-label { font-size: 0.58rem; color: #555; }
 
-  /* ── Debug info ─────────────────────────────────────── */
-  .debug-info {
-    font-size: 0.6rem;
-    color: #666;
+  /* ── Debug panel ─────────────────────────────────────── */
+  .debug-panel {
     background: #0a0a0a;
+    border: 2px solid #fbbf24;
+    border-radius: 8px;
+    padding: 0.6rem;
+    margin-bottom: 0.6rem;
+  }
+  .debug-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fbbf24;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .debug-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.4rem;
+  }
+  .debug-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0.4rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+  }
+  .debug-label {
+    font-size: 0.65rem;
+    color: #888;
+    font-weight: 600;
+  }
+  .debug-value {
+    font-size: 0.7rem;
+    color: #ccc;
+    font-family: monospace;
+    font-weight: 700;
+  }
+  .debug-value.good {
+    color: #34d399;
+  }
+  .debug-value.bad {
+    color: #f87171;
+  }
+  .debug-details {
+    margin-top: 0.5rem;
+    border-top: 1px solid #1e1e1e;
+    padding-top: 0.5rem;
+  }
+  .debug-summary {
+    font-size: 0.65rem;
+    color: #888;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.2rem 0;
+  }
+  .debug-summary:hover {
+    color: #fbbf24;
+  }
+  .debug-raw {
+    margin-top: 0.3rem;
+    padding: 0.5rem;
+    background: #000;
     border: 1px solid #1e1e1e;
     border-radius: 4px;
-    padding: 0.3rem 0.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 0.6rem;
+    color: #34d399;
     font-family: monospace;
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
   }
 
   /* ── Live LLM stream box ─────────────────────────── */
@@ -480,6 +594,25 @@
     color: #888;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .processed-badge {
+    font-size: 0.55rem;
+    font-weight: 700;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .processed-badge.live {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.15);
+  }
+  .processed-badge.final {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
   }
   .processed-count {
     font-size: 0.62rem;
@@ -492,9 +625,24 @@
   .processed-empty {
     padding: 1rem;
     text-align: center;
-    font-size: 0.7rem;
-    color: #666;
-    font-style: italic;
+    font-size: 0.72rem;
+    color: #888;
+    line-height: 1.5;
+  }
+  .processed-empty strong {
+    color: #f87171;
+  }
+  .empty-details {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: rgba(251, 191, 36, 0.05);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 4px;
+    font-size: 0.65rem;
+    color: #fbbf24;
+    text-align: left;
+    font-family: monospace;
+    line-height: 1.6;
   }
   .processed-item {
     padding: 0.4rem 0.5rem;
@@ -564,13 +712,43 @@
     border-radius: 3px;
   }
   .pi-stats {
-    font-size: 0.58rem;
-    color: #555;
+    font-size: 0.62rem;
+    color: #666;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.2rem;
+    padding: 0.25rem 0.4rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+  }
+  .pi-stats.warning {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.05);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+  }
+  .pi-stat-item {
+    color: #888;
+    font-weight: 600;
   }
   .pi-error-msg {
-    font-size: 0.58rem;
+    font-size: 0.62rem;
     color: #f87171;
     margin-top: 0.15rem;
+    padding: 0.3rem;
+    background: rgba(248, 113, 113, 0.05);
+    border: 1px solid rgba(248, 113, 113, 0.2);
+    border-radius: 4px;
+  }
+  .pi-no-response {
+    font-size: 0.6rem;
+    color: #fbbf24;
+    margin-top: 0.2rem;
+    padding: 0.25rem 0.4rem;
+    background: rgba(251, 191, 36, 0.05);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 4px;
   }
   .pi-llm-details {
     margin-top: 0.2rem;
@@ -580,8 +758,9 @@
     color: #666;
     cursor: pointer;
     user-select: none;
+    padding: 0.2rem 0;
   }
-  .pi-llm-toggle:hover { color: #999; }
+  .pi-llm-toggle:hover { color: #3b82f6; }
 
   /* ── Totals ──────────────────────────────────────── */
   .totals {
