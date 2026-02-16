@@ -2,6 +2,7 @@
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
+  import DataManager from "./DataManager.svelte";
   import { actionColor } from "../../lib/triage.js";
 
   let {
@@ -23,12 +24,11 @@
     ondismiss,
     onremove,
     oncleargroup,
-    onclear,
     ondismisserror,
     onstop,
+    onrefresh,
   } = $props();
 
-  let showClearConfirm = $state(false);
   let showInspector = $state(false);
 
   /** Grab a sample email from the first group to show in the inspector */
@@ -86,15 +86,6 @@
       <span class="footer-stat">
         {counts.total} emails classified into {groupOrder.length} groups
       </span>
-      {#if !showClearConfirm}
-        <button class="btn-link danger" onclick={() => showClearConfirm = true}>Clear all</button>
-      {:else}
-        <span class="clear-confirm">
-          Clear all classifications?
-          <button class="btn-link" onclick={() => showClearConfirm = false}>Cancel</button>
-          <button class="btn-link danger" onclick={() => { onclear(); showClearConfirm = false; }}>Delete</button>
-        </span>
-      {/if}
     </div>
   {:else if !isScanning}
     <div class="empty-state">
@@ -107,6 +98,8 @@
       <p>Click <strong>Scan New</strong> to classify your recent emails. The LLM will determine action types, tags, and summaries automatically.</p>
     </div>
   {/if}
+
+  <DataManager {groupOrder} onrefresh={onrefresh} />
 </div>
 
 <style>
@@ -156,27 +149,6 @@
   .footer-stat {
     font-size: 0.72rem;
     color: #555;
-  }
-
-  .btn-link {
-    background: none;
-    border: none;
-    color: #888;
-    font-size: 0.72rem;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-  }
-  .btn-link:hover { color: #ccc; }
-  .btn-link.danger { color: #f87171; }
-  .btn-link.danger:hover { color: #fca5a5; }
-
-  .clear-confirm {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.72rem;
-    color: #888;
   }
 
   .empty-state {
