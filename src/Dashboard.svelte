@@ -1,6 +1,9 @@
 <script>
   import { onMount } from "svelte";
-  import { initGoogleAuth, requestAccessToken, revokeToken } from "./lib/google-auth.js";
+  import {
+    initGoogleAuth, requestAccessToken, revokeToken,
+    getSavedToken, isTokenValid, getTokenTTL, refreshToken,
+  } from "./lib/google-auth.js";
   import { getProfile } from "./lib/gmail-api.js";
   import { syncGmail, syncGmailMore, getGmailSyncStatus, clearGmailData } from "./lib/store/gmail-sync.js";
   import { getStoredEmails } from "./lib/store/query-layer.js";
@@ -15,10 +18,61 @@
     }
   }
 
+  let refreshTimer = null;
+
   onMount(() => {
     window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
   });
+
+  /**
+   * Schedule a silent token refresh shortly before it expires.
+   * If the silent attempt fails, sign the user out gracefully.
+   */
+  function scheduleTokenRefresh() {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    const ttl = getTokenTTL();
+    if (ttl <= 0) return;
+
+    // Refresh 2 minutes before expiry (or immediately if <2 min left)
+    const delay = Math.max(0, ttl - 2 * 60 * 1000);
+    refreshTimer = setTimeout(async () => {
+      try {
+        const result = await refreshToken();
+        accessToken = result.access_token;
+        scheduleTokenRefresh();
+      } catch {
+        // Silent refresh failed — token is dead
+        accessToken = null;
+        profile = null;
+        error = "Session expired. Please sign in again.";
+      }
+    }, delay);
+  }
+
+  /**
+   * Verify the token is still valid before any API call.
+   * If expired, attempt a silent refresh first.
+   * Returns a valid access token or null (signs out on failure).
+   */
+  async function ensureValidToken() {
+    if (isTokenValid()) return accessToken;
+
+    try {
+      const result = await refreshToken();
+      accessToken = result.access_token;
+      scheduleTokenRefresh();
+      return accessToken;
+    } catch {
+      accessToken = null;
+      profile = null;
+      error = "Session expired. Please sign in again.";
+      return null;
+    }
+  }
 
   // ── State ──────────────────────────────────────────────────────────
   let clientId = $state(
@@ -68,7 +122,18 @@
   $effect(() => {
     if (clientId && !authInitialized) {
       initGoogleAuth(clientId)
-        .then(() => { authInitialized = true; })
+        .then(() => {
+          authInitialized = true;
+          // Auto-restore session token (survives page refresh within same tab)
+          if (!accessToken) {
+            const saved = getSavedToken();
+            if (saved) {
+              accessToken = saved.access_token;
+              scheduleTokenRefresh();
+              fetchProfile();
+            }
+          }
+        })
         .catch((e) => { error = `Auth init failed: ${e.message}`; });
     }
   });
@@ -103,6 +168,7 @@
       }
       const result = await requestAccessToken();
       accessToken = result.access_token;
+      scheduleTokenRefresh();
       await fetchProfile();
     } catch (e) {
       error = e.message;
@@ -112,6 +178,7 @@
   }
 
   async function signOut() {
+    if (refreshTimer) clearTimeout(refreshTimer);
     if (accessToken) {
       try {
         await revokeToken(accessToken);
@@ -193,6 +260,9 @@
   async function startSync(limit) {
     if (isSyncing || !accessToken) return;
 
+    const token = await ensureValidToken();
+    if (!token) return;
+
     error = null;
     isSyncing = true;
     syncProgress = null;
@@ -200,7 +270,7 @@
     const controller = new AbortController();
 
     try {
-      await syncGmail(accessToken, {
+      await syncGmail(token, {
         limit,
         onProgress: (progress) => {
           syncProgress = { ...progress };
@@ -222,6 +292,9 @@
   async function startSyncMore(limit) {
     if (isSyncing || !accessToken) return;
 
+    const token = await ensureValidToken();
+    if (!token) return;
+
     error = null;
     isSyncing = true;
     syncProgress = null;
@@ -229,7 +302,7 @@
     const controller = new AbortController();
 
     try {
-      await syncGmailMore(accessToken, {
+      await syncGmailMore(token, {
         limit,
         onProgress: (progress) => {
           syncProgress = { ...progress };

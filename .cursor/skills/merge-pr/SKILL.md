@@ -21,7 +21,13 @@ After creating a PR or when the user mentions merging, **always ask the user fir
 
 ### Step 1: Identify the PR
 
-First, check if the current branch already has an open PR:
+First, list all open PRs:
+
+```bash
+gh pr list --state open
+```
+
+Also check if the current branch has an open PR:
 
 ```bash
 gh pr list --head "$(git branch --show-current)"
@@ -29,13 +35,7 @@ gh pr list --head "$(git branch --show-current)"
 
 **If the current branch has an open PR, always reuse it.** Push new commits to the same branch — do NOT create a new branch or a new PR. The existing PR will update automatically.
 
-If no PR exists for the current branch, list all open PRs:
-
-```bash
-gh pr list --state open
-```
-
-If multiple PRs are open, ask the user which one to merge.
+**IMPORTANT:** There should normally be only one open PR at a time. If multiple PRs are open, ask the user which one to merge first. Do NOT create new PRs until existing ones are merged.
 
 ### Step 2: Check CI status
 
@@ -150,3 +150,4 @@ Report to the user:
 - **Always squash merge.** Clean history, one commit per feature.
 - **Never merge with conflicts.** Resolve conflicts locally, run all tests, push, and wait for CI to pass again before merging.
 - **Never skip steps.** Even if the user says "just merge it", run all checks first and inform them of any issues.
+- **One open PR at a time.** Never create a new PR while another is still open. Push all new work to the existing open PR's branch. Only after the user says "merge" and the PR is merged should you create a new branch and PR for the next task. This prevents PR sprawl and keeps review focused.

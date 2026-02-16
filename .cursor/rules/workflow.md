@@ -12,8 +12,9 @@ alwaysApply: true
 - **NEVER push directly to `main`.**
 - **Every feature, refactor, bug fix, or docs update** must go through a pull request.
 - If no feature branch exists yet, create one before committing.
-- **If the current branch already has an open PR, reuse it.** Push new commits to the same branch — do NOT create a new branch or PR. The existing PR updates automatically.
-- The **only** exception is if the user explicitly says "push to main without a PR".
+- **One open PR at a time.** If there is already an open PR (on the current branch or any branch), push new work to that existing PR's branch. Do NOT create a new branch or a new PR while one is already open. The existing PR updates automatically when you push commits.
+- **Only create a new PR after the previous one is merged.** When the user says "merge" / "ship it" / "let's merge", merge the current PR first (via the `merge-pr` skill), then create a new branch and PR for the next piece of work.
+- The **only** exception is if the user explicitly says "push to main without a PR" or explicitly asks for a separate PR.
 
 ### Branch Naming
 
