@@ -1,7 +1,8 @@
 <script>
   import { onMount, tick } from "svelte";
   import { MODELS } from "./lib/models.js";
-  import { getEngine } from "./lib/llm-engine.js";
+  import { OLLAMA_MODELS } from "./lib/ollama-models.js";
+  import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
   import {
@@ -11,15 +12,26 @@
     scanEmails,
     getScanStats,
   } from "./lib/triage.js";
+  import BackendSelector from "./components/chat/BackendSelector.svelte";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
+  import OllamaSettings from "./components/chat/OllamaSettings.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
 
   const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 
   // ── State ──────────────────────────────────────────────────────────
-  const engine = getEngine();
-  let selectedModel = $state(localStorage.getItem("selectedModel") || MODELS[0].id);
+  const engine = getUnifiedEngine();
+  let backend = $state(localStorage.getItem("aiBackend") || "webgpu");
+  
+  // Get default model based on backend
+  function getDefaultModel() {
+    const saved = localStorage.getItem("selectedModel");
+    if (saved) return saved;
+    return backend === "webgpu" ? MODELS[0].id : OLLAMA_MODELS[0].name;
+  }
+  
+  let selectedModel = $state(getDefaultModel());
   let status = $state(null);       // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
@@ -245,8 +257,18 @@
   function loadModel() {
     status = "loading";
     localStorage.setItem("selectedModel", selectedModel);
+    localStorage.setItem("aiBackend", backend);
     engine.loadModel(selectedModel);
   }
+
+  // Watch backend changes and update default model
+  $effect(() => {
+    if (backend === "webgpu" && !MODELS.find(m => m.id === selectedModel)) {
+      selectedModel = MODELS[0].id;
+    } else if (backend === "ollama" && !OLLAMA_MODELS.find(m => m.name === selectedModel)) {
+      selectedModel = OLLAMA_MODELS[0].name;
+    }
+  });
 
   async function send(text) {
     if (!text || isRunning) return;
@@ -292,19 +314,25 @@
   }
 </script>
 
-{#if !IS_WEBGPU_AVAILABLE}
+{#if status === null}
   <div class="container center">
-    <h1>WebGPU Not Available</h1>
-    <p>Your browser does not support WebGPU. Please try Chrome 113+ or Edge 113+.</p>
-  </div>
+    <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
-{:else if status === null}
-  <ModelSelector
-    bind:selectedModel
-    {gpuInfo}
-    {error}
-    onload={loadModel}
-  />
+    {#if backend === "webgpu"}
+      <ModelSelector
+        bind:selectedModel
+        {gpuInfo}
+        {error}
+        onload={loadModel}
+      />
+    {:else if backend === "ollama"}
+      <OllamaSettings
+        bind:selectedModel
+        bind:error
+        onload={loadModel}
+      />
+    {/if}
+  </div>
 
 {:else if status === "loading"}
   <LoadingProgress message={loadingMessage} items={progressItems} />
@@ -347,10 +375,5 @@
     text-align: center;
     height: 100%;
     gap: 0.75rem;
-  }
-  h1 {
-    font-size: 1.8rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
   }
 </style>
