@@ -32,6 +32,15 @@ db.version(2).stores({
 });
 
 db.version(3).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+  emailClassifications: "emailId, action, date, scannedAt, status, [action+status]",
+  actionItems: null,
+});
+
+db.version(4).stores({
   // ── Data items (emails, messages, posts, etc.) ─────────────────────
   items:
     "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
@@ -43,13 +52,10 @@ db.version(3).stores({
   syncState: "sourceType",
 
   // ── Email classifications by LLM triage ────────────────────────────
-  // emailId: reference to items table (e.g. "gmail:18e12345abcd")
-  // action: DELETE | NOTIFY | READ_SUMMARIZE | REPLY_NEEDED | REVIEW | NO_ACTION
-  // status: pending | acted | dismissed
-  emailClassifications: "emailId, action, date, scannedAt, status, [action+status]",
-
-  // Drop v2 table
-  actionItems: null,
+  // action: dynamic UPPER_SNAKE_CASE string (e.g. DELETE, TRACK_DELIVERY)
+  // tags: multi-entry index for tag-based queries
+  // summary: LLM-generated summary of the email
+  emailClassifications: "emailId, action, date, scannedAt, status, *tags, [action+status]",
 });
 
 /**

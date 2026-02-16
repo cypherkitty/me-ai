@@ -2,24 +2,31 @@
   import EmailRow from "./EmailRow.svelte";
 
   let {
-    action, items = [], expanded = false,
+    action, color = "#888", count = 0, items = [], expanded = false,
     ontoggle, onmarkacted, ondismiss, onremove, oncleargroup,
   } = $props();
 
   let pendingItems = $derived(items.filter((i) => i.status === "pending"));
   let actedItems = $derived(items.filter((i) => i.status !== "pending"));
   let showClearConfirm = $state(false);
+
+  /** Format UPPER_SNAKE_CASE to Title Case: DELETE -> Delete, TRACK_DELIVERY -> Track Delivery */
+  function formatLabel(str) {
+    return str
+      .split("_")
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .join(" ");
+  }
 </script>
 
 <div class="action-group">
   <button class="group-header" onclick={ontoggle}>
-    <span class="group-badge" style:background={action.color}>{action.label}</span>
+    <span class="group-badge" style:background={color}>{formatLabel(action)}</span>
     <span class="group-count">{pendingItems.length}</span>
     {#if actedItems.length > 0}
       <span class="group-acted">{actedItems.length} handled</span>
     {/if}
     <span class="spacer"></span>
-    <span class="group-description">{action.description}</span>
     <svg
       class="chevron"
       class:open={expanded}
@@ -36,14 +43,14 @@
       {/if}
 
       {#each pendingItems as item (item.emailId)}
-        <EmailRow {item} actionColor={action.color} {onmarkacted} {ondismiss} {onremove} />
+        <EmailRow {item} actionColor={color} {onmarkacted} {ondismiss} {onremove} />
       {/each}
 
       {#if actedItems.length > 0}
         <details class="handled-section">
           <summary class="handled-summary">{actedItems.length} handled</summary>
           {#each actedItems as item (item.emailId)}
-            <EmailRow {item} actionColor={action.color} {onremove} dimmed />
+            <EmailRow {item} actionColor={color} {onremove} dimmed />
           {/each}
         </details>
       {/if}
@@ -114,15 +121,6 @@
   }
 
   .spacer { flex: 1; }
-
-  .group-description {
-    font-size: 0.68rem;
-    color: #555;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 220px;
-  }
 
   .chevron {
     flex-shrink: 0;

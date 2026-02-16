@@ -1,11 +1,9 @@
 /**
  * Email triage module.
  *
- * Classifies emails one-by-one through the LLM, assigning each email
- * an action type (DELETE, NOTIFY, READ_SUMMARIZE, REPLY_NEEDED, REVIEW,
- * NO_ACTION) and stores the classification locally in IndexedDB.
- *
- * The UI groups emails by their action type so users can act in bulk.
+ * Classifies emails one-by-one through the LLM. Instead of a fixed set
+ * of action types, the LLM freely determines the action, tags, and summary
+ * for each email. Action groups emerge dynamically from the data.
  */
 
 import { db } from "./store/db.js";
@@ -13,48 +11,46 @@ import Dexie from "dexie";
 
 const DEFAULT_COUNT = 20;
 
-// ── Action types ─────────────────────────────────────────────────────
-
-export const ACTION_TYPES = {
-  DELETE:         { id: "DELETE",         label: "Delete",          color: "#f87171", icon: "trash",     description: "Ad, spam, or useless notification — safe to delete" },
-  NOTIFY:         { id: "NOTIFY",         label: "Notify Me",      color: "#fbbf24", icon: "bell",      description: "Important event happened — delivery, payment, etc." },
-  READ_SUMMARIZE: { id: "READ_SUMMARIZE", label: "Read & Summarize", color: "#3b82f6", icon: "book",   description: "Newsletter or digest — LLM should read and highlight key info" },
-  REPLY_NEEDED:   { id: "REPLY_NEEDED",   label: "Reply Needed",   color: "#a78bfa", icon: "reply",     description: "Requires a response from you" },
-  REVIEW:         { id: "REVIEW",         label: "Review",         color: "#f59e0b", icon: "eye",       description: "Needs your attention — billing, account changes, decisions" },
-  NO_ACTION:      { id: "NO_ACTION",      label: "No Action",      color: "#666",    icon: "check",     description: "Informational only, no action needed" },
-};
-
-export const VALID_ACTIONS = Object.keys(ACTION_TYPES);
-
 // ── System prompt ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an email classifier. Classify this email into exactly ONE action type.
+const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 Format:
 {
-  "action": "DELETE",
-  "reason": "Promotional email from a store"
+  "action": "SHORT_ACTION_NAME",
+  "reason": "One sentence explaining why",
+  "summary": "2-3 sentence summary of the email content",
+  "tags": ["tag1", "tag2", "tag3"]
 }
 
-Action types:
-- "DELETE" — Ads, promotions, spam, useless status notifications (e.g. "shipped" without tracking info). Safe to delete.
-- "NOTIFY" — Something important happened that the user should know about: package delivered, payment confirmed, account alert. User needs a short notification.
-- "READ_SUMMARIZE" — Newsletter, digest, or content-heavy email (e.g. Rust Weekly, tech news). Worth reading — summarize the key points.
-- "REPLY_NEEDED" — Someone is asking a question, requesting a meeting, or waiting for a response. The user needs to reply.
-- "REVIEW" — Needs human attention: billing issues, subscription changes, legal notices, account security. Not urgent enough to notify, but should be reviewed.
-- "NO_ACTION" — Purely informational, already handled, or auto-generated confirmation. No action needed.
+Guidelines for "action":
+- Use a short UPPER_SNAKE_CASE label that describes what the user should do
+- Examples: DELETE, REPLY, REVIEW, READ_LATER, ARCHIVE, PAY_BILL, TRACK_DELIVERY, SCHEDULE_MEETING, UNSUBSCRIBE, SAVE_RECEIPT, FOLLOW_UP, ACKNOWLEDGE, IGNORE
+- Be specific: prefer "TRACK_DELIVERY" over "NOTIFY", prefer "PAY_BILL" over "REVIEW"
+- If genuinely nothing to do, use "NO_ACTION"
+
+Guidelines for "tags":
+- 2-5 short lowercase tags describing the email's nature
+- Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, newsletter, finance, travel
+- Be descriptive and specific
+
+Guidelines for "summary":
+- 2-3 sentences capturing the key information
+- Include specific details: amounts, dates, names, tracking numbers, deadlines
+- Write from the perspective of what matters to the recipient
 
 Rules:
-- Pick exactly ONE action type
-- "reason" should be a brief (1 sentence) explanation of why
-- Output ONLY the JSON object, nothing else`;
+- Output ONLY the JSON object, nothing else
+- "action" must be UPPER_SNAKE_CASE
+- "tags" must be an array of lowercase strings
+- "summary" must be a string`;
 
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Scan recent emails through the LLM to classify them by action type.
+ * Scan recent emails through the LLM to classify them.
  * Each email is processed individually.
  *
  * @param {object} engine - Shared LLM engine from llm-engine.js
@@ -135,7 +131,9 @@ export async function scanEmails(
         await db.emailClassifications.put({
           emailId: email.id,
           action: classification.action,
-          reason: String(classification.reason || "").slice(0, 300),
+          reason: classification.reason,
+          summary: classification.summary,
+          tags: classification.tags,
           subject: email.subject || "(no subject)",
           from: email.from || "",
           date: email.date,
@@ -170,40 +168,58 @@ export async function getClassifications({ action } = {}) {
 }
 
 /**
- * Get classifications grouped by action type.
- * Returns a Map: action -> array of classifications.
+ * Get classifications grouped by action type (dynamic — groups emerge from data).
+ * Returns an object: action -> array of classifications, sorted by date desc.
+ * Also returns the group order sorted by count descending.
  */
 export async function getClassificationsGrouped() {
   const all = await db.emailClassifications.toArray();
   const groups = {};
-  for (const actionId of VALID_ACTIONS) {
-    groups[actionId] = [];
-  }
+
   for (const item of all) {
-    const key = VALID_ACTIONS.includes(item.action) ? item.action : "NO_ACTION";
+    const key = item.action || "UNKNOWN";
+    if (!groups[key]) groups[key] = [];
     groups[key].push(item);
   }
+
   // Sort each group by date descending
   for (const key of Object.keys(groups)) {
     groups[key].sort((a, b) => (b.date || 0) - (a.date || 0));
   }
-  return groups;
+
+  // Compute group order: largest groups first
+  const order = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+
+  return { groups, order };
 }
 
 /**
- * Get count per action type.
+ * Get count per action type (dynamic).
  */
 export async function getClassificationCounts() {
   const all = await db.emailClassifications.toArray();
   const counts = { total: all.length };
-  for (const actionId of VALID_ACTIONS) {
-    counts[actionId] = 0;
-  }
   for (const item of all) {
-    const key = VALID_ACTIONS.includes(item.action) ? item.action : "NO_ACTION";
-    counts[key]++;
+    const key = item.action || "UNKNOWN";
+    counts[key] = (counts[key] || 0) + 1;
   }
   return counts;
+}
+
+/**
+ * Get all unique tags with their counts.
+ */
+export async function getTagCounts() {
+  const all = await db.emailClassifications.toArray();
+  const tagMap = {};
+  for (const item of all) {
+    if (Array.isArray(item.tags)) {
+      for (const tag of item.tags) {
+        tagMap[tag] = (tagMap[tag] || 0) + 1;
+      }
+    }
+  }
+  return tagMap;
 }
 
 /**
@@ -277,12 +293,9 @@ function truncate(str, maxLen) {
 
 /**
  * Parse the LLM's JSON response for a single email classification.
- * Expects: {"action": "DELETE", "reason": "..."}
+ * Expects: {"action": "...", "reason": "...", "summary": "...", "tags": [...]}
  *
- * Handles:
- * - Clean JSON objects
- * - JSON wrapped in markdown code blocks
- * - JSON with surrounding text
+ * Action types are freeform — any UPPER_SNAKE_CASE string is accepted.
  *
  * @param {string} response - Raw LLM output
  * @returns {object|null} Parsed classification or null
@@ -305,7 +318,6 @@ export function parseClassification(response) {
     return null;
   }
 
-  // Reject if the outermost structure is an array
   const firstBracket = text.indexOf("[");
   if (firstBracket !== -1 && firstBracket < firstBrace) {
     console.warn("Triage: expected JSON object, got array");
@@ -318,18 +330,66 @@ export function parseClassification(response) {
     const parsed = JSON.parse(jsonStr);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
-    const action = String(parsed.action || "").toUpperCase();
-    if (!VALID_ACTIONS.includes(action)) {
-      console.warn("Triage: unknown action type:", parsed.action);
+    // Action is required
+    const action = normalizeAction(parsed.action);
+    if (!action) {
+      console.warn("Triage: missing or invalid action field");
       return null;
+    }
+
+    // Tags: normalize to array of lowercase strings
+    let tags = [];
+    if (Array.isArray(parsed.tags)) {
+      tags = parsed.tags
+        .filter((t) => typeof t === "string" && t.trim())
+        .map((t) => t.trim().toLowerCase())
+        .slice(0, 10);
     }
 
     return {
       action,
-      reason: parsed.reason || "",
+      reason: String(parsed.reason || "").slice(0, 300),
+      summary: String(parsed.summary || "").slice(0, 500),
+      tags,
     };
   } catch (e) {
     console.warn("Triage: failed to parse JSON response:", e.message);
     return null;
   }
+}
+
+/**
+ * Normalize an action string to UPPER_SNAKE_CASE.
+ */
+function normalizeAction(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  const cleaned = raw.trim().toUpperCase().replace(/[\s-]+/g, "_").replace(/[^A-Z0-9_]/g, "");
+  return cleaned || null;
+}
+
+// ── Color generation ─────────────────────────────────────────────────
+
+/**
+ * Generate a stable HSL color from a string (for dynamic action groups).
+ * Same string always produces the same color.
+ */
+export function actionColor(action) {
+  let hash = 0;
+  for (let i = 0; i < action.length; i++) {
+    hash = action.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 55%)`;
+}
+
+/**
+ * Generate a stable HSL color for tags (softer palette).
+ */
+export function tagColor(tag) {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 40%, 35%)`;
 }

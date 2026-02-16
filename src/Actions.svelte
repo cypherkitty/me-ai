@@ -11,8 +11,6 @@
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
-    ACTION_TYPES,
-    VALID_ACTIONS,
   } from "./lib/triage.js";
   import ActionsView from "./components/actions/ActionsView.svelte";
 
@@ -22,6 +20,7 @@
   let engineStatus = $state(engine.status);
   let modelName = $state("");
   let groups = $state({});
+  let groupOrder = $state([]);
   let counts = $state({ total: 0 });
   let stats = $state(null);
   let expandedGroup = $state(null);
@@ -55,7 +54,9 @@
   // ── Load data from DB ──────────────────────────────────────────────
   async function loadData() {
     try {
-      groups = await getClassificationsGrouped();
+      const result = await getClassificationsGrouped();
+      groups = result.groups;
+      groupOrder = result.order;
       counts = await getClassificationCounts();
       stats = await getScanStats();
     } catch (e) {
@@ -64,14 +65,8 @@
   }
 
   // ── Scan emails (skip already classified) ──────────────────────────
-  async function startScan() {
-    await doScan(false);
-  }
-
-  // ── Rescan all (force reclassify) ──────────────────────────────────
-  async function rescan() {
-    await doScan(true);
-  }
+  async function startScan() { await doScan(false); }
+  async function rescan() { await doScan(true); }
 
   async function doScan(force) {
     if (isScanning || !engine.isReady) return;
@@ -84,9 +79,7 @@
       await scanEmails(engine, {
         count: scanCount,
         force,
-        onProgress: (progress) => {
-          scanProgress = { ...progress };
-        },
+        onProgress: (progress) => { scanProgress = { ...progress }; },
       });
       await loadData();
     } catch (e) {
@@ -133,6 +126,7 @@
     {engineStatus}
     {modelName}
     {groups}
+    {groupOrder}
     {counts}
     {stats}
     {expandedGroup}

@@ -1,12 +1,13 @@
 <script>
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
-  import { ACTION_TYPES, VALID_ACTIONS } from "../../lib/triage.js";
+  import { actionColor } from "../../lib/triage.js";
 
   let {
     engineStatus,
     modelName,
     groups = {},
+    groupOrder = [],
     counts = {},
     stats = null,
     expandedGroup = null,
@@ -26,12 +27,6 @@
   } = $props();
 
   let showClearConfirm = $state(false);
-
-  // Only show action groups that have items, in a meaningful order
-  const GROUP_ORDER = ["DELETE", "NOTIFY", "READ_SUMMARIZE", "REPLY_NEEDED", "REVIEW", "NO_ACTION"];
-  let visibleGroups = $derived(
-    GROUP_ORDER.filter((id) => groups[id] && groups[id].length > 0)
-  );
 </script>
 
 <div class="actions-container">
@@ -55,10 +50,12 @@
 
   {#if counts.total > 0}
     <div class="groups-list">
-      {#each visibleGroups as actionId (actionId)}
+      {#each groupOrder as actionId (actionId)}
         <ActionGroup
-          action={ACTION_TYPES[actionId]}
-          items={groups[actionId]}
+          action={actionId}
+          color={actionColor(actionId)}
+          count={groups[actionId]?.length || 0}
+          items={groups[actionId] || []}
           expanded={expandedGroup === actionId}
           ontoggle={() => ontogglegroup(actionId)}
           {onmarkacted}
@@ -71,7 +68,7 @@
 
     <div class="actions-footer">
       <span class="footer-stat">
-        {counts.total} emails classified
+        {counts.total} emails classified into {groupOrder.length} groups
       </span>
       {#if !showClearConfirm}
         <button class="btn-link danger" onclick={() => showClearConfirm = true}>Clear all</button>
@@ -91,7 +88,7 @@
         <path d="m9 14 2 2 4-4"/>
       </svg>
       <h3>No emails classified yet</h3>
-      <p>Click <strong>Scan Emails</strong> to classify your recent emails by action type — delete, notify, summarize, reply, review, or no action.</p>
+      <p>Click <strong>Scan New</strong> to classify your recent emails. The LLM will determine action types, tags, and summaries automatically.</p>
     </div>
   {/if}
 </div>

@@ -1,4 +1,6 @@
 <script>
+  import { tagColor } from "../../lib/triage.js";
+
   let { item, actionColor = "#666", dimmed = false, onmarkacted, ondismiss, onremove } = $props();
 
   function formatDate(timestamp) {
@@ -14,10 +16,11 @@
   }
 
   let isPending = $derived(item.status === "pending");
+  let showDetails = $state(false);
 </script>
 
 <div class="email-row" class:dimmed>
-  <div class="row-left" style:border-left-color={actionColor}>
+  <button class="row-left" style:border-left-color={actionColor} onclick={() => showDetails = !showDetails}>
     <span class="row-subject">{item.subject}</span>
     <span class="row-meta">
       <span class="row-from">{item.from}</span>
@@ -25,10 +28,17 @@
         <span class="row-date">{formatDate(item.date)}</span>
       {/if}
     </span>
-    {#if item.reason}
+    {#if item.tags && item.tags.length > 0}
+      <span class="row-tags">
+        {#each item.tags as tag}
+          <span class="tag" style:background={tagColor(tag)}>{tag}</span>
+        {/each}
+      </span>
+    {/if}
+    {#if item.reason && !showDetails}
       <span class="row-reason">{item.reason}</span>
     {/if}
-  </div>
+  </button>
 
   <div class="row-actions">
     {#if isPending}
@@ -58,6 +68,15 @@
   </div>
 </div>
 
+{#if showDetails && item.summary}
+  <div class="summary-panel" style:border-left-color={actionColor}>
+    <p class="summary-text">{item.summary}</p>
+    {#if item.reason}
+      <p class="summary-reason">{item.reason}</p>
+    {/if}
+  </div>
+{/if}
+
 <style>
   .email-row {
     display: flex;
@@ -69,7 +88,6 @@
   .email-row:hover {
     background: rgba(255, 255, 255, 0.02);
   }
-
   .email-row.dimmed {
     opacity: 0.45;
   }
@@ -79,9 +97,16 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: 0.15rem;
     border-left: 3px solid;
     padding-left: 0.7rem;
+    background: none;
+    border-top: none;
+    border-bottom: none;
+    border-right: none;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
   }
 
   .row-subject {
@@ -109,6 +134,22 @@
 
   .row-date {
     flex-shrink: 0;
+  }
+
+  .row-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    margin-top: 0.05rem;
+  }
+
+  .tag {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #ddd;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+    white-space: nowrap;
   }
 
   .row-reason {
@@ -164,5 +205,26 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     flex-shrink: 0;
+  }
+
+  .summary-panel {
+    margin: 0 0.8rem 0.3rem 0;
+    padding: 0.4rem 0.7rem;
+    border-left: 3px solid;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 6px 6px 0;
+  }
+
+  .summary-text {
+    font-size: 0.75rem;
+    color: #bbb;
+    line-height: 1.45;
+  }
+
+  .summary-reason {
+    margin-top: 0.25rem;
+    font-size: 0.7rem;
+    color: #666;
+    font-style: italic;
   }
 </style>
