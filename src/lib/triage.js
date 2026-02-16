@@ -275,6 +275,7 @@ export async function scanEmails(
       processed: toProcess.length,
       skipped,
       modelName: modelInfo.name,
+      modelContextWindow: modelInfo.contextWindow,
       modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },

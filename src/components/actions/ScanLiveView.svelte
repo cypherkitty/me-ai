@@ -173,7 +173,7 @@
         <div class="summary-section">
           <div class="ssec-title">Model & Prompts</div>
           <div class="ssec-items">
-            <span class="ssec-item">Model: <strong>{progress.summary?.modelName || "Unknown"}</strong> (max {fmtTokens(progress.summary?.modelMaxEmailTokens || 0)} tokens)</span>
+            <span class="ssec-item">Model: <strong>{progress.summary?.modelName || "Unknown"}</strong> ({Math.round((progress.summary?.modelContextWindow || 0) / 1024)}k context, ~{Math.round((progress.summary?.modelMaxEmailTokens || 0) / 1000)}k email limit)</span>
             <span class="sep">·</span>
             <span class="ssec-item">System prompt: <strong>{fmtTokens(progress.summary?.systemPromptSize || 0)} chars</strong></span>
             <span class="sep">·</span>

@@ -38,8 +38,8 @@
           <thead>
             <tr>
               <th>Model</th>
-              <th>Context</th>
-              <th>Email Tokens</th>
+              <th>Context Window</th>
+              <th>Email Limit</th>
               <th>Email Processing</th>
             </tr>
           </thead>
@@ -52,7 +52,9 @@
                     <span class="current-badge">Current</span>
                   {/if}
                 </td>
-                <td class="context-col">{(model.contextWindow / 1024).toFixed(0)}k</td>
+                <td class="context-col">
+                  <strong>{(model.contextWindow / 1024).toFixed(0)}k</strong>
+                </td>
                 <td class="tokens-col">~{(model.maxEmailTokens / 1000).toFixed(0)}k</td>
                 <td class="rec-col">
                   {#if model.recommendedForEmailProcessing}
@@ -69,7 +71,7 @@
         </table>
       </div>
       <p class="model-table-note">
-        <strong>Email Tokens</strong> = safe limit for email processing. Larger models can handle longer emails without WebGPU memory errors.
+        <strong>Context Window</strong> = model's maximum input capacity. <strong>Email Limit</strong> = WebGPU memory-safe limit (smaller models need more conservative limits to avoid memory errors).
       </p>
     </details>
   </div>
