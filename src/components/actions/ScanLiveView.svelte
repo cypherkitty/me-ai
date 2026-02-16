@@ -216,7 +216,10 @@
                       {/if}
                     </div>
                   {:else}
-                    <div class="ri-err-msg">{result.error}</div>
+                    <details class="ri-err-details">
+                      <summary class="ri-err-summary">View error details</summary>
+                      <div class="ri-err-msg">{result.error}</div>
+                    </details>
                   {/if}
                 </div>
               {/each}
@@ -540,11 +543,33 @@
     line-height: 1.4;
     margin-bottom: 0.15rem;
   }
-  .ri-stats, .ri-err-msg {
+  .ri-stats {
     font-size: 0.58rem;
     color: #555;
   }
-  .ri-err-msg { color: #f87171; }
+  .ri-err-details {
+    margin-top: 0.15rem;
+  }
+  .ri-err-summary {
+    font-size: 0.6rem;
+    color: #f87171;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ri-err-summary:hover { color: #fca5a5; }
+  .ri-err-msg {
+    font-size: 0.58rem;
+    color: #f87171;
+    margin-top: 0.2rem;
+    padding: 0.3rem;
+    background: rgba(248, 113, 113, 0.05);
+    border-radius: 4px;
+    font-family: monospace;
+    word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
 
   /* ── Actions ─────────────────────────────────────── */
   .actions {

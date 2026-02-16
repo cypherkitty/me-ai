@@ -220,10 +220,13 @@ export async function scanEmails(
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
+      // Truncate error messages to prevent UI hangs from massive WebGPU errors
+      const errMsg = e.message || String(e);
+      const truncatedError = errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg;
       results.push({
         success: false,
         email: { subject: email.subject, from: email.from, date: email.date },
-        error: e.message,
+        error: truncatedError,
         promptSize: emailPrompt.length,
       });
     }
@@ -355,7 +358,14 @@ export function formatEmailPrompt(email) {
         weekday: "short", year: "numeric", month: "short", day: "numeric",
       })
     : "Unknown date";
-  const body = email.body || email.snippet || "";
+  const rawBody = email.body || email.snippet || "";
+  
+  // Limit email body to prevent WebGPU memory errors on very long emails
+  // 8000 chars ≈ 2000 tokens, which is reasonable for classification
+  // while staying well under model context limits
+  const body = rawBody.length > 8000 
+    ? rawBody.slice(0, 8000) + "\n\n[... email truncated for processing ...]"
+    : rawBody;
 
   return [
     `Subject: ${email.subject}`,
