@@ -216,6 +216,8 @@ export async function scanEmails(
   const totalElapsed = performance.now() - scanStart;
   onProgress({
     phase: "done",
+    current: toProcess.length,
+    total: toProcess.length,
     classified,
     errors,
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
