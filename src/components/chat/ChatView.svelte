@@ -1,7 +1,8 @@
 <script>
   import { onMount } from "svelte";
   import MessageBubble from "./MessageBubble.svelte";
-  import FollowUpSuggestions from "./FollowUpSuggestions.svelte";
+  import ActionDashboard from "./ActionDashboard.svelte";
+  import QuickActions from "./QuickActions.svelte";
   import GpuPanel from "./GpuPanel.svelte";
   import { mountLog } from "../../lib/debug.js";
 
@@ -9,7 +10,10 @@
 
   let {
     messages = [],
-    suggestions = [],
+    pendingData = null,
+    hasScanData = false,
+    engineReady = false,
+    isScanning = false,
     isRunning = false,
     tps = null,
     numTokens = null,
@@ -19,10 +23,16 @@
     onsend,
     onstop,
     onreset,
+    onmarkacted,
+    ondismiss,
+    onremove,
+    oncleargroup,
+    onscan,
   } = $props();
 
   let input = $state("");
   let showGpuPanel = $state(false);
+  let dashboardRef = $state(null);
 
   function handleKeydown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -36,6 +46,18 @@
     if (!text || isRunning) return;
     input = "";
     onsend(text);
+  }
+
+  function handleToggleGroup(action) {
+    if (dashboardRef) {
+      dashboardRef.toggleGroup(action);
+    }
+  }
+
+  function handleAskAI(question) {
+    if (question && !isRunning) {
+      onsend(question);
+    }
   }
 </script>
 
@@ -67,24 +89,41 @@
   {/if}
 
   <div class="messages" bind:this={chatContainer}>
-    {#if messages.length === 0}
+    {#if messages.length === 0 && !(pendingData && pendingData.total > 0)}
       <div class="empty">Send a message to start chatting.</div>
     {/if}
 
     {#each messages as msg, i}
-      <MessageBubble
-        {msg}
-        isLast={i === messages.length - 1}
-        {isRunning}
-        {generationPhase}
-        {numTokens}
-      />
+      {#if msg.type === "dashboard"}
+        <ActionDashboard
+          pendingData={msg.pendingData}
+          {onmarkacted}
+          {ondismiss}
+          {onremove}
+          {oncleargroup}
+          onaskai={handleAskAI}
+          bind:this={dashboardRef}
+        />
+      {:else}
+        <MessageBubble
+          {msg}
+          isLast={i === messages.length - 1}
+          {isRunning}
+          {generationPhase}
+          {numTokens}
+        />
+      {/if}
     {/each}
-
-    {#if suggestions.length > 0 && !isRunning}
-      <FollowUpSuggestions {suggestions} {onsend} />
-    {/if}
   </div>
+
+  <QuickActions
+    {pendingData}
+    {hasScanData}
+    {engineReady}
+    {isScanning}
+    ontogglegroup={handleToggleGroup}
+    {onscan}
+  />
 
   <div class="input-row">
     <textarea

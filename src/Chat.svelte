@@ -7,9 +7,14 @@
     buildLLMContext,
     buildEmailContext,
     buildPendingActionsContext,
-    buildGreetingMessage,
-    buildInitialSuggestions,
   } from "./lib/llm-context.js";
+  import {
+    updateClassificationStatus,
+    deleteClassification,
+    clearClassificationsByAction,
+    scanEmails,
+    getScanStats,
+  } from "./lib/triage.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
@@ -25,7 +30,6 @@
   let progressItems = $state([]);
 
   let messages = $state([]);
-  let suggestions = $state([]);
   let isRunning = $state(false);
   let tps = $state(null);
   let numTokens = $state(null);
@@ -34,15 +38,18 @@
   let gpuInfo = $state(null);
   let generationPhase = $state(null);
 
+  // ── Cockpit state ─────────────────────────────────────────────────
+  let pendingData = $state(null);
+  let hasScanData = $state(false);
+  let isScanning = $state(false);
   let greetingShown = false;
 
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(() => {
     engine.check();
 
-    // If the model is already ready (loaded from another page), greet immediately
     if (engine.isReady) {
-      showGreetingIfNeeded();
+      showDashboardIfNeeded();
     }
 
     const unsub = engine.onMessage((msg) => {
@@ -72,7 +79,7 @@
 
         case "ready":
           status = "ready";
-          showGreetingIfNeeded();
+          showDashboardIfNeeded();
           break;
 
         case "start":
@@ -128,7 +135,7 @@
           if (!isRunning) break;
           isRunning = false;
           generationPhase = null;
-          refreshSuggestions();
+          refreshPendingData();
           break;
 
         case "error":
@@ -143,33 +150,90 @@
     return () => unsub();
   });
 
-  // ── Greeting & suggestions ─────────────────────────────────────────
-  async function showGreetingIfNeeded() {
+  // ── Dashboard / pending data ──────────────────────────────────────
+  async function showDashboardIfNeeded() {
     if (greetingShown || messages.length > 0) return;
     try {
       const pending = await getPendingActions();
+      pendingData = pending;
       if (pending) {
         greetingShown = true;
-        const greeting = buildGreetingMessage(pending);
-        messages = [{ role: "assistant", content: greeting }];
-        suggestions = buildInitialSuggestions(pending);
+        messages = [{ role: "assistant", type: "dashboard", pendingData: pending }];
         scrollToBottom();
       }
+      // Check if user has any scan data at all
+      const stats = await getScanStats();
+      hasScanData = stats.classified > 0;
     } catch {
       // Non-critical
     }
   }
 
-  async function refreshSuggestions() {
+  async function refreshPendingData() {
     try {
       const pending = await getPendingActions();
-      if (pending && pending.total > 0) {
-        suggestions = buildInitialSuggestions(pending);
-      } else {
-        suggestions = [];
+      pendingData = pending;
+
+      // Update the dashboard message in-place if it exists
+      const dashIdx = messages.findIndex((m) => m.type === "dashboard");
+      if (dashIdx !== -1) {
+        if (pending && pending.total > 0) {
+          messages = messages.map((m, i) =>
+            i === dashIdx ? { ...m, pendingData: pending } : m
+          );
+        } else {
+          // Remove the dashboard if no more pending items
+          messages = messages.filter((_, i) => i !== dashIdx);
+        }
       }
+
+      const stats = await getScanStats();
+      hasScanData = stats.classified > 0;
     } catch {
-      suggestions = [];
+      // Non-critical
+    }
+  }
+
+  // ── Action handlers (cockpit controls) ────────────────────────────
+  async function markActed(emailId) {
+    await updateClassificationStatus(emailId, "acted");
+    await refreshPendingData();
+  }
+
+  async function dismiss(emailId) {
+    await updateClassificationStatus(emailId, "dismissed");
+    await refreshPendingData();
+  }
+
+  async function removeItem(emailId) {
+    await deleteClassification(emailId);
+    await refreshPendingData();
+  }
+
+  async function clearGroup(action) {
+    await clearClassificationsByAction(action);
+    await refreshPendingData();
+  }
+
+  async function triggerScan() {
+    if (isScanning || !engine.isReady) return;
+    isScanning = true;
+    try {
+      await scanEmails(engine, { count: 20 });
+      await refreshPendingData();
+
+      // If no dashboard message exists yet, insert one
+      if (pendingData && !messages.some((m) => m.type === "dashboard")) {
+        messages = [
+          { role: "assistant", type: "dashboard", pendingData },
+          ...messages,
+        ];
+        scrollToBottom();
+      }
+    } catch (e) {
+      console.error("Scan failed:", e);
+    } finally {
+      isScanning = false;
     }
   }
 
@@ -190,9 +254,6 @@
 
   async function send(text) {
     if (!text || isRunning) return;
-
-    // Clear suggestions when user sends a message
-    suggestions = [];
 
     messages = [...messages, { role: "user", content: text }];
     tps = null;
@@ -220,7 +281,10 @@
       // Non-critical — continue without context
     }
 
-    const plain = messages.map((m) => ({ role: m.role, content: m.content }));
+    // Only include text messages for the LLM (skip dashboard messages)
+    const plain = messages
+      .filter((m) => m.type !== "dashboard")
+      .map((m) => ({ role: m.role, content: m.content }));
     engine.generate([...systemMessages, ...plain]);
     scrollToBottom();
   }
@@ -232,11 +296,10 @@
   function reset() {
     engine.reset();
     messages = [];
-    suggestions = [];
     tps = null;
     numTokens = null;
     greetingShown = false;
-    showGreetingIfNeeded();
+    showDashboardIfNeeded();
   }
 </script>
 
@@ -260,7 +323,10 @@
 {:else}
   <ChatView
     {messages}
-    {suggestions}
+    {pendingData}
+    {hasScanData}
+    engineReady={engine.isReady}
+    {isScanning}
     {isRunning}
     {tps}
     {numTokens}
@@ -270,6 +336,11 @@
     onsend={send}
     onstop={stop}
     onreset={reset}
+    onmarkacted={markActed}
+    ondismiss={dismiss}
+    onremove={removeItem}
+    oncleargroup={clearGroup}
+    onscan={triggerScan}
   />
 {/if}
 
