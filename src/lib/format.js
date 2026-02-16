@@ -23,3 +23,19 @@ export function progressPct(loaded, total) {
   if (!total || total <= 0) return null;
   return Math.min(100, (loaded / total) * 100);
 }
+
+/** Truncate a string to maxLen characters, appending "..." if truncated */
+export function truncate(str, maxLen) {
+  if (!str) return "";
+  if (str.length <= maxLen) return str;
+  return str.slice(0, maxLen) + "...";
+}
+
+/** Generate a stable hue (0-360) from a string via simple hash */
+export function stringToHue(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % 360;
+}

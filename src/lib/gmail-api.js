@@ -6,6 +6,25 @@
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+/**
+ * Typed error for Gmail API failures.
+ * Carries the HTTP status code so callers can match on it
+ * instead of fragile string matching on error messages.
+ */
+export class GmailApiError extends Error {
+  /**
+   * @param {string} message - Human-readable error message
+   * @param {number} status - HTTP status code (e.g. 401, 404, 429)
+   * @param {string} [code] - Optional error code from the API response body
+   */
+  constructor(message, status, code) {
+    super(message);
+    this.name = "GmailApiError";
+    this.status = status;
+    this.code = code || null;
+  }
+}
+
 function authHeaders(token) {
   return { Authorization: `Bearer ${token}` };
 }
@@ -16,9 +35,9 @@ async function api(token, path) {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(
-      body.error?.message || `Gmail API error: ${res.status}`
-    );
+    const message = body.error?.message || `Gmail API error: ${res.status}`;
+    const code = body.error?.errors?.[0]?.reason || undefined;
+    throw new GmailApiError(message, res.status, code);
   }
   return res.json();
 }

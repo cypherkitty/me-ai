@@ -23,6 +23,7 @@ import {
   getBody,
   getHtmlBody,
   listHistory,
+  GmailApiError,
 } from "../gmail-api.js";
 
 const SOURCE_TYPE = "gmail";
@@ -54,18 +55,16 @@ export async function syncGmail(
     try {
       return await incrementalSync(token, state, onProgress, signal);
     } catch (e) {
-      // historyId expired (404) or invalid — fall through to full sync
-      if (
-        e.message?.includes("404") ||
-        e.message?.includes("notFound") ||
-        e.message?.includes("Start history id") ||
-        e.message?.includes("history_types")
-      ) {
+      // historyId expired or invalid — fall through to full sync
+      const isHistoryExpired =
+        (e instanceof GmailApiError && (e.status === 404 || e.code === "notFound")) ||
+        e.message?.includes("Start history id");
+
+      if (isHistoryExpired) {
         onProgress({
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
-        // Clear stale state so full sync starts fresh
         await db.syncState.delete(SOURCE_TYPE);
       } else {
         throw e;
@@ -539,8 +538,11 @@ async function upsertContacts(items) {
           lastSeen: date,
         });
       }
-    } catch {
-      // Silently skip duplicate/constraint errors
+    } catch (e) {
+      // Expected for duplicate/constraint errors; log others for debugging
+      if (e?.name !== "ConstraintError") {
+        console.debug("Contact upsert skipped:", email, e?.message || e);
+      }
     }
   }
 }

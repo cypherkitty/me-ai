@@ -8,6 +8,8 @@
 
 import { db } from "./store/db.js";
 import Dexie from "dexie";
+import { truncate, stringToHue } from "./format.js";
+import { groupByAction } from "./email-utils.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -184,23 +186,7 @@ export async function getClassifications({ action } = {}) {
  */
 export async function getClassificationsGrouped() {
   const all = await db.emailClassifications.toArray();
-  const groups = {};
-
-  for (const item of all) {
-    const key = item.action || "UNKNOWN";
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(item);
-  }
-
-  // Sort each group by date descending
-  for (const key of Object.keys(groups)) {
-    groups[key].sort((a, b) => (b.date || 0) - (a.date || 0));
-  }
-
-  // Compute group order: largest groups first
-  const order = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
-
-  return { groups, order };
+  return groupByAction(all);
 }
 
 /**
@@ -294,10 +280,6 @@ function formatEmailPrompt(email) {
   ].join("\n");
 }
 
-function truncate(str, maxLen) {
-  if (!str || str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + "...";
-}
 
 // ── Response parsing ─────────────────────────────────────────────────
 
@@ -384,22 +366,12 @@ function normalizeAction(raw) {
  * Same string always produces the same color.
  */
 export function actionColor(action) {
-  let hash = 0;
-  for (let i = 0; i < action.length; i++) {
-    hash = action.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 55%, 55%)`;
+  return `hsl(${stringToHue(action)}, 55%, 55%)`;
 }
 
 /**
  * Generate a stable HSL color for tags (softer palette).
  */
 export function tagColor(tag) {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 40%, 35%)`;
+  return `hsl(${stringToHue(tag)}, 40%, 35%)`;
 }

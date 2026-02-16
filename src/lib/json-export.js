@@ -1,3 +1,5 @@
+import { exportFilename } from "./email-utils.js";
+
 /**
  * Extract the raw Gmail API JSON from a stored message.
  *
@@ -30,24 +32,5 @@ export function emailToJsonString(message) {
  * @returns {string} filename ending in .json
  */
 export function emailJsonFilename(message) {
-  const datePrefix = shortDate(message.date);
-  const slug = (message.subject || "email")
-    .replace(/[^a-zA-Z0-9 _-]/g, "")
-    .replace(/\s+/g, "-")
-    .slice(0, 60)
-    .replace(/-+$/, "");
-
-  return `${datePrefix}_${slug}.json`;
-}
-
-function shortDate(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  } catch {
-    return "email";
-  }
+  return exportFilename(message, "json");
 }
