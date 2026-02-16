@@ -17,22 +17,22 @@ const EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 min buffer before actual expiry
 
 let tokenClient = null;
 let _pendingResolve = null;
+let _expiresAt = 0; // in-memory expiry tracker (epoch ms)
 
 // ── Session persistence helpers ─────────────────────────────────────
 
 function saveToken(accessToken, expiresIn) {
+  _expiresAt = Date.now() + expiresIn * 1000;
   try {
     sessionStorage.setItem(
       TOKEN_KEY,
-      JSON.stringify({
-        access_token: accessToken,
-        expires_at: Date.now() + expiresIn * 1000,
-      })
+      JSON.stringify({ access_token: accessToken, expires_at: _expiresAt })
     );
   } catch {}
 }
 
 function clearSavedToken() {
+  _expiresAt = 0;
   try { sessionStorage.removeItem(TOKEN_KEY); } catch {}
 }
 
@@ -49,11 +49,57 @@ export function getSavedToken() {
       clearSavedToken();
       return null;
     }
+    _expiresAt = expires_at;
     return { access_token };
   } catch {
     clearSavedToken();
     return null;
   }
+}
+
+/**
+ * Check whether the current token is still valid (not expired).
+ * Uses the in-memory expiry timestamp set during save/restore.
+ */
+export function isTokenValid() {
+  return _expiresAt > 0 && Date.now() < _expiresAt - EXPIRY_MARGIN_MS;
+}
+
+/**
+ * Returns milliseconds until the token expires, or 0 if already expired.
+ */
+export function getTokenTTL() {
+  if (_expiresAt <= 0) return 0;
+  return Math.max(0, _expiresAt - EXPIRY_MARGIN_MS - Date.now());
+}
+
+/**
+ * Attempt a silent token refresh (no popup if user previously consented).
+ * Falls back to an interactive popup if the silent attempt fails.
+ * Returns { access_token, expires_in } or throws on failure.
+ */
+export function refreshToken() {
+  return new Promise((resolve, reject) => {
+    if (!tokenClient) {
+      reject(new Error("Google Auth not initialized."));
+      return;
+    }
+
+    _pendingResolve = (response) => {
+      if (response.error) {
+        reject(new Error(response.error_description || response.error));
+      } else {
+        saveToken(response.access_token, response.expires_in);
+        resolve({
+          access_token: response.access_token,
+          expires_in: response.expires_in,
+        });
+      }
+    };
+
+    // prompt: '' → silent refresh (no popup if consent was previously granted)
+    tokenClient.requestAccessToken({ prompt: "" });
+  });
 }
 
 // ── Load GIS script dynamically ─────────────────────────────────────
