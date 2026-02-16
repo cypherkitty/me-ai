@@ -1,38 +1,5 @@
 <script>
-  import { SYSTEM_PROMPT } from "../../lib/triage.js";
-
   let { progress = null, onstop, oninspect, onclose } = $props();
-
-  // Running list of processed emails (accumulates during scan)
-  let processedEmails = $state([]);
-  let lastCapturedIndex = $state(-1);
-
-  $effect(() => {
-    if (!progress) {
-      processedEmails = [];
-      lastCapturedIndex = -1;
-      return;
-    }
-
-    // New scan started - clear everything
-    if (progress.phase === "loading") {
-      processedEmails = [];
-      lastCapturedIndex = -1;
-      return;
-    }
-
-    // Capture each email when it finishes (classified phase has result + stats)
-    if (progress.phase === "classified" && progress.current !== lastCapturedIndex) {
-      processedEmails = [...processedEmails, {
-        index: progress.current,
-        email: progress.email,
-        result: progress.result,
-        rawResponse: progress.rawResponse || "",
-        stats: progress.emailStats,
-      }];
-      lastCapturedIndex = progress.current;
-    }
-  });
 
   function fmtTime(ms) {
     if (!ms || ms < 0) return "—";
@@ -59,819 +26,306 @@
     } catch { return ""; }
   }
 
-  function estimateRemaining(p) {
-    if (!p?.totals?.elapsed || !p?.current || p.current < 2) return null;
-    const avgPerEmail = p.totals.elapsed / p.current;
-    const remaining = (p.total - p.current) * avgPerEmail;
-    return remaining;
-  }
-
   let pct = $derived(progress?.total ? Math.round((progress.current / progress.total) * 100) : 0);
-  let eta = $derived(estimateRemaining(progress));
   let isDone = $derived(progress?.phase === "done");
-  
-  // Computed email list for display - prefer final results when scan is done
-  let useResults = $derived(progress?.phase === "done" && progress?.results?.length > 0);
-  let emailsList = $derived(useResults && progress?.results ? 
-    progress.results.map((r, idx) => ({
-      index: idx + 1,
-      email: r.email,
-      result: r.success ? r.classification : null,
-      rawResponse: r.rawResponse || "",
-      stats: r.stats,
-      error: r.success ? null : r.error
-    })) : processedEmails
-  );
 </script>
 
 {#if progress}
-  <div class="live">
-    <!-- ── Header ──────────────────────────────────── -->
-    <div class="live-head">
-      <span class="live-title">
+  <div class="scan-view">
+
+    <!-- Header + progress bar -->
+    <div class="header">
+      <span class="title">
         {#if isDone}
-          Scan complete
+          Scan complete — {progress.classified || 0} classified
         {:else if progress.phase === "loading"}
-          Loading emails...
+          Loading emails…
         {:else}
-          Processing {progress.current ?? 0} of {progress.total ?? 0}
+          Processing {progress.current ?? 0} / {progress.total ?? 0}
         {/if}
       </span>
-      <span class="live-pct">{pct}%</span>
+      <span class="pct">{pct}%</span>
     </div>
+    <div class="bar"><div class="bar-fill" class:done={isDone} style:width="{pct}%"></div></div>
 
-    <!-- ── Progress bar ────────────────────────────── -->
-    <div class="bar-track">
-      <div
-        class="bar-fill"
-        class:done={isDone}
-        style:width="{pct}%"
-      ></div>
-    </div>
-
-    <!-- ── Current email ───────────────────────────── -->
-    {#if progress.email && !isDone}
-      <div class="email-card">
-        <div class="email-subj">{progress.email.subject || "(no subject)"}</div>
-        <div class="email-meta">
-          {shortSender(progress.email.from)}
-          {#if progress.email.date}
-            <span class="sep">·</span>{shortDate(progress.email.date)}
-          {/if}
-        </div>
+    <!-- Running totals (during scan) -->
+    {#if progress.totals && !isDone}
+      <div class="totals">
+        {progress.classified || 0} classified
+        {#if progress.errors}<span class="err"> · {progress.errors} errors</span>{/if}
+        <span class="sep"> · </span>
+        {fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out
+        <span class="sep"> · </span>
+        {fmtTime(progress.totals.elapsed)}
       </div>
     {/if}
 
-    <!-- ── Live generation stats ───────────────────── -->
-    {#if progress.live && progress.phase === "generating"}
-      <div class="stats-row">
-        <div class="stat">
-          <span class="stat-val">{progress.live.tps ? progress.live.tps.toFixed(0) : "—"}</span>
-          <span class="stat-label">tok/s</span>
+    <!-- Live LLM stream for the current email -->
+    {#if !isDone && progress.email && (progress.phase === "generating" || progress.phase === "scanning")}
+      <div class="stream-box">
+        <div class="stream-head">
+          <span class="stream-email">{progress.email.subject || "(no subject)"}</span>
+          {#if progress.live?.tps}
+            <span class="stream-stats">{progress.live.tps.toFixed(0)} tok/s · {progress.live.numTokens || 0} tokens</span>
+          {/if}
         </div>
-        <div class="stat">
-          <span class="stat-val">{progress.live.numTokens || 0}</span>
-          <span class="stat-label">tokens</span>
-        </div>
-        {#if eta}
-          <div class="stat">
-            <span class="stat-val">~{fmtTime(eta)}</span>
-            <span class="stat-label">remaining</span>
-          </div>
-        {/if}
+        <pre class="stream-output">{progress.streamingText || "Waiting for model…"}</pre>
       </div>
     {/if}
 
-    <!-- ── Live LLM Output (current email streaming) ── -->
-    {#if !isDone && (progress.phase === "generating" || progress.phase === "scanning") && progress.email}
-      <div class="llm-stream-box">
-        <div class="llm-stream-header">
-          <span class="llm-stream-label">
-            {#if progress.phase === "generating"}
-              LLM Output
-            {:else}
-              Sending to model…
-            {/if}
-          </span>
-          {#if progress.phase === "generating"}
-            <span class="llm-stream-badge">Live</span>
-          {/if}
+    <!-- Email history list: shows all completed emails -->
+    {#if progress.results?.length > 0}
+      <div class="history">
+        <div class="history-head">
+          <span class="history-title">Processed emails</span>
+          <span class="history-count">{progress.results.length}</span>
         </div>
-        <div class="llm-output-content">{progress.streamingText || "Waiting for model…"}</div>
-      </div>
-    {/if}
-
-    <!-- ── Debug info ─────────────────────────────────── -->
-    <div class="debug-panel">
-      <div class="debug-title">📊 Scan Debug Info</div>
-      <div class="debug-grid">
-        <div class="debug-item">
-          <span class="debug-label">Phase:</span>
-          <span class="debug-value">{progress.phase || '—'}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Current/Total:</span>
-          <span class="debug-value">{progress.current || 0} / {progress.total || 0}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Captured Emails:</span>
-          <span class="debug-value" class:good={processedEmails.length > 0}>{processedEmails.length}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Results Array:</span>
-          <span class="debug-value" class:good={progress.results?.length > 0}>{progress.results?.length || 0}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Classified:</span>
-          <span class="debug-value" class:good={progress.classified > 0}>{progress.classified || 0}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Errors:</span>
-          <span class="debug-value" class:bad={progress.errors > 0}>{progress.errors || 0}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Using:</span>
-          <span class="debug-value">{useResults ? 'progress.results (Final)' : 'processedEmails (Live)'}</span>
-        </div>
-        <div class="debug-item">
-          <span class="debug-label">Display Count:</span>
-          <span class="debug-value" class:good={emailsList.length > 0}>{emailsList.length}</span>
-        </div>
-      </div>
-      
-      {#if progress.phase === "done" && progress.results?.length > 0}
-        <details class="debug-details">
-          <summary class="debug-summary">View progress.results array (click to expand)</summary>
-          <pre class="debug-raw">{JSON.stringify(progress.results, null, 2)}</pre>
-        </details>
-      {/if}
-      
-      {#if processedEmails.length > 0}
-        <details class="debug-details">
-          <summary class="debug-summary">View processedEmails array (click to expand)</summary>
-          <pre class="debug-raw">{JSON.stringify(processedEmails, null, 2)}</pre>
-        </details>
-      {/if}
-    </div>
-
-    <!-- ── Processed emails list - ALWAYS SHOW ── -->
-    <div class="processed-list">
-      <div class="processed-header">
-        <span class="processed-title">
-          📧 Processed Emails 
-          {#if useResults}
-            <span class="processed-badge final">Final Results</span>
-          {:else}
-            <span class="processed-badge live">Live Updates</span>
-          {/if}
-        </span>
-        <span class="processed-count">{emailsList.length}{progress.total ? ` / ${progress.total}` : ""}</span>
-      </div>
-      
-      {#if emailsList.length === 0}
-        <div class="processed-empty">
-          {#if progress.phase === "loading"}
-            ⏳ Loading emails from database...
-          {:else if progress.phase === "done"}
-            ⚠️ <strong>No emails were processed!</strong>
-            <div class="empty-details">
-              • Captured during scan: {processedEmails.length}
-              • In results array: {progress.results?.length || 0}
-              • Classified count: {progress.classified || 0}
-              {#if progress.summary?.skipped}
-                <br>• Skipped: {progress.summary.skipped} (already classified)
-              {/if}
-            </div>
-          {:else if progress.phase === "scanning" || progress.phase === "generating"}
-            ⏳ Waiting for first email to complete...
-          {:else if progress.phase === "classified"}
-            ✅ First email just finished - should appear now!
-          {:else}
-            Waiting... (Phase: {progress.phase})
-          {/if}
-        </div>
-      {:else}
-        {#each emailsList as item}
-          <div class="processed-item" class:failed={item.error}>
-            <div class="pi-head">
-              <span class="pi-index">#{item.index}</span>
-              <span class="pi-subj" title={item.email.subject}>{item.email.subject || "(no subject)"}</span>
-              {#if item.error}
-                <span class="pi-action error">❌ ERROR</span>
+        {#each progress.results as r, idx}
+          <div class="email-item" class:failed={!r.success}>
+            <div class="ei-row">
+              <span class="ei-num">{idx + 1}.</span>
+              <span class="ei-subj">{r.email.subject || "(no subject)"}</span>
+              {#if r.success}
+                <span class="ei-action">{r.classification.action}</span>
               {:else}
-                <span class="pi-action">✅ {item.result?.action || "UNKNOWN"}</span>
+                <span class="ei-action err">ERROR</span>
               {/if}
             </div>
-            <div class="pi-meta">
-              {shortSender(item.email.from)}
-              {#if item.email.date}
-                <span class="sep">·</span>{shortDate(item.email.date)}
-              {/if}
+            <div class="ei-from">
+              {shortSender(r.email.from)}{#if r.email.date}<span class="sep"> · </span>{shortDate(r.email.date)}{/if}
             </div>
-            {#if item.error}
-              <div class="pi-error-msg">{item.error}</div>
-            {:else}
-              {#if item.result?.summary}
-                <div class="pi-summary">{item.result.summary}</div>
+            {#if r.success}
+              {#if r.classification.summary}
+                <div class="ei-summary">{r.classification.summary}</div>
               {/if}
-              {#if item.result?.tags?.length}
-                <div class="pi-tags">
-                  {#each item.result.tags as tag}
-                    <span class="pi-tag">{tag}</span>
-                  {/each}
+              {#if r.stats}
+                <div class="ei-stats">
+                  {r.stats.tps ? `${r.stats.tps.toFixed(0)} tok/s` : "—"}
+                  <span class="sep"> · </span>
+                  {r.stats.inputTokens || 0} in + {r.stats.numTokens || 0} out
+                  <span class="sep"> · </span>
+                  {fmtTime(r.stats.elapsed)}
                 </div>
               {/if}
-              {#if item.stats}
-                <div class="pi-stats">
-                  <span class="pi-stat-item">
-                    ⚡ {item.stats.tps ? `${item.stats.tps.toFixed(0)} tok/s` : "—"}
-                  </span>
-                  <span class="sep">·</span>
-                  <span class="pi-stat-item">
-                    📥 {item.stats.inputTokens || 0} in
-                  </span>
-                  <span class="sep">·</span>
-                  <span class="pi-stat-item">
-                    📤 {item.stats.numTokens || 0} out
-                  </span>
-                  <span class="sep">·</span>
-                  <span class="pi-stat-item">
-                    ⏱️ {fmtTime(item.stats.elapsed)}
-                  </span>
-                </div>
-              {:else}
-                <div class="pi-stats warning">
-                  ⚠️ No stats available
-                </div>
-              {/if}
-              {#if item.rawResponse}
-                <details class="pi-llm-details">
-                  <summary class="pi-llm-toggle">📄 View raw LLM output ({item.rawResponse.length} chars)</summary>
-                  <div class="llm-output-content">{item.rawResponse}</div>
+              {#if r.rawResponse}
+                <details class="ei-llm">
+                  <summary>LLM output</summary>
+                  <pre class="ei-llm-text">{r.rawResponse}</pre>
                 </details>
-              {:else}
-                <div class="pi-no-response">
-                  ⚠️ No raw LLM response captured
-                </div>
               {/if}
+            {:else}
+              <div class="ei-error">{r.error}</div>
             {/if}
           </div>
         {/each}
-      {/if}
-    </div>
-
-    <!-- ── Completion summary (phase=done) ─────────── -->
-    {#if isDone}
-      <div class="summary-card">
-        <div class="summary-head">
-          <span class="summary-title">Scan Summary</span>
-        </div>
-
-        <!-- Main stats grid -->
-        <div class="summary-grid">
-          <div class="summary-stat">
-            <span class="sstat-val">{progress.summary?.processed || progress.total || 0}</span>
-            <span class="sstat-label">emails processed</span>
-          </div>
-          {#if progress.summary?.skipped}
-            <div class="summary-stat">
-              <span class="sstat-val">{progress.summary.skipped}</span>
-              <span class="sstat-label">already classified</span>
-            </div>
-          {/if}
-          <div class="summary-stat">
-            <span class="sstat-val success">{progress.classified || 0}</span>
-            <span class="sstat-label">classified</span>
-          </div>
-          {#if progress.errors > 0}
-            <div class="summary-stat">
-              <span class="sstat-val err">{progress.errors}</span>
-              <span class="sstat-label">errors</span>
-            </div>
-          {/if}
-        </div>
-
-        <!-- LLM performance -->
-        <div class="summary-section">
-          <div class="ssec-title">LLM Performance</div>
-          <div class="ssec-items">
-            {#if progress.summary?.avgTps}
-              <span class="ssec-item">Avg speed: <strong>{progress.summary.avgTps} tok/s</strong></span>
-              <span class="sep">·</span>
-            {/if}
-            <span class="ssec-item">Total tokens: <strong>{fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out</strong></span>
-            <span class="sep">·</span>
-            <span class="ssec-item">Duration: <strong>{fmtTime(progress.totals.elapsed)}</strong></span>
-          </div>
-        </div>
-
-        <!-- Model & Prompt info -->
-        <div class="summary-section">
-          <div class="ssec-title">Model & Prompts</div>
-          <div class="ssec-items">
-            <span class="ssec-item">Model: <strong>{progress.summary?.modelName || "Unknown"}</strong> ({Math.round((progress.summary?.modelContextWindow || 0) / 1024)}k context, ~{Math.round((progress.summary?.modelMaxEmailTokens || 0) / 1000)}k email limit)</span>
-            <span class="sep">·</span>
-            <span class="ssec-item">System prompt: <strong>{fmtTokens(progress.summary?.systemPromptSize || 0)} chars</strong></span>
-            <span class="sep">·</span>
-            <span class="ssec-item">Avg email: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
-          </div>
-        </div>
-
       </div>
-    {:else}
-      <!-- ── In-progress totals ────────────────────────── -->
-      {#if progress.totals}
-        <div class="totals">
-          <span>{progress.classified || 0} classified</span>
-          {#if progress.errors}<span class="err">{progress.errors} errors</span>{/if}
-          <span class="sep">·</span>
-          <span>{fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out tokens</span>
-          <span class="sep">·</span>
-          <span>{fmtTime(progress.totals.elapsed)}</span>
-        </div>
-      {/if}
     {/if}
 
-    <!-- ── Actions ─────────────────────────────────── -->
-    <div class="actions">
+    <!-- Done summary -->
+    {#if isDone && progress.totals}
+      <div class="summary">
+        <div class="summary-stats">
+          <span>{progress.summary?.processed || progress.total || 0} processed</span>
+          <span class="sep"> · </span>
+          <span class="good">{progress.classified || 0} classified</span>
+          {#if progress.errors > 0}<span class="sep"> · </span><span class="err">{progress.errors} errors</span>{/if}
+          {#if progress.summary?.skipped}<span class="sep"> · </span><span>{progress.summary.skipped} skipped</span>{/if}
+        </div>
+        <div class="summary-perf">
+          {#if progress.summary?.avgTps}Avg {progress.summary.avgTps} tok/s<span class="sep"> · </span>{/if}
+          {fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out
+          <span class="sep"> · </span>
+          {fmtTime(progress.totals.elapsed)}
+          <span class="sep"> · </span>
+          Model: {progress.summary?.modelName || "Unknown"}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Buttons -->
+    <div class="btns">
       {#if isDone}
-        <button class="action-btn" onclick={oninspect}>View Prompt Config</button>
-        <button class="action-btn primary" onclick={onclose}>Close</button>
+        <button class="btn" onclick={oninspect}>View Prompt</button>
+        <button class="btn primary" onclick={onclose}>Close</button>
       {:else}
-        <button class="action-btn" onclick={oninspect}>View Prompt</button>
-        <button class="action-btn stop" onclick={onstop}>Stop</button>
+        <button class="btn" onclick={oninspect}>View Prompt</button>
+        <button class="btn stop" onclick={onstop}>Stop</button>
       {/if}
     </div>
   </div>
 {/if}
 
 <style>
-  .live {
-    margin-top: 0.6rem;
-    padding: 0.6rem 0.7rem;
+  .scan-view {
+    margin-top: 0.5rem;
+    padding: 0.6rem;
     background: #0f0f0f;
     border: 1px solid #222;
     border-radius: 10px;
   }
 
-  /* ── Header ──────────────────────────────────────── */
-  .live-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.35rem;
-  }
-  .live-title { font-size: 0.74rem; font-weight: 600; color: #ccc; }
-  .live-pct { font-size: 0.68rem; font-weight: 700; color: #3b82f6; }
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; }
+  .title { font-size: 0.74rem; font-weight: 600; color: #ccc; }
+  .pct { font-size: 0.68rem; font-weight: 700; color: #3b82f6; }
 
-  /* ── Progress bar ────────────────────────────────── */
-  .bar-track {
-    height: 3px;
-    background: #1e1e1e;
-    border-radius: 2px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-  }
-  .bar-fill {
-    height: 100%;
-    background: #3b82f6;
-    border-radius: 2px;
-    transition: width 0.3s ease;
-  }
+  /* Progress bar */
+  .bar { height: 3px; background: #1e1e1e; border-radius: 2px; overflow: hidden; margin-bottom: 0.5rem; }
+  .bar-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.3s ease; }
   .bar-fill.done { background: #34d399; }
 
-  /* ── Current email ───────────────────────────────── */
-  .email-card {
-    padding: 0.35rem 0.45rem;
-    background: #161616;
-    border: 1px solid #1e1e1e;
-    border-radius: 6px;
-    margin-bottom: 0.4rem;
-  }
-  .email-subj {
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #ddd;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .email-meta {
-    font-size: 0.6rem;
-    color: #555;
-    margin-top: 0.05rem;
-  }
+  /* Totals */
+  .totals { font-size: 0.62rem; color: #666; margin-bottom: 0.4rem; }
 
-  /* ── Stats row ───────────────────────────────────── */
-  .stats-row {
-    display: flex;
-    gap: 0.8rem;
-    margin-bottom: 0.4rem;
-  }
-  .stat { display: flex; align-items: baseline; gap: 0.2rem; }
-  .stat-val { font-size: 0.78rem; font-weight: 700; color: #e8e8e8; font-variant-numeric: tabular-nums; }
-  .stat-label { font-size: 0.58rem; color: #555; }
+  /* Common */
+  .sep { color: #333; }
+  .err { color: #f87171; }
+  .good { color: #34d399; }
 
-  /* ── Debug panel ─────────────────────────────────────── */
-  .debug-panel {
-    background: #0a0a0a;
-    border: 2px solid #fbbf24;
-    border-radius: 8px;
-    padding: 0.6rem;
-    margin-bottom: 0.6rem;
-  }
-  .debug-title {
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #fbbf24;
+  /* Live stream box */
+  .stream-box {
     margin-bottom: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .debug-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.4rem;
-  }
-  .debug-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.3rem 0.4rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
-  }
-  .debug-label {
-    font-size: 0.65rem;
-    color: #888;
-    font-weight: 600;
-  }
-  .debug-value {
-    font-size: 0.7rem;
-    color: #ccc;
-    font-family: monospace;
-    font-weight: 700;
-  }
-  .debug-value.good {
-    color: #34d399;
-  }
-  .debug-value.bad {
-    color: #f87171;
-  }
-  .debug-details {
-    margin-top: 0.5rem;
-    border-top: 1px solid #1e1e1e;
-    padding-top: 0.5rem;
-  }
-  .debug-summary {
-    font-size: 0.65rem;
-    color: #888;
-    cursor: pointer;
-    user-select: none;
-    padding: 0.2rem 0;
-  }
-  .debug-summary:hover {
-    color: #fbbf24;
-  }
-  .debug-raw {
-    margin-top: 0.3rem;
-    padding: 0.5rem;
-    background: #000;
-    border: 1px solid #1e1e1e;
-    border-radius: 4px;
-    font-size: 0.6rem;
-    color: #34d399;
-    font-family: monospace;
-    overflow-x: auto;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-
-  /* ── Live LLM stream box ─────────────────────────── */
-  .llm-stream-box {
-    margin-bottom: 0.5rem;
-    padding: 0.45rem;
+    padding: 0.4rem;
     background: #0a0a0a;
     border: 1px solid #34d399;
     border-radius: 6px;
   }
-  .llm-stream-header {
+  .stream-head {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    margin-bottom: 0.3rem;
-  }
-  .llm-stream-label {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .llm-stream-badge {
-    font-size: 0.55rem;
-    font-weight: 700;
-    color: #34d399;
-    background: rgba(52, 211, 153, 0.15);
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  /* ── Processed emails list ──────────────────────── */
-  .processed-list {
-    margin-bottom: 0.5rem;
-  }
-  .processed-header {
-    display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.35rem;
-  }
-  .processed-title {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-  .processed-badge {
-    font-size: 0.55rem;
-    font-weight: 700;
-    padding: 0.1rem 0.4rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .processed-badge.live {
-    color: #34d399;
-    background: rgba(52, 211, 153, 0.15);
-  }
-  .processed-badge.final {
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.15);
-  }
-  .processed-count {
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
-  }
-  .processed-empty {
-    padding: 1rem;
-    text-align: center;
-    font-size: 0.72rem;
-    color: #888;
-    line-height: 1.5;
-  }
-  .processed-empty strong {
-    color: #f87171;
-  }
-  .empty-details {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: rgba(251, 191, 36, 0.05);
-    border: 1px solid rgba(251, 191, 36, 0.2);
-    border-radius: 4px;
-    font-size: 0.65rem;
-    color: #fbbf24;
-    text-align: left;
-    font-family: monospace;
-    line-height: 1.6;
-  }
-  .processed-item {
-    padding: 0.4rem 0.5rem;
-    background: rgba(52, 211, 153, 0.03);
-    border: 1px solid rgba(52, 211, 153, 0.1);
-    border-radius: 6px;
-    margin-bottom: 0.3rem;
-  }
-  .processed-item.failed {
-    background: rgba(248, 113, 113, 0.03);
-    border-color: rgba(248, 113, 113, 0.15);
-  }
-  .pi-head {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-bottom: 0.1rem;
-  }
-  .pi-index {
-    font-size: 0.58rem;
-    font-weight: 700;
-    color: #555;
-    flex-shrink: 0;
-  }
-  .pi-subj {
-    font-size: 0.68rem;
-    font-weight: 500;
-    color: #ccc;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex: 1;
-  }
-  .pi-action {
-    font-size: 0.58rem;
-    font-weight: 700;
-    color: #34d399;
-    letter-spacing: 0.03em;
-    flex-shrink: 0;
-  }
-  .pi-action.error {
-    color: #f87171;
-  }
-  .pi-meta {
-    font-size: 0.6rem;
-    color: #555;
-    margin-bottom: 0.15rem;
-  }
-  .pi-summary {
-    font-size: 0.62rem;
-    color: #888;
-    line-height: 1.4;
-    margin-bottom: 0.15rem;
-  }
-  .pi-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.15rem;
-    margin-bottom: 0.15rem;
-  }
-  .pi-tag {
-    font-size: 0.55rem;
-    font-weight: 600;
-    color: #999;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.05rem 0.3rem;
-    border-radius: 3px;
-  }
-  .pi-stats {
-    font-size: 0.62rem;
-    color: #666;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.3rem;
-    margin-top: 0.2rem;
-    padding: 0.25rem 0.4rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 4px;
-  }
-  .pi-stats.warning {
-    color: #fbbf24;
-    background: rgba(251, 191, 36, 0.05);
-    border: 1px solid rgba(251, 191, 36, 0.2);
-  }
-  .pi-stat-item {
-    color: #888;
-    font-weight: 600;
-  }
-  .pi-error-msg {
-    font-size: 0.62rem;
-    color: #f87171;
-    margin-top: 0.15rem;
-    padding: 0.3rem;
-    background: rgba(248, 113, 113, 0.05);
-    border: 1px solid rgba(248, 113, 113, 0.2);
-    border-radius: 4px;
-  }
-  .pi-no-response {
-    font-size: 0.6rem;
-    color: #fbbf24;
-    margin-top: 0.2rem;
-    padding: 0.25rem 0.4rem;
-    background: rgba(251, 191, 36, 0.05);
-    border: 1px solid rgba(251, 191, 36, 0.2);
-    border-radius: 4px;
-  }
-  .pi-llm-details {
-    margin-top: 0.2rem;
-  }
-  .pi-llm-toggle {
-    font-size: 0.6rem;
-    color: #666;
-    cursor: pointer;
-    user-select: none;
-    padding: 0.2rem 0;
-  }
-  .pi-llm-toggle:hover { color: #3b82f6; }
-
-  /* ── Totals ──────────────────────────────────────── */
-  .totals {
-    font-size: 0.62rem;
-    color: #666;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-bottom: 0.35rem;
-  }
-  .err { color: #f87171; }
-  .sep { color: #333; }
-
-  /* ── Completion summary ─────────────────────────── */
-  .summary-card {
-    margin-top: 0.4rem;
-    padding: 0.5rem;
-    background: #161616;
-    border: 1px solid #222;
-    border-radius: 8px;
-  }
-  .summary-head {
-    margin-bottom: 0.4rem;
-  }
-  .summary-title {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-  .summary-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-  .summary-stat {
-    display: flex;
-    flex-direction: column;
-    padding: 0.35rem 0.45rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-  }
-  .sstat-val {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #e8e8e8;
-    font-variant-numeric: tabular-nums;
-  }
-  .sstat-val.success { color: #34d399; }
-  .sstat-val.err { color: #f87171; }
-  .sstat-label {
-    font-size: 0.6rem;
-    color: #555;
-    margin-top: 0.05rem;
-  }
-
-  .summary-section {
-    margin-bottom: 0.45rem;
-    padding: 0.35rem 0.45rem;
-    background: rgba(255, 255, 255, 0.015);
-    border-radius: 6px;
-  }
-  .ssec-title {
-    font-size: 0.62rem;
-    font-weight: 600;
-    color: #666;
     margin-bottom: 0.25rem;
   }
-  .ssec-items {
-    font-size: 0.64rem;
-    color: #888;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  .ssec-item strong { color: #ccc; font-weight: 600; }
-
-  /* ── LLM Output Display ─────────────────────────── */
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-  .llm-output-content {
-    font-size: 0.68rem;
+  .stream-email {
+    font-size: 0.66rem;
+    font-weight: 600;
     color: #ccc;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    margin-right: 0.5rem;
+  }
+  .stream-stats {
+    font-size: 0.6rem;
+    color: #34d399;
+    flex-shrink: 0;
+    font-weight: 600;
+  }
+  .stream-output {
+    margin: 0;
+    font-size: 0.66rem;
+    color: #bbb;
     font-family: 'Courier New', Consolas, monospace;
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
-    max-height: 300px;
+    max-height: 250px;
     overflow-y: auto;
-    padding: 0.4rem;
+    padding: 0.35rem;
     background: #000;
     border-radius: 4px;
   }
 
-  .processed-item .llm-output-content {
-    margin-top: 0.2rem;
-    max-height: 200px;
+  /* History list */
+  .history { margin-bottom: 0.5rem; }
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+  }
+  .history-title { font-size: 0.68rem; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.04em; }
+  .history-count {
     font-size: 0.6rem;
+    font-weight: 700;
+    color: #3b82f6;
+    background: rgba(59,130,246,0.1);
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
   }
 
-  /* ── Actions ─────────────────────────────────────── */
-  .actions {
-    display: flex;
-    gap: 0.35rem;
-    justify-content: flex-end;
+  .email-item {
+    padding: 0.4rem 0.5rem;
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 6px;
+    margin-bottom: 0.25rem;
   }
-  .action-btn {
+  .email-item.failed { border-color: rgba(248,113,113,0.25); }
+
+  .ei-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.05rem;
+  }
+  .ei-num { font-size: 0.6rem; color: #555; font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .ei-subj {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: #ddd;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ei-action {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #34d399;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  .ei-action.err { color: #f87171; }
+  .ei-from { font-size: 0.58rem; color: #555; margin-bottom: 0.1rem; }
+  .ei-summary { font-size: 0.62rem; color: #888; line-height: 1.4; margin-bottom: 0.1rem; }
+  .ei-stats { font-size: 0.58rem; color: #555; }
+  .ei-error {
+    font-size: 0.6rem;
+    color: #f87171;
+    margin-top: 0.1rem;
+  }
+
+  .ei-llm { margin-top: 0.15rem; }
+  .ei-llm summary {
+    font-size: 0.58rem;
+    color: #555;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ei-llm summary:hover { color: #888; }
+  .ei-llm-text {
+    margin: 0.2rem 0 0;
+    padding: 0.35rem;
+    background: #000;
+    border: 1px solid #1e1e1e;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    color: #bbb;
+    font-family: 'Courier New', Consolas, monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.4;
+  }
+
+  /* Summary */
+  .summary {
+    padding: 0.4rem 0.5rem;
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 6px;
+    margin-bottom: 0.4rem;
+  }
+  .summary-stats { font-size: 0.68rem; color: #aaa; margin-bottom: 0.15rem; }
+  .summary-perf { font-size: 0.6rem; color: #666; }
+
+  /* Buttons */
+  .btns { display: flex; gap: 0.35rem; justify-content: flex-end; }
+  .btn {
     font-size: 0.66rem;
     font-weight: 500;
     color: #888;
@@ -883,9 +337,11 @@
     transition: all 0.12s;
     font-family: inherit;
   }
-  .action-btn:hover { color: #ccc; border-color: #3a3a3a; }
-  .action-btn.primary { color: #fff; background: #3b82f6; border-color: #3b82f6; }
-  .action-btn.primary:hover { background: #2563eb; }
-  .action-btn.stop { color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
-  .action-btn.stop:hover { background: rgba(248, 113, 113, 0.08); border-color: rgba(248, 113, 113, 0.5); }
+  .btn:hover { color: #ccc; border-color: #3a3a3a; }
+  .btn.primary { color: #fff; background: #3b82f6; border-color: #3b82f6; }
+  .btn.primary:hover { background: #2563eb; }
+  .btn.stop { color: #f87171; border-color: rgba(248,113,113,0.3); }
+  .btn.stop:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.5); }
+
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
 </style>
