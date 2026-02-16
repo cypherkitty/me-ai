@@ -129,6 +129,7 @@ export async function scanEmails(
   let errors = 0;
   let totalOutputTokens = 0;
   let totalInputTokens = 0;
+  const results = [];
 
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
@@ -195,6 +196,15 @@ export async function scanEmails(
         });
         classified++;
 
+        const emailResult = {
+          success: true,
+          email: { subject: email.subject, from: email.from, date: email.date },
+          classification,
+          stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
+          promptSize: emailPrompt.length,
+        };
+        results.push(emailResult);
+
         onProgress({
           phase: "classified",
           current: i + 1,
@@ -210,16 +220,37 @@ export async function scanEmails(
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
+      results.push({
+        success: false,
+        email: { subject: email.subject, from: email.from, date: email.date },
+        error: e.message,
+        promptSize: emailPrompt.length,
+      });
     }
   }
 
   const totalElapsed = performance.now() - scanStart;
+  const avgPromptSize = results.length > 0 
+    ? Math.round(results.reduce((sum, r) => sum + r.promptSize, 0) / results.length)
+    : 0;
+  const avgTps = results.filter(r => r.success && r.stats?.tps).length > 0
+    ? Math.round(results.filter(r => r.success).reduce((sum, r) => sum + (r.stats?.tps || 0), 0) / results.filter(r => r.success && r.stats?.tps).length)
+    : null;
+
   onProgress({
     phase: "done",
     current: toProcess.length,
     total: toProcess.length,
     classified,
     errors,
+    results,
+    summary: {
+      avgPromptSize,
+      avgTps,
+      systemPromptSize: SYSTEM_PROMPT.length,
+      processed: toProcess.length,
+      skipped,
+    },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
   });
 
