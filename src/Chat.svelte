@@ -266,6 +266,10 @@
     status = "loading";
     localStorage.setItem("selectedModel", selectedModel);
     localStorage.setItem("aiBackend", backend);
+    // Clear gpuInfo when switching to Ollama
+    if (backend === "ollama") {
+      gpuInfo = null;
+    }
     engine.loadModel(selectedModel);
   }
 
@@ -357,6 +361,7 @@
     {numTokens}
     {generationPhase}
     {gpuInfo}
+    {backend}
     bind:chatContainer
     onsend={send}
     onstop={stop}

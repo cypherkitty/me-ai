@@ -57,9 +57,8 @@
   // Helper to check if model is installed
   function isModelInstalled(modelName) {
     if (!availableModels.length) return false;
-    return availableModels.some(installed => 
-      installed === modelName || installed.startsWith(modelName.split(":")[0])
-    );
+    // Exact match only - don't match qwen3:4b when checking for qwen3:14b
+    return availableModels.includes(modelName);
   }
 
   const recommendedModels = getRecommendedOllamaModels();
