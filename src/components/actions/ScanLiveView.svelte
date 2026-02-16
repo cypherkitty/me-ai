@@ -124,21 +124,125 @@
       </div>
     {/if}
 
-    <!-- ── Totals ──────────────────────────────────── -->
-    {#if progress.totals}
-      <div class="totals">
-        <span>{progress.classified || 0} classified</span>
-        {#if progress.errors}<span class="err">{progress.errors} errors</span>{/if}
-        <span class="sep">·</span>
-        <span>{fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out tokens</span>
-        <span class="sep">·</span>
-        <span>{fmtTime(progress.totals.elapsed)}</span>
+    <!-- ── Completion summary (phase=done) ─────────── -->
+    {#if progress.phase === "done"}
+      <div class="summary-card">
+        <div class="summary-head">
+          <span class="summary-title">Scan Summary</span>
+        </div>
+
+        <!-- Main stats grid -->
+        <div class="summary-grid">
+          <div class="summary-stat">
+            <span class="sstat-val">{progress.summary?.processed || progress.total || 0}</span>
+            <span class="sstat-label">emails processed</span>
+          </div>
+          {#if progress.summary?.skipped}
+            <div class="summary-stat">
+              <span class="sstat-val">{progress.summary.skipped}</span>
+              <span class="sstat-label">already classified</span>
+            </div>
+          {/if}
+          <div class="summary-stat">
+            <span class="sstat-val success">{progress.classified || 0}</span>
+            <span class="sstat-label">classified</span>
+          </div>
+          {#if progress.errors > 0}
+            <div class="summary-stat">
+              <span class="sstat-val err">{progress.errors}</span>
+              <span class="sstat-label">errors</span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- LLM performance -->
+        <div class="summary-section">
+          <div class="ssec-title">LLM Performance</div>
+          <div class="ssec-items">
+            {#if progress.summary?.avgTps}
+              <span class="ssec-item">Avg speed: <strong>{progress.summary.avgTps} tok/s</strong></span>
+              <span class="sep">·</span>
+            {/if}
+            <span class="ssec-item">Total tokens: <strong>{fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out</strong></span>
+            <span class="sep">·</span>
+            <span class="ssec-item">Duration: <strong>{fmtTime(progress.totals.elapsed)}</strong></span>
+          </div>
+        </div>
+
+        <!-- Prompt sizes -->
+        <div class="summary-section">
+          <div class="ssec-title">Prompt Configuration</div>
+          <div class="ssec-items">
+            <span class="ssec-item">System prompt: <strong>{fmtTokens(progress.summary?.systemPromptSize || 0)} chars</strong></span>
+            <span class="sep">·</span>
+            <span class="ssec-item">Avg email prompt: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
+          </div>
+        </div>
+
+        <!-- Results breakdown -->
+        {#if progress.results?.length > 0}
+          <details class="results-details">
+            <summary class="results-summary">
+              View {progress.results.length} email results
+            </summary>
+            <div class="results-list">
+              {#each progress.results as result}
+                <div class="result-item" class:failed={!result.success}>
+                  <div class="ri-head">
+                    <span class="ri-subj">{result.email.subject || "(no subject)"}</span>
+                    {#if result.success}
+                      <span class="ri-action">{result.classification.action}</span>
+                    {:else}
+                      <span class="ri-error">ERROR</span>
+                    {/if}
+                  </div>
+                  <div class="ri-meta">
+                    {shortSender(result.email.from)}
+                    {#if result.email.date}
+                      <span class="sep">·</span>{shortDate(result.email.date)}
+                    {/if}
+                  </div>
+                  {#if result.success}
+                    {#if result.classification.summary}
+                      <div class="ri-summary">{result.classification.summary}</div>
+                    {/if}
+                    <div class="ri-stats">
+                      {result.stats.inputTokens} in + {result.stats.numTokens} out tokens
+                      <span class="sep">·</span>
+                      {fmtTime(result.stats.elapsed)}
+                      {#if result.stats.tps}
+                        <span class="sep">·</span>
+                        {result.stats.tps.toFixed(0)} tok/s
+                      {/if}
+                    </div>
+                  {:else}
+                    <div class="ri-err-msg">{result.error}</div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </details>
+        {/if}
       </div>
+    {:else}
+      <!-- ── In-progress totals ────────────────────────── -->
+      {#if progress.totals}
+        <div class="totals">
+          <span>{progress.classified || 0} classified</span>
+          {#if progress.errors}<span class="err">{progress.errors} errors</span>{/if}
+          <span class="sep">·</span>
+          <span>{fmtTokens(progress.totals.inputTokens)} in + {fmtTokens(progress.totals.outputTokens)} out tokens</span>
+          <span class="sep">·</span>
+          <span>{fmtTime(progress.totals.elapsed)}</span>
+        </div>
+      {/if}
     {/if}
 
     <!-- ── Actions ─────────────────────────────────── -->
     <div class="actions">
-      {#if progress.phase !== "done"}
+      {#if progress.phase === "done"}
+        <button class="action-btn" onclick={() => showPrompt = true}>View Prompt Config</button>
+      {:else}
         <button class="action-btn" onclick={() => showPrompt = true}>View Prompt</button>
         <button class="action-btn stop" onclick={onstop}>Stop</button>
       {/if}
@@ -297,6 +401,150 @@
   }
   .err { color: #f87171; }
   .sep { color: #333; }
+
+  /* ── Completion summary ─────────────────────────── */
+  .summary-card {
+    margin-top: 0.4rem;
+    padding: 0.5rem;
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 8px;
+  }
+  .summary-head {
+    margin-bottom: 0.4rem;
+  }
+  .summary-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .summary-stat {
+    display: flex;
+    flex-direction: column;
+    padding: 0.35rem 0.45rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+  }
+  .sstat-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #e8e8e8;
+    font-variant-numeric: tabular-nums;
+  }
+  .sstat-val.success { color: #34d399; }
+  .sstat-val.err { color: #f87171; }
+  .sstat-label {
+    font-size: 0.6rem;
+    color: #555;
+    margin-top: 0.05rem;
+  }
+
+  .summary-section {
+    margin-bottom: 0.45rem;
+    padding: 0.35rem 0.45rem;
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 6px;
+  }
+  .ssec-title {
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+  .ssec-items {
+    font-size: 0.64rem;
+    color: #888;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .ssec-item strong { color: #ccc; font-weight: 600; }
+
+  .results-details {
+    margin-top: 0.5rem;
+    border-top: 1px solid #1e1e1e;
+    padding-top: 0.4rem;
+  }
+  .results-summary {
+    font-size: 0.66rem;
+    color: #666;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.15rem 0;
+  }
+  .results-summary:hover { color: #999; }
+
+  .results-list {
+    margin-top: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .result-item {
+    padding: 0.35rem 0.45rem;
+    background: rgba(52, 211, 153, 0.03);
+    border: 1px solid rgba(52, 211, 153, 0.1);
+    border-radius: 6px;
+  }
+  .result-item.failed {
+    background: rgba(248, 113, 113, 0.03);
+    border-color: rgba(248, 113, 113, 0.15);
+  }
+  .ri-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    margin-bottom: 0.1rem;
+  }
+  .ri-subj {
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ri-action {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #34d399;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .ri-error {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #f87171;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+  }
+  .ri-meta {
+    font-size: 0.6rem;
+    color: #555;
+    margin-bottom: 0.15rem;
+  }
+  .ri-summary {
+    font-size: 0.62rem;
+    color: #888;
+    line-height: 1.4;
+    margin-bottom: 0.15rem;
+  }
+  .ri-stats, .ri-err-msg {
+    font-size: 0.58rem;
+    color: #555;
+  }
+  .ri-err-msg { color: #f87171; }
 
   /* ── Actions ─────────────────────────────────────── */
   .actions {
