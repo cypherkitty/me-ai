@@ -170,8 +170,8 @@ test.describe("Actions page", () => {
     const triageLabel = page.getByText("Email Triage");
     await expect(triageLabel).toBeVisible();
 
-    // Should see the Scan Emails button
-    const scanButton = page.getByRole("button", { name: "Scan Emails" });
+    // Should see the Scan New button
+    const scanButton = page.getByRole("button", { name: "Scan New" });
     await expect(scanButton).toBeVisible();
   });
 

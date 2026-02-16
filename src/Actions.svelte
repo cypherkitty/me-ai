@@ -8,6 +8,9 @@
     getClassificationCounts,
     updateClassificationStatus,
     clearClassifications,
+    clearClassificationsByAction,
+    deleteClassification,
+    getScanStats,
     ACTION_TYPES,
     VALID_ACTIONS,
   } from "./lib/triage.js";
@@ -20,6 +23,7 @@
   let modelName = $state("");
   let groups = $state({});
   let counts = $state({ total: 0 });
+  let stats = $state(null);
   let expandedGroup = $state(null);
 
   let isScanning = $state(false);
@@ -53,13 +57,23 @@
     try {
       groups = await getClassificationsGrouped();
       counts = await getClassificationCounts();
+      stats = await getScanStats();
     } catch (e) {
       error = `Failed to load data: ${e.message}`;
     }
   }
 
-  // ── Scan emails ────────────────────────────────────────────────────
+  // ── Scan emails (skip already classified) ──────────────────────────
   async function startScan() {
+    await doScan(false);
+  }
+
+  // ── Rescan all (force reclassify) ──────────────────────────────────
+  async function rescan() {
+    await doScan(true);
+  }
+
+  async function doScan(force) {
     if (isScanning || !engine.isReady) return;
 
     error = null;
@@ -69,6 +83,7 @@
     try {
       await scanEmails(engine, {
         count: scanCount,
+        force,
         onProgress: (progress) => {
           scanProgress = { ...progress };
         },
@@ -92,6 +107,17 @@
     await loadData();
   }
 
+  async function removeItem(emailId) {
+    await deleteClassification(emailId);
+    await loadData();
+  }
+
+  // ── Group actions ──────────────────────────────────────────────────
+  async function clearGroup(actionId) {
+    await clearClassificationsByAction(actionId);
+    await loadData();
+  }
+
   async function clearAll() {
     await clearClassifications();
     await loadData();
@@ -108,14 +134,18 @@
     {modelName}
     {groups}
     {counts}
+    {stats}
     {expandedGroup}
     {isScanning}
     {scanProgress}
     {error}
     onscan={startScan}
+    onrescan={rescan}
     ontogglegroup={toggleGroup}
     onmarkacted={markActed}
     ondismiss={dismiss}
+    onremove={removeItem}
+    oncleargroup={clearGroup}
     onclear={clearAll}
     ondismisserror={() => error = null}
     bind:scanCount

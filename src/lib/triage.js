@@ -60,12 +60,13 @@ Rules:
  * @param {object} engine - Shared LLM engine from llm-engine.js
  * @param {object} options
  * @param {number} [options.count=20] - Number of recent emails to scan
+ * @param {boolean} [options.force=false] - If true, rescan already-classified emails
  * @param {function} [options.onProgress] - Progress callback
- * @returns {Promise<{scanned: number, classified: number, errors: number}>}
+ * @returns {Promise<{scanned: number, classified: number, skipped: number, errors: number}>}
  */
 export async function scanEmails(
   engine,
-  { count = DEFAULT_COUNT, onProgress = () => {} } = {}
+  { count = DEFAULT_COUNT, force = false, onProgress = () => {} } = {}
 ) {
   if (!engine.isReady) {
     throw new Error("Model not loaded. Please load a model first.");
@@ -82,21 +83,41 @@ export async function scanEmails(
 
   if (emails.length === 0) {
     onProgress({ phase: "done", message: "No emails to scan." });
-    return { scanned: 0, classified: 0, errors: 0 };
+    return { scanned: 0, classified: 0, skipped: 0, errors: 0 };
+  }
+
+  // Filter out already-classified emails unless force rescan
+  let toProcess = emails;
+  let skipped = 0;
+  if (!force) {
+    const existingIds = new Set(
+      (await db.emailClassifications.toArray()).map((c) => c.emailId)
+    );
+    toProcess = emails.filter((e) => !existingIds.has(e.id));
+    skipped = emails.length - toProcess.length;
+  }
+
+  if (toProcess.length === 0) {
+    onProgress({
+      phase: "done",
+      message: `All ${emails.length} emails already classified. Use "Rescan All" to reclassify.`,
+      classified: 0,
+    });
+    return { scanned: 0, classified: 0, skipped, errors: 0 };
   }
 
   const scannedAt = Date.now();
   let classified = 0;
   let errors = 0;
 
-  for (let i = 0; i < emails.length; i++) {
-    const email = emails[i];
+  for (let i = 0; i < toProcess.length; i++) {
+    const email = toProcess[i];
 
     onProgress({
       phase: "scanning",
-      message: `Classifying email ${i + 1} of ${emails.length}...`,
+      message: `Classifying email ${i + 1} of ${toProcess.length}${skipped ? ` (${skipped} skipped)` : ""}...`,
       current: i + 1,
-      total: emails.length,
+      total: toProcess.length,
       classified,
     });
 
@@ -131,11 +152,11 @@ export async function scanEmails(
 
   onProgress({
     phase: "done",
-    message: `Classified ${classified} of ${emails.length} emails.`,
+    message: `Classified ${classified} of ${toProcess.length} emails${skipped ? `, ${skipped} already done` : ""}.`,
     classified,
   });
 
-  return { scanned: emails.length, classified, errors };
+  return { scanned: toProcess.length, classified, skipped, errors };
 }
 
 /**
@@ -197,6 +218,33 @@ export async function updateClassificationStatus(emailId, newStatus) {
  */
 export async function clearClassifications() {
   await db.emailClassifications.clear();
+}
+
+/**
+ * Clear classifications for a specific action group.
+ */
+export async function clearClassificationsByAction(action) {
+  await db.emailClassifications.where("action").equals(action).delete();
+}
+
+/**
+ * Delete a single classification by emailId.
+ */
+export async function deleteClassification(emailId) {
+  await db.emailClassifications.delete(emailId);
+}
+
+/**
+ * Get scan stats: total emails in storage, how many classified, how many unclassified.
+ */
+export async function getScanStats() {
+  const totalEmails = await db.items.where("sourceType").equals("gmail").count();
+  const classified = await db.emailClassifications.count();
+  return {
+    totalEmails,
+    classified,
+    unclassified: Math.max(0, totalEmails - classified),
+  };
 }
 
 // ── Prompt formatting ────────────────────────────────────────────────

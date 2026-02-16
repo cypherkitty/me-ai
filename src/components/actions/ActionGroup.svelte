@@ -1,10 +1,14 @@
 <script>
   import EmailRow from "./EmailRow.svelte";
 
-  let { action, items = [], expanded = false, ontoggle, onmarkacted, ondismiss } = $props();
+  let {
+    action, items = [], expanded = false,
+    ontoggle, onmarkacted, ondismiss, onremove, oncleargroup,
+  } = $props();
 
   let pendingItems = $derived(items.filter((i) => i.status === "pending"));
   let actedItems = $derived(items.filter((i) => i.status !== "pending"));
+  let showClearConfirm = $state(false);
 </script>
 
 <div class="action-group">
@@ -32,17 +36,31 @@
       {/if}
 
       {#each pendingItems as item (item.emailId)}
-        <EmailRow {item} actionColor={action.color} {onmarkacted} {ondismiss} />
+        <EmailRow {item} actionColor={action.color} {onmarkacted} {ondismiss} {onremove} />
       {/each}
 
       {#if actedItems.length > 0}
         <details class="handled-section">
           <summary class="handled-summary">{actedItems.length} handled</summary>
           {#each actedItems as item (item.emailId)}
-            <EmailRow {item} actionColor={action.color} dimmed />
+            <EmailRow {item} actionColor={action.color} {onremove} dimmed />
           {/each}
         </details>
       {/if}
+
+      <div class="group-footer">
+        {#if !showClearConfirm}
+          <button class="group-action-btn" onclick={() => showClearConfirm = true}>
+            Clear group
+          </button>
+        {:else}
+          <span class="confirm-row">
+            Clear {items.length} items?
+            <button class="group-action-btn" onclick={() => showClearConfirm = false}>Cancel</button>
+            <button class="group-action-btn danger" onclick={() => { oncleargroup(); showClearConfirm = false; }}>Delete</button>
+          </span>
+        {/if}
+      </div>
     </div>
   {/if}
 </div>
@@ -140,6 +158,34 @@
     user-select: none;
   }
   .handled-summary:hover {
+    color: #888;
+  }
+
+  .group-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.35rem 0.8rem;
+    border-top: 1px solid #1e1e1e;
+  }
+
+  .group-action-btn {
+    background: none;
+    border: none;
+    color: #555;
+    font-size: 0.68rem;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+  }
+  .group-action-btn:hover { color: #999; }
+  .group-action-btn.danger { color: #f87171; }
+  .group-action-btn.danger:hover { color: #fca5a5; }
+
+  .confirm-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.68rem;
     color: #888;
   }
 </style>

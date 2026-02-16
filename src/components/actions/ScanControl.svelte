@@ -5,13 +5,20 @@
     isScanning = false,
     scanProgress = null,
     scanCount = $bindable(20),
+    stats = null,
     onscan,
+    onrescan,
   } = $props();
 
   const COUNT_OPTIONS = [
+    { value: 1, label: "1" },
+    { value: 3, label: "3" },
+    { value: 5, label: "5" },
     { value: 10, label: "10" },
     { value: 20, label: "20" },
     { value: 50, label: "50" },
+    { value: 100, label: "100" },
+    { value: 500, label: "500" },
   ];
 
   function statusLabel() {
@@ -53,6 +60,16 @@
     </div>
   </div>
 
+  {#if stats}
+    <div class="scan-stats">
+      <span class="stat">{stats.totalEmails} emails in storage</span>
+      <span class="stat-sep">·</span>
+      <span class="stat">{stats.classified} classified</span>
+      <span class="stat-sep">·</span>
+      <span class="stat">{stats.unclassified} new</span>
+    </div>
+  {/if}
+
   <div class="scan-controls">
     <div class="control-group">
       <label class="control-label" for="scan-count">Emails:</label>
@@ -62,13 +79,23 @@
         {/each}
       </select>
     </div>
-    <button
-      class="btn scan-btn primary"
-      onclick={onscan}
-      disabled={!canScan()}
-    >
-      {isScanning ? "Scanning..." : "Scan Emails"}
-    </button>
+    <div class="btn-group">
+      <button
+        class="btn scan-btn primary"
+        onclick={onscan}
+        disabled={!canScan()}
+      >
+        {isScanning ? "Scanning..." : "Scan New"}
+      </button>
+      <button
+        class="btn scan-btn"
+        onclick={onrescan}
+        disabled={!canScan()}
+        title="Rescan all (including already classified)"
+      >
+        Rescan All
+      </button>
+    </div>
   </div>
 
   {#if engineStatus !== "ready" && engineStatus !== "loading"}
@@ -139,6 +166,20 @@
     flex-shrink: 0;
   }
 
+  .scan-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    font-size: 0.7rem;
+  }
+
+  .stat { color: #888; }
+  .stat-sep { color: #333; }
+
   .scan-controls {
     display: flex;
     align-items: center;
@@ -147,6 +188,11 @@
     margin-top: 0.6rem;
     padding-top: 0.5rem;
     border-top: 1px solid #222;
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 0.35rem;
   }
 
   .control-group {

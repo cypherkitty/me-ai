@@ -8,15 +8,19 @@
     modelName,
     groups = {},
     counts = {},
+    stats = null,
     expandedGroup = null,
     isScanning = false,
     scanProgress = null,
     scanCount = $bindable(20),
     error = null,
     onscan,
+    onrescan,
     ontogglegroup,
     onmarkacted,
     ondismiss,
+    onremove,
+    oncleargroup,
     onclear,
     ondismisserror,
   } = $props();
@@ -36,8 +40,10 @@
     {modelName}
     {isScanning}
     {scanProgress}
+    {stats}
     bind:scanCount
     {onscan}
+    {onrescan}
   />
 
   {#if error}
@@ -57,6 +63,8 @@
           ontoggle={() => ontogglegroup(actionId)}
           {onmarkacted}
           {ondismiss}
+          {onremove}
+          oncleargroup={() => oncleargroup(actionId)}
         />
       {/each}
     </div>
