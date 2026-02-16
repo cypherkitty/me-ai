@@ -29,6 +29,7 @@
   let scanProgress = $state(null);
   let scanCount = $state(20);
   let error = $state(null);
+  let scanAbort = $state(null);
 
   // ── Track engine status ────────────────────────────────────────────
   onMount(() => {
@@ -74,19 +75,27 @@
     error = null;
     isScanning = true;
     scanProgress = null;
+    const abort = new AbortController();
+    scanAbort = abort;
 
     try {
       await scanEmails(engine, {
         count: scanCount,
         force,
+        signal: abort.signal,
         onProgress: (progress) => { scanProgress = { ...progress }; },
       });
       await loadData();
     } catch (e) {
-      error = `Scan failed: ${e.message}`;
+      if (!abort.signal.aborted) error = `Scan failed: ${e.message}`;
     } finally {
       isScanning = false;
+      scanAbort = null;
     }
+  }
+
+  function stopScan() {
+    scanAbort?.abort();
   }
 
   // ── Item actions ───────────────────────────────────────────────────
@@ -142,6 +151,7 @@
     oncleargroup={clearGroup}
     onclear={clearAll}
     ondismisserror={() => error = null}
+    onstop={stopScan}
     bind:scanCount
   />
 </div>
