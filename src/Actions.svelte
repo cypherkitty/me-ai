@@ -31,6 +31,32 @@
   let error = $state(null);
   let scanAbort = $state(null);
 
+  const SCAN_HISTORY_KEY = "me-ai-scan-history";
+
+  function loadScanHistory() {
+    try {
+      const raw = localStorage.getItem(SCAN_HISTORY_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }
+
+  function saveScanHistory(progress) {
+    if (!progress || progress.phase !== "done") return;
+    try {
+      const entry = {
+        timestamp: Date.now(),
+        classified: progress.classified || 0,
+        errors: progress.errors || 0,
+        total: progress.total || 0,
+        results: progress.results || [],
+        totals: progress.totals || {},
+        summary: progress.summary || {},
+      };
+      localStorage.setItem(SCAN_HISTORY_KEY, JSON.stringify(entry));
+    } catch {}
+  }
+
   // ── Track engine status ────────────────────────────────────────────
   onMount(() => {
     const unsub = engine.onMessage((msg) => {
@@ -50,6 +76,12 @@
       const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
       const model = webgpuModel || ollamaModel;
       modelName = model?.name || model?.displayName || engine.modelId || "";
+    }
+
+    // Restore last scan from localStorage
+    const saved = loadScanHistory();
+    if (saved) {
+      scanProgress = { phase: "done", ...saved };
     }
 
     loadData();
@@ -87,7 +119,10 @@
         count: scanCount,
         force,
         signal: abort.signal,
-        onProgress: (progress) => { scanProgress = { ...progress }; },
+        onProgress: (progress) => {
+          scanProgress = { ...progress };
+          if (progress.phase === "done") saveScanHistory(progress);
+        },
       });
       await loadData();
     } catch (e) {
@@ -151,7 +186,7 @@
     ondismisserror={() => error = null}
     onstop={stopScan}
     onrefresh={loadData}
-    oncloseprogress={() => scanProgress = null}
+    oncloseprogress={() => { scanProgress = null; localStorage.removeItem(SCAN_HISTORY_KEY); }}
     bind:scanCount
   />
 </div>
