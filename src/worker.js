@@ -214,8 +214,10 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       self.postMessage({ status: "update", output, tps, numTokens });
     };
 
+    const inputTokens = inputs.input_ids.dims[1];
+
     // Let the UI know we're preparing (tokenising the prompt)
-    self.postMessage({ status: "start", phase: "preparing" });
+    self.postMessage({ status: "start", phase: "preparing", inputTokens });
 
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,
