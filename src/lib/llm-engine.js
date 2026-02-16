@@ -63,9 +63,15 @@ export function getEngine() {
       ensureWorker().postMessage({ type: "load", modelId });
     },
 
-    /** Start streaming generation. Tokens arrive via onMessage. */
-    generate(messages) {
-      ensureWorker().postMessage({ type: "generate", data: messages });
+    /**
+     * Start streaming generation. Tokens arrive via onMessage.
+     * @param {Array<{role: string, content: string}>} messages
+     * @param {object} [options] - Generation options
+     * @param {number} [options.maxTokens=4096] - Max tokens to generate
+     * @param {boolean} [options.enableThinking=true] - Allow thinking mode
+     */
+    generate(messages, options) {
+      ensureWorker().postMessage({ type: "generate", data: messages, options });
     },
 
     /**
@@ -74,20 +80,20 @@ export function getEngine() {
      * Does NOT fire onMessage callbacks for token events.
      *
      * @param {Array<{role: string, content: string}>} messages
+     * @param {object} [options] - Generation options
+     * @param {number} [options.maxTokens=4096] - Max tokens to generate
+     * @param {boolean} [options.enableThinking=true] - Allow thinking mode
      * @returns {Promise<string>} The complete generated text
      */
-    generateFull(messages) {
+    generateFull(messages, options) {
       return new Promise((resolve, reject) => {
         let output = "";
-        let thinkingDone = false;
 
         const handler = (msg) => {
           switch (msg.status) {
             case "thinking":
-              // Accumulate thinking but don't include in output
               break;
             case "thinking-done":
-              thinkingDone = true;
               break;
             case "update":
               output += msg.output;
@@ -107,9 +113,8 @@ export function getEngine() {
           _listeners.delete(handler);
         };
 
-        // Temporarily add our own listener
         _listeners.add(handler);
-        ensureWorker().postMessage({ type: "generate", data: messages });
+        ensureWorker().postMessage({ type: "generate", data: messages, options });
       });
     },
 

@@ -8,6 +8,7 @@
     stats = null,
     onscan,
     onrescan,
+    oninspect,
   } = $props();
 
   const COUNT_OPTIONS = [
@@ -52,7 +53,17 @@
       {/if}
     </div>
     <div class="scan-info">
-      <span class="scan-title">Email Triage</span>
+      <div class="scan-title-row">
+        <span class="scan-title">Email Triage</span>
+        <button class="inspect-btn" onclick={oninspect} title="View system prompt and LLM config">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 16v-4"/>
+            <path d="M12 8h.01"/>
+          </svg>
+          Prompt
+        </button>
+      </div>
       <span class="scan-status">
         <span class="status-dot" style:background={statusColor()}></span>
         {statusLabel()}
@@ -145,10 +156,34 @@
     gap: 0.1rem;
   }
 
+  .scan-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
   .scan-title {
     font-size: 0.85rem;
     font-weight: 600;
     color: #e8e8e8;
+  }
+
+  .inspect-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.15rem 0.45rem;
+    background: none;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #666;
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .inspect-btn:hover {
+    color: #3b82f6;
+    border-color: #3b82f6;
   }
 
   .scan-status {

@@ -13,9 +13,16 @@ import { groupByAction } from "./email-utils.js";
 
 const DEFAULT_COUNT = 20;
 
+/** Generation settings used for email classification (exported for transparency UI) */
+export const CLASSIFICATION_CONFIG = {
+  maxTokens: 512,
+  enableThinking: false,
+  doSample: false,
+};
+
 // ── System prompt ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
+export const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
@@ -84,26 +91,27 @@ export async function scanEmails(
       .limit(count)
       .toArray();
   } else {
-    // Scan new: find unclassified emails, sorted by date desc, take N
+    // Scan new: find unclassified emails without loading all data.
+    // Only fetch primary keys from classifications (lightweight) and
+    // iterate emails with early termination once we have enough.
     const classifiedIds = new Set(
-      (await db.emailClassifications.toArray()).map((c) => c.emailId)
+      await db.emailClassifications.toCollection().primaryKeys()
     );
-    const allEmails = await db.items
-      .where("[sourceType+date]")
-      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
-      .reverse()
-      .toArray();
 
     skipped = 0;
     toProcess = [];
-    for (const email of allEmails) {
-      if (classifiedIds.has(email.id)) {
-        skipped++;
-      } else {
-        toProcess.push(email);
-        if (toProcess.length >= count) break;
-      }
-    }
+    await db.items
+      .where("[sourceType+date]")
+      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+      .reverse()
+      .until(() => toProcess.length >= count)
+      .each((email) => {
+        if (classifiedIds.has(email.id)) {
+          skipped++;
+        } else {
+          toProcess.push(email);
+        }
+      });
   }
 
   if (toProcess.length === 0) {
@@ -136,7 +144,10 @@ export async function scanEmails(
         { role: "user", content: prompt },
       ];
 
-      const response = await engine.generateFull(messages);
+      const response = await engine.generateFull(messages, {
+        maxTokens: 512,
+        enableThinking: false,
+      });
       const classification = parseClassification(response);
 
       if (classification) {
@@ -261,7 +272,7 @@ export async function getScanStats() {
 
 // ── Prompt formatting ────────────────────────────────────────────────
 
-function formatEmailPrompt(email) {
+export function formatEmailPrompt(email) {
   const date = email.date
     ? new Date(email.date).toLocaleDateString("en-US", {
         weekday: "short", year: "numeric", month: "short", day: "numeric",
