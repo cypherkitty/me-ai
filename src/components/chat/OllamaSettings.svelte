@@ -103,7 +103,7 @@
   <div class="model-section">
     <label for="ollama-model">Choose Model:</label>
     <select id="ollama-model" bind:value={selectedModel}>
-      <optgroup label="Recommended (install via: ollama pull {model})">
+      <optgroup label="Recommended (install via: ollama pull MODEL_NAME)">
         {#each recommendedModels as model}
           <option value={model.name}>
             {model.displayName} ({model.params}) - {(model.contextWindow / 1024).toFixed(0)}k context
@@ -190,7 +190,7 @@
       </table>
     </div>
     <p class="model-table-note">
-      ✓ = installed on your Ollama server. To install: <code>ollama pull {"{model}"}</code>
+      ✓ = installed on your Ollama server. To install: <code>ollama pull MODEL_NAME</code>
     </p>
   </details>
 

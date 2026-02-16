@@ -170,7 +170,7 @@ export async function streamOllamaChat(
             fullText += data.message.content;
             onToken({
               content: data.message.content,
-              done: data.done || false,
+              done: false,
               total_duration: data.total_duration,
               eval_count: data.eval_count,
               eval_duration: data.eval_duration,
@@ -178,6 +178,14 @@ export async function streamOllamaChat(
           }
 
           if (data.done) {
+            // Send final completion message with stats
+            onToken({
+              content: "",
+              done: true,
+              total_duration: data.total_duration,
+              eval_count: data.eval_count,
+              eval_duration: data.eval_duration,
+            });
             break;
           }
         } catch {

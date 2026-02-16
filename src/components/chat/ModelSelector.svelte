@@ -9,38 +9,40 @@
   onMount(() => mountLog("ModelSelector"));
 </script>
 
-<div class="container center">
-  <p class="subtitle">
-    A private AI chat that runs <strong>entirely in your browser</strong> using WebGPU.
-  </p>
+<div class="container">
+  <div class="content-wrapper">
+    <p class="subtitle">
+      A private AI chat that runs <strong>entirely in your browser</strong> using WebGPU.
+    </p>
 
-  <div class="model-selector">
-    <label for="model-select">Choose Model:</label>
-    <select id="model-select" bind:value={selectedModel}>
-      {#each MODELS as model}
-        <option value={model.id}>
-          {model.name} — {model.size}
-        </option>
-      {/each}
-    </select>
-    {#if selectedModel}
-      {@const currentModel = MODELS.find(m => m.id === selectedModel)}
-      {#if currentModel}
-        <p class="model-description">{currentModel.description}</p>
+    <div class="model-selector">
+      <label for="model-select">Choose Model:</label>
+      <select id="model-select" bind:value={selectedModel}>
+        {#each MODELS as model}
+          <option value={model.id}>
+            {model.name} — {model.size}
+          </option>
+        {/each}
+      </select>
+      {#if selectedModel}
+        {@const currentModel = MODELS.find(m => m.id === selectedModel)}
+        {#if currentModel}
+          <p class="model-description">{currentModel.description}</p>
+        {/if}
       {/if}
-    {/if}
+    </div>
 
     <!-- Model capabilities table -->
-    <details class="model-details" open>
+    <details class="model-details">
       <summary class="model-details-summary">Model Capabilities</summary>
       <div class="model-table-wrapper">
         <table class="model-table">
           <thead>
             <tr>
               <th>Model</th>
-              <th>Context Window</th>
+              <th>Context</th>
               <th>Email Limit</th>
-              <th>Email Processing</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -58,11 +60,11 @@
                 <td class="tokens-col">~{(model.maxEmailTokens / 1000).toFixed(0)}k</td>
                 <td class="rec-col">
                   {#if model.recommendedForEmailProcessing}
-                    <span class="rec-badge rec-good">✅ Recommended</span>
+                    <span class="rec-badge rec-good">✅</span>
                   {:else if model.maxEmailTokens >= 6000}
-                    <span class="rec-badge rec-ok">⚠️ Limited</span>
+                    <span class="rec-badge rec-ok">⚠️</span>
                   {:else}
-                    <span class="rec-badge rec-bad">❌ May fail on long emails</span>
+                    <span class="rec-badge rec-bad">❌</span>
                   {/if}
                 </td>
               </tr>
@@ -71,57 +73,53 @@
         </table>
       </div>
       <p class="model-table-note">
-        <strong>Context Window</strong> = model's maximum input capacity. <strong>Email Limit</strong> = WebGPU memory-safe limit (smaller models need more conservative limits to avoid memory errors).
+        <strong>Context</strong> = max input capacity. <strong>Email Limit</strong> = WebGPU safe limit. ✅ = Recommended, ⚠️ = Limited, ❌ = May fail.
       </p>
     </details>
-  </div>
 
-  {#if gpuInfo}
-    <div class="gpu-card">
-      <div class="gpu-card-header">
-        <span class="gpu-dot"></span>
-        <span>WebGPU Active</span>
+    {#if gpuInfo}
+      <div class="gpu-card">
+        <div class="gpu-card-header">
+          <span class="gpu-dot"></span>
+          <span>WebGPU Active</span>
+        </div>
+        <div class="gpu-card-body">
+          <div class="gpu-row"><span>Vendor</span><span>{gpuInfo.vendor}</span></div>
+          <div class="gpu-row"><span>Architecture</span><span>{gpuInfo.architecture}</span></div>
+          {#if gpuInfo.limits?.maxBufferSize}
+            <div class="gpu-row"><span>Max buffer</span><span>{formatBytes(gpuInfo.limits.maxBufferSize)}</span></div>
+          {/if}
+        </div>
       </div>
-      <div class="gpu-card-body">
-        <div class="gpu-row"><span>Vendor</span><span>{gpuInfo.vendor}</span></div>
-        <div class="gpu-row"><span>Architecture</span><span>{gpuInfo.architecture}</span></div>
-        {#if gpuInfo.device && gpuInfo.device !== "unknown"}
-          <div class="gpu-row"><span>Device</span><span>{gpuInfo.device}</span></div>
-        {/if}
-        {#if gpuInfo.description && gpuInfo.description !== "unknown"}
-          <div class="gpu-row"><span>Description</span><span>{gpuInfo.description}</span></div>
-        {/if}
-        {#if gpuInfo.limits?.maxBufferSize}
-          <div class="gpu-row"><span>Max buffer</span><span>{formatBytes(gpuInfo.limits.maxBufferSize)}</span></div>
-        {/if}
-        {#if gpuInfo.features?.length}
-          <div class="gpu-row"><span>Features</span><span>{gpuInfo.features.length} supported</span></div>
-        {/if}
-      </div>
-    </div>
-  {/if}
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
-  <button class="btn primary" onclick={onload} disabled={error}>
-    Load Model
-  </button>
+    {/if}
+
+    {#if error}
+      <p class="error">{error}</p>
+    {/if}
+    
+    <button class="btn primary" onclick={onload} disabled={error}>
+      Load Model
+    </button>
+  </div>
 </div>
 
 <style>
   .container {
-    max-width: 520px;
-    margin: auto;
-    padding: 2rem;
+    width: 100%;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
   }
-  .center {
+  .content-wrapper {
+    width: 100%;
+    max-width: 520px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
     text-align: center;
-    height: 100%;
-    gap: 0.75rem;
+    gap: 1rem;
   }
   .subtitle {
     color: #aaa;
@@ -136,8 +134,6 @@
   /* ── Model selector ──────────────────────────────────────────────── */
   .model-selector {
     width: 100%;
-    max-width: 400px;
-    margin: 1.5rem 0;
     text-align: left;
   }
   .model-selector label {
@@ -177,7 +173,7 @@
 
   /* ── Model capabilities table ────────────────────────────────────── */
   .model-details {
-    margin-top: 1.2rem;
+    width: 100%;
     border: 1px solid #2a2a2a;
     border-radius: 8px;
     background: #161616;
@@ -203,6 +199,8 @@
     border-radius: 8px 8px 0 0;
   }
   .model-table-wrapper {
+    max-height: 300px;
+    overflow-y: auto;
     overflow-x: auto;
     padding: 0.8rem;
   }
@@ -212,6 +210,9 @@
     font-size: 0.7rem;
   }
   .model-table thead th {
+    position: sticky;
+    top: 0;
+    background: #161616;
     text-align: left;
     padding: 0.4rem 0.5rem;
     font-size: 0.65rem;
@@ -220,6 +221,7 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
     border-bottom: 1px solid #2a2a2a;
+    z-index: 1;
   }
   .model-table tbody tr {
     transition: background 0.1s;
@@ -299,7 +301,6 @@
     border-radius: 10px;
     padding: 0.75rem 1rem;
     width: 100%;
-    max-width: 340px;
     text-align: left;
   }
   .gpu-card-header {
