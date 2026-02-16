@@ -29,6 +29,49 @@
         <p class="model-description">{currentModel.description}</p>
       {/if}
     {/if}
+
+    <!-- Model capabilities table -->
+    <details class="model-details" open>
+      <summary class="model-details-summary">Model Capabilities</summary>
+      <div class="model-table-wrapper">
+        <table class="model-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Context</th>
+              <th>Email Tokens</th>
+              <th>Email Processing</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each MODELS as model}
+              <tr class:selected={model.id === selectedModel}>
+                <td class="model-name">
+                  {model.name}
+                  {#if model.id === selectedModel}
+                    <span class="current-badge">Current</span>
+                  {/if}
+                </td>
+                <td class="context-col">{(model.contextWindow / 1024).toFixed(0)}k</td>
+                <td class="tokens-col">~{(model.maxEmailTokens / 1000).toFixed(0)}k</td>
+                <td class="rec-col">
+                  {#if model.recommendedForEmailProcessing}
+                    <span class="rec-badge rec-good">✅ Recommended</span>
+                  {:else if model.maxEmailTokens >= 6000}
+                    <span class="rec-badge rec-ok">⚠️ Limited</span>
+                  {:else}
+                    <span class="rec-badge rec-bad">❌ May fail on long emails</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+      <p class="model-table-note">
+        <strong>Email Tokens</strong> = safe limit for email processing. Larger models can handle longer emails without WebGPU memory errors.
+      </p>
+    </details>
   </div>
 
   {#if gpuInfo}
@@ -128,6 +171,123 @@
     color: #777;
     margin-top: 0.4rem;
     font-style: italic;
+  }
+
+  /* ── Model capabilities table ────────────────────────────────────── */
+  .model-details {
+    margin-top: 1.2rem;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    background: #161616;
+    padding: 0;
+  }
+  .model-details-summary {
+    padding: 0.6rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 8px;
+    transition: background 0.15s;
+  }
+  .model-details-summary:hover {
+    background: #1a1a1a;
+  }
+  .model-details[open] .model-details-summary {
+    border-bottom: 1px solid #2a2a2a;
+    border-radius: 8px 8px 0 0;
+  }
+  .model-table-wrapper {
+    overflow-x: auto;
+    padding: 0.8rem;
+  }
+  .model-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+  }
+  .model-table thead th {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .model-table tbody tr {
+    transition: background 0.1s;
+  }
+  .model-table tbody tr:hover {
+    background: #1a1a1a;
+  }
+  .model-table tbody tr.selected {
+    background: rgba(59, 130, 246, 0.08);
+  }
+  .model-table tbody td {
+    padding: 0.5rem 0.5rem;
+    color: #bbb;
+    border-bottom: 1px solid #1f1f1f;
+  }
+  .model-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .model-name {
+    font-weight: 500;
+    color: #e8e8e8;
+  }
+  .current-badge {
+    display: inline-block;
+    margin-left: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .context-col, .tokens-col {
+    font-variant-numeric: tabular-nums;
+    color: #999;
+  }
+  .rec-col {
+    text-align: right;
+  }
+  .rec-badge {
+    display: inline-block;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .rec-badge.rec-good {
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.1);
+  }
+  .rec-badge.rec-ok {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+  }
+  .rec-badge.rec-bad {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.1);
+  }
+  .model-table-note {
+    padding: 0.5rem 0.8rem 0.8rem;
+    font-size: 0.65rem;
+    color: #666;
+    line-height: 1.4;
+    margin: 0;
+  }
+  .model-table-note strong {
+    color: #888;
   }
 
   /* ── GPU info card ───────────────────────────────────────────────── */
