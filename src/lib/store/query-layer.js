@@ -10,7 +10,7 @@
 import Dexie from "dexie";
 import { db } from "./db.js";
 import { truncate } from "../format.js";
-import { extractName, groupByAction } from "../email-utils.js";
+import { groupByAction } from "../email-utils.js";
 
 // ── Data summary ────────────────────────────────────────────────────
 
@@ -39,16 +39,6 @@ export async function getDataSummary() {
     lines.push(`Date range: ${from} to ${to}.`);
   }
 
-  // Top 5 senders (quick distribution)
-  const senderCounts = await getTopSenders(5);
-  if (senderCounts.length > 0) {
-    lines.push(
-      "Top senders: " +
-        senderCounts.map(([s, n]) => `${extractName(s)} (${n})`).join(", ") +
-        "."
-    );
-  }
-
   return lines.join(" ");
 }
 
@@ -70,35 +60,12 @@ export async function getDetailedSummary() {
     `- **Contacts:** ${totalContacts}`,
   ];
 
-  // Date range — use compound index (same as getDataSummary)
+  // Date range — use compound index (no full table scan)
   const { oldest, newest } = await getDateRange();
   if (oldest && newest) {
     const from = new Date(oldest.date).toLocaleDateString();
     const to = new Date(newest.date).toLocaleDateString();
     parts.push(`- **Date range:** ${from} — ${to}`);
-  }
-
-  // Load all gmail items once for top senders + label distribution
-  const allItems = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .toArray();
-
-  const topSenders = computeTopSenders(allItems, 10);
-  const labelDist = computeLabelDistribution(allItems, 10);
-
-  if (topSenders.length > 0) {
-    parts.push("", "### Top Senders");
-    for (const [sender, count] of topSenders) {
-      parts.push(`- ${sender}: ${count}`);
-    }
-  }
-
-  if (labelDist.length > 0) {
-    parts.push("", "### Labels");
-    for (const [label, count] of labelDist) {
-      parts.push(`- ${label}: ${count}`);
-    }
   }
 
   return parts.join("\n");
@@ -312,39 +279,6 @@ async function getDateRange() {
   return { oldest, newest };
 }
 
-/** Get top N senders from the database */
-async function getTopSenders(limit) {
-  const allItems = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .toArray();
-  return computeTopSenders(allItems, limit);
-}
-
-/** Compute top N senders from a pre-loaded items array */
-function computeTopSenders(items, limit) {
-  const counts = {};
-  for (const item of items) {
-    const from = item.from || "Unknown";
-    counts[from] = (counts[from] || 0) + 1;
-  }
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-}
-
-/** Compute label distribution from a pre-loaded items array */
-function computeLabelDistribution(items, limit) {
-  const counts = {};
-  for (const item of items) {
-    for (const label of item.labels || []) {
-      counts[label] = (counts[label] || 0) + 1;
-    }
-  }
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
-}
 
 function formatItemForLLM(item) {
   const date = item.date
