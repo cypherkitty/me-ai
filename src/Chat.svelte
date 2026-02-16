@@ -7,6 +7,8 @@
     buildEmailContext,
     buildPendingActionsContext,
     getPendingActions,
+    buildGreetingMessage,
+    buildInitialSuggestions,
   } from "./lib/store/query-layer.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
@@ -23,6 +25,7 @@
   let progressItems = $state([]);
 
   let messages = $state([]);
+  let suggestions = $state([]);
   let isRunning = $state(false);
   let tps = $state(null);
   let numTokens = $state(null);
@@ -31,15 +34,15 @@
   let gpuInfo = $state(null);
   let generationPhase = $state(null);
 
-  let pendingActions = $state(null);
+  let greetingShown = false;
 
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(() => {
     engine.check();
 
-    // If the model is already ready (loaded from another page), fetch pending actions immediately
+    // If the model is already ready (loaded from another page), greet immediately
     if (engine.isReady) {
-      loadPendingActions();
+      showGreetingIfNeeded();
     }
 
     const unsub = engine.onMessage((msg) => {
@@ -69,11 +72,10 @@
 
         case "ready":
           status = "ready";
-          loadPendingActions();
+          showGreetingIfNeeded();
           break;
 
         case "start":
-          // Only handle if this is a chat generation (not triage)
           if (!isRunning) break;
           generationPhase = msg.phase || "preparing";
           messages = [...messages, { role: "assistant", content: "", thinking: "" }];
@@ -126,6 +128,7 @@
           if (!isRunning) break;
           isRunning = false;
           generationPhase = null;
+          refreshSuggestions();
           break;
 
         case "error":
@@ -140,12 +143,33 @@
     return () => unsub();
   });
 
-  // ── Pending actions ────────────────────────────────────────────────
-  async function loadPendingActions() {
+  // ── Greeting & suggestions ─────────────────────────────────────────
+  async function showGreetingIfNeeded() {
+    if (greetingShown || messages.length > 0) return;
     try {
-      pendingActions = await getPendingActions();
+      const pending = await getPendingActions();
+      if (pending) {
+        greetingShown = true;
+        const greeting = buildGreetingMessage(pending);
+        messages = [{ role: "assistant", content: greeting }];
+        suggestions = buildInitialSuggestions(pending);
+        scrollToBottom();
+      }
     } catch {
       // Non-critical
+    }
+  }
+
+  async function refreshSuggestions() {
+    try {
+      const pending = await getPendingActions();
+      if (pending && pending.total > 0) {
+        suggestions = buildInitialSuggestions(pending);
+      } else {
+        suggestions = [];
+      }
+    } catch {
+      suggestions = [];
     }
   }
 
@@ -166,6 +190,10 @@
 
   async function send(text) {
     if (!text || isRunning) return;
+
+    // Clear suggestions when user sends a message
+    suggestions = [];
+
     messages = [...messages, { role: "user", content: text }];
     tps = null;
     isRunning = true;
@@ -173,20 +201,16 @@
     // Build system context from stored data
     let systemMessages = [];
     try {
-      // Always include pending actions context if available
       const pendingCtx = await buildPendingActionsContext();
 
-      // Check if user's message seems email-related for richer context
       const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       let context;
       if (emailKeywords.test(text) || pendingCtx) {
-        // Provide richer email context for email-related queries
         context = await buildEmailContext(text);
         if (pendingCtx) {
           context = (context || "") + "\n\n" + pendingCtx;
         }
       } else {
-        // Lightweight summary for general awareness
         context = await buildLLMContext();
       }
       if (context) {
@@ -208,8 +232,11 @@
   function reset() {
     engine.reset();
     messages = [];
+    suggestions = [];
     tps = null;
     numTokens = null;
+    greetingShown = false;
+    showGreetingIfNeeded();
   }
 </script>
 
@@ -233,7 +260,7 @@
 {:else}
   <ChatView
     {messages}
-    {pendingActions}
+    {suggestions}
     {isRunning}
     {tps}
     {numTokens}

@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import MessageBubble from "./MessageBubble.svelte";
-  import PendingActionsCard from "./PendingActionsCard.svelte";
+  import FollowUpSuggestions from "./FollowUpSuggestions.svelte";
   import GpuPanel from "./GpuPanel.svelte";
   import { mountLog } from "../../lib/debug.js";
 
@@ -9,7 +9,7 @@
 
   let {
     messages = [],
-    pendingActions = null,
+    suggestions = [],
     isRunning = false,
     tps = null,
     numTokens = null,
@@ -67,9 +67,7 @@
   {/if}
 
   <div class="messages" bind:this={chatContainer}>
-    {#if pendingActions && messages.length === 0}
-      <PendingActionsCard pendingData={pendingActions} {onsend} />
-    {:else if messages.length === 0}
+    {#if messages.length === 0}
       <div class="empty">Send a message to start chatting.</div>
     {/if}
 
@@ -82,6 +80,10 @@
         {numTokens}
       />
     {/each}
+
+    {#if suggestions.length > 0 && !isRunning}
+      <FollowUpSuggestions {suggestions} {onsend} />
+    {/if}
   </div>
 
   <div class="input-row">
