@@ -11,6 +11,7 @@ import Dexie from "dexie";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
+import { getOllamaModelInfo } from "./ollama-models.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -134,7 +135,7 @@ export async function scanEmails(
 
   // Check model capabilities and warn if suboptimal
   const currentModel = engine.modelId;
-  const modelInfo = getModelInfo(currentModel);
+  const modelInfo = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
@@ -142,11 +143,14 @@ export async function scanEmails(
   // Warn if using a model not recommended for email processing
   if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
     const { MODELS } = await import("./models.js");
-    const recommendedModels = MODELS
-      .filter(m => m.recommendedForEmailProcessing)
-      .map(m => m.name);
+    const { OLLAMA_MODELS } = await import("./ollama-models.js");
+    const recommendedModels = [
+      ...MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.name),
+      ...OLLAMA_MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.displayName)
+    ];
+    const displayName = modelInfo.displayName || modelInfo.name;
     console.warn(
-      `⚠️ Current model (${modelInfo.name}) is not optimized for email processing. ` +
+      `⚠️ Current model (${displayName}) is not optimized for email processing. ` +
       `For best results with long emails, use: ${recommendedModels.join(", ")}. ` +
       `Some emails may fail due to memory limits.`
     );
@@ -181,7 +185,7 @@ export async function scanEmails(
     try {
       const { text: response, tps, numTokens, inputTokens } = await engine.generateFull(
         promptMessages,
-        { maxTokens: 512, enableThinking: false },
+        { maxTokens: 512, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
           onProgress({
             phase: "generating",
@@ -191,6 +195,7 @@ export async function scanEmails(
             errors,
             email: { subject: email.subject, from: email.from, date: email.date },
             live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
+            streamingText: tokenInfo.text || "",
             totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
           });
         }
@@ -221,6 +226,7 @@ export async function scanEmails(
           success: true,
           email: { subject: email.subject, from: email.from, date: email.date },
           classification,
+          rawResponse: response,
           stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
           promptSize: emailPrompt.length,
         };
@@ -234,6 +240,7 @@ export async function scanEmails(
           errors,
           email: { subject: email.subject, from: email.from, date: email.date },
           result: classification,
+          rawResponse: response,
           emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
           totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
         });
@@ -274,7 +281,7 @@ export async function scanEmails(
       systemPromptSize: SYSTEM_PROMPT.length,
       processed: toProcess.length,
       skipped,
-      modelName: modelInfo.name,
+      modelName: modelInfo.displayName || modelInfo.name,
       modelContextWindow: modelInfo.contextWindow,
       modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },

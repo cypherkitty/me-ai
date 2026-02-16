@@ -27,6 +27,7 @@
     ondismisserror,
     onstop,
     onrefresh,
+    oncloseprogress,
   } = $props();
 
   let showInspector = $state(false);
@@ -52,6 +53,7 @@
     {onscan}
     {onrescan}
     {onstop}
+    {oncloseprogress}
     oninspect={() => showInspector = true}
   />
 

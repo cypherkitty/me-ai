@@ -34,6 +34,12 @@
       {/if}
     </button>
 
+    <p class="auth-hint">
+      Popup blocked? Use
+      <a href="/oauth-redirect.html" class="auth-link">Sign in with Google (redirect)</a>
+      — works in Cursor and other environments without popups.
+    </p>
+
     <div class="client-id-info">
       <span class="client-id-label">Client ID:</span>
       <span class="client-id-value">{clientId.slice(0, 20)}...</span>
@@ -68,6 +74,19 @@
     font-size: 0.9rem;
     line-height: 1.5;
     margin-bottom: 1.5rem;
+  }
+  .auth-hint {
+    margin-top: 1rem;
+    font-size: 0.8rem;
+    color: #666;
+    line-height: 1.5;
+  }
+  .auth-link {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+  .auth-link:hover {
+    text-decoration: underline;
   }
 
   /* ── Google button ───────────────────────────────────────────────── */

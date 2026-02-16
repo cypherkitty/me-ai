@@ -154,7 +154,7 @@ export function getOllamaEngine() {
               lastTps = msg.tps ?? lastTps;
               lastNumTokens = msg.numTokens ?? lastNumTokens;
               if (onToken) {
-                try { onToken({ tps: lastTps, numTokens: lastNumTokens }); } catch {}
+                try { onToken({ tps: lastTps, numTokens: lastNumTokens, text: output }); } catch {}
               }
               break;
             case "complete":
