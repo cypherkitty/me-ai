@@ -2,7 +2,12 @@
   import { onMount, tick } from "svelte";
   import { MODELS } from "./lib/models.js";
   import { getEngine } from "./lib/llm-engine.js";
-  import { buildLLMContext, buildEmailContext, searchData } from "./lib/store/query-layer.js";
+  import {
+    buildLLMContext,
+    buildEmailContext,
+    buildPendingActionsContext,
+    getPendingActions,
+  } from "./lib/store/query-layer.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
@@ -26,9 +31,16 @@
   let gpuInfo = $state(null);
   let generationPhase = $state(null);
 
+  let pendingActions = $state(null);
+
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(() => {
     engine.check();
+
+    // If the model is already ready (loaded from another page), fetch pending actions immediately
+    if (engine.isReady) {
+      loadPendingActions();
+    }
 
     const unsub = engine.onMessage((msg) => {
       switch (msg.status) {
@@ -57,6 +69,7 @@
 
         case "ready":
           status = "ready";
+          loadPendingActions();
           break;
 
         case "start":
@@ -127,6 +140,15 @@
     return () => unsub();
   });
 
+  // ── Pending actions ────────────────────────────────────────────────
+  async function loadPendingActions() {
+    try {
+      pendingActions = await getPendingActions();
+    } catch {
+      // Non-critical
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────
   function scrollToBottom() {
     tick().then(() => {
@@ -151,12 +173,18 @@
     // Build system context from stored data
     let systemMessages = [];
     try {
+      // Always include pending actions context if available
+      const pendingCtx = await buildPendingActionsContext();
+
       // Check if user's message seems email-related for richer context
-      const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail)\b/i;
+      const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       let context;
-      if (emailKeywords.test(text)) {
+      if (emailKeywords.test(text) || pendingCtx) {
         // Provide richer email context for email-related queries
         context = await buildEmailContext(text);
+        if (pendingCtx) {
+          context = (context || "") + "\n\n" + pendingCtx;
+        }
       } else {
         // Lightweight summary for general awareness
         context = await buildLLMContext();
@@ -205,6 +233,7 @@
 {:else}
   <ChatView
     {messages}
+    {pendingActions}
     {isRunning}
     {tps}
     {numTokens}

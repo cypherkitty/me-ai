@@ -227,6 +227,82 @@ export async function getContacts(limit = 50) {
     .join("\n");
 }
 
+// ── Pending actions for chat ─────────────────────────────────────────
+
+/**
+ * Get pending email classifications grouped by action type.
+ * Returns null if there are no pending items.
+ *
+ * @returns {Promise<{groups: Object, order: string[], total: number}|null>}
+ */
+export async function getPendingActions() {
+  const all = await db.emailClassifications
+    .where("status")
+    .equals("pending")
+    .toArray();
+
+  if (all.length === 0) return null;
+
+  const groups = {};
+  for (const item of all) {
+    const key = item.action || "UNKNOWN";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  // Sort each group by date descending
+  for (const key of Object.keys(groups)) {
+    groups[key].sort((a, b) => (b.date || 0) - (a.date || 0));
+  }
+
+  // Group order: largest groups first
+  const order = Object.keys(groups).sort(
+    (a, b) => groups[b].length - groups[a].length
+  );
+
+  return { groups, order, total: all.length };
+}
+
+/**
+ * Build an LLM context string that includes pending action items.
+ * This gives the LLM full awareness of what needs the user's attention.
+ *
+ * @returns {Promise<string|null>}
+ */
+export async function buildPendingActionsContext() {
+  const pending = await getPendingActions();
+  if (!pending) return null;
+
+  const parts = [
+    "## Pending Action Items",
+    `You have ${pending.total} pending email action items that need attention:`,
+    "",
+  ];
+
+  for (const action of pending.order) {
+    const items = pending.groups[action];
+    const label = action.replace(/_/g, " ");
+    parts.push(`### ${label} (${items.length})`);
+    for (const item of items.slice(0, 5)) {
+      const date = item.date
+        ? new Date(item.date).toLocaleDateString()
+        : "unknown date";
+      parts.push(`- **${item.subject}** from ${item.from} (${date})`);
+      if (item.summary) parts.push(`  ${item.summary}`);
+    }
+    if (items.length > 5) {
+      parts.push(`  ...and ${items.length - 5} more`);
+    }
+    parts.push("");
+  }
+
+  parts.push(
+    "The user is seeing these pending items in their chat. Help them decide what to do with these items. You can suggest specific actions like archiving, replying, following up, etc."
+  );
+
+  return parts.join("\n");
+}
+
 // ── LLM context building ────────────────────────────────────────────
 
 /**
