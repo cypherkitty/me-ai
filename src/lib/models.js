@@ -68,25 +68,22 @@ export function getModelInfo(modelId) {
 }
 
 /**
- * Check if current model is suitable for email processing
+ * Get recommendation message for email processing based on model
  */
-export function isModelSuitableForEmail(modelId, estimatedTokens) {
+export function getEmailProcessingRecommendation(modelId) {
   const model = getModelInfo(modelId);
-  if (!model) return { suitable: false, reason: "Unknown model" };
+  if (!model) return null;
   
-  if (estimatedTokens > model.maxEmailTokens) {
-    return {
-      suitable: false,
-      reason: `Email too long (~${estimatedTokens} tokens). This model supports up to ${model.maxEmailTokens} tokens. Try ${MODELS.find(m => m.recommendedForEmailProcessing)?.name || "a larger model"}.`
-    };
+  if (model.recommendedForEmailProcessing) {
+    return { type: "ok", message: `${model.name} is well-suited for email processing` };
   }
   
-  if (!model.recommendedForEmailProcessing && estimatedTokens > 4000) {
-    return {
-      suitable: true,
-      warning: `For best results with long emails, use ${MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.name).join(" or ")}`
-    };
-  }
+  const recommended = MODELS
+    .filter(m => m.recommendedForEmailProcessing)
+    .map(m => m.name);
   
-  return { suitable: true };
+  return {
+    type: "warning",
+    message: `${model.name} may fail on long emails. For best results, use: ${recommended.join(" or ")}`
+  };
 }
