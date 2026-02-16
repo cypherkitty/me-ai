@@ -1,6 +1,7 @@
 <script>
   import { onMount, tick } from "svelte";
   import { MODELS } from "./lib/models.js";
+  import { getEngine } from "./lib/llm-engine.js";
   import { buildLLMContext, buildEmailContext, searchData } from "./lib/store/query-layer.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
@@ -9,7 +10,7 @@
   const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
 
   // ── State ──────────────────────────────────────────────────────────
-  let worker = $state(null);
+  const engine = getEngine();
   let selectedModel = $state(localStorage.getItem("selectedModel") || MODELS[0].id);
   let status = $state(null);       // null | "loading" | "ready"
   let error = $state(null);
@@ -25,16 +26,11 @@
   let gpuInfo = $state(null);
   let generationPhase = $state(null);
 
-  // ── Worker setup ───────────────────────────────────────────────────
+  // ── Shared engine listener ─────────────────────────────────────────
   onMount(() => {
-    worker = new Worker(new URL("./worker.js", import.meta.url), {
-      type: "module",
-    });
-    worker.postMessage({ type: "check" });
+    engine.check();
 
-    worker.addEventListener("message", (e) => {
-      const msg = e.data;
-
+    const unsub = engine.onMessage((msg) => {
       switch (msg.status) {
         case "webgpu-info":
           gpuInfo = msg.data;
@@ -64,15 +60,19 @@
           break;
 
         case "start":
+          // Only handle if this is a chat generation (not triage)
+          if (!isRunning) break;
           generationPhase = msg.phase || "preparing";
           messages = [...messages, { role: "assistant", content: "", thinking: "" }];
           break;
 
         case "phase":
+          if (!isRunning) break;
           generationPhase = msg.phase;
           break;
 
         case "thinking": {
+          if (!isRunning) break;
           tps = msg.tps;
           numTokens = msg.numTokens;
           const last = messages[messages.length - 1];
@@ -85,6 +85,7 @@
         }
 
         case "thinking-done": {
+          if (!isRunning) break;
           tps = msg.tps;
           numTokens = msg.numTokens;
           const last = messages[messages.length - 1];
@@ -96,6 +97,7 @@
         }
 
         case "update": {
+          if (!isRunning) break;
           tps = msg.tps;
           numTokens = msg.numTokens;
           const last = messages[messages.length - 1];
@@ -108,11 +110,13 @@
         }
 
         case "complete":
+          if (!isRunning) break;
           isRunning = false;
           generationPhase = null;
           break;
 
         case "error":
+          if (!isRunning) break;
           error = msg.data;
           isRunning = false;
           generationPhase = null;
@@ -120,7 +124,7 @@
       }
     });
 
-    return () => worker?.terminate();
+    return () => unsub();
   });
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -135,7 +139,7 @@
   function loadModel() {
     status = "loading";
     localStorage.setItem("selectedModel", selectedModel);
-    worker.postMessage({ type: "load", modelId: selectedModel });
+    engine.loadModel(selectedModel);
   }
 
   async function send(text) {
@@ -165,16 +169,16 @@
     }
 
     const plain = messages.map((m) => ({ role: m.role, content: m.content }));
-    worker.postMessage({ type: "generate", data: [...systemMessages, ...plain] });
+    engine.generate([...systemMessages, ...plain]);
     scrollToBottom();
   }
 
   function stop() {
-    worker.postMessage({ type: "interrupt" });
+    engine.interrupt();
   }
 
   function reset() {
-    worker.postMessage({ type: "reset" });
+    engine.reset();
     messages = [];
     tps = null;
     numTokens = null;
