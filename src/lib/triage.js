@@ -13,9 +13,16 @@ import { groupByAction } from "./email-utils.js";
 
 const DEFAULT_COUNT = 20;
 
+/** Generation settings used for email classification (exported for transparency UI) */
+export const CLASSIFICATION_CONFIG = {
+  maxTokens: 512,
+  enableThinking: false,
+  doSample: false,
+};
+
 // ── System prompt ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
+export const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
@@ -265,7 +272,7 @@ export async function getScanStats() {
 
 // ── Prompt formatting ────────────────────────────────────────────────
 
-function formatEmailPrompt(email) {
+export function formatEmailPrompt(email) {
   const date = email.date
     ? new Date(email.date).toLocaleDateString("en-US", {
         weekday: "short", year: "numeric", month: "short", day: "numeric",
