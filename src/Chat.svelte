@@ -141,6 +141,9 @@
 
         case "complete":
           if (!isRunning) break;
+          // Update final stats from Ollama
+          if (msg.tps !== undefined) tps = msg.tps;
+          if (msg.numTokens !== undefined) numTokens = msg.numTokens;
           isRunning = false;
           generationPhase = null;
           refreshPendingData();
