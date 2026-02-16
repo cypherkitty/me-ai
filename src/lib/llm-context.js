@@ -1,9 +1,9 @@
 /**
  * LLM context building for the Chat page.
  *
- * Builds system prompts, greeting messages, and follow-up suggestions
- * from stored data. Separated from query-layer.js to keep data access
- * and AI formatting concerns distinct.
+ * Builds system prompts and pending-actions context for LLM injection.
+ * Separated from query-layer.js to keep data access and AI formatting
+ * concerns distinct.
  */
 
 import {
@@ -96,71 +96,3 @@ export async function buildPendingActionsContext() {
   return parts.join("\n");
 }
 
-// ── Chat greeting & suggestions ─────────────────────────────────────
-
-/**
- * Build a brief greeting message from pending actions data.
- * This is injected as a pre-generated assistant message (no LLM needed).
- *
- * @param {{groups: Object, order: string[], total: number}} pendingData
- * @returns {string}
- */
-export function buildGreetingMessage(pendingData) {
-  const lines = [`You have ${pendingData.total} pending email action${pendingData.total !== 1 ? "s" : ""}:`];
-
-  for (const action of pendingData.order) {
-    const count = pendingData.groups[action].length;
-    const label = formatActionLabel(action);
-    lines.push(`- ${count} ${label}`);
-  }
-
-  lines.push("", "What would you like to focus on?");
-  return lines.join("\n");
-}
-
-/**
- * Build initial follow-up suggestions based on pending actions.
- * Returns an array of suggestion strings.
- *
- * @param {{groups: Object, order: string[], total: number}} pendingData
- * @returns {string[]}
- */
-export function buildInitialSuggestions(pendingData) {
-  const suggestions = [];
-
-  const actions = new Set(pendingData.order);
-
-  if (actions.has("REPLY") || actions.has("FOLLOW_UP")) {
-    suggestions.push("Which emails need an urgent reply?");
-  }
-  if (actions.has("TRACK_DELIVERY")) {
-    suggestions.push("What deliveries am I waiting for?");
-  }
-  if (actions.has("PAY_BILL") || actions.has("SAVE_RECEIPT")) {
-    suggestions.push("Show me bills or receipts that need attention");
-  }
-  if (actions.has("DELETE") || actions.has("ARCHIVE") || actions.has("UNSUBSCRIBE")) {
-    suggestions.push("What can I safely archive or delete?");
-  }
-
-  if (suggestions.length === 0) {
-    suggestions.push("Show me the most important emails");
-  }
-  suggestions.push("Help me prioritize these items");
-
-  return suggestions.slice(0, 5);
-}
-
-// ── Internal helpers ────────────────────────────────────────────────
-
-/**
- * Format an UPPER_SNAKE_CASE action into a readable label.
- * @param {string} action
- * @returns {string}
- */
-function formatActionLabel(action) {
-  return action
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
