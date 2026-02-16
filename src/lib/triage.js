@@ -10,6 +10,7 @@ import { db } from "./store/db.js";
 import Dexie from "dexie";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
+import { getModelInfo } from "./models.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -131,11 +132,31 @@ export async function scanEmails(
   let totalInputTokens = 0;
   const results = [];
 
+  // Check model capabilities and warn if suboptimal
+  const currentModel = engine.modelId;
+  const modelInfo = getModelInfo(currentModel);
+  if (!modelInfo) {
+    throw new Error(`Unknown model: ${currentModel}`);
+  }
+
+  // Warn if using a model not recommended for email processing
+  if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
+    const { MODELS } = await import("./models.js");
+    const recommendedModels = MODELS
+      .filter(m => m.recommendedForEmailProcessing)
+      .map(m => m.name);
+    console.warn(
+      `⚠️ Current model (${modelInfo.name}) is not optimized for email processing. ` +
+      `For best results with long emails, use: ${recommendedModels.join(", ")}. ` +
+      `Some emails may fail due to memory limits.`
+    );
+  }
+
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
     const email = toProcess[i];
-    const emailPrompt = formatEmailPrompt(email);
+    const emailPrompt = formatEmailPrompt(email); // Full email, no truncation
     const promptMessages = [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: emailPrompt },
@@ -220,10 +241,13 @@ export async function scanEmails(
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
+      // Truncate error messages to prevent UI hangs from massive WebGPU errors
+      const errMsg = e.message || String(e);
+      const truncatedError = errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg;
       results.push({
         success: false,
         email: { subject: email.subject, from: email.from, date: email.date },
-        error: e.message,
+        error: truncatedError,
         promptSize: emailPrompt.length,
       });
     }
@@ -250,6 +274,9 @@ export async function scanEmails(
       systemPromptSize: SYSTEM_PROMPT.length,
       processed: toProcess.length,
       skipped,
+      modelName: modelInfo.name,
+      modelContextWindow: modelInfo.contextWindow,
+      modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
   });

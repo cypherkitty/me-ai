@@ -169,13 +169,15 @@
           </div>
         </div>
 
-        <!-- Prompt sizes -->
+        <!-- Model & Prompt info -->
         <div class="summary-section">
-          <div class="ssec-title">Prompt Configuration</div>
+          <div class="ssec-title">Model & Prompts</div>
           <div class="ssec-items">
+            <span class="ssec-item">Model: <strong>{progress.summary?.modelName || "Unknown"}</strong> ({Math.round((progress.summary?.modelContextWindow || 0) / 1024)}k context, ~{Math.round((progress.summary?.modelMaxEmailTokens || 0) / 1000)}k email limit)</span>
+            <span class="sep">·</span>
             <span class="ssec-item">System prompt: <strong>{fmtTokens(progress.summary?.systemPromptSize || 0)} chars</strong></span>
             <span class="sep">·</span>
-            <span class="ssec-item">Avg email prompt: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
+            <span class="ssec-item">Avg email: <strong>{fmtTokens(progress.summary?.avgPromptSize || 0)} chars</strong></span>
           </div>
         </div>
 
@@ -216,7 +218,10 @@
                       {/if}
                     </div>
                   {:else}
-                    <div class="ri-err-msg">{result.error}</div>
+                    <details class="ri-err-details">
+                      <summary class="ri-err-summary">View error details</summary>
+                      <div class="ri-err-msg">{result.error}</div>
+                    </details>
                   {/if}
                 </div>
               {/each}
@@ -540,11 +545,33 @@
     line-height: 1.4;
     margin-bottom: 0.15rem;
   }
-  .ri-stats, .ri-err-msg {
+  .ri-stats {
     font-size: 0.58rem;
     color: #555;
   }
-  .ri-err-msg { color: #f87171; }
+  .ri-err-details {
+    margin-top: 0.15rem;
+  }
+  .ri-err-summary {
+    font-size: 0.6rem;
+    color: #f87171;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ri-err-summary:hover { color: #fca5a5; }
+  .ri-err-msg {
+    font-size: 0.58rem;
+    color: #f87171;
+    margin-top: 0.2rem;
+    padding: 0.3rem;
+    background: rgba(248, 113, 113, 0.05);
+    border-radius: 4px;
+    font-family: monospace;
+    word-break: break-word;
+    white-space: pre-wrap;
+    max-height: 150px;
+    overflow-y: auto;
+  }
 
   /* ── Actions ─────────────────────────────────────── */
   .actions {
