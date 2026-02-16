@@ -3,11 +3,7 @@
   import { MODELS } from "./lib/models.js";
   import { getEngine } from "./lib/llm-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
-  import {
-    buildLLMContext,
-    buildEmailContext,
-    buildPendingActionsContext,
-  } from "./lib/llm-context.js";
+  import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
   import {
     updateClassificationStatus,
     deleteClassification,
@@ -259,21 +255,14 @@
     tps = null;
     isRunning = true;
 
-    // Build system context from stored data
+    // Build system context — only load heavy email data when the user asks about emails
     let systemMessages = [];
     try {
-      const pendingCtx = await buildPendingActionsContext();
-
       const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
-      let context;
-      if (emailKeywords.test(text) || pendingCtx) {
-        context = await buildEmailContext(text);
-        if (pendingCtx) {
-          context = (context || "") + "\n\n" + pendingCtx;
-        }
-      } else {
-        context = await buildLLMContext();
-      }
+      const context = emailKeywords.test(text)
+        ? await buildEmailContext(text)
+        : await buildLLMContext();
+
       if (context) {
         systemMessages = [{ role: "system", content: context }];
       }

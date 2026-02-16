@@ -32,7 +32,6 @@
 
   let input = $state("");
   let showGpuPanel = $state(false);
-  let dashboardRef = $state(null);
 
   function handleKeydown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -46,12 +45,6 @@
     if (!text || isRunning) return;
     input = "";
     onsend(text);
-  }
-
-  function handleToggleGroup(action) {
-    if (dashboardRef) {
-      dashboardRef.toggleGroup(action);
-    }
   }
 
   function handleAskAI(question) {
@@ -102,7 +95,6 @@
           {onremove}
           {oncleargroup}
           onaskai={handleAskAI}
-          bind:this={dashboardRef}
         />
       {:else}
         <MessageBubble
@@ -117,11 +109,9 @@
   </div>
 
   <QuickActions
-    {pendingData}
     {hasScanData}
     {engineReady}
     {isScanning}
-    ontogglegroup={handleToggleGroup}
     {onscan}
   />
 

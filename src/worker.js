@@ -121,16 +121,21 @@ async function load(model_id) {
 }
 
 // ── Streaming generation ───────────────────────────────────────────
-async function generate(messages) {
+async function generate(messages, { maxTokens = 4096, enableThinking = true } = {}) {
   try {
     const [tokenizer, model] = await TextGenerationPipeline.getInstance(
       TextGenerationPipeline.model_id
     );
 
-    const inputs = tokenizer.apply_chat_template(messages, {
+    const templateOpts = {
       add_generation_prompt: true,
       return_dict: true,
-    });
+    };
+    if (!enableThinking) {
+      templateOpts.enable_thinking = false;
+    }
+
+    const inputs = tokenizer.apply_chat_template(messages, templateOpts);
 
     let startTime;
     let numTokens = 0;
@@ -222,7 +227,7 @@ async function generate(messages) {
     await model.generate({
       ...inputs,
       do_sample: false,
-      max_new_tokens: 4096,
+      max_new_tokens: maxTokens,
       streamer,
       stopping_criteria,
     });
@@ -247,7 +252,7 @@ async function generate(messages) {
 
 // ── Message router ─────────────────────────────────────────────────
 self.addEventListener("message", async (e) => {
-  const { type, data, modelId } = e.data;
+  const { type, data, modelId, options } = e.data;
 
   switch (type) {
     case "check":
@@ -258,7 +263,7 @@ self.addEventListener("message", async (e) => {
       break;
     case "generate":
       stopping_criteria.reset();
-      generate(data);
+      generate(data, options);
       break;
     case "interrupt":
       stopping_criteria.interrupt();

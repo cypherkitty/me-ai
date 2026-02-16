@@ -1,31 +1,20 @@
 <script>
-  import { actionColor } from "../../lib/triage.js";
-
   let {
-    pendingData = null,
     hasScanData = false,
     engineReady = false,
     isScanning = false,
-    ontogglegroup,
     onscan,
   } = $props();
 
-  function formatLabel(str) {
-    return str
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ");
-  }
-
   let showScanChip = $derived(engineReady && !hasScanData && !isScanning);
-  let hasChips = $derived((pendingData && pendingData.total > 0) || showScanChip || isScanning);
+  let visible = $derived(showScanChip || isScanning);
 </script>
 
-{#if hasChips}
-  <div class="quick-strip">
+{#if visible}
+  <div class="strip">
     {#if isScanning}
       <div class="chip scanning">
-        <span class="scan-spinner"></span>
+        <span class="spinner"></span>
         <span>Scanning...</span>
       </div>
     {:else if showScanChip}
@@ -37,33 +26,16 @@
         Scan Emails
       </button>
     {/if}
-
-    {#if pendingData && pendingData.total > 0}
-      {#each pendingData.order as action (action)}
-        {@const items = pendingData.groups[action]}
-        {@const color = actionColor(action)}
-        <button class="chip action-chip" onclick={() => ontogglegroup?.(action)}>
-          <span class="chip-dot" style:background={color}></span>
-          <span class="chip-label">{formatLabel(action)}</span>
-          <span class="chip-count">{items.length}</span>
-        </button>
-      {/each}
-    {/if}
   </div>
 {/if}
 
 <style>
-  .quick-strip {
+  .strip {
     display: flex;
     gap: 0.3rem;
     padding: 0.4rem 1rem;
-    overflow-x: auto;
     flex-shrink: 0;
     border-top: 1px solid #1a1a1a;
-    scrollbar-width: none;
-  }
-  .quick-strip::-webkit-scrollbar {
-    display: none;
   }
 
   .chip {
@@ -79,36 +51,9 @@
     font-weight: 500;
     white-space: nowrap;
     cursor: pointer;
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    transition: all 0.12s;
     font-family: inherit;
     flex-shrink: 0;
-  }
-  .chip:hover {
-    background: #222;
-    border-color: #3a3a3a;
-    color: #ddd;
-  }
-
-  .chip-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .chip-label {
-    line-height: 1;
-  }
-
-  .chip-count {
-    font-weight: 700;
-    font-size: 0.65rem;
-    color: #888;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 0.05rem 0.3rem;
-    border-radius: 8px;
-    min-width: 16px;
-    text-align: center;
   }
 
   .scan-chip {
@@ -128,7 +73,7 @@
     border-color: #2a2a2a;
   }
 
-  .scan-spinner {
+  .spinner {
     width: 10px;
     height: 10px;
     border: 1.5px solid #333;

@@ -1,6 +1,7 @@
 <script>
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
+  import PromptInspector from "./PromptInspector.svelte";
   import { actionColor } from "../../lib/triage.js";
 
   let {
@@ -27,6 +28,16 @@
   } = $props();
 
   let showClearConfirm = $state(false);
+  let showInspector = $state(false);
+
+  /** Grab a sample email from the first group to show in the inspector */
+  let sampleEmail = $derived.by(() => {
+    for (const action of groupOrder) {
+      const items = groups[action];
+      if (items?.length > 0) return items[0];
+    }
+    return null;
+  });
 </script>
 
 <div class="actions-container">
@@ -39,7 +50,10 @@
     bind:scanCount
     {onscan}
     {onrescan}
+    oninspect={() => showInspector = true}
   />
+
+  <PromptInspector bind:open={showInspector} {sampleEmail} />
 
   {#if error}
     <div class="error-card">
