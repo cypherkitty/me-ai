@@ -1,4 +1,4 @@
-import { formatDate } from "./email-utils.js";
+import { formatDate, exportFilename } from "./email-utils.js";
 
 /**
  * Convert a parsed email message to Markdown format.
@@ -171,26 +171,7 @@ function nodeToMarkdown(node) {
  * @returns {string} filename ending in .md
  */
 export function emailFilename(message) {
-  const datePrefix = shortDate(message.date);
-  const slug = (message.subject || "email")
-    .replace(/[^a-zA-Z0-9 _-]/g, "")
-    .replace(/\s+/g, "-")
-    .slice(0, 60)
-    .replace(/-+$/, "");
-
-  return `${datePrefix}_${slug}.md`;
-}
-
-function shortDate(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  } catch {
-    return "email";
-  }
+  return exportFilename(message, "md");
 }
 
 /**

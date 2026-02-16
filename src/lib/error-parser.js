@@ -1,9 +1,17 @@
+import { GmailApiError } from "./gmail-api.js";
+
 /**
- * Parses raw API error strings into user-friendly structured guidance.
+ * Parses raw errors into user-friendly structured guidance.
+ * Accepts both Error objects (preferred) and plain strings.
  * Returns { title, description, fix?, link?, action? }
+ *
+ * @param {Error|string} rawError
  */
 export function parseError(rawError) {
-  const msg = rawError || "";
+  // Support both Error objects and plain strings
+  const err = typeof rawError === "object" && rawError !== null ? rawError : null;
+  const msg = err?.message || String(rawError || "");
+  const status = err instanceof GmailApiError ? err.status : null;
 
   // Gmail API not enabled
   if (msg.includes("has not been used in project") || msg.includes("is disabled")) {
@@ -21,7 +29,7 @@ export function parseError(rawError) {
   }
 
   // Invalid / expired token
-  if (msg.includes("Invalid Credentials") || msg.includes("401") || msg.includes("invalid_token")) {
+  if (status === 401 || msg.includes("Invalid Credentials") || msg.includes("invalid_token")) {
     return {
       title: "Session expired",
       description: "Your access token has expired or is invalid.",
@@ -31,7 +39,7 @@ export function parseError(rawError) {
   }
 
   // Insufficient scopes
-  if (msg.includes("insufficient") && msg.includes("scope")) {
+  if (status === 403 || (msg.includes("insufficient") && msg.includes("scope"))) {
     return {
       title: "Insufficient permissions",
       description: "The app doesn't have the required permissions to access Gmail.",
@@ -59,7 +67,7 @@ export function parseError(rawError) {
   }
 
   // Rate limit
-  if (msg.includes("Rate Limit") || msg.includes("429") || msg.includes("quota")) {
+  if (status === 429 || msg.includes("Rate Limit") || msg.includes("quota")) {
     return {
       title: "Rate limit exceeded",
       description: "Too many requests to the Gmail API.",

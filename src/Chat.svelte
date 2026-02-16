@@ -2,14 +2,14 @@
   import { onMount, tick } from "svelte";
   import { MODELS } from "./lib/models.js";
   import { getEngine } from "./lib/llm-engine.js";
+  import { getPendingActions } from "./lib/store/query-layer.js";
   import {
     buildLLMContext,
     buildEmailContext,
     buildPendingActionsContext,
-    getPendingActions,
     buildGreetingMessage,
     buildInitialSuggestions,
-  } from "./lib/store/query-layer.js";
+  } from "./lib/llm-context.js";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
