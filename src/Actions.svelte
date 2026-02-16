@@ -7,7 +7,6 @@
     getClassificationsGrouped,
     getClassificationCounts,
     updateClassificationStatus,
-    clearClassifications,
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
@@ -120,11 +119,6 @@
     await loadData();
   }
 
-  async function clearAll() {
-    await clearClassifications();
-    await loadData();
-  }
-
   function toggleGroup(actionId) {
     expandedGroup = expandedGroup === actionId ? null : actionId;
   }
@@ -149,9 +143,9 @@
     ondismiss={dismiss}
     onremove={removeItem}
     oncleargroup={clearGroup}
-    onclear={clearAll}
     ondismisserror={() => error = null}
     onstop={stopScan}
+    onrefresh={loadData}
     bind:scanCount
   />
 </div>
