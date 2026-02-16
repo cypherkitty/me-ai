@@ -1,4 +1,4 @@
-/** Available ONNX models for browser inference */
+/** Available ONNX models for browser inference with Transformers.js v4 */
 export const MODELS = [
   { 
     id: "onnx-community/Qwen3-0.6B-ONNX", 
@@ -48,7 +48,20 @@ export const MODELS = [
     size: "~2.5 GB", 
     contextWindow: 16384, // 16k
     maxEmailTokens: 8000, // WebGPU memory limit
-    description: "Microsoft, good at reasoning, 16k context"
+    description: "Microsoft, good at reasoning, 16k context",
+    requiresV4: true, // Uses new v4 optimizations
+    gpuWarning: "Requires good GPU (8GB+ VRAM recommended)"
+  },
+  { 
+    id: "onnx-community/Phi-4-mini-instruct-ONNX-GQA", 
+    name: "Phi-4 Mini GQA", 
+    size: "~2.5 GB", 
+    contextWindow: 16384, // 16k
+    maxEmailTokens: 8000, // WebGPU memory limit
+    description: "Phi-4 with Grouped Query Attention, faster inference",
+    requiresV4: true, // Uses new v4 GQA operators
+    gpuWarning: "Requires good GPU (8GB+ VRAM recommended)",
+    isExperimental: true
   },
   { 
     id: "onnx-community/gemma-3-270m-it-ONNX", 

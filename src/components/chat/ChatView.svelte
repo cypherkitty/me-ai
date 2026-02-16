@@ -19,6 +19,7 @@
     numTokens = null,
     generationPhase = null,
     gpuInfo = null,
+    backend = "webgpu",
     chatContainer = $bindable(),
     onsend,
     onstop,
@@ -60,6 +61,8 @@
       <button class="gpu-badge" onclick={() => showGpuPanel = !showGpuPanel}>
         WebGPU {showGpuPanel ? "▲" : "▼"}
       </button>
+    {:else if backend === "ollama"}
+      <span class="backend-badge">🦙 Ollama</span>
     {/if}
     {#if tps && !isRunning}
       <span class="stats">
@@ -177,6 +180,18 @@
   }
   .gpu-badge:hover {
     background: rgba(74, 222, 128, 0.2);
+  }
+
+  .backend-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   /* ── Messages ────────────────────────────────────────────────────── */
