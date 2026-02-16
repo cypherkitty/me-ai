@@ -2,7 +2,15 @@
   import { onMount } from "svelte";
   import { getEngine } from "./lib/llm-engine.js";
   import { MODELS } from "./lib/models.js";
-  import { scanEmails, getActionItems, updateActionStatus, clearActionItems, getActionCounts } from "./lib/triage.js";
+  import {
+    scanEmails,
+    getClassificationsGrouped,
+    getClassificationCounts,
+    updateClassificationStatus,
+    clearClassifications,
+    ACTION_TYPES,
+    VALID_ACTIONS,
+  } from "./lib/triage.js";
   import ActionsView from "./components/actions/ActionsView.svelte";
 
   const engine = getEngine();
@@ -10,9 +18,9 @@
   // ── State ──────────────────────────────────────────────────────────
   let engineStatus = $state(engine.status);
   let modelName = $state("");
-  let items = $state([]);
-  let counts = $state({ total: 0, todo: 0, calendar: 0, note: 0, new: 0, done: 0, dismissed: 0 });
-  let filter = $state("all"); // "all" | "todo" | "calendar" | "note"
+  let groups = $state({});
+  let counts = $state({ total: 0 });
+  let expandedGroup = $state(null);
 
   let isScanning = $state(false);
   let scanProgress = $state(null);
@@ -30,25 +38,23 @@
       if (msg.status === "loading") engineStatus = "loading";
     });
 
-    // Sync current status
     engineStatus = engine.status;
     if (engine.modelId) {
       const model = MODELS.find((m) => m.id === engine.modelId);
       modelName = model?.name || engine.modelId || "";
     }
 
-    loadItems();
+    loadData();
     return () => unsub();
   });
 
-  // ── Load items from DB ─────────────────────────────────────────────
-  async function loadItems() {
+  // ── Load data from DB ──────────────────────────────────────────────
+  async function loadData() {
     try {
-      const typeFilter = filter === "all" ? undefined : filter;
-      items = await getActionItems({ type: typeFilter });
-      counts = await getActionCounts();
+      groups = await getClassificationsGrouped();
+      counts = await getClassificationCounts();
     } catch (e) {
-      error = `Failed to load items: ${e.message}`;
+      error = `Failed to load data: ${e.message}`;
     }
   }
 
@@ -67,7 +73,7 @@
           scanProgress = { ...progress };
         },
       });
-      await loadItems();
+      await loadData();
     } catch (e) {
       error = `Scan failed: ${e.message}`;
     } finally {
@@ -76,24 +82,23 @@
   }
 
   // ── Item actions ───────────────────────────────────────────────────
-  async function markDone(id) {
-    await updateActionStatus(id, "done");
-    await loadItems();
+  async function markActed(emailId) {
+    await updateClassificationStatus(emailId, "acted");
+    await loadData();
   }
 
-  async function dismiss(id) {
-    await updateActionStatus(id, "dismissed");
-    await loadItems();
+  async function dismiss(emailId) {
+    await updateClassificationStatus(emailId, "dismissed");
+    await loadData();
   }
 
   async function clearAll() {
-    await clearActionItems();
-    await loadItems();
+    await clearClassifications();
+    await loadData();
   }
 
-  function setFilter(newFilter) {
-    filter = newFilter;
-    loadItems();
+  function toggleGroup(actionId) {
+    expandedGroup = expandedGroup === actionId ? null : actionId;
   }
 </script>
 
@@ -101,15 +106,15 @@
   <ActionsView
     {engineStatus}
     {modelName}
-    {items}
+    {groups}
     {counts}
-    {filter}
+    {expandedGroup}
     {isScanning}
     {scanProgress}
     {error}
     onscan={startScan}
-    onsetfilter={setFilter}
-    onmarkdone={markDone}
+    ontogglegroup={toggleGroup}
+    onmarkacted={markActed}
     ondismiss={dismiss}
     onclear={clearAll}
     ondismisserror={() => error = null}

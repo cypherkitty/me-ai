@@ -1,11 +1,11 @@
 /**
  * Email triage module.
  *
- * Scans recent emails one-by-one through the LLM, extracts actionable items
- * (todos, calendar events, notes), and stores them in IndexedDB.
+ * Classifies emails one-by-one through the LLM, assigning each email
+ * an action type (DELETE, NOTIFY, READ_SUMMARIZE, REPLY_NEEDED, REVIEW,
+ * NO_ACTION) and stores the classification locally in IndexedDB.
  *
- * Each email gets its own prompt — keeps context short, generation fast,
- * and avoids confusing the LLM with multiple unrelated emails at once.
+ * The UI groups emails by their action type so users can act in bulk.
  */
 
 import { db } from "./store/db.js";
@@ -13,44 +13,55 @@ import Dexie from "dexie";
 
 const DEFAULT_COUNT = 20;
 
+// ── Action types ─────────────────────────────────────────────────────
+
+export const ACTION_TYPES = {
+  DELETE:         { id: "DELETE",         label: "Delete",          color: "#f87171", icon: "trash",     description: "Ad, spam, or useless notification — safe to delete" },
+  NOTIFY:         { id: "NOTIFY",         label: "Notify Me",      color: "#fbbf24", icon: "bell",      description: "Important event happened — delivery, payment, etc." },
+  READ_SUMMARIZE: { id: "READ_SUMMARIZE", label: "Read & Summarize", color: "#3b82f6", icon: "book",   description: "Newsletter or digest — LLM should read and highlight key info" },
+  REPLY_NEEDED:   { id: "REPLY_NEEDED",   label: "Reply Needed",   color: "#a78bfa", icon: "reply",     description: "Requires a response from you" },
+  REVIEW:         { id: "REVIEW",         label: "Review",         color: "#f59e0b", icon: "eye",       description: "Needs your attention — billing, account changes, decisions" },
+  NO_ACTION:      { id: "NO_ACTION",      label: "No Action",      color: "#666",    icon: "check",     description: "Informational only, no action needed" },
+};
+
+export const VALID_ACTIONS = Object.keys(ACTION_TYPES);
+
 // ── System prompt ────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an email triage assistant. Analyze the email and decide if it requires action from the recipient.
+const SYSTEM_PROMPT = `You are an email classifier. Classify this email into exactly ONE action type.
 
-Output ONLY a valid JSON array of action items — no markdown, no explanation, no extra text.
-If no action is needed, output an empty array: []
+Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 Format:
-[
-  {
-    "type": "todo",
-    "title": "Short action title",
-    "description": "Brief description of what needs to be done",
-    "dueDate": "YYYY-MM-DD or null",
-    "priority": "high"
-  }
-]
+{
+  "action": "DELETE",
+  "reason": "Promotional email from a store"
+}
+
+Action types:
+- "DELETE" — Ads, promotions, spam, useless status notifications (e.g. "shipped" without tracking info). Safe to delete.
+- "NOTIFY" — Something important happened that the user should know about: package delivered, payment confirmed, account alert. User needs a short notification.
+- "READ_SUMMARIZE" — Newsletter, digest, or content-heavy email (e.g. Rust Weekly, tech news). Worth reading — summarize the key points.
+- "REPLY_NEEDED" — Someone is asking a question, requesting a meeting, or waiting for a response. The user needs to reply.
+- "REVIEW" — Needs human attention: billing issues, subscription changes, legal notices, account security. Not urgent enough to notify, but should be reviewed.
+- "NO_ACTION" — Purely informational, already handled, or auto-generated confirmation. No action needed.
 
 Rules:
-- "type" must be one of: "todo", "calendar", "note"
-- "priority" must be one of: "high", "medium", "low"
-- "dueDate" should be a date string if mentioned, otherwise null
-- Use "todo" for tasks requiring a response or action
-- Use "calendar" for meetings, events, deadlines with specific dates/times
-- Use "note" for important information to remember (shipping updates, policy changes, etc.)
-- Output ONLY the JSON array, nothing else`;
+- Pick exactly ONE action type
+- "reason" should be a brief (1 sentence) explanation of why
+- Output ONLY the JSON object, nothing else`;
 
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Scan recent emails through the LLM to extract action items.
- * Each email is processed individually for cleaner, faster results.
+ * Scan recent emails through the LLM to classify them by action type.
+ * Each email is processed individually.
  *
  * @param {object} engine - Shared LLM engine from llm-engine.js
  * @param {object} options
  * @param {number} [options.count=20] - Number of recent emails to scan
  * @param {function} [options.onProgress] - Progress callback
- * @returns {Promise<{scanned: number, actionsFound: number, errors: number}>}
+ * @returns {Promise<{scanned: number, classified: number, errors: number}>}
  */
 export async function scanEmails(
   engine,
@@ -60,7 +71,6 @@ export async function scanEmails(
     throw new Error("Model not loaded. Please load a model first.");
   }
 
-  // Step 1: Get recent emails from IndexedDB
   onProgress({ phase: "loading", message: "Loading recent emails..." });
 
   const emails = await db.items
@@ -72,23 +82,22 @@ export async function scanEmails(
 
   if (emails.length === 0) {
     onProgress({ phase: "done", message: "No emails to scan." });
-    return { scanned: 0, actionsFound: 0, errors: 0 };
+    return { scanned: 0, classified: 0, errors: 0 };
   }
 
   const scannedAt = Date.now();
-  let totalActions = 0;
-  let totalErrors = 0;
+  let classified = 0;
+  let errors = 0;
 
-  // Step 2: Process each email individually
   for (let i = 0; i < emails.length; i++) {
     const email = emails[i];
 
     onProgress({
       phase: "scanning",
-      message: `Scanning email ${i + 1} of ${emails.length}...`,
+      message: `Classifying email ${i + 1} of ${emails.length}...`,
       current: i + 1,
       total: emails.length,
-      actionsFound: totalActions,
+      classified,
     });
 
     try {
@@ -99,73 +108,95 @@ export async function scanEmails(
       ];
 
       const response = await engine.generateFull(messages);
-      const actions = parseTriageResponse(response);
+      const classification = parseClassification(response);
 
-      // Store action items
-      const items = extractActionItems(actions, email, scannedAt);
-      if (items.length > 0) {
-        await db.actionItems.bulkAdd(items);
-        totalActions += items.length;
+      if (classification) {
+        await db.emailClassifications.put({
+          emailId: email.id,
+          action: classification.action,
+          reason: String(classification.reason || "").slice(0, 300),
+          subject: email.subject || "(no subject)",
+          from: email.from || "",
+          date: email.date,
+          scannedAt,
+          status: "pending",
+        });
+        classified++;
       }
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
-      totalErrors++;
+      errors++;
     }
   }
 
   onProgress({
     phase: "done",
-    message: `Scanned ${emails.length} emails, found ${totalActions} actions.`,
-    actionsFound: totalActions,
+    message: `Classified ${classified} of ${emails.length} emails.`,
+    classified,
   });
 
-  return { scanned: emails.length, actionsFound: totalActions, errors: totalErrors };
+  return { scanned: emails.length, classified, errors };
 }
 
 /**
- * Get all action items, optionally filtered by type and/or status.
+ * Get all classifications, optionally filtered by action type.
  */
-export async function getActionItems({ type, status } = {}) {
-  let collection;
-
-  if (type && status) {
-    collection = db.actionItems.where("[type+status]").equals([type, status]);
-  } else if (type) {
-    collection = db.actionItems.where("type").equals(type);
-  } else if (status) {
-    collection = db.actionItems.where("status").equals(status);
-  } else {
-    collection = db.actionItems.toCollection();
+export async function getClassifications({ action } = {}) {
+  if (action) {
+    return db.emailClassifications.where("action").equals(action).reverse().sortBy("date");
   }
-
-  return collection.reverse().sortBy("createdAt");
+  return db.emailClassifications.reverse().sortBy("date");
 }
 
 /**
- * Update an action item's status.
+ * Get classifications grouped by action type.
+ * Returns a Map: action -> array of classifications.
  */
-export async function updateActionStatus(id, newStatus) {
-  await db.actionItems.update(id, { status: newStatus });
-}
-
-/**
- * Clear all action items.
- */
-export async function clearActionItems() {
-  await db.actionItems.clear();
-}
-
-/**
- * Get counts by type.
- */
-export async function getActionCounts() {
-  const all = await db.actionItems.toArray();
-  const counts = { total: all.length, todo: 0, calendar: 0, note: 0, new: 0, done: 0, dismissed: 0 };
+export async function getClassificationsGrouped() {
+  const all = await db.emailClassifications.toArray();
+  const groups = {};
+  for (const actionId of VALID_ACTIONS) {
+    groups[actionId] = [];
+  }
   for (const item of all) {
-    if (item.type in counts) counts[item.type]++;
-    if (item.status in counts) counts[item.status]++;
+    const key = VALID_ACTIONS.includes(item.action) ? item.action : "NO_ACTION";
+    groups[key].push(item);
+  }
+  // Sort each group by date descending
+  for (const key of Object.keys(groups)) {
+    groups[key].sort((a, b) => (b.date || 0) - (a.date || 0));
+  }
+  return groups;
+}
+
+/**
+ * Get count per action type.
+ */
+export async function getClassificationCounts() {
+  const all = await db.emailClassifications.toArray();
+  const counts = { total: all.length };
+  for (const actionId of VALID_ACTIONS) {
+    counts[actionId] = 0;
+  }
+  for (const item of all) {
+    const key = VALID_ACTIONS.includes(item.action) ? item.action : "NO_ACTION";
+    counts[key]++;
   }
   return counts;
+}
+
+/**
+ * Update a classification's status.
+ */
+export async function updateClassificationStatus(emailId, newStatus) {
+  await db.emailClassifications.update(emailId, { status: newStatus });
+}
+
+/**
+ * Clear all classifications.
+ */
+export async function clearClassifications() {
+  await db.emailClassifications.clear();
 }
 
 // ── Prompt formatting ────────────────────────────────────────────────
@@ -197,16 +228,19 @@ function truncate(str, maxLen) {
 // ── Response parsing ─────────────────────────────────────────────────
 
 /**
- * Parse the LLM's JSON response. Handles:
- * - Clean JSON arrays
+ * Parse the LLM's JSON response for a single email classification.
+ * Expects: {"action": "DELETE", "reason": "..."}
+ *
+ * Handles:
+ * - Clean JSON objects
  * - JSON wrapped in markdown code blocks
- * - Partial/malformed responses
+ * - JSON with surrounding text
  *
  * @param {string} response - Raw LLM output
- * @returns {Array} Parsed array of triage results
+ * @returns {object|null} Parsed classification or null
  */
-export function parseTriageResponse(response) {
-  if (!response || !response.trim()) return [];
+export function parseClassification(response) {
+  if (!response || !response.trim()) return null;
 
   let text = response.trim();
 
@@ -214,71 +248,40 @@ export function parseTriageResponse(response) {
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
   text = text.trim();
 
-  // Find the JSON array boundaries
-  const firstBracket = text.indexOf("[");
-  const lastBracket = text.lastIndexOf("]");
+  // Try to find a JSON object (not inside an array)
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
 
-  if (firstBracket === -1 || lastBracket === -1 || lastBracket <= firstBracket) {
-    console.warn("Triage: no JSON array found in response");
-    return [];
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    console.warn("Triage: no JSON object found in response");
+    return null;
   }
 
-  const jsonStr = text.slice(firstBracket, lastBracket + 1);
+  // Reject if the outermost structure is an array
+  const firstBracket = text.indexOf("[");
+  if (firstBracket !== -1 && firstBracket < firstBrace) {
+    console.warn("Triage: expected JSON object, got array");
+    return null;
+  }
+
+  const jsonStr = text.slice(firstBrace, lastBrace + 1);
 
   try {
     const parsed = JSON.parse(jsonStr);
-    if (!Array.isArray(parsed)) return [];
-    return parsed;
-  } catch (e) {
-    console.warn("Triage: failed to parse JSON response:", e.message);
-    return [];
-  }
-}
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
-// ── Action item extraction ───────────────────────────────────────────
-
-/**
- * Convert parsed action objects into storable action items for a single email.
- *
- * @param {Array} actions - Parsed actions array from LLM response
- * @param {object} email - The source email
- * @param {number} scannedAt - Timestamp of this scan
- * @returns {Array} Action items ready for IndexedDB
- */
-function extractActionItems(actions, email, scannedAt) {
-  const items = [];
-
-  if (!Array.isArray(actions)) return items;
-
-  for (const action of actions) {
-    if (!action.type || !action.title) continue;
-
-    const type = ["todo", "calendar", "note"].includes(action.type) ? action.type : "note";
-    const priority = ["high", "medium", "low"].includes(action.priority) ? action.priority : "medium";
-
-    let dueDate = null;
-    if (action.dueDate && action.dueDate !== "null") {
-      try {
-        dueDate = new Date(action.dueDate).getTime();
-        if (isNaN(dueDate)) dueDate = null;
-      } catch {
-        dueDate = null;
-      }
+    const action = String(parsed.action || "").toUpperCase();
+    if (!VALID_ACTIONS.includes(action)) {
+      console.warn("Triage: unknown action type:", parsed.action);
+      return null;
     }
 
-    items.push({
-      type,
-      status: "new",
-      title: String(action.title).slice(0, 200),
-      description: String(action.description || "").slice(0, 500),
-      sourceItemId: email.id,
-      sourceSubject: email.subject || "(no subject)",
-      priority,
-      dueDate,
-      createdAt: scannedAt,
-      scannedAt,
-    });
+    return {
+      action,
+      reason: parsed.reason || "",
+    };
+  } catch (e) {
+    console.warn("Triage: failed to parse JSON response:", e.message);
+    return null;
   }
-
-  return items;
 }

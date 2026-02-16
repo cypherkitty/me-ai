@@ -1,27 +1,33 @@
 <script>
   import ScanControl from "./ScanControl.svelte";
-  import ActionFilters from "./ActionFilters.svelte";
-  import ActionCard from "./ActionCard.svelte";
+  import ActionGroup from "./ActionGroup.svelte";
+  import { ACTION_TYPES, VALID_ACTIONS } from "../../lib/triage.js";
 
   let {
     engineStatus,
     modelName,
-    items = [],
+    groups = {},
     counts = {},
-    filter = "all",
+    expandedGroup = null,
     isScanning = false,
     scanProgress = null,
     scanCount = $bindable(20),
     error = null,
     onscan,
-    onsetfilter,
-    onmarkdone,
+    ontogglegroup,
+    onmarkacted,
     ondismiss,
     onclear,
     ondismisserror,
   } = $props();
 
   let showClearConfirm = $state(false);
+
+  // Only show action groups that have items, in a meaningful order
+  const GROUP_ORDER = ["DELETE", "NOTIFY", "READ_SUMMARIZE", "REPLY_NEEDED", "REVIEW", "NO_ACTION"];
+  let visibleGroups = $derived(
+    GROUP_ORDER.filter((id) => groups[id] && groups[id].length > 0)
+  );
 </script>
 
 <div class="actions-container">
@@ -42,29 +48,28 @@
   {/if}
 
   {#if counts.total > 0}
-    <ActionFilters {filter} {counts} {onsetfilter} />
-
-    <div class="actions-list">
-      {#each items as item (item.id)}
-        <ActionCard {item} {onmarkdone} {ondismiss} />
+    <div class="groups-list">
+      {#each visibleGroups as actionId (actionId)}
+        <ActionGroup
+          action={ACTION_TYPES[actionId]}
+          items={groups[actionId]}
+          expanded={expandedGroup === actionId}
+          ontoggle={() => ontogglegroup(actionId)}
+          {onmarkacted}
+          {ondismiss}
+        />
       {/each}
-
-      {#if items.length === 0}
-        <div class="empty-filter">
-          No {filter === "all" ? "" : filter} items found.
-        </div>
-      {/if}
     </div>
 
     <div class="actions-footer">
       <span class="footer-stat">
-        {counts.total} total · {counts.new} active · {counts.done} done · {counts.dismissed} dismissed
+        {counts.total} emails classified
       </span>
       {#if !showClearConfirm}
         <button class="btn-link danger" onclick={() => showClearConfirm = true}>Clear all</button>
       {:else}
         <span class="clear-confirm">
-          Delete all items?
+          Clear all classifications?
           <button class="btn-link" onclick={() => showClearConfirm = false}>Cancel</button>
           <button class="btn-link danger" onclick={() => { onclear(); showClearConfirm = false; }}>Delete</button>
         </span>
@@ -77,8 +82,8 @@
         <rect x="9" y="3" width="6" height="4" rx="1"/>
         <path d="m9 14 2 2 4-4"/>
       </svg>
-      <h3>No actions scanned yet</h3>
-      <p>Click <strong>Scan Emails</strong> to analyze your recent emails and extract actionable items like todos, calendar events, and notes.</p>
+      <h3>No emails classified yet</h3>
+      <p>Click <strong>Scan Emails</strong> to classify your recent emails by action type — delete, notify, summarize, reply, review, or no action.</p>
     </div>
   {/if}
 </div>
@@ -112,17 +117,10 @@
     padding: 0 0.2rem;
   }
 
-  .actions-list {
+  .groups-list {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-
-  .empty-filter {
-    text-align: center;
-    padding: 2rem;
-    color: #555;
-    font-size: 0.85rem;
   }
 
   .actions-footer {
@@ -148,15 +146,9 @@
     text-decoration: underline;
     padding: 0;
   }
-  .btn-link:hover {
-    color: #ccc;
-  }
-  .btn-link.danger {
-    color: #f87171;
-  }
-  .btn-link.danger:hover {
-    color: #fca5a5;
-  }
+  .btn-link:hover { color: #ccc; }
+  .btn-link.danger { color: #f87171; }
+  .btn-link.danger:hover { color: #fca5a5; }
 
   .clear-confirm {
     display: flex;
@@ -186,6 +178,6 @@
     font-size: 0.82rem;
     color: #666;
     line-height: 1.5;
-    max-width: 360px;
+    max-width: 380px;
   }
 </style>

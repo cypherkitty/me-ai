@@ -24,8 +24,15 @@ db.version(1).stores({
 });
 
 db.version(2).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+  actionItems: "++id, type, status, sourceItemId, createdAt, dueDate, [type+status]",
+});
+
+db.version(3).stores({
   // ── Data items (emails, messages, posts, etc.) ─────────────────────
-  // id: "sourceType:sourceId" — e.g. "gmail:18e12345abcd"
   items:
     "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
 
@@ -35,10 +42,14 @@ db.version(2).stores({
   // ── Sync state per source type ─────────────────────────────────────
   syncState: "sourceType",
 
-  // ── Action items extracted by LLM triage ───────────────────────────
-  // type: "todo" | "calendar" | "note"
-  // status: "new" | "done" | "dismissed"
-  actionItems: "++id, type, status, sourceItemId, createdAt, dueDate, [type+status]",
+  // ── Email classifications by LLM triage ────────────────────────────
+  // emailId: reference to items table (e.g. "gmail:18e12345abcd")
+  // action: DELETE | NOTIFY | READ_SUMMARIZE | REPLY_NEEDED | REVIEW | NO_ACTION
+  // status: pending | acted | dismissed
+  emailClassifications: "emailId, action, date, scannedAt, status, [action+status]",
+
+  // Drop v2 table
+  actionItems: null,
 });
 
 /**

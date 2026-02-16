@@ -159,7 +159,7 @@ test.describe("Actions page", () => {
     await expect(actionsLink).toHaveClass(/active/);
 
     // Should show the empty state
-    const heading = page.getByRole("heading", { name: "No actions scanned yet" });
+    const heading = page.getByRole("heading", { name: "No emails classified yet" });
     await expect(heading).toBeVisible();
   });
 

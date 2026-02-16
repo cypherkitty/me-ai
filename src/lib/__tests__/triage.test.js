@@ -1,102 +1,125 @@
 import { describe, it, expect } from "vitest";
-import { parseTriageResponse } from "../triage.js";
+import { parseClassification, VALID_ACTIONS } from "../triage.js";
 
-// ── parseTriageResponse ──────────────────────────────────────────────
-// The LLM now processes one email at a time and returns a flat array
-// of action items: [{type, title, description, dueDate, priority}, ...]
-// or [] if no action is needed.
+// ── parseClassification ──────────────────────────────────────────────
+// The LLM returns a single JSON object per email:
+// {"action": "DELETE", "reason": "Promotional email"}
 
-describe("parseTriageResponse", () => {
-  it("parses well-formed JSON array with actions", () => {
-    const input = JSON.stringify([
-      { type: "todo", title: "Reply to Alice", description: "About project deadline", dueDate: "2026-02-20", priority: "high" },
-    ]);
-
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("todo");
-    expect(result[0].title).toBe("Reply to Alice");
-    expect(result[0].priority).toBe("high");
-    expect(result[0].dueDate).toBe("2026-02-20");
+describe("parseClassification", () => {
+  it("parses well-formed DELETE classification", () => {
+    const input = '{"action": "DELETE", "reason": "Promotional email from a store"}';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("DELETE");
+    expect(result.reason).toBe("Promotional email from a store");
   });
 
-  it("parses empty array (no action needed)", () => {
-    const result = parseTriageResponse("[]");
-    expect(result).toEqual([]);
+  it("parses NOTIFY classification", () => {
+    const input = '{"action": "NOTIFY", "reason": "Package has been delivered"}';
+    const result = parseClassification(input);
+    expect(result.action).toBe("NOTIFY");
+  });
+
+  it("parses READ_SUMMARIZE classification", () => {
+    const input = '{"action": "READ_SUMMARIZE", "reason": "Weekly Rust newsletter with updates"}';
+    const result = parseClassification(input);
+    expect(result.action).toBe("READ_SUMMARIZE");
+  });
+
+  it("parses REPLY_NEEDED classification", () => {
+    const input = '{"action": "REPLY_NEEDED", "reason": "Colleague asking about project status"}';
+    const result = parseClassification(input);
+    expect(result.action).toBe("REPLY_NEEDED");
+  });
+
+  it("parses REVIEW classification", () => {
+    const input = '{"action": "REVIEW", "reason": "Billing change notification"}';
+    const result = parseClassification(input);
+    expect(result.action).toBe("REVIEW");
+  });
+
+  it("parses NO_ACTION classification", () => {
+    const input = '{"action": "NO_ACTION", "reason": "Automated order confirmation"}';
+    const result = parseClassification(input);
+    expect(result.action).toBe("NO_ACTION");
   });
 
   it("handles JSON wrapped in markdown code blocks", () => {
-    const input = '```json\n[{"type": "note", "title": "Shipping update", "description": "Package arriving Friday", "dueDate": null, "priority": "low"}]\n```';
-
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("note");
-    expect(result[0].title).toBe("Shipping update");
+    const input = '```json\n{"action": "DELETE", "reason": "Spam"}\n```';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("DELETE");
   });
 
   it("handles JSON with surrounding text", () => {
-    const input = 'Here is the analysis:\n\n[{"type": "calendar", "title": "Team meeting", "description": "Monday standup", "dueDate": "2026-02-18", "priority": "medium"}]\n\nDone.';
-
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(1);
-    expect(result[0].type).toBe("calendar");
-    expect(result[0].dueDate).toBe("2026-02-18");
+    const input = 'Here is my classification:\n\n{"action": "NOTIFY", "reason": "Delivery update"}\n\nDone.';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("NOTIFY");
   });
 
-  it("returns empty array for empty response", () => {
-    expect(parseTriageResponse("")).toEqual([]);
-    expect(parseTriageResponse(null)).toEqual([]);
-    expect(parseTriageResponse(undefined)).toEqual([]);
+  it("normalizes lowercase action to uppercase", () => {
+    const input = '{"action": "delete", "reason": "Ad"}';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("DELETE");
   });
 
-  it("returns empty array for response with no JSON", () => {
-    expect(parseTriageResponse("No action needed for this email.")).toEqual([]);
-    expect(parseTriageResponse("This is just a newsletter, no action required.")).toEqual([]);
+  it("returns null for empty response", () => {
+    expect(parseClassification("")).toBeNull();
+    expect(parseClassification(null)).toBeNull();
+    expect(parseClassification(undefined)).toBeNull();
   });
 
-  it("returns empty array for malformed JSON", () => {
-    expect(parseTriageResponse('[{"type": "todo", "title": BROKEN')).toEqual([]);
+  it("returns null for response with no JSON", () => {
+    expect(parseClassification("This email is just an ad.")).toBeNull();
+    expect(parseClassification("No action needed.")).toBeNull();
   });
 
-  it("returns empty array if parsed value is not an array", () => {
-    expect(parseTriageResponse('{"type": "todo", "title": "Something"}')).toEqual([]);
+  it("returns null for malformed JSON", () => {
+    expect(parseClassification('{"action": "DELETE", "reason": BROKEN')).toBeNull();
   });
 
-  it("handles multiple actions from one email", () => {
-    const input = JSON.stringify([
-      { type: "todo", title: "Task A", description: "Do this", dueDate: null, priority: "high" },
-      { type: "note", title: "Note B", description: "Remember this", dueDate: null, priority: "low" },
-      { type: "calendar", title: "Meeting C", description: "Wed 3pm", dueDate: "2026-03-05", priority: "medium" },
-    ]);
-
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(3);
-    expect(result[0].type).toBe("todo");
-    expect(result[1].type).toBe("note");
-    expect(result[2].type).toBe("calendar");
+  it("returns null for unknown action type", () => {
+    expect(parseClassification('{"action": "SOMETHING_ELSE", "reason": "test"}')).toBeNull();
   });
 
-  it("handles code block without language tag", () => {
-    const input = '```\n[{"type": "todo", "title": "Follow up", "description": "", "dueDate": null, "priority": "medium"}]\n```';
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Follow up");
+  it("returns null for array instead of object", () => {
+    expect(parseClassification('[{"action": "DELETE"}]')).toBeNull();
+  });
+
+  it("handles missing reason field", () => {
+    const input = '{"action": "DELETE"}';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("DELETE");
+    expect(result.reason).toBe("");
   });
 
   it("handles pretty-printed JSON", () => {
-    const input = `[
-  {
-    "type": "todo",
-    "title": "Pay invoice",
-    "description": "Invoice #1234 due",
-    "dueDate": "2026-02-28",
-    "priority": "high"
-  }
-]`;
+    const input = `{
+  "action": "READ_SUMMARIZE",
+  "reason": "Tech newsletter with useful articles"
+}`;
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("READ_SUMMARIZE");
+    expect(result.reason).toBe("Tech newsletter with useful articles");
+  });
 
-    const result = parseTriageResponse(input);
-    expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Pay invoice");
-    expect(result[0].dueDate).toBe("2026-02-28");
+  it("handles code block without language tag", () => {
+    const input = '```\n{"action": "NO_ACTION", "reason": "Confirmation email"}\n```';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("NO_ACTION");
+  });
+
+  it("validates all known action types", () => {
+    for (const action of VALID_ACTIONS) {
+      const input = JSON.stringify({ action, reason: "test" });
+      const result = parseClassification(input);
+      expect(result).not.toBeNull();
+      expect(result.action).toBe(action);
+    }
   });
 });
