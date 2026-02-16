@@ -16,12 +16,19 @@
 
     // New scan started
     if (progress.phase === "loading") {
+      console.log("🔄 Scan starting, clearing processedEmails");
       processedEmails = [];
       lastCapturedIndex = -1;
     }
 
     // Capture each email when it finishes (classified phase has result + stats)
     if (progress.phase === "classified" && progress.current !== lastCapturedIndex) {
+      console.log(`✅ Captured email ${progress.current}:`, {
+        subject: progress.email?.subject,
+        action: progress.result?.action,
+        hasStats: !!progress.emailStats,
+        hasRawResponse: !!progress.rawResponse
+      });
       processedEmails = [...processedEmails, {
         index: progress.current,
         email: progress.email,
@@ -30,6 +37,11 @@
         stats: progress.emailStats,
       }];
       lastCapturedIndex = progress.current;
+    }
+
+    // Log when scan completes
+    if (progress.phase === "done") {
+      console.log(`🏁 Scan complete. processedEmails.length: ${processedEmails.length}, progress.results.length: ${progress.results?.length || 0}`);
     }
   });
 
@@ -147,19 +159,41 @@
       </div>
     {/if}
 
+    <!-- ── Debug info ─────────────────────────────────── -->
+    <div class="debug-info">
+      Phase: {progress.phase} | 
+      Processed: {processedEmails.length} | 
+      Results: {progress.results?.length || 0} | 
+      Current: {progress.current || 0}/{progress.total || 0}
+    </div>
+
     <!-- ── Processed emails list (accumulates during scan) ── -->
-    {#if processedEmails.length > 0}
+    <!-- Use progress.results when available (during and after scan), otherwise use our captured list -->
+    {#if (progress.results?.length > 0) || processedEmails.length > 0}
+      {@const emailsList = progress.results?.length > 0 ? 
+        progress.results.map((r, idx) => ({
+          index: idx + 1,
+          email: r.email,
+          result: r.success ? r.classification : null,
+          rawResponse: r.rawResponse || "",
+          stats: r.stats,
+          error: r.success ? null : r.error
+        })) : processedEmails}
       <div class="processed-list">
         <div class="processed-header">
           <span class="processed-title">Processed Emails</span>
-          <span class="processed-count">{processedEmails.length}{progress.total ? ` / ${progress.total}` : ""}</span>
+          <span class="processed-count">{emailsList.length}{progress.total ? ` / ${progress.total}` : ""}</span>
         </div>
-        {#each processedEmails as item}
-          <div class="processed-item">
+        {#each emailsList as item}
+          <div class="processed-item" class:failed={item.error}>
             <div class="pi-head">
               <span class="pi-index">#{item.index}</span>
               <span class="pi-subj">{item.email.subject || "(no subject)"}</span>
-              <span class="pi-action">{item.result?.action || "—"}</span>
+              {#if item.error}
+                <span class="pi-action error">ERROR</span>
+              {:else}
+                <span class="pi-action">{item.result?.action || "—"}</span>
+              {/if}
             </div>
             <div class="pi-meta">
               {shortSender(item.email.from)}
@@ -167,30 +201,34 @@
                 <span class="sep">·</span>{shortDate(item.email.date)}
               {/if}
             </div>
-            {#if item.result?.summary}
-              <div class="pi-summary">{item.result.summary}</div>
-            {/if}
-            {#if item.result?.tags?.length}
-              <div class="pi-tags">
-                {#each item.result.tags as tag}
-                  <span class="pi-tag">{tag}</span>
-                {/each}
-              </div>
-            {/if}
-            {#if item.stats}
-              <div class="pi-stats">
-                {item.stats.tps ? `${item.stats.tps.toFixed(0)} tok/s` : ""}
-                <span class="sep">·</span>
-                {item.stats.inputTokens || 0} in + {item.stats.numTokens || 0} out tokens
-                <span class="sep">·</span>
-                {fmtTime(item.stats.elapsed)}
-              </div>
-            {/if}
-            {#if item.rawResponse}
-              <details class="pi-llm-details">
-                <summary class="pi-llm-toggle">View raw LLM output</summary>
-                <div class="llm-output-content">{item.rawResponse}</div>
-              </details>
+            {#if item.error}
+              <div class="pi-error-msg">{item.error}</div>
+            {:else}
+              {#if item.result?.summary}
+                <div class="pi-summary">{item.result.summary}</div>
+              {/if}
+              {#if item.result?.tags?.length}
+                <div class="pi-tags">
+                  {#each item.result.tags as tag}
+                    <span class="pi-tag">{tag}</span>
+                  {/each}
+                </div>
+              {/if}
+              {#if item.stats}
+                <div class="pi-stats">
+                  {item.stats.tps ? `${item.stats.tps.toFixed(0)} tok/s` : ""}
+                  <span class="sep">·</span>
+                  {item.stats.inputTokens || 0} in + {item.stats.numTokens || 0} out tokens
+                  <span class="sep">·</span>
+                  {fmtTime(item.stats.elapsed)}
+                </div>
+              {/if}
+              {#if item.rawResponse}
+                <details class="pi-llm-details">
+                  <summary class="pi-llm-toggle">View raw LLM output</summary>
+                  <div class="llm-output-content">{item.rawResponse}</div>
+                </details>
+              {/if}
             {/if}
           </div>
         {/each}
@@ -254,49 +292,6 @@
           </div>
         </div>
 
-        <!-- Results breakdown from progress.results (fallback if processedEmails missed some) -->
-        {#if progress.results?.length > 0 && processedEmails.length === 0}
-          <div class="results-section">
-            <div class="results-section-title">Email results</div>
-            <div class="results-list">
-              {#each progress.results as result}
-                <div class="processed-item" class:failed={!result.success}>
-                  <div class="pi-head">
-                    <span class="pi-subj">{result.email.subject || "(no subject)"}</span>
-                    {#if result.success}
-                      <span class="pi-action">{result.classification.action}</span>
-                    {:else}
-                      <span class="pi-action error">ERROR</span>
-                    {/if}
-                  </div>
-                  <div class="pi-meta">
-                    {shortSender(result.email.from)}
-                    {#if result.email.date}
-                      <span class="sep">·</span>{shortDate(result.email.date)}
-                    {/if}
-                  </div>
-                  {#if result.success && result.classification.summary}
-                    <div class="pi-summary">{result.classification.summary}</div>
-                  {/if}
-                  {#if result.success && result.stats}
-                    <div class="pi-stats">
-                      {result.stats.inputTokens} in + {result.stats.numTokens} out tokens
-                      <span class="sep">·</span>
-                      {fmtTime(result.stats.elapsed)}
-                      {#if result.stats.tps}
-                        <span class="sep">·</span>
-                        {result.stats.tps.toFixed(0)} tok/s
-                      {/if}
-                    </div>
-                  {/if}
-                  {#if !result.success}
-                    <div class="pi-error-msg">{result.error}</div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
       </div>
     {:else}
       <!-- ── In-progress totals ────────────────────────── -->
@@ -391,6 +386,18 @@
   .stat { display: flex; align-items: baseline; gap: 0.2rem; }
   .stat-val { font-size: 0.78rem; font-weight: 700; color: #e8e8e8; font-variant-numeric: tabular-nums; }
   .stat-label { font-size: 0.58rem; color: #555; }
+
+  /* ── Debug info ─────────────────────────────────────── */
+  .debug-info {
+    font-size: 0.6rem;
+    color: #666;
+    background: #0a0a0a;
+    border: 1px solid #1e1e1e;
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    margin-bottom: 0.5rem;
+    font-family: monospace;
+  }
 
   /* ── Live LLM stream box ─────────────────────────── */
   .llm-stream-box {
@@ -612,27 +619,6 @@
     gap: 0.25rem;
   }
   .ssec-item strong { color: #ccc; font-weight: 600; }
-
-  .results-section {
-    margin-top: 0.5rem;
-    border-top: 1px solid #1e1e1e;
-    padding-top: 0.4rem;
-  }
-  .results-section-title {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    margin-bottom: 0.35rem;
-  }
-  .results-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    max-height: 300px;
-    overflow-y: auto;
-  }
 
   /* ── LLM Output Display ─────────────────────────── */
   @keyframes pulse {
