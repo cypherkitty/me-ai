@@ -67,11 +67,12 @@ Rules:
  * @param {number} [options.count=20] - Number of recent emails to scan
  * @param {boolean} [options.force=false] - If true, rescan already-classified emails
  * @param {function} [options.onProgress] - Progress callback
+ * @param {AbortSignal} [options.signal] - Abort signal for cancellation
  * @returns {Promise<{scanned: number, classified: number, skipped: number, errors: number}>}
  */
 export async function scanEmails(
   engine,
-  { count = DEFAULT_COUNT, force = false, onProgress = () => {} } = {}
+  { count = DEFAULT_COUNT, force = false, onProgress = () => {}, signal } = {}
 ) {
   if (!engine.isReady) {
     throw new Error("Model not loaded. Please load a model first.");
@@ -123,32 +124,61 @@ export async function scanEmails(
   }
 
   const scannedAt = Date.now();
+  const scanStart = performance.now();
   let classified = 0;
   let errors = 0;
+  let totalOutputTokens = 0;
+  let totalInputTokens = 0;
 
   for (let i = 0; i < toProcess.length; i++) {
+    if (signal?.aborted) break;
+
     const email = toProcess[i];
+    const emailPrompt = formatEmailPrompt(email);
+    const promptMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: emailPrompt },
+    ];
 
     onProgress({
       phase: "scanning",
-      message: `Classifying email ${i + 1} of ${toProcess.length}${skipped ? ` (${skipped} skipped)` : ""}...`,
       current: i + 1,
       total: toProcess.length,
       classified,
+      errors,
+      email: { subject: email.subject, from: email.from, date: email.date },
+      prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
+      systemPromptLength: SYSTEM_PROMPT.length,
+      live: null,
+      lastResult: null,
+      totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
     });
 
-    try {
-      const prompt = formatEmailPrompt(email);
-      const messages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
-      ];
+    const emailStart = performance.now();
 
-      const response = await engine.generateFull(messages, {
-        maxTokens: 512,
-        enableThinking: false,
-      });
+    try {
+      const { text: response, tps, numTokens, inputTokens } = await engine.generateFull(
+        promptMessages,
+        { maxTokens: 512, enableThinking: false },
+        (tokenInfo) => {
+          onProgress({
+            phase: "generating",
+            current: i + 1,
+            total: toProcess.length,
+            classified,
+            errors,
+            email: { subject: email.subject, from: email.from, date: email.date },
+            live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
+            totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+          });
+        }
+      );
+
+      totalOutputTokens += numTokens;
+      totalInputTokens += inputTokens;
+
       const classification = parseClassification(response);
+      const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
         await db.emailClassifications.put({
@@ -164,6 +194,18 @@ export async function scanEmails(
           status: "pending",
         });
         classified++;
+
+        onProgress({
+          phase: "classified",
+          current: i + 1,
+          total: toProcess.length,
+          classified,
+          errors,
+          email: { subject: email.subject, from: email.from, date: email.date },
+          result: classification,
+          emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
+          totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+        });
       }
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
@@ -171,10 +213,12 @@ export async function scanEmails(
     }
   }
 
+  const totalElapsed = performance.now() - scanStart;
   onProgress({
     phase: "done",
-    message: `Classified ${classified} of ${toProcess.length} emails${skipped ? `, ${skipped} already done` : ""}.`,
     classified,
+    errors,
+    totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
   });
 
   return { scanned: toProcess.length, classified, skipped, errors };
