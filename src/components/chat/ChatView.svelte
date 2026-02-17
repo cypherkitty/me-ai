@@ -101,7 +101,7 @@
           {oncleargroup}
           onaskai={handleAskAI}
         />
-      {:else if msg.type === "event" || msg.type === "event-batch"}
+      {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
         <EventMessage {msg} {oncommand} />
       {:else}
         <MessageBubble

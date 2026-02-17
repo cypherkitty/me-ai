@@ -5,7 +5,8 @@
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
-  import { buildBatchEventMessage } from "./lib/events.js";
+  import { buildBatchEventMessage, buildGroupedEventsMessage } from "./lib/events.js";
+  import { getClassificationsGrouped } from "./lib/triage.js";
   import {
     updateClassificationStatus,
     deleteClassification,
@@ -308,6 +309,24 @@
   async function send(text) {
     if (!text || isRunning) return;
 
+    // Handle /events command
+    if (text.trim().toLowerCase() === "/events") {
+      messages = [...messages, { role: "user", content: text }];
+      try {
+        const grouped = await getClassificationsGrouped();
+        if (!grouped.order.length) {
+          messages = [...messages, { role: "assistant", content: "No classified emails yet. Run a scan first from the Actions page." }];
+        } else {
+          const eventsMsg = buildGroupedEventsMessage(grouped);
+          messages = [...messages, eventsMsg];
+        }
+      } catch (err) {
+        messages = [...messages, { role: "assistant", content: `Failed to load events: ${err.message}` }];
+      }
+      scrollToBottom();
+      return;
+    }
+
     messages = [...messages, { role: "user", content: text }];
     tps = null;
     isRunning = true;
@@ -329,7 +348,7 @@
 
     // Only include text messages for the LLM (skip dashboard messages)
     const plain = messages
-      .filter((m) => m.type !== "dashboard")
+      .filter((m) => m.type !== "dashboard" && m.type !== "events-grouped" && m.type !== "event-batch" && m.type !== "event")
       .map((m) => ({ role: m.role, content: m.content }));
     engine.generate([...systemMessages, ...plain]);
     scrollToBottom();
