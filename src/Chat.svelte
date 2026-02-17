@@ -5,6 +5,7 @@
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
+  import { buildBatchEventMessage } from "./lib/events.js";
   import {
     updateClassificationStatus,
     deleteClassification,
@@ -234,9 +235,24 @@
   async function triggerScan() {
     if (isScanning || !engine.isReady) return;
     isScanning = true;
+    let scanResults = null;
     try {
-      await scanEmails(engine, { count: 20 });
+      await scanEmails(engine, {
+        count: 20,
+        onProgress: (progress) => {
+          if (progress.phase === "done" && progress.results?.length > 0) {
+            scanResults = progress.results;
+          }
+        },
+      });
       await refreshPendingData();
+
+      // Show scan results as a batch event message in chat
+      if (scanResults?.length > 0) {
+        const eventMsg = buildBatchEventMessage(scanResults);
+        messages = [...messages, eventMsg];
+        scrollToBottom();
+      }
 
       // If no dashboard message exists yet, insert one
       if (pendingData && !messages.some((m) => m.type === "dashboard")) {
@@ -251,6 +267,13 @@
     } finally {
       isScanning = false;
     }
+  }
+
+  function handleCommand({ event, commandId }) {
+    // For now, describe the command execution in chat
+    const desc = `Execute "${commandId}" on ${event.type} event: "${event.data?.subject || "unknown"}"`;
+    messages = [...messages, { role: "assistant", content: `Command: ${commandId}\n\nThis command is not yet implemented. In the future, "${commandId}" will be executed on the ${event.source} event "${event.data?.subject || ""}".` }];
+    scrollToBottom();
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -371,6 +394,7 @@
     onremove={removeItem}
     oncleargroup={clearGroup}
     onscan={triggerScan}
+    oncommand={handleCommand}
   />
 {/if}
 
