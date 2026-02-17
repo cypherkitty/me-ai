@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import MessageBubble from "./MessageBubble.svelte";
+  import EventMessage from "./EventMessage.svelte";
   import ActionDashboard from "./ActionDashboard.svelte";
   import QuickActions from "./QuickActions.svelte";
   import GpuPanel from "./GpuPanel.svelte";
@@ -29,6 +30,7 @@
     onremove,
     oncleargroup,
     onscan,
+    oncommand,
   } = $props();
 
   let input = $state("");
@@ -99,6 +101,8 @@
           {oncleargroup}
           onaskai={handleAskAI}
         />
+      {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
+        <EventMessage {msg} {oncommand} />
       {:else}
         <MessageBubble
           {msg}

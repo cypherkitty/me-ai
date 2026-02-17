@@ -2,6 +2,7 @@
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
+  import ActionEditor from "./ActionEditor.svelte";
   import DataManager from "./DataManager.svelte";
   import { actionColor } from "../../lib/triage.js";
 
@@ -31,6 +32,7 @@
   } = $props();
 
   let showInspector = $state(false);
+  let showActionEditor = $state(false);
 
   /** Grab a sample email from the first group to show in the inspector */
   let sampleEmail = $derived.by(() => {
@@ -58,6 +60,16 @@
   />
 
   <PromptInspector bind:open={showInspector} {sampleEmail} />
+  <ActionEditor bind:open={showActionEditor} />
+
+  <div class="toolbar">
+    <button class="toolbar-btn" onclick={() => showActionEditor = true}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 3v18M3 12h18"/>
+      </svg>
+      Edit Actions
+    </button>
+  </div>
 
   {#if error}
     <div class="error-card">
@@ -174,5 +186,34 @@
     color: #666;
     line-height: 1.5;
     max-width: 380px;
+  }
+
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+  }
+  .toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: #aaa;
+    font-size: 0.68rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toolbar-btn:hover {
+    background: #222;
+    border-color: #444;
+    color: #ddd;
+  }
+  .toolbar-btn svg {
+    flex-shrink: 0;
   }
 </style>
