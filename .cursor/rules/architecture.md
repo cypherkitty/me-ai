@@ -5,7 +5,75 @@ alwaysApply: true
 
 # me-ai — Architecture
 
-**Browser-only AI chat + Gmail dashboard.** No backend server. The LLM runs entirely in the browser via WebGPU, and Gmail uses client-side OAuth.
+**Browser-only AI assistant built on an event-stream model.** No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
+
+## Core Concept: Event Stream + Command Map
+
+**This is the most important architectural principle — the foundation of the entire system.**
+
+The system is modeled as a **stream of events** with associated **commands**:
+
+```
+HashMap<EventType, List<Command>>
+```
+
+### Events
+An **event** is any discrete piece of data that enters the system. Examples:
+- **Email message** — arrives via Gmail sync, classified by the LLM into an event type (e.g. `REPLY`, `DELETE`, `TRACK_DELIVERY`, `PAY_BILL`)
+- Future: Telegram message, calendar invite, RSS item, webhook payload, etc.
+
+Each event has:
+- `type` — the event type (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`)
+- `source` — where it came from (e.g. `"gmail"`, `"telegram"`)
+- `data` — the raw payload (email body, message text, etc.)
+- `metadata` — timestamps, sender, subject, tags, LLM classification result
+
+### Commands
+A **command** is an action that can be taken on an event. Each event type maps to a list of commands:
+
+```js
+// Example: email classified as REPLY
+{
+  eventType: "REPLY",
+  commands: [
+    { id: "draft_reply", name: "Draft Reply", description: "Generate a reply draft using LLM" },
+    { id: "mark_done",   name: "Mark Done",   description: "Mark as handled" },
+    { id: "snooze",      name: "Snooze",       description: "Remind me later" },
+    { id: "dismiss",     name: "Dismiss",      description: "Remove from queue" },
+  ]
+}
+```
+
+Each command has:
+- `id` — unique identifier
+- `name` — display name
+- `description` — what it does
+- `body` — optional rich content (LLM-generated draft, parsed data, etc.)
+
+### Chat as Control Interface
+The **chat is the control interface** on top of the event stream. Chat messages can be:
+
+1. **Flat/regular** — plain text string (e.g. user questions, LLM text replies)
+2. **Typed** — structured message containing:
+   - An **event** (or list of events)
+   - A **list of commands** associated with the event
+   - Visual components/cards rendered inline in the chat
+
+This means chat messages are not just text — they can contain interactive command cards that let the user act on events directly from the conversation.
+
+### Data Flow
+
+```
+Data Sources (Gmail, future: Telegram, etc.)
+    ↓
+Events (classified by LLM or rules)
+    ↓
+Event Type → Command Map (HashMap<EventType, List<Command>>)
+    ↓
+Chat Messages (flat text + typed event/command cards)
+    ↓
+User interaction (execute commands, ask questions, drill down)
+```
 
 ## Stack
 
@@ -35,6 +103,8 @@ src/
       LoadingProgress.svelte — Download progress bars with bytes & percentages
       ChatView.svelte        — Active chat: header, messages area, input row
       MessageBubble.svelte   — Single message: role, thinking toggle, content, cursor
+      CommandCard.svelte     — Visual card for a single command (name, description, body)
+      EventMessage.svelte    — Typed message: event info + list of command cards
       GpuPanel.svelte        — Expandable GPU details grid
     dashboard/
       SetupGuide.svelte      — 5-step OAuth setup with deep links + copy-to-clipboard
@@ -51,6 +121,7 @@ src/
     gmail-api.js       — Gmail REST: getProfile, listMessages, getMessage,
                          getMessagesBatch, getHeader, getBody, getHtmlBody, base64url decode
     markdown-export.js — emailToMarkdown, htmlToMarkdownBody, emailFilename, downloadText
+    events.js          — Event type → Command map registry, command definitions
     models.js          — MODELS array constant (shared between components)
     format.js          — formatBytes, formatBytesPrecise, progressPct
     error-parser.js    — parseError() — structured error guidance for API errors
