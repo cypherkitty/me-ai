@@ -7,16 +7,32 @@
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
  */
 
-const DEFAULT_OLLAMA_URL = "https://me-ai.metaelon.space";
+const LOCAL_OLLAMA_URL = "http://localhost:11434";
+const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
 
 /**
- * Get Ollama base URL from settings or use default
+ * Detect the best default Ollama URL based on where the app is running.
+ * - On localhost → use local Ollama
+ * - On GitHub Pages or any other origin → use remote Ollama server
+ */
+function getDefaultOllamaUrl() {
+  try {
+    const hostname = window.location.hostname;
+    const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
+    return isLocal ? LOCAL_OLLAMA_URL : REMOTE_OLLAMA_URL;
+  } catch {
+    return LOCAL_OLLAMA_URL;
+  }
+}
+
+/**
+ * Get Ollama base URL from settings or auto-detect based on environment.
  */
 export function getOllamaUrl() {
   try {
-    return localStorage.getItem("ollamaUrl") || DEFAULT_OLLAMA_URL;
+    return localStorage.getItem("ollamaUrl") || getDefaultOllamaUrl();
   } catch {
-    return DEFAULT_OLLAMA_URL;
+    return getDefaultOllamaUrl();
   }
 }
 
