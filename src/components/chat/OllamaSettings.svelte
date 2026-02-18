@@ -92,7 +92,19 @@
           <span>Connected • v{connectionStatus.version}</span>
         {:else}
           <span class="status-dot disconnected"></span>
-          <span>Disconnected: {connectionStatus.error}</span>
+          <div class="error-content">
+            <span>Disconnected: {connectionStatus.error}</span>
+            {#if connectionStatus.corsError}
+              <div class="cors-help">
+                <strong>Fix CORS Error:</strong>
+                <ul>
+                  <li>In Cloudflare: Add Transform Rule to set <code>Access-Control-Allow-Origin: {window.location.origin}</code></li>
+                  <li>Or set <code>OLLAMA_ORIGINS={window.location.origin}</code> on your server</li>
+                  <li>For testing: Use <code>http://localhost:5173</code> (no CORS restrictions)</li>
+                </ul>
+              </div>
+            {/if}
+          </div>
         {/if}
       </div>
     {/if}
@@ -481,6 +493,41 @@
     color: #f87171;
     font-size: 0.8rem;
     margin: 0;
+  }
+  .error-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .cors-help {
+    padding: 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 5px;
+    font-size: 0.7rem;
+    line-height: 1.5;
+  }
+  .cors-help strong {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: #ef4444;
+  }
+  .cors-help ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    list-style: disc;
+  }
+  .cors-help li {
+    margin-bottom: 0.2rem;
+    color: #ccc;
+  }
+  .cors-help code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.1rem 0.3rem;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.65rem;
+    color: #fca5a5;
   }
   .btn {
     padding: 0.55rem 1.2rem;
