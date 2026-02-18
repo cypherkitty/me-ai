@@ -1,10 +1,12 @@
 <script>
   import CommandCard from "./CommandCard.svelte";
   import { stringToHue } from "../../lib/format.js";
+  import { executePipeline, executePipelineBatch, isAuthenticated } from "../../lib/workers/execution-service.js";
 
   let { msg, oncommand } = $props();
 
   let expandedGroups = $state({});
+  let executionState = $state({});  // Track execution state per email/group
 
   function shortSender(from) {
     if (!from) return "—";
@@ -23,12 +25,52 @@
     oncommand?.({ event, commandId });
   }
 
-  function handleExecute(event) {
-    oncommand?.({ event, action: "execute_pipeline" });
+  async function handleExecute(event, emailId) {
+    if (!isAuthenticated()) {
+      alert("Please sign in to Gmail first (Dashboard page)");
+      return;
+    }
+
+    const stateKey = `single_${emailId}`;
+    executionState[stateKey] = { running: true, progress: null, result: null };
+
+    try {
+      const result = await executePipeline(event, (progress) => {
+        executionState[stateKey] = { ...executionState[stateKey], progress };
+      });
+
+      executionState[stateKey] = { running: false, progress: null, result };
+    } catch (error) {
+      executionState[stateKey] = {
+        running: false,
+        progress: null,
+        result: { success: false, message: error.message },
+      };
+    }
   }
 
-  function handleExecuteGroup(eventType, emails) {
-    oncommand?.({ eventType, emails, action: "execute_pipeline_batch" });
+  async function handleExecuteGroup(eventType, emails) {
+    if (!isAuthenticated()) {
+      alert("Please sign in to Gmail first (Dashboard page)");
+      return;
+    }
+
+    const stateKey = `batch_${eventType}`;
+    executionState[stateKey] = { running: true, progress: null, result: null };
+
+    try {
+      const result = await executePipelineBatch(eventType, emails, (progress) => {
+        executionState[stateKey] = { ...executionState[stateKey], progress };
+      });
+
+      executionState[stateKey] = { running: false, progress: null, result };
+    } catch (error) {
+      executionState[stateKey] = {
+        running: false,
+        progress: null,
+        result: { success: false, message: error.message },
+      };
+    }
   }
 
   function toggleGroup(eventType) {
@@ -44,6 +86,10 @@
 
   function actionColor(action) {
     return `hsl(${stringToHue(action)}, 55%, 55%)`;
+  }
+
+  function getExecutionState(key) {
+    return executionState[key];
   }
 </script>
 
@@ -127,6 +173,7 @@
 
     {#each msg.groups as group}
       {@const isExpanded = expandedGroups[group.eventType] ?? true}
+      {@const batchState = getExecutionState(`batch_${group.eventType}`)}
       <div class="group-block">
         <div class="group-header-row">
           <button class="group-header" onclick={() => toggleGroup(group.eventType)}>
@@ -146,14 +193,28 @@
           <button 
             class="execute-all-btn" 
             onclick={(e) => { e.stopPropagation(); handleExecuteGroup(group.eventType, group.emails); }}
+            disabled={batchState?.running}
           >
-            ▶ Execute All ({group.emails.length})
+            {#if batchState?.running}
+              ⏳ Running...
+            {:else if batchState?.result}
+              {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed (${batchState.result.failed}/${batchState.result.total})`}
+            {:else}
+              ▶ Execute All ({group.emails.length})
+            {/if}
           </button>
         </div>
+
+        {#if batchState?.result}
+          <div class="batch-result" class:success={batchState.result.success} class:error={!batchState.result.success}>
+            {batchState.result.message}
+          </div>
+        {/if}
 
         {#if isExpanded}
           <div class="group-emails">
             {#each group.emails as email, i}
+              {@const execState = getExecutionState(`single_${email.emailId}`)}
               <div class="email-item">
                 <div class="email-main">
                   <div class="email-subject">{email.subject}</div>
@@ -175,8 +236,18 @@
                 <div class="email-pipeline">
                   <div class="pipeline-header">
                     <span class="pipeline-label">Action Pipeline</span>
-                    <button class="execute-btn" onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email })}>
-                      ▶ Execute
+                    <button 
+                      class="execute-btn" 
+                      onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId)}
+                      disabled={execState?.running}
+                    >
+                      {#if execState?.running}
+                        ⏳ Running...
+                      {:else if execState?.result}
+                        {execState.result.success ? "✅ Done" : "❌ Failed"}
+                      {:else}
+                        ▶ Execute
+                      {/if}
                     </button>
                   </div>
                   <div class="pipeline-steps">
@@ -191,6 +262,11 @@
                       </div>
                     {/each}
                   </div>
+                  {#if execState?.result}
+                    <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
+                      {execState.result.message}
+                    </div>
+                  {/if}
                 </div>
               </div>
             {/each}
@@ -521,9 +597,13 @@
     cursor: pointer;
     transition: all 0.15s;
   }
-  .execute-btn:hover {
+  .execute-btn:hover:not(:disabled) {
     background: rgba(59, 130, 246, 0.2);
     border-color: rgba(59, 130, 246, 0.5);
+  }
+  .execute-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .pipeline-steps {
     display: flex;
@@ -576,5 +656,50 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .execution-result,
+  .batch-result {
+    padding: 0.4rem 0.5rem;
+    border-radius: 5px;
+    font-size: 0.62rem;
+    font-weight: 500;
+    margin-top: 0.3rem;
+  }
+  .execution-result.success,
+  .batch-result.success {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+  }
+  .execution-result.error,
+  .batch-result.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+  }
+
+  .execute-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.6rem;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 5px;
+    color: #3b82f6;
+    font-size: 0.64rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .execute-all-btn:hover:not(:disabled) {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+  .execute-all-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>

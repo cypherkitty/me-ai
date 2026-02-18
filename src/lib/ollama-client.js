@@ -7,7 +7,7 @@
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
  */
 
-const DEFAULT_OLLAMA_URL = "http://localhost:11434";
+const DEFAULT_OLLAMA_URL = "https://me-ai.metaelon.space";
 
 /**
  * Get Ollama base URL from settings or use default

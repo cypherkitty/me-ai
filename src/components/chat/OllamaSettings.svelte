@@ -74,7 +74,7 @@
         type="text"
         bind:value={ollamaUrl}
         onchange={handleUrlChange}
-        placeholder="http://localhost:11434"
+        placeholder="https://me-ai.metaelon.space"
       />
       <button 
         class="btn-test" 
