@@ -100,23 +100,24 @@ test.describe("Chat page", () => {
 });
 
 // ────────────────────────────────────────────────────────────
-// Dashboard page — no client ID (SetupGuide)
+// Dashboard page — no saved client ID (uses default)
 // ────────────────────────────────────────────────────────────
 test.describe("Dashboard page (no client ID)", () => {
-  test("shows setup guide when no client ID is configured", async ({ page }) => {
-    // Make sure no client ID is stored
+  test("shows sign-in card with default client ID when no custom ID is saved", async ({ page }) => {
+    // Make sure no client ID is stored — app should fall back to the shared default
     await page.goto("/#dashboard");
-    await page.evaluate(() => localStorage.removeItem("googleClientId"));
-    await page.reload();
     await page.waitForLoadState("networkidle");
 
     // Navigate to dashboard
     await page.locator('.nav-links a[href="#dashboard"]').click();
 
-    // Should see the client ID form (part of SetupGuide)
-    const clientIdInput = page.locator('.client-id-form input[type="text"]');
-    await expect(clientIdInput).toBeVisible();
-    await expect(clientIdInput).toHaveAttribute("placeholder", /apps\.googleusercontent\.com/);
+    // With a default client ID built-in, AuthCard should be shown directly
+    const googleBtn = page.locator('.google-btn');
+    await expect(googleBtn).toBeVisible();
+
+    // The "shared default" badge confirms the built-in ID is active
+    const defaultBadge = page.locator('.client-id-badge.default');
+    await expect(defaultBadge).toBeVisible();
   });
 });
 
