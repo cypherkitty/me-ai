@@ -27,24 +27,29 @@ function getDefaultOllamaUrl() {
 
 /**
  * Get Ollama base URL from settings or auto-detect based on environment.
+ * Returns the default synchronously; call getOllamaUrlAsync() to get the
+ * user-saved value from IndexedDB.
  */
 export function getOllamaUrl() {
-  try {
-    return localStorage.getItem("ollamaUrl") || getDefaultOllamaUrl();
-  } catch {
-    return getDefaultOllamaUrl();
-  }
+  return getDefaultOllamaUrl();
 }
 
 /**
- * Set Ollama base URL
+ * Get Ollama base URL from IndexedDB settings, falling back to auto-detect.
+ * @returns {Promise<string>}
  */
-export function setOllamaUrl(url) {
-  try {
-    localStorage.setItem("ollamaUrl", url);
-  } catch {
-    // Ignore storage errors
-  }
+export async function getOllamaUrlAsync() {
+  const { getSetting } = await import("./store/settings.js");
+  return (await getSetting("ollamaUrl")) || getDefaultOllamaUrl();
+}
+
+/**
+ * Set Ollama base URL in IndexedDB.
+ * @param {string} url
+ */
+export async function setOllamaUrl(url) {
+  const { setSetting } = await import("./store/settings.js");
+  await setSetting("ollamaUrl", url);
 }
 
 /**

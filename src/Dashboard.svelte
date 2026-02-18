@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { getSetting, setSetting, removeSetting } from "./lib/store/settings.js";
   import {
     initGoogleAuth, requestAccessToken, revokeToken,
     getSavedToken, isTokenValid, getTokenTTL, refreshToken,
@@ -20,8 +21,18 @@
 
   let refreshTimer = null;
 
-  onMount(() => {
+  onMount(async () => {
     window.addEventListener("keydown", handleKeydown);
+
+    // Load saved Google Client ID from IndexedDB
+    if (!clientId) {
+      const saved = await getSetting("googleClientId");
+      if (saved) {
+        clientId = saved;
+        clientIdInput = saved;
+      }
+    }
+
     return () => {
       window.removeEventListener("keydown", handleKeydown);
       if (refreshTimer) clearTimeout(refreshTimer);
@@ -75,12 +86,8 @@
   }
 
   // ── State ──────────────────────────────────────────────────────────
-  let clientId = $state(
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem("googleClientId") || ""
-  );
-  let clientIdInput = $state(
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || localStorage.getItem("googleClientId") || ""
-  );
+  let clientId = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || "");
+  let clientIdInput = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || "");
   let authInitialized = $state(false);
 
   let accessToken = $state(null);
@@ -122,11 +129,11 @@
   $effect(() => {
     if (clientId && !authInitialized) {
       initGoogleAuth(clientId)
-        .then(() => {
+        .then(async () => {
           authInitialized = true;
-          // Auto-restore session token (survives page refresh within same tab)
+          // Auto-restore saved token from IndexedDB
           if (!accessToken) {
-            const saved = getSavedToken();
+            const saved = await getSavedToken();
             if (saved) {
               accessToken = saved.access_token;
               scheduleTokenRefresh();
@@ -139,16 +146,16 @@
   });
 
   // ── Actions ───────────────────────────────────────────────────────
-  function saveClientId() {
+  async function saveClientId() {
     const trimmed = clientIdInput.trim();
     if (!trimmed) return;
-    localStorage.setItem("googleClientId", trimmed);
+    await setSetting("googleClientId", trimmed);
     clientId = trimmed;
     error = null;
   }
 
-  function clearClientId() {
-    localStorage.removeItem("googleClientId");
+  async function clearClientId() {
+    await removeSetting("googleClientId");
     clientId = "";
     clientIdInput = "";
     authInitialized = false;

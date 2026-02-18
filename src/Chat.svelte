@@ -1,5 +1,6 @@
 <script>
   import { onMount, tick } from "svelte";
+  import { getSetting, setSetting } from "./lib/store/settings.js";
   import { MODELS } from "./lib/models.js";
   import { OLLAMA_MODELS } from "./lib/ollama-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
@@ -24,16 +25,8 @@
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
-  let backend = $state(localStorage.getItem("aiBackend") || "webgpu");
-  
-  // Get default model based on backend
-  function getDefaultModel() {
-    const saved = localStorage.getItem("selectedModel");
-    if (saved) return saved;
-    return backend === "webgpu" ? MODELS[0].id : OLLAMA_MODELS[0].name;
-  }
-  
-  let selectedModel = $state(getDefaultModel());
+  let backend = $state("webgpu");
+  let selectedModel = $state(MODELS[0].id);
   let status = $state(null);       // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
@@ -55,7 +48,15 @@
   let greetingShown = false;
 
   // ── Shared engine listener ─────────────────────────────────────────
-  onMount(() => {
+  onMount(async () => {
+    // Restore saved backend and model from IndexedDB
+    const [savedBackend, savedModel] = await Promise.all([
+      getSetting("aiBackend"),
+      getSetting("selectedModel"),
+    ]);
+    if (savedBackend) backend = savedBackend;
+    if (savedModel) selectedModel = savedModel;
+
     engine.check();
 
     if (engine.isReady) {
@@ -286,10 +287,10 @@
     });
   }
 
-  function loadModel() {
+  async function loadModel() {
     status = "loading";
-    localStorage.setItem("selectedModel", selectedModel);
-    localStorage.setItem("aiBackend", backend);
+    await setSetting("selectedModel", selectedModel);
+    await setSetting("aiBackend", backend);
     // Clear gpuInfo when switching to Ollama
     if (backend === "ollama") {
       gpuInfo = null;

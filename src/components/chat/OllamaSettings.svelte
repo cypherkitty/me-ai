@@ -1,21 +1,24 @@
 <script>
   import { OLLAMA_MODELS, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
-  import { getOllamaUrl, setOllamaUrl, testOllamaConnection, listOllamaModels } from "../../lib/ollama-client.js";
+  import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels } from "../../lib/ollama-client.js";
 
   let { selectedModel = $bindable(), onload, error = $bindable() } = $props();
 
   const isLocal = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  let ollamaUrl = $state(getOllamaUrl());
+  let ollamaUrl = $state(getOllamaUrl()); // sync default; overwritten from IndexedDB on mount
   let isTestingConnection = $state(false);
   let connectionStatus = $state(null); // { connected: boolean, version?: string, error?: string }
   let availableModels = $state([]); // Models installed on the Ollama server
   let isLoadingModels = $state(false);
 
-  // Test connection on mount
+  // Load saved URL from IndexedDB, then test
   $effect(() => {
-    testConnection();
+    getOllamaUrlAsync().then((url) => {
+      ollamaUrl = url;
+      testConnection();
+    });
   });
 
   async function testConnection() {
