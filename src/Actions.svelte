@@ -44,12 +44,12 @@
   function saveScanHistory(progress) {
     if (!progress || progress.phase !== "done") return;
     try {
+      // Store only stats — no email content outside IndexedDB
       const entry = {
         timestamp: Date.now(),
         classified: progress.classified || 0,
         errors: progress.errors || 0,
         total: progress.total || 0,
-        results: progress.results || [],
         totals: progress.totals || {},
         summary: progress.summary || {},
       };
