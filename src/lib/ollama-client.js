@@ -33,7 +33,7 @@ export function setOllamaUrl(url) {
 
 /**
  * Test Ollama server connectivity
- * @returns {Promise<{connected: boolean, version?: string, error?: string}>}
+ * @returns {Promise<{connected: boolean, version?: string, error?: string, corsError?: boolean}>}
  */
 export async function testOllamaConnection(url = getOllamaUrl()) {
   try {
@@ -49,6 +49,19 @@ export async function testOllamaConnection(url = getOllamaUrl()) {
     const data = await response.json();
     return { connected: true, version: data.version };
   } catch (error) {
+    // Detect CORS errors
+    const isCorsError = error.message.includes("CORS") || 
+                        error.message.includes("Failed to fetch") ||
+                        error.name === "TypeError";
+    
+    if (isCorsError) {
+      return { 
+        connected: false,
+        corsError: true,
+        error: "CORS error: Server must allow requests from this origin. Configure Access-Control-Allow-Origin header." 
+      };
+    }
+    
     return { 
       connected: false, 
       error: error.name === "TimeoutError" ? "Connection timeout" : error.message 
