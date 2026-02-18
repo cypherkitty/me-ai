@@ -35,7 +35,7 @@
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
 
   async function loadScanHistory() {
-    return getSetting(SCAN_HISTORY_KEY);
+    return await getSetting(SCAN_HISTORY_KEY);
   }
 
   async function saveScanHistory(progress) {
@@ -180,7 +180,7 @@
     ondismisserror={() => error = null}
     onstop={stopScan}
     onrefresh={loadData}
-    oncloseprogress={() => { scanProgress = null; removeSetting(SCAN_HISTORY_KEY); }}
+    oncloseprogress={async () => { scanProgress = null; await removeSetting(SCAN_HISTORY_KEY); }}
     bind:scanCount
   />
 </div>

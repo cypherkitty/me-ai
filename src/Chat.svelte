@@ -251,7 +251,7 @@
 
       // Show scan results as a batch event message in chat
       if (scanResults?.length > 0) {
-        const eventMsg = buildBatchEventMessage(scanResults);
+        const eventMsg = await buildBatchEventMessage(scanResults);
         messages = [...messages, eventMsg];
         scrollToBottom();
       }
@@ -318,7 +318,7 @@
         if (!grouped.order.length) {
           messages = [...messages, { role: "assistant", content: "No classified emails yet. Run a scan first from the Actions page." }];
         } else {
-          const eventsMsg = buildGroupedEventsMessage(grouped);
+          const eventsMsg = await buildGroupedEventsMessage(grouped);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {

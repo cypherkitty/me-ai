@@ -26,7 +26,7 @@
   }
 
   async function handleExecute(event, emailId) {
-    if (!isAuthenticated()) {
+    if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
     }
@@ -50,7 +50,7 @@
   }
 
   async function handleExecuteGroup(eventType, emails) {
-    if (!isAuthenticated()) {
+    if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
     }
