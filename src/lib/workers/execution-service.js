@@ -32,7 +32,7 @@ export async function executePipeline(event, onProgress) {
     onProgress?.({ phase: "starting", event });
 
     // Get access token via google-auth (stored under "me-ai:oauth-token")
-    const tokenData = getSavedToken();
+    const tokenData = await getSavedToken();
     if (!tokenData?.access_token) {
       throw new Error("Not authenticated. Please sign in to Gmail first.");
     }
@@ -96,7 +96,7 @@ export async function executePipelineBatch(eventType, events, onProgress) {
     });
 
     // Get access token via google-auth (stored under "me-ai:oauth-token")
-    const tokenData = getSavedToken();
+    const tokenData = await getSavedToken();
     if (!tokenData?.access_token) {
       throw new Error("Not authenticated. Please sign in to Gmail first.");
     }
@@ -172,10 +172,11 @@ export function getAvailableActions(source) {
 
 /**
  * Check if user is authenticated (has a valid access token).
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-export function isAuthenticated() {
-  return !!getSavedToken()?.access_token;
+export async function isAuthenticated() {
+  const tokenData = await getSavedToken();
+  return !!tokenData?.access_token;
 }
 
 /**
