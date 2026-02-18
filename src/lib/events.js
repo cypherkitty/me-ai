@@ -1,108 +1,35 @@
 /**
  * Event Stream + Action Pipeline
  *
- * Core architecture: HashMap<EventType, ActionPipeline>
+ * Tags  — LLM classification labels assigned to emails (e.g. "REVIEW", "DELETE").
+ *         Read-only output of the scan process. Stored in emailClassifications.action.
  *
- * Events are classified data items (emails, messages, etc.).
- * Each event type has a sequential pipeline of actions that execute in order.
- * Actions in a pipeline are not individually executable — the entire pipeline
- * runs as a single workflow.
+ * Events — User-defined named workflows, each with a sequential action pipeline.
+ *          Fully managed by the user; never auto-generated from tags.
+ *          Stored in IndexedDB settings under STORAGE_KEY.
+ *
+ * Actions are for events, not for tags.
  */
 
 /**
  * @typedef {Object} Action
- * @property {string} id       — unique identifier
- * @property {string} name     — display name
+ * @property {string} id          — unique identifier (e.g. "mark_read")
+ * @property {string} name        — display name
  * @property {string} description — what it does
- * @property {string} [icon]   — optional icon/emoji
- * @property {string} [body]   — optional rich content (LLM draft, parsed data, etc.)
+ * @property {string} [icon]      — optional emoji
  */
 
 /**
- * @typedef {Object} Event
- * @property {string} type     — event type (e.g. "REPLY", "DELETE")
+ * @typedef {Object} EmailEvent
+ * @property {string} type     — user-defined event name (e.g. "morning_cleanup")
  * @property {string} source   — origin (e.g. "gmail")
- * @property {Object} data     — raw payload
- * @property {Object} metadata — classification result, timestamps, etc.
+ * @property {Object} data     — email payload
+ * @property {Object} metadata — scan metadata (tag, summary, reason, etc.)
  */
 
-/**
- * Action Pipeline registry: maps event types to their sequential action pipelines.
- * This is the HashMap<EventType, ActionPipeline> at the heart of the system.
- *
- * Built-in defaults serve as a starting point. Users can customize
- * action pipelines per event type via the Action Editor; overrides are
- * persisted in localStorage under STORAGE_KEY.
- */
+const STORAGE_KEY = "me-ai-events";
 
-const STORAGE_KEY = "me-ai-action-pipelines";
-
-const BUILTIN_PIPELINES = {
-  REPLY: [
-    { id: "star", name: "Star", description: "Mark as important for follow-up", icon: "⭐" },
-    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  ],
-  FOLLOW_UP: [
-    { id: "star", name: "Star", description: "Mark for follow-up", icon: "⭐" },
-    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
-  ],
-  DELETE: [
-    { id: "trash", name: "Move to Trash", description: "Move email to trash", icon: "🗑️" },
-  ],
-  ARCHIVE: [
-    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
-    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  ],
-  READ_LATER: [
-    { id: "star", name: "Star", description: "Mark for reading later", icon: "⭐" },
-    { id: "mark_unread", name: "Keep Unread", description: "Keep as unread reminder", icon: "📧" },
-  ],
-  REVIEW: [
-    { id: "mark_read", name: "Mark as Read", description: "Mark as reviewed", icon: "✅" },
-    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
-  ],
-  PAY_BILL: [
-    { id: "star", name: "Star", description: "Mark for payment", icon: "⭐" },
-    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
-  ],
-  TRACK_DELIVERY: [
-    { id: "star", name: "Star", description: "Track delivery", icon: "⭐" },
-    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  ],
-  SCHEDULE_MEETING: [
-    { id: "star", name: "Star", description: "Mark for scheduling", icon: "⭐" },
-    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
-  ],
-  UNSUBSCRIBE: [
-    { id: "mark_spam", name: "Mark as Spam", description: "Move to spam folder", icon: "🚫" },
-  ],
-  SAVE_RECEIPT: [
-    { id: "star", name: "Star", description: "Star for records", icon: "⭐" },
-    { id: "archive", name: "Archive", description: "Move to archive", icon: "📦" },
-    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  ],
-  ACKNOWLEDGE: [
-    { id: "mark_read", name: "Mark as Read", description: "Mark as acknowledged", icon: "✅" },
-    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
-  ],
-  NO_ACTION: [
-    { id: "archive", name: "Archive", description: "Archive without action", icon: "📦" },
-    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  ],
-  IGNORE: [
-    { id: "mark_spam", name: "Mark as Spam", description: "Mark as spam and remove", icon: "🚫" },
-  ],
-};
-
-/**
- * Default action pipeline for any event type not in the map.
- */
-const DEFAULT_PIPELINE = [
-  { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
-  { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
-];
-
-// ── Persistence helpers ─────────────────────────────────────────────
+// ── Persistence ─────────────────────────────────────────────────────
 
 async function loadUserMap() {
   const { getSetting } = await import("./store/settings.js");
@@ -114,88 +41,96 @@ async function saveUserMap(map) {
   await setSetting(STORAGE_KEY, map);
 }
 
+// ── Event type queries ──────────────────────────────────────────────
+
 /**
- * Get the effective action pipeline map (builtins merged with user overrides).
- * @returns {Promise<Record<string, Action[]>>}
+ * Get all user-defined event names.
+ * @returns {Promise<string[]>}
  */
-export async function getActionPipelineMap() {
-  const userMap = await loadUserMap();
-  return { ...BUILTIN_PIPELINES, ...userMap };
+export async function getAllEventTypes() {
+  const map = await loadUserMap();
+  return Object.keys(map).sort();
 }
 
 /**
- * Get action pipeline for an event type.
- * Checks user overrides first, then builtins, then defaults.
+ * Get the action pipeline for a user-defined event.
+ * Returns [] if the event doesn't exist — no hardcoded fallbacks.
  * @param {string} eventType
  * @returns {Promise<Action[]>}
  */
 export async function getActionsForEvent(eventType) {
   const normalized = eventType?.toUpperCase?.() || "";
-  const userMap = await loadUserMap();
-  if (userMap[normalized]) return userMap[normalized];
-  return BUILTIN_PIPELINES[normalized] || DEFAULT_PIPELINE;
+  const map = await loadUserMap();
+  return map[normalized] || [];
 }
 
-// Alias for backwards compatibility
+// Alias for backward compatibility
 export const getCommandsForEvent = getActionsForEvent;
 
 /**
- * Get all registered event types (builtins + user-defined).
- * @returns {Promise<string[]>}
+ * Check if a user-defined event exists.
+ * @param {string} eventType
+ * @returns {Promise<boolean>}
  */
-export async function getRegisteredEventTypes() {
-  const userMap = await loadUserMap();
-  const all = new Set([...Object.keys(BUILTIN_PIPELINES), ...Object.keys(userMap)]);
-  return [...all];
+export async function hasEvent(eventType) {
+  const normalized = eventType?.toUpperCase?.() || "";
+  const map = await loadUserMap();
+  return normalized in map;
 }
 
+// Alias for backward compatibility
+export const hasUserOverride = hasEvent;
+
+// ── Event CRUD ──────────────────────────────────────────────────────
+
 /**
- * Get event types from classified emails in the database.
- * @returns {Promise<string[]>}
+ * Create a new user-defined event with an empty pipeline.
+ * Does not overwrite an existing event.
+ * @param {string} eventType
  */
-export async function getEventTypesFromDB() {
-  try {
-    const { db } = await import("./store/db.js");
-    const classifications = await db.emailClassifications.toArray();
-    const types = new Set(classifications.map(c => c.action).filter(Boolean));
-    return [...types].sort();
-  } catch {
-    return [];
+export async function addEventType(eventType) {
+  const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+  if (!normalized) return;
+  const map = await loadUserMap();
+  if (!(normalized in map)) {
+    map[normalized] = [];
+    await saveUserMap(map);
   }
 }
 
 /**
- * Get active event types: only types seen in scanned emails + user-customized ones.
- * Builtin types that have never appeared in a scan are excluded to keep the editor clean.
- * @returns {Promise<string[]>}
+ * Permanently delete a user-defined event and its pipeline.
+ * @param {string} eventType
  */
-export async function getAllEventTypes() {
-  const userMap = await loadUserMap();
-  const fromDB = await getEventTypesFromDB();
-  // Show: types from actual scans + types the user has explicitly overridden/created
-  const all = new Set([...fromDB, ...Object.keys(userMap)]);
-  return [...all].sort();
+export async function deleteEventType(eventType) {
+  const normalized = eventType.toUpperCase();
+  const map = await loadUserMap();
+  delete map[normalized];
+  await saveUserMap(map);
 }
 
-// ── Action Pipeline CRUD ────────────────────────────────────────────
+// Aliases for backward compatibility
+export const removeEventTypeOverride = deleteEventType;
+export const resetEventType = deleteEventType;
+
+// ── Action pipeline CRUD ────────────────────────────────────────────
 
 /**
- * Save the full action pipeline for an event type (user override).
+ * Replace the full action pipeline for an event.
  * @param {string} eventType
  * @param {Action[]} actions
  */
 export async function saveActionsForEvent(eventType, actions) {
   const normalized = eventType.toUpperCase();
-  const userMap = await loadUserMap();
-  userMap[normalized] = actions;
-  await saveUserMap(userMap);
+  const map = await loadUserMap();
+  map[normalized] = actions;
+  await saveUserMap(map);
 }
 
-// Alias for backwards compatibility
 export const saveCommandsForEvent = saveActionsForEvent;
 
 /**
- * Add a single action to an event type's pipeline.
+ * Append a single action to an event's pipeline.
  * @param {string} eventType
  * @param {Action} action
  */
@@ -204,24 +139,22 @@ export async function addActionToEvent(eventType, action) {
   await saveActionsForEvent(eventType, [...current, action]);
 }
 
-// Alias for backwards compatibility
 export const addCommandToEvent = addActionToEvent;
 
 /**
- * Remove an action from an event type's pipeline by id.
+ * Remove an action from an event's pipeline by id.
  * @param {string} eventType
  * @param {string} actionId
  */
 export async function removeActionFromEvent(eventType, actionId) {
   const current = await getActionsForEvent(eventType);
-  await saveActionsForEvent(eventType, current.filter(c => c.id !== actionId));
+  await saveActionsForEvent(eventType, current.filter(a => a.id !== actionId));
 }
 
-// Alias for backwards compatibility
 export const removeCommandFromEvent = removeActionFromEvent;
 
 /**
- * Update an action within an event type's pipeline.
+ * Update a single action within an event's pipeline.
  * @param {string} eventType
  * @param {string} actionId
  * @param {Partial<Action>} updates
@@ -230,63 +163,25 @@ export async function updateActionInEvent(eventType, actionId, updates) {
   const current = await getActionsForEvent(eventType);
   await saveActionsForEvent(
     eventType,
-    current.map(c => c.id === actionId ? { ...c, ...updates } : c),
+    current.map(a => a.id === actionId ? { ...a, ...updates } : a),
   );
 }
 
-// Alias for backwards compatibility
 export const updateCommandInEvent = updateActionInEvent;
 
-/**
- * Add a new event type with optional initial action pipeline.
- * @param {string} eventType
- * @param {Action[]} [actions]
- */
-export async function addEventType(eventType, actions) {
-  const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
-  if (!normalized) return;
-  await saveActionsForEvent(normalized, actions || [...DEFAULT_PIPELINE]);
-}
+// ── Chat message builders ───────────────────────────────────────────
 
 /**
- * Remove a user-defined event type override (reverts to builtin if exists).
- * @param {string} eventType
- */
-export async function removeEventTypeOverride(eventType) {
-  const normalized = eventType.toUpperCase();
-  const userMap = await loadUserMap();
-  delete userMap[normalized];
-  await saveUserMap(userMap);
-}
-
-/**
- * Check if an event type has user overrides.
- * @param {string} eventType
- * @returns {Promise<boolean>}
- */
-export async function hasUserOverride(eventType) {
-  const normalized = eventType?.toUpperCase?.() || "";
-  const userMap = await loadUserMap();
-  return normalized in userMap;
-}
-
-/**
- * Reset an event type back to its builtin commands (removes override).
- * @param {string} eventType
- */
-export async function resetEventType(eventType) {
-  await removeEventTypeOverride(eventType);
-}
-
-/**
- * Build a typed event from an email classification result.
+ * Build an email event object from an LLM classification result.
+ * The event.metadata.tag holds the LLM tag; event.type is left empty
+ * since the user picks which event pipeline to run at execution time.
  * @param {Object} classification — { action, reason, summary, tags }
- * @param {Object} email — { subject, from, date, body, ... }
- * @returns {{ event: Event, commands: Command[] }}
+ * @param {Object} email          — { subject, from, date, snippet, body }
+ * @returns {Promise<{ event: EmailEvent, commands: Action[] }>}
  */
 export async function buildEmailEvent(classification, email) {
   const event = {
-    type: classification.action,
+    type: "",  // not set — user selects an event at execution time
     source: "gmail",
     data: {
       subject: email.subject,
@@ -295,6 +190,7 @@ export async function buildEmailEvent(classification, email) {
       snippet: email.snippet || email.body?.slice(0, 200) || "",
     },
     metadata: {
+      tag: classification.action,   // LLM-assigned tag
       reason: classification.reason,
       summary: classification.summary,
       tags: classification.tags || [],
@@ -302,14 +198,11 @@ export async function buildEmailEvent(classification, email) {
     },
   };
 
-  const commands = await getCommandsForEvent(classification.action);
-
-  return { event, commands };
+  return { event, commands: [] };
 }
 
 /**
- * Build a typed chat message from an event + commands.
- * This is what gets pushed into the messages array.
+ * Build a chat message representing a typed event.
  */
 export function buildEventMessage(event, commands) {
   return {
@@ -322,8 +215,7 @@ export function buildEventMessage(event, commands) {
 }
 
 /**
- * Build a batch event message from multiple classifications.
- * Used after a scan to show all results in one message.
+ * Build a batch event message from multiple scan results.
  */
 export async function buildBatchEventMessage(results) {
   const items = await Promise.all(
@@ -344,16 +236,16 @@ export async function buildBatchEventMessage(results) {
 }
 
 /**
- * Build a grouped events message from DB classifications.
- * Groups emails by event type (action), each group has its emails + commands.
+ * Build a grouped events message for the /events chat command.
+ * Groups emails by their LLM tag. No pipeline is auto-assigned —
+ * the user picks an event to execute at interaction time.
  *
- * @param {Object} grouped — { groups: { ACTION: [...items] }, order: ["ACTION", ...] }
+ * @param {Object} grouped — { groups: { TAG: [...items] }, order: ["TAG", ...] }
  * @returns {Promise<Object>} chat message of type "events-grouped"
  */
 export async function buildGroupedEventsMessage(grouped) {
-  const groups = await Promise.all(grouped.order.map(async action => {
-    const items = grouped.groups[action] || [];
-    const commands = await getCommandsForEvent(action);
+  const groups = grouped.order.map(tag => {
+    const items = grouped.groups[tag] || [];
     const emails = items.map(item => ({
       emailId: item.emailId,
       subject: item.subject || "(no subject)",
@@ -364,8 +256,8 @@ export async function buildGroupedEventsMessage(grouped) {
       tags: item.tags || [],
       status: item.status || "pending",
     }));
-    return { eventType: action, emails, commands };
-  }));
+    return { tag, emails };
+  });
 
   const total = groups.reduce((sum, g) => sum + g.emails.length, 0);
 

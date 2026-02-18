@@ -7,8 +7,7 @@
     removeCommandFromEvent,
     updateCommandInEvent,
     addEventType,
-    hasUserOverride,
-    resetEventType,
+    deleteEventType,
   } from "../../lib/events.js";
   import { stringToHue } from "../../lib/format.js";
 
@@ -69,11 +68,13 @@
     await selectType(normalized);
   }
 
-  async function handleResetType() {
+  async function handleDeleteType() {
     if (!selectedType) return;
-    await resetEventType(selectedType);
+    await deleteEventType(selectedType);
+    selectedType = null;
+    commands = [];
+    selectedTypeHasOverride = false;
     await refresh();
-    commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
   }
 
   async function handleAddCommand() {
@@ -137,8 +138,8 @@
         <!-- Left: event types list -->
         <div class="types-sidebar">
           <div class="sidebar-head">
-            <span class="sidebar-title">Event Types</span>
-            <button class="icon-btn" title="Add event type" onclick={() => showNewType = !showNewType}>+</button>
+            <span class="sidebar-title">Events</span>
+            <button class="icon-btn" title="Add event" onclick={() => showNewType = !showNewType}>+</button>
           </div>
 
           {#if showNewType}
@@ -178,9 +179,7 @@
               <span class="cmd-count">{commands.length} action{commands.length === 1 ? "" : "s"}</span>
               <span class="pipeline-note">• Sequential pipeline</span>
               <span class="spacer"></span>
-              {#if selectedTypeHasOverride}
-                <button class="text-btn" onclick={handleResetType}>Reset to defaults</button>
-              {/if}
+              <button class="text-btn danger" onclick={handleDeleteType}>Delete event</button>
               <button class="small-btn" onclick={() => { showNewCmd = !showNewCmd; editingCmd = null; }}>
                 {showNewCmd ? "Cancel" : "+ Add Action"}
               </button>
@@ -250,7 +249,11 @@
 
           {:else}
             <div class="no-selection">
-              <p>Select an event type on the left to view and edit its commands.</p>
+              {#if eventTypes.length === 0}
+                <p>No events yet. Click <strong>+</strong> to create your first event and define its action pipeline.</p>
+              {:else}
+                <p>Select an event on the left to view and edit its actions.</p>
+              {/if}
             </div>
           {/if}
         </div>
@@ -596,6 +599,12 @@
   }
   .text-btn:hover {
     color: #999;
+  }
+  .text-btn.danger {
+    color: #555;
+  }
+  .text-btn.danger:hover {
+    color: #f87171;
   }
 
   /* ── Form ─────────────────────────────────────────────────────────── */
