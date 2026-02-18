@@ -7,6 +7,7 @@
 
 import { workerRegistry } from "./worker-registry.js";
 import { getActionsForEvent } from "../events.js";
+import { getSavedToken } from "../google-auth.js";
 
 /**
  * @typedef {Object} ExecutionProgress
@@ -30,11 +31,12 @@ export async function executePipeline(event, onProgress) {
   try {
     onProgress?.({ phase: "starting", event });
 
-    // Get access token from sessionStorage (set during Google OAuth)
-    const accessToken = sessionStorage.getItem("access_token");
-    if (!accessToken) {
+    // Get access token via google-auth (stored under "me-ai:oauth-token")
+    const tokenData = getSavedToken();
+    if (!tokenData?.access_token) {
       throw new Error("Not authenticated. Please sign in to Gmail first.");
     }
+    const accessToken = tokenData.access_token;
 
     // Get the action pipeline for this event type
     const actions = getActionsForEvent(event.type);
@@ -93,11 +95,12 @@ export async function executePipelineBatch(eventType, events, onProgress) {
       eventCount: events.length,
     });
 
-    // Get access token
-    const accessToken = sessionStorage.getItem("access_token");
-    if (!accessToken) {
+    // Get access token via google-auth (stored under "me-ai:oauth-token")
+    const tokenData = getSavedToken();
+    if (!tokenData?.access_token) {
       throw new Error("Not authenticated. Please sign in to Gmail first.");
     }
+    const accessToken = tokenData.access_token;
 
     // Get the action pipeline for this event type
     const actions = getActionsForEvent(eventType);
@@ -168,11 +171,11 @@ export function getAvailableActions(source) {
 }
 
 /**
- * Check if user is authenticated (has access token).
+ * Check if user is authenticated (has a valid access token).
  * @returns {boolean}
  */
 export function isAuthenticated() {
-  return !!sessionStorage.getItem("access_token");
+  return !!getSavedToken()?.access_token;
 }
 
 /**
