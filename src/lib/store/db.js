@@ -58,6 +58,19 @@ db.version(4).stores({
   emailClassifications: "emailId, action, date, scannedAt, status, *tags, [action+status]",
 });
 
+db.version(5).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+  emailClassifications: "emailId, action, date, scannedAt, status, *tags, [action+status]",
+
+  // ── App settings & auth tokens ──────────────────────────────────────
+  // key-value store for all app settings and session tokens.
+  // Replaces localStorage and sessionStorage entirely.
+  settings: "&key",
+});
+
 /**
  * Generate a universal item ID from source type and source-specific ID.
  * @param {string} sourceType - e.g. "gmail", "telegram"

@@ -13,6 +13,7 @@
     getScanStats,
   } from "./lib/triage.js";
   import ActionsView from "./components/actions/ActionsView.svelte";
+  import { getSetting, setSetting, removeSetting } from "./lib/store/settings.js";
 
   const engine = getUnifiedEngine();
 
@@ -33,32 +34,25 @@
 
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
 
-  function loadScanHistory() {
-    try {
-      const raw = localStorage.getItem(SCAN_HISTORY_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {}
-    return null;
+  async function loadScanHistory() {
+    return getSetting(SCAN_HISTORY_KEY);
   }
 
-  function saveScanHistory(progress) {
+  async function saveScanHistory(progress) {
     if (!progress || progress.phase !== "done") return;
-    try {
-      // Store only stats — no email content outside IndexedDB
-      const entry = {
-        timestamp: Date.now(),
-        classified: progress.classified || 0,
-        errors: progress.errors || 0,
-        total: progress.total || 0,
-        totals: progress.totals || {},
-        summary: progress.summary || {},
-      };
-      localStorage.setItem(SCAN_HISTORY_KEY, JSON.stringify(entry));
-    } catch {}
+    // Store only stats — no email content outside IndexedDB
+    await setSetting(SCAN_HISTORY_KEY, {
+      timestamp: Date.now(),
+      classified: progress.classified || 0,
+      errors: progress.errors || 0,
+      total: progress.total || 0,
+      totals: progress.totals || {},
+      summary: progress.summary || {},
+    });
   }
 
   // ── Track engine status ────────────────────────────────────────────
-  onMount(() => {
+  onMount(async () => {
     const unsub = engine.onMessage((msg) => {
       if (msg.status === "ready") {
         engineStatus = "ready";
@@ -78,8 +72,8 @@
       modelName = model?.name || model?.displayName || engine.modelId || "";
     }
 
-    // Restore last scan from localStorage
-    const saved = loadScanHistory();
+    // Restore last scan from IndexedDB
+    const saved = await loadScanHistory();
     if (saved) {
       scanProgress = { phase: "done", ...saved };
     }
@@ -186,7 +180,7 @@
     ondismisserror={() => error = null}
     onstop={stopScan}
     onrefresh={loadData}
-    oncloseprogress={() => { scanProgress = null; localStorage.removeItem(SCAN_HISTORY_KEY); }}
+    oncloseprogress={() => { scanProgress = null; removeSetting(SCAN_HISTORY_KEY); }}
     bind:scanCount
   />
 </div>

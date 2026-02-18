@@ -5,9 +5,8 @@
  * Uses the "implicit grant" flow via google.accounts.oauth2.initTokenClient
  * to get an access_token directly in the browser.
  *
- * Token is persisted in sessionStorage for the life of the browser tab,
- * so navigating between pages or refreshing doesn't require re-auth.
- * The token is cleared automatically when the tab/browser is closed.
+ * Token is persisted in IndexedDB (settings table) so it survives page
+ * navigation and refreshes. Cleared on revoke or expiry.
  */
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
@@ -19,40 +18,38 @@ let tokenClient = null;
 let _pendingResolve = null;
 let _expiresAt = 0; // in-memory expiry tracker (epoch ms)
 
-// ── Session persistence helpers ─────────────────────────────────────
+// ── Token persistence via IndexedDB ─────────────────────────────────
 
-function saveToken(accessToken, expiresIn) {
+async function saveToken(accessToken, expiresIn) {
   _expiresAt = Date.now() + expiresIn * 1000;
-  try {
-    sessionStorage.setItem(
-      TOKEN_KEY,
-      JSON.stringify({ access_token: accessToken, expires_at: _expiresAt })
-    );
-  } catch {}
+  const { setSetting } = await import("./store/settings.js");
+  await setSetting(TOKEN_KEY, { access_token: accessToken, expires_at: _expiresAt });
 }
 
-function clearSavedToken() {
+async function clearSavedToken() {
   _expiresAt = 0;
-  try { sessionStorage.removeItem(TOKEN_KEY); } catch {}
+  const { removeSetting } = await import("./store/settings.js");
+  await removeSetting(TOKEN_KEY);
 }
 
 /**
  * Restore a previously saved token if it hasn't expired.
  * Returns { access_token } or null.
  */
-export function getSavedToken() {
+export async function getSavedToken() {
   try {
-    const raw = sessionStorage.getItem(TOKEN_KEY);
-    if (!raw) return null;
-    const { access_token, expires_at } = JSON.parse(raw);
+    const { getSetting } = await import("./store/settings.js");
+    const data = await getSetting(TOKEN_KEY);
+    if (!data) return null;
+    const { access_token, expires_at } = data;
     if (!access_token || Date.now() > expires_at - EXPIRY_MARGIN_MS) {
-      clearSavedToken();
+      await clearSavedToken();
       return null;
     }
     _expiresAt = expires_at;
     return { access_token };
   } catch {
-    clearSavedToken();
+    await clearSavedToken();
     return null;
   }
 }
@@ -85,11 +82,11 @@ export function refreshToken() {
       return;
     }
 
-    _pendingResolve = (response) => {
+    _pendingResolve = async (response) => {
       if (response.error) {
         reject(new Error(response.error_description || response.error));
       } else {
-        saveToken(response.access_token, response.expires_in);
+        await saveToken(response.access_token, response.expires_in);
         resolve({
           access_token: response.access_token,
           expires_in: response.expires_in,
@@ -165,11 +162,11 @@ export function requestAccessToken() {
       return;
     }
 
-    _pendingResolve = (response) => {
+    _pendingResolve = async (response) => {
       if (response.error) {
         reject(new Error(response.error_description || response.error));
       } else {
-        saveToken(response.access_token, response.expires_in);
+        await saveToken(response.access_token, response.expires_in);
         resolve({
           access_token: response.access_token,
           expires_in: response.expires_in,
@@ -184,8 +181,8 @@ export function requestAccessToken() {
 /**
  * Revoke the given access token and clear saved session.
  */
-export function revokeToken(token) {
-  clearSavedToken();
+export async function revokeToken(token) {
+  await clearSavedToken();
   return new Promise((resolve) => {
     if (window.google?.accounts?.oauth2) {
       google.accounts.oauth2.revoke(token, () => resolve());

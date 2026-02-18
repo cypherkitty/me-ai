@@ -104,25 +104,22 @@ const DEFAULT_PIPELINE = [
 
 // ── Persistence helpers ─────────────────────────────────────────────
 
-function loadUserMap() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+async function loadUserMap() {
+  const { getSetting } = await import("./store/settings.js");
+  return (await getSetting(STORAGE_KEY)) || {};
 }
 
-function saveUserMap(map) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+async function saveUserMap(map) {
+  const { setSetting } = await import("./store/settings.js");
+  await setSetting(STORAGE_KEY, map);
 }
 
 /**
  * Get the effective action pipeline map (builtins merged with user overrides).
- * User-defined event types are appended. User overrides per event type
- * fully replace the builtin pipeline for that type.
- * @returns {Record<string, Action[]>}
+ * @returns {Promise<Record<string, Action[]>>}
  */
-export function getActionPipelineMap() {
-  const userMap = loadUserMap();
+export async function getActionPipelineMap() {
+  const userMap = await loadUserMap();
   return { ...BUILTIN_PIPELINES, ...userMap };
 }
 
@@ -130,11 +127,11 @@ export function getActionPipelineMap() {
  * Get action pipeline for an event type.
  * Checks user overrides first, then builtins, then defaults.
  * @param {string} eventType
- * @returns {Action[]}
+ * @returns {Promise<Action[]>}
  */
-export function getActionsForEvent(eventType) {
+export async function getActionsForEvent(eventType) {
   const normalized = eventType?.toUpperCase?.() || "";
-  const userMap = loadUserMap();
+  const userMap = await loadUserMap();
   if (userMap[normalized]) return userMap[normalized];
   return BUILTIN_PIPELINES[normalized] || DEFAULT_PIPELINE;
 }
@@ -144,10 +141,10 @@ export const getCommandsForEvent = getActionsForEvent;
 
 /**
  * Get all registered event types (builtins + user-defined).
- * @returns {string[]}
+ * @returns {Promise<string[]>}
  */
-export function getRegisteredEventTypes() {
-  const userMap = loadUserMap();
+export async function getRegisteredEventTypes() {
+  const userMap = await loadUserMap();
   const all = new Set([...Object.keys(BUILTIN_PIPELINES), ...Object.keys(userMap)]);
   return [...all];
 }
@@ -185,11 +182,11 @@ export async function getAllEventTypes() {
  * @param {string} eventType
  * @param {Action[]} actions
  */
-export function saveActionsForEvent(eventType, actions) {
+export async function saveActionsForEvent(eventType, actions) {
   const normalized = eventType.toUpperCase();
-  const userMap = loadUserMap();
+  const userMap = await loadUserMap();
   userMap[normalized] = actions;
-  saveUserMap(userMap);
+  await saveUserMap(userMap);
 }
 
 // Alias for backwards compatibility
@@ -200,9 +197,9 @@ export const saveCommandsForEvent = saveActionsForEvent;
  * @param {string} eventType
  * @param {Action} action
  */
-export function addActionToEvent(eventType, action) {
-  const current = getActionsForEvent(eventType);
-  saveActionsForEvent(eventType, [...current, action]);
+export async function addActionToEvent(eventType, action) {
+  const current = await getActionsForEvent(eventType);
+  await saveActionsForEvent(eventType, [...current, action]);
 }
 
 // Alias for backwards compatibility
@@ -213,9 +210,9 @@ export const addCommandToEvent = addActionToEvent;
  * @param {string} eventType
  * @param {string} actionId
  */
-export function removeActionFromEvent(eventType, actionId) {
-  const current = getActionsForEvent(eventType);
-  saveActionsForEvent(eventType, current.filter(c => c.id !== actionId));
+export async function removeActionFromEvent(eventType, actionId) {
+  const current = await getActionsForEvent(eventType);
+  await saveActionsForEvent(eventType, current.filter(c => c.id !== actionId));
 }
 
 // Alias for backwards compatibility
@@ -227,9 +224,9 @@ export const removeCommandFromEvent = removeActionFromEvent;
  * @param {string} actionId
  * @param {Partial<Action>} updates
  */
-export function updateActionInEvent(eventType, actionId, updates) {
-  const current = getActionsForEvent(eventType);
-  saveActionsForEvent(
+export async function updateActionInEvent(eventType, actionId, updates) {
+  const current = await getActionsForEvent(eventType);
+  await saveActionsForEvent(
     eventType,
     current.map(c => c.id === actionId ? { ...c, ...updates } : c),
   );
@@ -243,31 +240,31 @@ export const updateCommandInEvent = updateActionInEvent;
  * @param {string} eventType
  * @param {Action[]} [actions]
  */
-export function addEventType(eventType, actions) {
+export async function addEventType(eventType, actions) {
   const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
   if (!normalized) return;
-  saveActionsForEvent(normalized, actions || [...DEFAULT_PIPELINE]);
+  await saveActionsForEvent(normalized, actions || [...DEFAULT_PIPELINE]);
 }
 
 /**
  * Remove a user-defined event type override (reverts to builtin if exists).
  * @param {string} eventType
  */
-export function removeEventTypeOverride(eventType) {
+export async function removeEventTypeOverride(eventType) {
   const normalized = eventType.toUpperCase();
-  const userMap = loadUserMap();
+  const userMap = await loadUserMap();
   delete userMap[normalized];
-  saveUserMap(userMap);
+  await saveUserMap(userMap);
 }
 
 /**
  * Check if an event type has user overrides.
  * @param {string} eventType
- * @returns {boolean}
+ * @returns {Promise<boolean>}
  */
-export function hasUserOverride(eventType) {
+export async function hasUserOverride(eventType) {
   const normalized = eventType?.toUpperCase?.() || "";
-  const userMap = loadUserMap();
+  const userMap = await loadUserMap();
   return normalized in userMap;
 }
 
@@ -275,8 +272,8 @@ export function hasUserOverride(eventType) {
  * Reset an event type back to its builtin commands (removes override).
  * @param {string} eventType
  */
-export function resetEventType(eventType) {
-  removeEventTypeOverride(eventType);
+export async function resetEventType(eventType) {
+  await removeEventTypeOverride(eventType);
 }
 
 /**
