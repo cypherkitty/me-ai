@@ -282,7 +282,7 @@ export async function resetEventType(eventType) {
  * @param {Object} email — { subject, from, date, body, ... }
  * @returns {{ event: Event, commands: Command[] }}
  */
-export function buildEmailEvent(classification, email) {
+export async function buildEmailEvent(classification, email) {
   const event = {
     type: classification.action,
     source: "gmail",
@@ -300,7 +300,7 @@ export function buildEmailEvent(classification, email) {
     },
   };
 
-  const commands = getCommandsForEvent(classification.action);
+  const commands = await getCommandsForEvent(classification.action);
 
   return { event, commands };
 }
@@ -315,7 +315,7 @@ export function buildEventMessage(event, commands) {
     type: "event",
     event,
     commands,
-    content: "", // typed messages don't need text content
+    content: "",
   };
 }
 
@@ -323,13 +323,15 @@ export function buildEventMessage(event, commands) {
  * Build a batch event message from multiple classifications.
  * Used after a scan to show all results in one message.
  */
-export function buildBatchEventMessage(results) {
-  const items = results
-    .filter(r => r.success && r.classification)
-    .map(r => {
-      const { event, commands } = buildEmailEvent(r.classification, r.email);
-      return { event, commands };
-    });
+export async function buildBatchEventMessage(results) {
+  const items = await Promise.all(
+    results
+      .filter(r => r.success && r.classification)
+      .map(async r => {
+        const { event, commands } = await buildEmailEvent(r.classification, r.email);
+        return { event, commands };
+      })
+  );
 
   return {
     role: "assistant",
@@ -344,12 +346,12 @@ export function buildBatchEventMessage(results) {
  * Groups emails by event type (action), each group has its emails + commands.
  *
  * @param {Object} grouped — { groups: { ACTION: [...items] }, order: ["ACTION", ...] }
- * @returns {Object} chat message of type "events-grouped"
+ * @returns {Promise<Object>} chat message of type "events-grouped"
  */
-export function buildGroupedEventsMessage(grouped) {
-  const groups = grouped.order.map(action => {
+export async function buildGroupedEventsMessage(grouped) {
+  const groups = await Promise.all(grouped.order.map(async action => {
     const items = grouped.groups[action] || [];
-    const commands = getCommandsForEvent(action);
+    const commands = await getCommandsForEvent(action);
     const emails = items.map(item => ({
       emailId: item.emailId,
       subject: item.subject || "(no subject)",
@@ -361,7 +363,7 @@ export function buildGroupedEventsMessage(grouped) {
       status: item.status || "pending",
     }));
     return { eventType: action, emails, commands };
-  });
+  }));
 
   const total = groups.reduce((sum, g) => sum + g.emails.length, 0);
 
