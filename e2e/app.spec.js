@@ -124,14 +124,26 @@ test.describe("Dashboard page (no client ID)", () => {
 // Dashboard page — with client ID (AuthCard)
 // ────────────────────────────────────────────────────────────
 test.describe("Dashboard page (with client ID)", () => {
-  test("shows auth card when client ID is set via localStorage", async ({ page }) => {
-    // Set localStorage before the app loads via addInitScript
-    await page.addInitScript(() => {
-      localStorage.setItem("googleClientId", "fake-client-id.apps.googleusercontent.com");
-    });
-
-    // Full page load with dashboard hash — component reads clientId on mount
+  test("shows auth card when client ID is set via IndexedDB", async ({ page }) => {
+    // Load page first so the DB is created and upgraded to version 5
     await page.goto("/#dashboard");
+    await page.waitForLoadState("networkidle");
+
+    // Write clientId directly into the IndexedDB settings table using raw IDB API
+    await page.evaluate(() => new Promise((resolve, reject) => {
+      const req = indexedDB.open("me-ai-store", 5);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("settings", "readwrite");
+        tx.objectStore("settings").put({ key: "googleClientId", value: "fake-client-id.apps.googleusercontent.com" });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+      req.onerror = () => reject(req.error);
+    }));
+
+    // Reload so the app picks up the new setting
+    await page.reload();
     await page.waitForLoadState("networkidle");
 
     // Should see the auth card with "Gmail Dashboard" heading
@@ -141,9 +153,6 @@ test.describe("Dashboard page (with client ID)", () => {
     // Should see the Google sign-in button
     const signInButton = page.getByRole("button", { name: /Sign in with Google/ });
     await expect(signInButton).toBeVisible();
-
-    // Cleanup
-    await page.evaluate(() => localStorage.removeItem("googleClientId"));
   });
 });
 
