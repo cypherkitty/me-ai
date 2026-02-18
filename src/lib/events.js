@@ -39,57 +39,58 @@ const STORAGE_KEY = "me-ai-action-pipelines";
 
 const BUILTIN_PIPELINES = {
   REPLY: [
-    { id: "draft_reply", name: "Draft Reply", description: "Generate a reply draft using LLM", icon: "✏️" },
-    { id: "mark_done", name: "Mark Done", description: "Mark as handled", icon: "✅" },
+    { id: "star", name: "Star", description: "Mark as important for follow-up", icon: "⭐" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
   ],
   FOLLOW_UP: [
-    { id: "draft_follow_up", name: "Draft Follow-up", description: "Generate a follow-up message", icon: "✏️" },
-    { id: "set_reminder", name: "Set Reminder", description: "Remind me to follow up", icon: "⏰" },
+    { id: "star", name: "Star", description: "Mark for follow-up", icon: "⭐" },
+    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
   ],
   DELETE: [
-    { id: "confirm_delete", name: "Delete", description: "Confirm deletion", icon: "🗑️" },
+    { id: "trash", name: "Move to Trash", description: "Move email to trash", icon: "🗑️" },
   ],
   ARCHIVE: [
-    { id: "confirm_archive", name: "Archive", description: "Move to archive", icon: "📦" },
+    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
   ],
   READ_LATER: [
-    { id: "snooze", name: "Snooze", description: "Remind me later", icon: "⏰" },
-    { id: "summarize", name: "Summarize", description: "Get a quick LLM summary", icon: "📝" },
+    { id: "star", name: "Star", description: "Mark for reading later", icon: "⭐" },
+    { id: "mark_unread", name: "Keep Unread", description: "Keep as unread reminder", icon: "📧" },
   ],
   REVIEW: [
-    { id: "summarize", name: "Summarize", description: "Get a quick LLM summary", icon: "📝" },
-    { id: "mark_done", name: "Mark Done", description: "Mark as reviewed", icon: "✅" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark as reviewed", icon: "✅" },
+    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
   ],
   PAY_BILL: [
-    { id: "extract_amount", name: "Extract Details", description: "Extract payment amount and due date", icon: "💰" },
-    { id: "set_reminder", name: "Set Reminder", description: "Remind me before due date", icon: "⏰" },
-    { id: "mark_done", name: "Mark Paid", description: "Mark as paid", icon: "✅" },
+    { id: "star", name: "Star", description: "Mark for payment", icon: "⭐" },
+    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
   ],
   TRACK_DELIVERY: [
-    { id: "extract_tracking", name: "Extract Tracking", description: "Find tracking number and carrier", icon: "📦" },
-    { id: "set_reminder", name: "Set Reminder", description: "Remind me to check delivery", icon: "⏰" },
-    { id: "mark_done", name: "Mark Delivered", description: "Mark as delivered", icon: "✅" },
+    { id: "star", name: "Star", description: "Track delivery", icon: "⭐" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
   ],
   SCHEDULE_MEETING: [
-    { id: "extract_details", name: "Extract Details", description: "Extract meeting time, location, attendees", icon: "📅" },
-    { id: "draft_reply", name: "Confirm/Decline", description: "Draft a response", icon: "✏️" },
+    { id: "star", name: "Star", description: "Mark for scheduling", icon: "⭐" },
+    { id: "mark_important", name: "Mark Important", description: "Flag as important", icon: "🔴" },
   ],
   UNSUBSCRIBE: [
-    { id: "find_unsubscribe", name: "Find Unsubscribe Link", description: "Locate unsubscribe URL in email", icon: "🔗" },
-    { id: "confirm_delete", name: "Delete", description: "Delete this email", icon: "🗑️" },
+    { id: "mark_spam", name: "Mark as Spam", description: "Move to spam folder", icon: "🚫" },
   ],
   SAVE_RECEIPT: [
-    { id: "extract_amount", name: "Extract Details", description: "Extract amount, vendor, date", icon: "🧾" },
+    { id: "star", name: "Star", description: "Star for records", icon: "⭐" },
     { id: "archive", name: "Archive", description: "Move to archive", icon: "📦" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
   ],
   ACKNOWLEDGE: [
-    { id: "mark_done", name: "Acknowledge", description: "Mark as acknowledged", icon: "✅" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark as acknowledged", icon: "✅" },
+    { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
   ],
   NO_ACTION: [
-    { id: "archive", name: "Archive", description: "Move to archive", icon: "📦" },
+    { id: "archive", name: "Archive", description: "Archive without action", icon: "📦" },
+    { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
   ],
   IGNORE: [
-    { id: "confirm_delete", name: "Delete", description: "Delete this email", icon: "🗑️" },
+    { id: "mark_spam", name: "Mark as Spam", description: "Mark as spam and remove", icon: "🚫" },
   ],
 };
 
@@ -97,7 +98,8 @@ const BUILTIN_PIPELINES = {
  * Default action pipeline for any event type not in the map.
  */
 const DEFAULT_PIPELINE = [
-  { id: "mark_done", name: "Mark Done", description: "Mark as handled", icon: "✅" },
+  { id: "mark_read", name: "Mark as Read", description: "Mark email as read", icon: "✅" },
+  { id: "archive", name: "Archive", description: "Remove from inbox", icon: "📦" },
 ];
 
 // ── Persistence helpers ─────────────────────────────────────────────
