@@ -15,7 +15,9 @@
   let { open = $bindable(false) } = $props();
 
   let eventTypes = $state([]);
+  let commandCounts = $state({});
   let selectedType = $state(null);
+  let selectedTypeHasOverride = $state(false);
   let commands = $state([]);
   let editingCmd = $state(null);
   let showNewType = $state(false);
@@ -25,8 +27,14 @@
 
   async function refresh() {
     eventTypes = await getAllEventTypes();
+    const counts = {};
+    await Promise.all(eventTypes.map(async t => {
+      counts[t] = (await getCommandsForEvent(t)).length;
+    }));
+    commandCounts = counts;
     if (selectedType) {
       commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
+      selectedTypeHasOverride = await hasUserOverride(selectedType);
     }
   }
 
@@ -37,6 +45,7 @@
   async function selectType(type) {
     selectedType = type;
     commands = (await getCommandsForEvent(type)).map(c => ({ ...c }));
+    selectedTypeHasOverride = await hasUserOverride(type);
     editingCmd = null;
     showNewCmd = false;
   }
@@ -153,7 +162,7 @@
               >
                 <span class="type-dot" style:background={typeColor(type)}></span>
                 <span class="type-label">{formatLabel(type)}</span>
-                <span class="type-count">{getCommandsForEvent(type).length}</span>
+                <span class="type-count">{commandCounts[type] ?? 0}</span>
               </button>
             {/each}
           </div>
@@ -169,7 +178,7 @@
               <span class="cmd-count">{commands.length} action{commands.length === 1 ? "" : "s"}</span>
               <span class="pipeline-note">• Sequential pipeline</span>
               <span class="spacer"></span>
-              {#if hasUserOverride(selectedType)}
+              {#if selectedTypeHasOverride}
                 <button class="text-btn" onclick={handleResetType}>Reset to defaults</button>
               {/if}
               <button class="small-btn" onclick={() => { showNewCmd = !showNewCmd; editingCmd = null; }}>

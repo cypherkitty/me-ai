@@ -169,7 +169,7 @@ export async function getEventTypesFromDB() {
  * @returns {Promise<string[]>}
  */
 export async function getAllEventTypes() {
-  const registered = getRegisteredEventTypes();
+  const registered = await getRegisteredEventTypes();
   const fromDB = await getEventTypesFromDB();
   const all = new Set([...registered, ...fromDB]);
   return [...all].sort();
