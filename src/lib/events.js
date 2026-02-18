@@ -165,13 +165,15 @@ export async function getEventTypesFromDB() {
 }
 
 /**
- * Get all event types (builtins + user-defined + from database).
+ * Get active event types: only types seen in scanned emails + user-customized ones.
+ * Builtin types that have never appeared in a scan are excluded to keep the editor clean.
  * @returns {Promise<string[]>}
  */
 export async function getAllEventTypes() {
-  const registered = await getRegisteredEventTypes();
+  const userMap = await loadUserMap();
   const fromDB = await getEventTypesFromDB();
-  const all = new Set([...registered, ...fromDB]);
+  // Show: types from actual scans + types the user has explicitly overridden/created
+  const all = new Set([...fromDB, ...Object.keys(userMap)]);
   return [...all].sort();
 }
 
