@@ -271,22 +271,14 @@
     white-space: nowrap;
   }
   .ei-tag {
-    font-size: 0.55rem;
+    font-size: 0.58rem;
     font-weight: 700;
     color: #34d399;
-    background: rgba(52, 211, 153, 0.1);
-    border: 1px solid rgba(52, 211, 153, 0.2);
-    border-radius: 3px;
-    padding: 0.05rem 0.3rem;
     letter-spacing: 0.03em;
     flex-shrink: 0;
     text-transform: uppercase;
   }
-  .ei-tag.err {
-    color: #f87171;
-    background: rgba(248, 113, 113, 0.1);
-    border-color: rgba(248, 113, 113, 0.2);
-  }
+  .ei-tag.err { color: #f87171; }
   .ei-from { font-size: 0.58rem; color: #555; margin-bottom: 0.1rem; }
   .ei-summary { font-size: 0.62rem; color: #888; line-height: 1.4; margin-bottom: 0.1rem; }
   .ei-stats { font-size: 0.58rem; color: #555; }

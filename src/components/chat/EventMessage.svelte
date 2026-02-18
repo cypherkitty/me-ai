@@ -1,20 +1,12 @@
 <script>
-  import { onMount } from "svelte";
   import CommandCard from "./CommandCard.svelte";
   import { stringToHue } from "../../lib/format.js";
   import { executePipeline, executePipelineBatch, isAuthenticated } from "../../lib/workers/execution-service.js";
-  import { getAllEventTypes } from "../../lib/events.js";
 
   let { msg, oncommand } = $props();
 
   let expandedGroups = $state({});
   let executionState = $state({});
-  let userEvents = $state([]);               // user-defined event names
-  let selectedEventPerGroup = $state({});    // tag -> selected event name
-
-  onMount(async () => {
-    userEvents = await getAllEventTypes();
-  });
 
   function shortSender(from) {
     if (!from) return "—";
@@ -33,30 +25,16 @@
     oncommand?.({ event, commandId });
   }
 
-  function getSelectedEvent(tag) {
-    return selectedEventPerGroup[tag] ?? userEvents[0] ?? "";
-  }
-
-  function setSelectedEvent(tag, eventName) {
-    selectedEventPerGroup = { ...selectedEventPerGroup, [tag]: eventName };
-  }
-
-  async function handleExecute(tag, email) {
-    const eventName = getSelectedEvent(tag);
-    if (!eventName) {
-      alert("No event selected. Create an event in the Actions page first.");
-      return;
-    }
+  async function handleExecute(event, emailId) {
     if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
     }
 
-    const stateKey = `single_${email.emailId}`;
+    const stateKey = `single_${emailId}`;
     executionState[stateKey] = { running: true, progress: null, result: null };
 
     try {
-      const event = { type: eventName, source: "gmail", data: email };
       const result = await executePipeline(event, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
       });
@@ -70,22 +48,17 @@
     }
   }
 
-  async function handleExecuteGroup(tag, emails) {
-    const eventName = getSelectedEvent(tag);
-    if (!eventName) {
-      alert("No event selected. Create an event in the Actions page first.");
-      return;
-    }
+  async function handleExecuteGroup(eventType, emails) {
     if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
     }
 
-    const stateKey = `batch_${tag}`;
+    const stateKey = `batch_${eventType}`;
     executionState[stateKey] = { running: true, progress: null, result: null };
 
     try {
-      const result = await executePipelineBatch(eventName, emails, (progress) => {
+      const result = await executePipelineBatch(eventType, emails, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
       });
       executionState[stateKey] = { running: false, progress: null, result };
@@ -98,8 +71,8 @@
     }
   }
 
-  function toggleGroup(tag) {
-    expandedGroups = { ...expandedGroups, [tag]: !expandedGroups[tag] };
+  function toggleGroup(eventType) {
+    expandedGroups = { ...expandedGroups, [eventType]: !expandedGroups[eventType] };
   }
 
   function formatLabel(str) {
@@ -109,8 +82,8 @@
       .join(" ");
   }
 
-  function tagColor(tag) {
-    return `hsl(${stringToHue(tag)}, 55%, 55%)`;
+  function eventTypeColor(eventType) {
+    return `hsl(${stringToHue(eventType)}, 55%, 55%)`;
   }
 
   function getExecutionState(key) {
@@ -123,9 +96,7 @@
   <div class="event-msg">
     <div class="event-card">
       <div class="event-head">
-        {#if msg.event.metadata?.tag}
-          <span class="event-type">{msg.event.metadata.tag}</span>
-        {/if}
+        <span class="event-type">{msg.event.type}</span>
         <span class="event-source">{msg.event.source}</span>
       </div>
       {#if msg.event.data?.subject}
@@ -168,9 +139,7 @@
       <div class="event-msg compact">
         <div class="event-card">
           <div class="event-head">
-            {#if item.event.metadata?.tag}
-              <span class="event-type">{item.event.metadata.tag}</span>
-            {/if}
+            <span class="event-type">{item.event.type}</span>
             {#if item.event.data?.subject}
               <span class="event-subject-inline">{item.event.data.subject}</span>
             {/if}
@@ -193,23 +162,21 @@
   </div>
 
 {:else if msg.type === "events-grouped"}
-  <!-- Grouped by tag; user picks a user-defined event to execute -->
+  <!-- Grouped by event type from /events command -->
   <div class="events-grouped">
     <div class="grouped-head">
-      <span class="grouped-title">Scanned emails</span>
-      <span class="grouped-stat">{msg.total} email{msg.total === 1 ? "" : "s"} · {msg.groups.length} tag{msg.groups.length === 1 ? "" : "s"}</span>
+      <span class="grouped-title">Events</span>
+      <span class="grouped-stat">{msg.total} email{msg.total === 1 ? "" : "s"} in {msg.groups.length} event type{msg.groups.length === 1 ? "" : "s"}</span>
     </div>
 
     {#each msg.groups as group}
-      {@const isExpanded = expandedGroups[group.tag] ?? true}
-      {@const batchState = getExecutionState(`batch_${group.tag}`)}
-      {@const selectedEvt = getSelectedEvent(group.tag)}
+      {@const isExpanded = expandedGroups[group.eventType] ?? true}
+      {@const batchState = getExecutionState(`batch_${group.eventType}`)}
       <div class="group-block">
         <div class="group-header-row">
-          <button class="group-header" onclick={() => toggleGroup(group.tag)}>
-            <span class="tag-label">Tag</span>
-            <span class="group-badge" style:background={tagColor(group.tag)}>
-              {formatLabel(group.tag)}
+          <button class="group-header" onclick={() => toggleGroup(group.eventType)}>
+            <span class="group-badge" style:background={eventTypeColor(group.eventType)}>
+              {formatLabel(group.eventType)}
             </span>
             <span class="group-count">{group.emails.length}</span>
             <span class="spacer"></span>
@@ -221,37 +188,19 @@
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </button>
-        </div>
-
-        <!-- Event picker + Execute All -->
-        <div class="event-exec-row">
-          {#if userEvents.length === 0}
-            <span class="no-events-hint">No events defined — create one in the Actions page</span>
-          {:else}
-            <span class="exec-label">Run event:</span>
-            <select
-              class="event-select"
-              value={selectedEvt}
-              onchange={(e) => setSelectedEvent(group.tag, e.target.value)}
-            >
-              {#each userEvents as evt}
-                <option value={evt}>{formatLabel(evt)}</option>
-              {/each}
-            </select>
-            <button
-              class="execute-all-btn"
-              onclick={() => handleExecuteGroup(group.tag, group.emails)}
-              disabled={batchState?.running || !selectedEvt}
-            >
-              {#if batchState?.running}
-                ⏳ Running...
-              {:else if batchState?.result}
-                {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed`}
-              {:else}
-                ▶ All ({group.emails.length})
-              {/if}
-            </button>
-          {/if}
+          <button
+            class="execute-all-btn"
+            onclick={(e) => { e.stopPropagation(); handleExecuteGroup(group.eventType, group.emails); }}
+            disabled={batchState?.running}
+          >
+            {#if batchState?.running}
+              ⏳ Running...
+            {:else if batchState?.result}
+              {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed (${batchState.result.failed}/${batchState.result.total})`}
+            {:else}
+              ▶ Execute All ({group.emails.length})
+            {/if}
+          </button>
         </div>
 
         {#if batchState?.result}
@@ -276,18 +225,19 @@
                   {/if}
                   {#if email.tags?.length}
                     <div class="email-tags">
-                      {#each email.tags as t}
-                        <span class="tag">{t}</span>
+                      {#each email.tags as tag}
+                        <span class="tag">{tag}</span>
                       {/each}
                     </div>
                   {/if}
                 </div>
-                {#if userEvents.length > 0}
-                  <div class="email-exec-row">
+                <div class="email-pipeline">
+                  <div class="pipeline-header">
+                    <span class="pipeline-label">Action Pipeline</span>
                     <button
                       class="execute-btn"
-                      onclick={() => handleExecute(group.tag, email)}
-                      disabled={execState?.running || !selectedEvt}
+                      onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId)}
+                      disabled={execState?.running}
                     >
                       {#if execState?.running}
                         ⏳ Running...
@@ -297,13 +247,29 @@
                         ▶ Execute
                       {/if}
                     </button>
-                    {#if execState?.result}
-                      <span class="exec-result-inline" class:success={execState.result.success} class:error={!execState.result.success}>
-                        {execState.result.message}
-                      </span>
-                    {/if}
                   </div>
-                {/if}
+                  {#if group.commands?.length}
+                    <div class="pipeline-steps">
+                      {#each group.commands as action, idx}
+                        <div class="pipeline-step">
+                          <span class="step-number">{idx + 1}</span>
+                          <div class="step-info">
+                            {#if action.icon}<span class="step-icon">{action.icon}</span>{/if}
+                            <span class="step-name">{action.name}</span>
+                            <span class="step-desc">{action.description}</span>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  {:else}
+                    <div class="pipeline-empty">No actions defined — configure in Actions page</div>
+                  {/if}
+                  {#if execState?.result}
+                    <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
+                      {execState.result.message}
+                    </div>
+                  {/if}
+                </div>
               </div>
             {/each}
           </div>
@@ -488,61 +454,6 @@
     gap: 0.4rem;
     padding: 0.3rem 0.4rem 0.3rem 0;
   }
-  .tag-label {
-    font-size: 0.52rem;
-    font-weight: 700;
-    color: #555;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-left: 0.7rem;
-  }
-  .event-exec-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.7rem 0.4rem;
-    border-top: 1px solid #1a1a1a;
-    background: rgba(59, 130, 246, 0.03);
-  }
-  .exec-label {
-    font-size: 0.6rem;
-    color: #666;
-    flex-shrink: 0;
-  }
-  .event-select {
-    flex: 1;
-    min-width: 0;
-    padding: 0.25rem 0.4rem;
-    font-size: 0.62rem;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 5px;
-    color: #ccc;
-    font-family: inherit;
-    outline: none;
-    cursor: pointer;
-  }
-  .event-select:focus {
-    border-color: #3b82f6;
-  }
-  .no-events-hint {
-    font-size: 0.6rem;
-    color: #555;
-    font-style: italic;
-  }
-  .email-exec-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-top: 0.3rem;
-    flex-wrap: wrap;
-  }
-  .exec-result-inline {
-    font-size: 0.6rem;
-    font-weight: 500;
-  }
-  .exec-result-inline.success { color: #22c55e; }
-  .exec-result-inline.error { color: #ef4444; }
   .group-header {
     display: flex;
     align-items: center;
@@ -654,6 +565,93 @@
     gap: 0.2rem;
     margin-top: 0.1rem;
   }
+  .email-pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+  .pipeline-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+  .pipeline-label {
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .pipeline-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .pipeline-step {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.4rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid #1a1a1a;
+    border-radius: 6px;
+  }
+  .step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 50%;
+    color: #3b82f6;
+    font-size: 0.58rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .step-info {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 0;
+    flex: 1;
+  }
+  .step-icon { font-size: 0.7rem; flex-shrink: 0; }
+  .step-name { font-size: 0.65rem; font-weight: 600; color: #ccc; flex-shrink: 0; }
+  .step-desc {
+    font-size: 0.58rem;
+    color: #666;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pipeline-empty {
+    font-size: 0.6rem;
+    color: #555;
+    font-style: italic;
+    padding: 0.2rem 0;
+  }
+  .execution-result {
+    padding: 0.4rem 0.5rem;
+    border-radius: 5px;
+    font-size: 0.62rem;
+    font-weight: 500;
+    margin-top: 0.2rem;
+  }
+  .execution-result.success {
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+  }
+  .execution-result.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+  }
+
   .execute-btn {
     display: flex;
     align-items: center;
