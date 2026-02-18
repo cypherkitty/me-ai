@@ -130,8 +130,9 @@ test.describe("Dashboard page (with client ID)", () => {
     await page.waitForLoadState("networkidle");
 
     // Write clientId directly into the IndexedDB settings table using raw IDB API
+    // Open without specifying version to use whatever version the app created
     await page.evaluate(() => new Promise((resolve, reject) => {
-      const req = indexedDB.open("me-ai-store", 5);
+      const req = indexedDB.open("me-ai-store");
       req.onsuccess = () => {
         const db = req.result;
         const tx = db.transaction("settings", "readwrite");
