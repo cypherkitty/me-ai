@@ -26,7 +26,7 @@
   async function refresh() {
     eventTypes = await getAllEventTypes();
     if (selectedType) {
-      commands = getCommandsForEvent(selectedType).map(c => ({ ...c }));
+      commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
     }
   }
 
@@ -34,9 +34,9 @@
     if (open) refresh();
   });
 
-  function selectType(type) {
+  async function selectType(type) {
     selectedType = type;
-    commands = getCommandsForEvent(type).map(c => ({ ...c }));
+    commands = (await getCommandsForEvent(type)).map(c => ({ ...c }));
     editingCmd = null;
     showNewCmd = false;
   }
@@ -52,25 +52,25 @@
   async function handleAddType() {
     const name = newTypeName.trim();
     if (!name) return;
-    addEventType(name);
+    await addEventType(name);
     newTypeName = "";
     showNewType = false;
     await refresh();
     const normalized = name.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
-    selectType(normalized);
+    await selectType(normalized);
   }
 
   async function handleResetType() {
     if (!selectedType) return;
-    resetEventType(selectedType);
+    await resetEventType(selectedType);
     await refresh();
-    commands = getCommandsForEvent(selectedType).map(c => ({ ...c }));
+    commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
   }
 
   async function handleAddCommand() {
     if (!newCmd.name.trim()) return;
     const id = newCmd.name.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
-    addCommandToEvent(selectedType, {
+    await addCommandToEvent(selectedType, {
       id,
       name: newCmd.name.trim(),
       description: newCmd.description.trim(),
@@ -82,7 +82,7 @@
   }
 
   async function handleRemoveCommand(cmdId) {
-    removeCommandFromEvent(selectedType, cmdId);
+    await removeCommandFromEvent(selectedType, cmdId);
     await refresh();
   }
 
@@ -92,7 +92,7 @@
 
   async function saveEdit() {
     if (!editingCmd) return;
-    updateCommandInEvent(selectedType, editingCmd.id, {
+    await updateCommandInEvent(selectedType, editingCmd.id, {
       name: editingCmd.name,
       description: editingCmd.description,
       icon: editingCmd.icon,
@@ -110,7 +110,7 @@
     const newIdx = idx + direction;
     if (newIdx < 0 || newIdx >= arr.length) return;
     [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
-    saveCommandsForEvent(selectedType, arr);
+    await saveCommandsForEvent(selectedType, arr);
     await refresh();
   }
 </script>

@@ -39,7 +39,7 @@ export async function executePipeline(event, onProgress) {
     const accessToken = tokenData.access_token;
 
     // Get the action pipeline for this event type
-    const actions = getActionsForEvent(event.type);
+    const actions = await getActionsForEvent(event.type);
     if (!actions || actions.length === 0) {
       return {
         success: true,
@@ -103,7 +103,7 @@ export async function executePipelineBatch(eventType, events, onProgress) {
     const accessToken = tokenData.access_token;
 
     // Get the action pipeline for this event type
-    const actions = getActionsForEvent(eventType);
+    const actions = await getActionsForEvent(eventType);
     if (!actions || actions.length === 0) {
       return {
         success: true,
