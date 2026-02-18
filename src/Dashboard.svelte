@@ -24,13 +24,11 @@
   onMount(async () => {
     window.addEventListener("keydown", handleKeydown);
 
-    // Load saved Google Client ID from IndexedDB
+    // Load saved Google Client ID from IndexedDB, fall back to default
     if (!clientId) {
       const saved = await getSetting("googleClientId");
-      if (saved) {
-        clientId = saved;
-        clientIdInput = saved;
-      }
+      clientId = saved || DEFAULT_CLIENT_ID;
+      clientIdInput = saved || DEFAULT_CLIENT_ID;
     }
 
     return () => {
@@ -86,8 +84,12 @@
   }
 
   // ── State ──────────────────────────────────────────────────────────
-  let clientId = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || "");
-  let clientIdInput = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || "");
+  // Default shared Client ID — safe to be public (OAuth client_id is not a secret).
+  // Users can override this with their own Client ID below.
+  const DEFAULT_CLIENT_ID = "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
+
+  let clientId = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID);
+  let clientIdInput = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID);
   let authInitialized = $state(false);
 
   let accessToken = $state(null);
@@ -122,6 +124,7 @@
 
   // ── Derived state ─────────────────────────────────────────────────
   let needsSetup = $derived(!clientId);
+  let isDefaultClientId = $derived(clientId === DEFAULT_CLIENT_ID);
   let isSignedIn = $derived(!!accessToken);
   let hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
@@ -157,7 +160,7 @@
   async function clearClientId() {
     await removeSetting("googleClientId");
     clientId = "";
-    clientIdInput = "";
+    clientIdInput = DEFAULT_CLIENT_ID;
     authInitialized = false;
     accessToken = null;
     profile = null;
@@ -343,10 +346,10 @@
 
 <div class="dashboard">
   {#if needsSetup}
-    <SetupGuide bind:clientIdInput onsave={saveClientId} />
+    <SetupGuide bind:clientIdInput onsave={saveClientId} defaultClientId={DEFAULT_CLIENT_ID} />
 
   {:else if !isSignedIn}
-    <AuthCard {clientId} {error} {loadingAuth} onsignin={signIn} onclear={clearClientId} onsignout={signOut} />
+    <AuthCard {clientId} {isDefaultClientId} {error} {loadingAuth} onsignin={signIn} onclear={clearClientId} onsignout={signOut} />
 
   {:else}
     <DashboardView
