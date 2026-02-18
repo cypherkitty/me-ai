@@ -3,7 +3,7 @@
   import ErrorCard from "../shared/ErrorCard.svelte";
   import { mountLog } from "../../lib/debug.js";
 
-  let { clientId, error = null, loadingAuth = false, onsignin, onclear, onsignout } = $props();
+  let { clientId, isDefaultClientId = false, error = null, loadingAuth = false, onsignin, onclear, onsignout } = $props();
 
   onMount(() => mountLog("AuthCard"));
 </script>
@@ -42,7 +42,11 @@
 
     <div class="client-id-info">
       <span class="client-id-label">Client ID:</span>
-      <span class="client-id-value">{clientId.slice(0, 20)}...</span>
+      {#if isDefaultClientId}
+        <span class="client-id-badge default">shared default</span>
+      {:else}
+        <span class="client-id-value">{clientId.slice(0, 20)}...</span>
+      {/if}
       <button class="btn-link" onclick={onclear}>Change</button>
     </div>
   </div>
@@ -128,6 +132,17 @@
   .client-id-value {
     font-family: monospace;
     color: #888;
+  }
+  .client-id-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .client-id-badge.default {
+    background: #1a3a1a;
+    color: #4ade80;
+    border: 1px solid #2d5a2d;
   }
   .btn {
     padding: 0.55rem 1.2rem;
