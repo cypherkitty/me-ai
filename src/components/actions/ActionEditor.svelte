@@ -138,8 +138,8 @@
         <!-- Left: event types list -->
         <div class="types-sidebar">
           <div class="sidebar-head">
-            <span class="sidebar-title">Events</span>
-            <button class="icon-btn" title="Add event" onclick={() => showNewType = !showNewType}>+</button>
+            <span class="sidebar-title">Event Types</span>
+            <button class="icon-btn" title="Add event type" onclick={() => showNewType = !showNewType}>+</button>
           </div>
 
           {#if showNewType}
@@ -250,9 +250,9 @@
           {:else}
             <div class="no-selection">
               {#if eventTypes.length === 0}
-                <p>No events yet. Click <strong>+</strong> to create your first event and define its action pipeline.</p>
+                <p>No event types yet. Run a scan to discover event types, or click <strong>+</strong> to create one manually.</p>
               {:else}
-                <p>Select an event on the left to view and edit its actions.</p>
+                <p>Select an event type on the left to view and edit its action pipeline.</p>
               {/if}
             </div>
           {/if}

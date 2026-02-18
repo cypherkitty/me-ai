@@ -1,14 +1,13 @@
 /**
  * Event Stream + Action Pipeline
  *
- * Tags  — LLM classification labels assigned to emails (e.g. "REVIEW", "DELETE").
- *         Read-only output of the scan process. Stored in emailClassifications.action.
+ * Event types — classification labels assigned by the LLM (e.g. "REVIEW", "DELETE"),
+ *               plus any custom types the user creates.
+ *               Each event type has a user-defined sequential action pipeline.
+ *               No hardcoded defaults — all pipelines are user-managed.
  *
- * Events — User-defined named workflows, each with a sequential action pipeline.
- *          Fully managed by the user; never auto-generated from tags.
- *          Stored in IndexedDB settings under STORAGE_KEY.
- *
- * Actions are for events, not for tags.
+ * Tags — secondary metadata on emails (also output by the LLM). Present but not
+ *        structurally important; used only for display purposes.
  */
 
 /**
@@ -21,10 +20,10 @@
 
 /**
  * @typedef {Object} EmailEvent
- * @property {string} type     — user-defined event name (e.g. "morning_cleanup")
+ * @property {string} type     — event type (e.g. "REVIEW", "DELETE")
  * @property {string} source   — origin (e.g. "gmail")
  * @property {Object} data     — email payload
- * @property {Object} metadata — scan metadata (tag, summary, reason, etc.)
+ * @property {Object} metadata — scan metadata (summary, reason, tags, etc.)
  */
 
 const STORAGE_KEY = "me-ai-events";
@@ -44,12 +43,30 @@ async function saveUserMap(map) {
 // ── Event type queries ──────────────────────────────────────────────
 
 /**
- * Get all user-defined event names.
+ * Get event types from classified emails in the database.
+ * @returns {Promise<string[]>}
+ */
+async function getEventTypesFromDB() {
+  try {
+    const { db } = await import("./store/db.js");
+    const classifications = await db.emailClassifications.toArray();
+    const types = new Set(classifications.map(c => c.action).filter(Boolean));
+    return [...types].sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get all event types: user-defined + discovered from scanned emails.
+ * No hardcoded defaults — only real data.
  * @returns {Promise<string[]>}
  */
 export async function getAllEventTypes() {
   const map = await loadUserMap();
-  return Object.keys(map).sort();
+  const fromDB = await getEventTypesFromDB();
+  const all = new Set([...Object.keys(map), ...fromDB]);
+  return [...all].sort();
 }
 
 /**
@@ -181,7 +198,7 @@ export const updateCommandInEvent = updateActionInEvent;
  */
 export async function buildEmailEvent(classification, email) {
   const event = {
-    type: "",  // not set — user selects an event at execution time
+    type: classification.action,  // event type from LLM classification
     source: "gmail",
     data: {
       subject: email.subject,
@@ -190,15 +207,15 @@ export async function buildEmailEvent(classification, email) {
       snippet: email.snippet || email.body?.slice(0, 200) || "",
     },
     metadata: {
-      tag: classification.action,   // LLM-assigned tag
       reason: classification.reason,
       summary: classification.summary,
-      tags: classification.tags || [],
+      tags: classification.tags || [],  // secondary metadata, not structurally important
       classifiedAt: Date.now(),
     },
   };
 
-  return { event, commands: [] };
+  const commands = await getActionsForEvent(classification.action);
+  return { event, commands };
 }
 
 /**
@@ -237,15 +254,16 @@ export async function buildBatchEventMessage(results) {
 
 /**
  * Build a grouped events message for the /events chat command.
- * Groups emails by their LLM tag. No pipeline is auto-assigned —
- * the user picks an event to execute at interaction time.
+ * Groups emails by event type; each group includes the user-defined
+ * action pipeline for that event type (empty array if none defined yet).
  *
- * @param {Object} grouped — { groups: { TAG: [...items] }, order: ["TAG", ...] }
+ * @param {Object} grouped — { groups: { EVENT_TYPE: [...items] }, order: ["EVENT_TYPE", ...] }
  * @returns {Promise<Object>} chat message of type "events-grouped"
  */
 export async function buildGroupedEventsMessage(grouped) {
-  const groups = grouped.order.map(tag => {
-    const items = grouped.groups[tag] || [];
+  const groups = await Promise.all(grouped.order.map(async eventType => {
+    const items = grouped.groups[eventType] || [];
+    const commands = await getActionsForEvent(eventType);
     const emails = items.map(item => ({
       emailId: item.emailId,
       subject: item.subject || "(no subject)",
@@ -256,8 +274,8 @@ export async function buildGroupedEventsMessage(grouped) {
       tags: item.tags || [],
       status: item.status || "pending",
     }));
-    return { tag, emails };
-  });
+    return { eventType, emails, commands };
+  }));
 
   const total = groups.reduce((sum, g) => sum + g.emails.length, 0);
 
