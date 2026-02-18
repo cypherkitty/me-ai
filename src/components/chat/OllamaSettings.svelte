@@ -4,6 +4,9 @@
 
   let { selectedModel = $bindable(), onload, error = $bindable() } = $props();
 
+  const isLocal = typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
   let ollamaUrl = $state(getOllamaUrl());
   let isTestingConnection = $state(false);
   let connectionStatus = $state(null); // { connected: boolean, version?: string, error?: string }
@@ -67,14 +70,17 @@
 <div class="ollama-settings">
   <!-- Connection settings -->
   <div class="connection-section">
-    <label for="ollama-url">Ollama Server URL:</label>
+    <label for="ollama-url">
+      Ollama Server URL:
+      <span class="env-badge">{isLocal ? "🖥 local" : "☁️ remote"}</span>
+    </label>
     <div class="url-input-group">
       <input
         id="ollama-url"
         type="text"
         bind:value={ollamaUrl}
         onchange={handleUrlChange}
-        placeholder="https://me-ai.metaelon.space"
+        placeholder={isLocal ? "http://localhost:11434" : "https://me-ai.metaelon.space"}
       />
       <button 
         class="btn-test" 
@@ -528,6 +534,18 @@
     font-family: monospace;
     font-size: 0.65rem;
     color: #fca5a5;
+  }
+  .env-badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 4px;
+    color: #60a5fa;
+    vertical-align: middle;
   }
   .btn {
     padding: 0.55rem 1.2rem;
