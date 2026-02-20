@@ -69,6 +69,8 @@
       <span class="backend-badge openai">⚡ OpenAI</span>
     {:else if backend === "anthropic"}
       <span class="backend-badge anthropic">🧠 Anthropic</span>
+    {:else if backend === "google"}
+      <span class="backend-badge google">🔍 Google</span>
     {:else if backend === "xai"}
       <span class="backend-badge xai">✖️ xAI</span>
     {/if}
@@ -214,6 +216,11 @@
     color: #f59e0b;
     background: rgba(245, 158, 11, 0.1);
     border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  .backend-badge.google {
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
   }
   .backend-badge.xai {
     color: #e8e8e8;

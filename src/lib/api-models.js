@@ -11,16 +11,6 @@ export const API_MODELS = [
     recommendedForEmailProcessing: true,
   },
   {
-    id: "gpt-4o",
-    name: "gpt-4o",
-    displayName: "GPT-4o",
-    provider: "openai",
-    description: "OpenAI's previous flagship model",
-    contextWindow: 128000,
-    maxEmailTokens: 16384,
-    recommendedForEmailProcessing: true,
-  },
-  {
     id: "o3-mini",
     name: "o3-mini",
     displayName: "o3-mini",
@@ -53,6 +43,28 @@ export const API_MODELS = [
     recommendedForEmailProcessing: true,
   },
   
+  // Google
+  {
+    id: "gemini-3.1-pro-preview",
+    name: "gemini-3.1-pro-preview",
+    displayName: "Gemini 3.1 Pro",
+    provider: "google",
+    description: "Google's latest flagship model",
+    contextWindow: 1048576,
+    maxEmailTokens: 65536,
+    recommendedForEmailProcessing: true,
+  },
+  {
+    id: "gemini-3-flash-preview",
+    name: "gemini-3-flash-preview",
+    displayName: "Gemini 3 Flash",
+    provider: "google",
+    description: "Fast and lightweight model",
+    contextWindow: 1048576,
+    maxEmailTokens: 65536,
+    recommendedForEmailProcessing: true,
+  },
+
   // xAI
   {
     id: "grok-3-latest",

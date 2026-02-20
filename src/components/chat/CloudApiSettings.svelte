@@ -10,7 +10,7 @@
   } = $props();
 
   let activeProvider = $state("openai");
-  let apiKeys = $state({ openai: "", anthropic: "", xai: "" });
+  let apiKeys = $state({ openai: "", anthropic: "", google: "", xai: "" });
   let isChecking = $state(false);
 
   let providerModels = $derived(API_MODELS.filter(m => m.provider === activeProvider));
@@ -18,6 +18,7 @@
   onMount(async () => {
     apiKeys.openai = await getSetting("openaiApiKey") || "";
     apiKeys.anthropic = await getSetting("anthropicApiKey") || "";
+    apiKeys.google = await getSetting("googleApiKey") || "";
     apiKeys.xai = await getSetting("xaiApiKey") || "";
 
     const currModel = API_MODELS.find(m => m.id === selectedModel);
@@ -58,6 +59,9 @@
     </button>
     <button class="tab-btn" class:active={activeProvider === "anthropic"} onclick={() => activeProvider = "anthropic"}>
       <span class="icon">🧠</span> Anthropic
+    </button>
+    <button class="tab-btn" class:active={activeProvider === "google"} onclick={() => activeProvider = "google"}>
+      <span class="icon">🔍</span> Google
     </button>
     <button class="tab-btn" class:active={activeProvider === "xai"} onclick={() => activeProvider = "xai"}>
       <span class="icon">✖️</span> xAI

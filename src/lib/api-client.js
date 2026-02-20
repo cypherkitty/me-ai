@@ -56,6 +56,14 @@ export async function testApiConnection(provider, apiKey) {
         }
       }
       return { connected: true };
+    } else if (provider === "google") {
+      url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+      const res = await fetch(url, { method: "GET", signal: AbortSignal.timeout(5000) });
+      if (!res.ok) {
+        const errorText = await res.text();
+        return { connected: false, error: `HTTP ${res.status}: ${errorText}` };
+      }
+      return { connected: true };
     }
     
     return { connected: false, error: "Unknown provider" };
@@ -129,6 +137,36 @@ export async function streamApiChat(
       max_tokens: maxTokens,
       stream: true
     });
+  } else if (provider === "google") {
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?key=${apiKey}`;
+    headers = {
+      "Content-Type": "application/json"
+    };
+
+    const systemMsg = messages.find(m => m.role === "system");
+    const otherMsgs = messages.filter(m => m.role !== "system");
+
+    // Convert OpenAI-style messages to Gemini format
+    const contents = otherMsgs.map(m => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }]
+    }));
+
+    const bodyObj = {
+      contents,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: maxTokens
+      }
+    };
+
+    if (systemMsg) {
+      bodyObj.systemInstruction = {
+        parts: [{ text: systemMsg.content }]
+      };
+    }
+
+    body = JSON.stringify(bodyObj);
   }
 
   const response = await fetch(url, {
@@ -191,6 +229,17 @@ export async function streamApiChat(
               onToken({ content: data.delta.text, done: false });
             } else if (data.type === "message_delta" && data.usage) {
               outputTokens = data.usage.output_tokens || outputTokens;
+            }
+          } else if (provider === "google") {
+            // Google Gemini streaming chunks
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              outputTokens++;
+              onToken({ content: text, done: false });
+            }
+            if (data.usageMetadata) {
+              inputTokens = data.usageMetadata.promptTokenCount || inputTokens;
+              outputTokens = data.usageMetadata.candidatesTokenCount || outputTokens;
             }
           }
         } catch (e) {

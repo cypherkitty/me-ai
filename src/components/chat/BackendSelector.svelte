@@ -38,7 +38,7 @@
       <span class="backend-icon">☁️</span>
       <div class="backend-info">
         <div class="backend-name">Cloud APIs</div>
-        <div class="backend-desc">ChatGPT, Claude, Grok</div>
+        <div class="backend-desc">ChatGPT, Claude, Gemini, Grok</div>
       </div>
     </button>
   </div>
