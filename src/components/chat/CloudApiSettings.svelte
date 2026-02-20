@@ -4,71 +4,79 @@
   import { getSetting, setSetting } from "../../lib/store/settings.js";
 
   let {
-    provider = "openai",
     selectedModel = $bindable(),
     error = $bindable(null),
     onload
   } = $props();
 
-  let apiKey = $state("");
+  let activeProvider = $state("openai");
+  let apiKeys = $state({ openai: "", anthropic: "", xai: "" });
   let isChecking = $state(false);
 
-  let providerModels = $derived(API_MODELS.filter(m => m.provider === provider));
+  let providerModels = $derived(API_MODELS.filter(m => m.provider === activeProvider));
 
   onMount(async () => {
-    const savedKey = await getSetting(`${provider}ApiKey`);
-    if (savedKey) apiKey = savedKey;
+    apiKeys.openai = await getSetting("openaiApiKey") || "";
+    apiKeys.anthropic = await getSetting("anthropicApiKey") || "";
+    apiKeys.xai = await getSetting("xaiApiKey") || "";
 
-    // Check if the currently selected model belongs to the provider
-    if (!providerModels.some(m => m.id === selectedModel)) {
+    const currModel = API_MODELS.find(m => m.id === selectedModel);
+    if (currModel) {
+      activeProvider = currModel.provider;
+    } else {
+      activeProvider = "openai";
       selectedModel = providerModels[0]?.id;
     }
   });
 
   // Re-run setup if provider changes
   $effect(() => {
-    if (provider) {
-      getSetting(`${provider}ApiKey`).then(k => {
-        if (k) apiKey = k; else apiKey = "";
-      });
-      // Also update selectedModel if invalid
-      if (!API_MODELS.filter(m => m.provider === provider).some(m => m.id === selectedModel)) {
-        selectedModel = API_MODELS.filter(m => m.provider === provider)[0]?.id;
-      }
+    if (!API_MODELS.filter(m => m.provider === activeProvider).some(m => m.id === selectedModel)) {
+      selectedModel = API_MODELS.filter(m => m.provider === activeProvider)[0]?.id;
     }
   });
 
   async function handleLoad() {
-    if (!apiKey) {
-      error = `API key for ${provider} is required`;
+    if (!apiKeys[activeProvider]) {
+      error = `API key for ${activeProvider} is required`;
       return;
     }
     error = null;
     isChecking = true;
     
-    await setSetting(`${provider}ApiKey`, apiKey);
+    await setSetting(`${activeProvider}ApiKey`, apiKeys[activeProvider]);
     
-    // Test connection?
-    // The engine handles the connection test when loadModel is called.
     isChecking = false;
     onload();
   }
 </script>
 
 <div class="api-settings">
-  <div class="field">
-    <label for="api-key">{provider.toUpperCase()} API Key</label>
+  <div class="tabs">
+    <button class="tab-btn" class:active={activeProvider === "openai"} onclick={() => activeProvider = "openai"}>
+      <span class="icon">⚡</span> OpenAI
+    </button>
+    <button class="tab-btn" class:active={activeProvider === "anthropic"} onclick={() => activeProvider = "anthropic"}>
+      <span class="icon">🧠</span> Anthropic
+    </button>
+    <button class="tab-btn" class:active={activeProvider === "xai"} onclick={() => activeProvider = "xai"}>
+      <span class="icon">✖️</span> xAI
+    </button>
+  </div>
+
+  <div class="field mt">
+    <label for="api-key">{activeProvider.toUpperCase()} API Key</label>
     <div class="input-row">
       <input
         id="api-key"
         type="password"
-        bind:value={apiKey}
+        bind:value={apiKeys[activeProvider]}
         placeholder="Enter your API key..."
         autocomplete="off"
       />
     </div>
     <div class="hint">
-      Your key is stored locally in your browser's IndexedDB and never sent anywhere except directly to {provider.toUpperCase()}.
+      Your key is stored locally in your browser's IndexedDB and never sent anywhere except directly to {activeProvider.toUpperCase()}.
     </div>
   </div>
 
@@ -96,7 +104,7 @@
     {/if}
   </div>
 
-  <button class="btn primary load-btn" onclick={handleLoad} disabled={isChecking || !apiKey}>
+  <button class="btn primary load-btn" onclick={handleLoad} disabled={isChecking || !apiKeys[activeProvider]}>
     {isChecking ? "Checking..." : "Load Model"}
   </button>
   
@@ -112,11 +120,52 @@
     border-radius: 12px;
     padding: 1.5rem;
     text-align: left;
-    max-width: 400px;
+    max-width: 440px;
     margin: 0 auto;
+  }
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    background: #111;
+    padding: 0.35rem;
+    border-radius: 10px;
+    border: 1px solid #333;
+  }
+  .tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #888;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover {
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .tab-btn.active {
+    background: #2a2a2a;
+    border-color: #444;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .tab-btn .icon {
+    font-size: 0.9rem;
   }
   .field {
     margin-bottom: 1.25rem;
+  }
+  .mt {
+    margin-top: 1rem;
   }
   label {
     display: block;
