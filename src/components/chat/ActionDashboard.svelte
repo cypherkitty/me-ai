@@ -1,5 +1,7 @@
 <script>
   import { actionColor } from "../../lib/triage.js";
+  import { getActionsForEvent, getGroupForEventType } from "../../lib/events.js";
+  import PipelineGraph from "../actions/PipelineGraph.svelte";
 
   let {
     pendingData = null,
@@ -12,12 +14,24 @@
 
   let activeGroup = $state(null);
   let confirmClear = $state(null);
+  let activePipeline = $state([]);
+  let activeTier = $state(null);
 
   /** Expand/collapse a group; exposed so external controls can call it */
   export function toggleGroup(action) {
     activeGroup = activeGroup === action ? null : action;
     confirmClear = null;
   }
+
+  $effect(() => {
+    if (activeGroup) {
+      getActionsForEvent(activeGroup).then(actions => activePipeline = actions);
+      getGroupForEventType(activeGroup).then(grp => activeTier = grp);
+    } else {
+      activePipeline = [];
+      activeTier = null;
+    }
+  });
 
   function fmt(str) {
     return str.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
@@ -73,6 +87,14 @@
           </button>
           <span class="detail-title">{fmt(activeGroup)}</span>
           <span class="detail-cnt">{items.length}</span>
+        </div>
+
+        <div class="pipeline-preview" style="margin-bottom: 0.5rem; background: #111; padding: 0.2rem 0.5rem; border-radius: 8px; border: 1px solid #1a1a1a;">
+          <PipelineGraph 
+            eventType={activeGroup} 
+            group={activeTier} 
+            commands={activePipeline} 
+          />
         </div>
 
         <div class="emails">

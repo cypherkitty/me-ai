@@ -1,5 +1,6 @@
 <script>
   import CommandCard from "./CommandCard.svelte";
+  import PipelineGraph from "../actions/PipelineGraph.svelte";
   import { stringToHue } from "../../lib/format.js";
   import { executePipeline, executePipelineBatch, isAuthenticated, EVENT_GROUPS } from "../../lib/plugins/execution-service.js";
 
@@ -146,11 +147,57 @@
       {/if}
     </div>
     {#if msg.commands?.length}
-      <div class="commands">
-        {#each msg.commands as cmd}
-          <CommandCard command={cmd} onexecute={(id) => handleCommand(msg.event, id)} />
-        {/each}
+      {@const execStateKey = `single_${msg.event.data.emailId || Date.now()}`}
+      {@const execState = getExecutionState(execStateKey)}
+      {@const execApproval = approvalPending[execStateKey]}
+      {@const grpDef = msg.event.metadata?.group ? EVENT_GROUPS[msg.event.metadata.group] : null}
+      
+      <div class="pipeline-header" style="margin-top: 0.5rem;">
+        <span class="pipeline-label">Action Pipeline</span>
+        {#if !execApproval}
+          <button
+            class="execute-btn"
+            class:critical={grpDef?.requiresApproval}
+            onclick={() => handleExecute(msg.event, msg.event.data.emailId)}
+            disabled={execState?.running}
+          >
+            {#if execState?.running}
+              ⏳ Running...
+            {:else if execState?.result}
+              {execState.result.success ? "✅ Done" : "❌ Failed"}
+            {:else if grpDef?.requiresApproval}
+              🔒 Review
+            {:else}
+              ▶ Execute
+            {/if}
+          </button>
+        {/if}
       </div>
+
+      {#if execApproval}
+        <div class="approval-card compact">
+          <span class="approval-icon">⚠️</span>
+          <span class="approval-title">Confirm execution?</span>
+          <div class="approval-btns">
+            <button class="approval-confirm" onclick={() => handleApprove(execStateKey)}>Confirm</button>
+            <button class="approval-cancel" onclick={() => handleDismissApproval(execStateKey)}>Cancel</button>
+          </div>
+        </div>
+      {/if}
+
+      <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
+        <PipelineGraph 
+          eventType={msg.event.type} 
+          group={msg.event.metadata?.group} 
+          commands={msg.commands} 
+        />
+      </div>
+      
+      {#if execState?.result}
+        <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
+          {execState.result.message}
+        </div>
+      {/if}
     {/if}
   </div>
 
@@ -177,10 +224,12 @@
             <div class="event-summary">{item.event.metadata.summary}</div>
           {/if}
         </div>
-        <div class="commands compact">
-          {#each item.commands as cmd}
-            <CommandCard command={cmd} onexecute={(id) => handleCommand(item.event, id)} />
-          {/each}
+        <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
+          <PipelineGraph 
+            eventType={item.event.type} 
+            group={item.event.metadata?.group} 
+            commands={item.commands} 
+          />
         </div>
       </div>
     {/each}
@@ -340,20 +389,15 @@
                   {/if}
 
                   {#if group.commands?.length}
-                    <div class="pipeline-steps">
-                      {#each group.commands as action, idx}
-                        <div class="pipeline-step">
-                          <span class="step-number">{idx + 1}</span>
-                          <div class="step-info">
-                            {#if action.icon}<span class="step-icon">{action.icon}</span>{/if}
-                            <span class="step-name">{action.name}</span>
-                            <span class="step-desc">{action.description}</span>
-                          </div>
-                        </div>
-                      {/each}
+                    <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
+                      <PipelineGraph 
+                        eventType={group.eventType} 
+                        group={group.group} 
+                        commands={group.commands} 
+                      />
                     </div>
                   {:else}
-                    <div class="pipeline-empty">No actions defined — configure in Actions page</div>
+                    <div class="pipeline-empty">No actions defined — configure in Control Board</div>
                   {/if}
                   {#if execState?.result}
                     <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
