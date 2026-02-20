@@ -13,19 +13,21 @@
  *   CRITICAL — high-stakes emails that change state (transactions, approvals).
  *              User must explicitly review and confirm before any action runs.
  *
- * Actions — each step in a pipeline maps to a worker method (e.g. gmail.trash).
- *           Worker resolution happens at execution time via the worker registry.
+ * Actions — each step in a pipeline calls a specific plugin command explicitly.
+ *           pluginId + commandId are required so execution is unambiguous regardless
+ *           of event source. (e.g. { pluginId: "gmail", commandId: "trash" })
  *
  * Tags — secondary metadata on emails (LLM output). Display only.
  */
 
 /**
  * @typedef {Object} Action
- * @property {string} id          — unique identifier matching a worker handler (e.g. "trash")
+ * @property {string} id          — unique step identifier within the pipeline (usually same as commandId)
+ * @property {string} pluginId    — plugin that handles this step (e.g. "gmail")
+ * @property {string} commandId   — handler ID on that plugin (e.g. "trash")
  * @property {string} name        — display name
  * @property {string} description — what it does
  * @property {string} [icon]      — optional emoji
- * @property {string} [workerId]  — explicit worker override (default: resolved from event source)
  */
 
 /**
@@ -254,6 +256,8 @@ export async function seedEventTypeFromLLM(eventType, group, suggestedActionIds)
       .filter(id => actionMap[id])
       .map(id => ({
         id,
+        pluginId: "gmail",
+        commandId: id,
         name: actionMap[id].name,
         description: actionMap[id].description,
       }));

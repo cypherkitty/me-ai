@@ -56,40 +56,53 @@ class PluginRegistry {
   }
 
   /**
-   * Execute a single action.
-   * Routes to the appropriate plugin based on event source.
+   * Execute a single action step.
    *
-   * @param {string} actionId - The action to execute (e.g., "mark_read")
-   * @param {PluginContext} context - Execution context with event, token, etc.
+   * The action object must carry explicit plugin/command references:
+   *   { pluginId: "gmail", commandId: "trash", ... }
+   *
+   * Legacy fallback: if pluginId is absent, the plugin is resolved from
+   * context.event.source so that old stored pipelines still execute.
+   *
+   * @param {import('./base-plugin.js').Action|string} action
+   *   Full action object (preferred) or bare action ID string (legacy).
+   * @param {PluginContext} context
    * @returns {Promise<PluginResult>}
    */
-  async executeAction(actionId, context) {
-    const pluginId = this.resolvePluginId(context.event.source);
+  async executeAction(action, context) {
+    // Normalise: accept both a plain string (legacy) and a full Action object
+    const actionObj = typeof action === "string"
+      ? { id: action, commandId: action, pluginId: null }
+      : action;
+
+    const pluginId = actionObj.pluginId || this.resolvePluginId(context.event.source);
+    const commandId = actionObj.commandId || actionObj.id;
     const plugin = this.getPlugin(pluginId);
 
     if (!plugin) {
       return {
         success: false,
-        message: `No plugin found for source: ${context.event.source}`,
+        message: `Plugin "${pluginId}" not found. Is it registered?`,
         error: new Error(`Plugin not found: ${pluginId}`),
       };
     }
 
-    if (!plugin.canExecute(actionId)) {
+    if (!plugin.canExecute(commandId)) {
       return {
         success: false,
-        message: `Action "${actionId}" not supported by ${plugin.serviceName}`,
-        error: new Error(`Action not supported: ${actionId}`),
+        message: `Command "${commandId}" not found in plugin "${plugin.serviceName}". ` +
+          `Available: ${plugin.getHandlers().map(h => h.actionId).join(", ")}`,
+        error: new Error(`Command not supported: ${commandId}`),
       };
     }
 
-    return plugin.execute(actionId, context);
+    return plugin.execute(commandId, context);
   }
 
   /**
    * Execute an action pipeline (sequence of actions) for a single event.
    *
-   * @param {Object[]} actions - Array of actions from the pipeline
+   * @param {Object[]} actions - Array of Action objects from the pipeline
    * @param {PluginContext} context - Execution context
    * @returns {Promise<Object>} - Results for all actions
    */
@@ -102,10 +115,19 @@ class PluginRegistry {
         phase: "action_start",
         actionId: action.id,
         actionName: action.name,
+        pluginId: action.pluginId,
+        commandId: action.commandId,
       });
 
-      const result = await this.executeAction(action.id, context);
-      results.push({ actionId: action.id, actionName: action.name, ...result });
+      // Pass the full action object so executeAction can use pluginId/commandId
+      const result = await this.executeAction(action, context);
+      results.push({
+        actionId: action.id,
+        actionName: action.name,
+        pluginId: action.pluginId,
+        commandId: action.commandId,
+        ...result,
+      });
 
       if (!result.success) allSuccess = false;
 
