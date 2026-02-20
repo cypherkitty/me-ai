@@ -12,6 +12,8 @@ import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
+import { seedEventTypeFromLLM } from "./events.js";
+import { pluginRegistry } from "./plugins/plugin-registry.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -24,13 +26,44 @@ export const CLASSIFICATION_CONFIG = {
 
 // ── System prompt ────────────────────────────────────────────────────
 
-export const SYSTEM_PROMPT = `You are an email classifier. Analyze this email and produce a classification.
+/**
+ * Build the system prompt dynamically from the currently registered plugins.
+ * This ensures the LLM always knows about the real, available actions — no
+ * hardcoded action IDs in the prompt.
+ *
+ * @param {{ pluginId: string, pluginName: string, actions: import('./plugins/base-plugin.js').ActionHandler[] }[]} plugins
+ * @returns {string}
+ */
+export function buildSystemPrompt(plugins) {
+  // Build the actions catalogue section
+  const actionLines = [];
+  const allActionIds = [];
+
+  for (const plugin of plugins) {
+    if (!plugin.actions.length) continue;
+    actionLines.push(`${plugin.pluginName} plugin:`);
+    for (const a of plugin.actions) {
+      // Pad action IDs so descriptions align neatly
+      actionLines.push(`  ${a.actionId.padEnd(22)} — ${a.name}: ${a.description}`);
+      allActionIds.push(a.actionId);
+    }
+  }
+
+  const actionsSection = actionLines.length
+    ? actionLines.join("\n")
+    : "  (no actions available)";
+
+  const allIdsInline = allActionIds.join(", ");
+
+  return `You are an email classifier. Analyze this email and produce a classification with suggested actions.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 Format:
 {
   "action": "SHORT_ACTION_NAME",
+  "group": "NOISE",
+  "suggestedActions": ["trash"],
   "reason": "One sentence explaining why",
   "summary": "2-3 sentence summary of the email content",
   "tags": ["tag1", "tag2", "tag3"]
@@ -42,9 +75,31 @@ Guidelines for "action":
 - Be specific: prefer "TRACK_DELIVERY" over "NOTIFY", prefer "PAY_BILL" over "REVIEW"
 - If genuinely nothing to do, use "NO_ACTION"
 
+Guidelines for "group":
+- Classify the email into one of three urgency tiers:
+  - "NOISE"    — unimportant (promotions, newsletters, notifications with no action needed). Actions run automatically.
+  - "INFO"     — informational, worth reading (receipts, shipping updates, account notifications). User decides when to act.
+  - "CRITICAL" — requires careful human review before acting (financial transactions, purchases, security alerts, legal notices, anything that changes state or commits money/data).
+- When in doubt between NOISE and INFO, use INFO
+- When in doubt between INFO and CRITICAL, use CRITICAL
+
+Available actions (from installed plugins):
+${actionsSection}
+
+Guidelines for "suggestedActions":
+- Suggest 1-3 actions from the list above, in execution order
+- Use ONLY the exact action IDs listed above (${allIdsInline})
+- Match actions to the email's group and purpose:
+    NOISE    → prefer: trash, mark_spam, archive (auto-cleanup)
+    INFO     → prefer: mark_read, archive, star (quiet filing)
+    CRITICAL → prefer: star, mark_important (never trash/delete CRITICAL emails)
+- Choose the most specific and least destructive actions that serve the event type
+- These seed the default pipeline for this event type (the user can edit later)
+- If genuinely no action is needed, use []
+
 Guidelines for "tags":
 - 2-5 short lowercase tags describing the email's nature
-- Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, newsletter, finance, travel
+- Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, finance, travel
 - Be descriptive and specific
 
 Guidelines for "summary":
@@ -55,8 +110,38 @@ Guidelines for "summary":
 Rules:
 - Output ONLY the JSON object, nothing else
 - "action" must be UPPER_SNAKE_CASE
+- "group" must be exactly "NOISE", "INFO", or "CRITICAL"
+- "suggestedActions" must be an array of valid action IDs from the list above
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
+}
+
+/**
+ * Collect plugin metadata for the prompt from the global registry.
+ * Returns an array ready to pass to buildSystemPrompt().
+ */
+function getPluginsForPrompt() {
+  return pluginRegistry.getAllPlugins().map(plugin => ({
+    pluginId: plugin.pluginId,
+    pluginName: plugin.serviceName,
+    actions: plugin.getHandlers(),
+  }));
+}
+
+/**
+ * Get all valid action IDs from registered plugins (for parseClassification validation).
+ */
+function getAllValidActionIds() {
+  return pluginRegistry.getAllPlugins()
+    .flatMap(p => p.getHandlers().map(h => h.actionId));
+}
+
+/**
+ * SYSTEM_PROMPT — snapshot built at module load time.
+ * Used only for display (e.g. "View Prompt" button in ScanLiveView).
+ * The actual scan uses a freshly-built prompt via buildSystemPrompt().
+ */
+export const SYSTEM_PROMPT = buildSystemPrompt(getPluginsForPrompt());
 
 // ── Public API ───────────────────────────────────────────────────────
 
@@ -133,6 +218,12 @@ export async function scanEmails(
   let totalInputTokens = 0;
   const results = [];
 
+  // Build the system prompt fresh from the currently registered plugins.
+  // This ensures the LLM always sees the real available action IDs.
+  const plugins = getPluginsForPrompt();
+  const systemPrompt = buildSystemPrompt(plugins);
+  const validActionIds = new Set(plugins.flatMap(p => p.actions.map(a => a.actionId)));
+
   // Check model capabilities and warn if suboptimal
   const currentModel = engine.modelId;
   const modelInfo = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
@@ -160,9 +251,9 @@ export async function scanEmails(
     if (signal?.aborted) break;
 
     const email = toProcess[i];
-    const emailPrompt = formatEmailPrompt(email); // Full email, no truncation
+    const emailPrompt = formatEmailPrompt(email);
     const promptMessages = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       { role: "user", content: emailPrompt },
     ];
 
@@ -175,7 +266,7 @@ export async function scanEmails(
       results,
       email: { subject: email.subject, from: email.from, date: email.date },
       prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
-      systemPromptLength: SYSTEM_PROMPT.length,
+      systemPromptLength: systemPrompt.length,
       live: null,
       lastResult: null,
       totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
@@ -206,13 +297,14 @@ export async function scanEmails(
       totalOutputTokens += numTokens;
       totalInputTokens += inputTokens;
 
-      const classification = parseClassification(response);
+      const classification = parseClassification(response, validActionIds);
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
         await db.emailClassifications.put({
           emailId: email.id,
           action: classification.action,
+          group: classification.group,
           reason: classification.reason,
           summary: classification.summary,
           tags: classification.tags,
@@ -222,6 +314,14 @@ export async function scanEmails(
           scannedAt,
           status: "pending",
         });
+
+        // Auto-seed pipeline for this event type if it's new
+        await seedEventTypeFromLLM(
+          classification.action,
+          classification.group,
+          classification.suggestedActions,
+        );
+
         classified++;
 
         const emailResult = {
@@ -281,7 +381,7 @@ export async function scanEmails(
     summary: {
       avgPromptSize,
       avgTps,
-      systemPromptSize: SYSTEM_PROMPT.length,
+      systemPromptSize: systemPrompt.length,
       processed: toProcess.length,
       skipped,
       modelName: modelInfo.displayName || modelInfo.name,
@@ -413,11 +513,14 @@ export function formatEmailPrompt(email) {
  * Expects: {"action": "...", "reason": "...", "summary": "...", "tags": [...]}
  *
  * Action types are freeform — any UPPER_SNAKE_CASE string is accepted.
+ * suggestedActions are validated against the provided set of known action IDs.
  *
  * @param {string} response - Raw LLM output
+ * @param {Set<string>} [knownActionIds] - Valid action IDs from the plugin registry.
+ *   When omitted, any non-empty string is accepted (loose mode for tests/preview).
  * @returns {object|null} Parsed classification or null
  */
-export function parseClassification(response) {
+export function parseClassification(response, knownActionIds) {
   if (!response || !response.trim()) return null;
 
   let text = response.trim();
@@ -454,6 +557,27 @@ export function parseClassification(response) {
       return null;
     }
 
+    // Group: must be one of the three tiers
+    const VALID_GROUPS = ["NOISE", "INFO", "CRITICAL"];
+    const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "INFO";
+
+    // Suggested actions — validate against live plugin registry IDs when provided
+    let suggestedActions = [];
+    if (Array.isArray(parsed.suggestedActions)) {
+      suggestedActions = parsed.suggestedActions
+        .filter(a => {
+          if (typeof a !== "string" || !a.trim()) return false;
+          // Strict mode: reject IDs the registry doesn't know about
+          if (knownActionIds) return knownActionIds.has(a.trim());
+          return true;
+        })
+        .map(a => a.trim())
+        .slice(0, 5);
+    }
+    if (suggestedActions.length === 0 && Array.isArray(parsed.suggestedActions) && parsed.suggestedActions.length > 0) {
+      console.warn("Triage: suggestedActions contained unknown IDs — all filtered out:", parsed.suggestedActions);
+    }
+
     // Tags: normalize to array of lowercase strings
     let tags = [];
     if (Array.isArray(parsed.tags)) {
@@ -465,6 +589,8 @@ export function parseClassification(response) {
 
     return {
       action,
+      group,
+      suggestedActions,
       reason: String(parsed.reason || "").slice(0, 300),
       summary: String(parsed.summary || "").slice(0, 500),
       tags,

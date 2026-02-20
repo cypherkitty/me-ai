@@ -1,12 +1,14 @@
 <script>
   import CommandCard from "./CommandCard.svelte";
   import { stringToHue } from "../../lib/format.js";
-  import { executePipeline, executePipelineBatch, isAuthenticated } from "../../lib/workers/execution-service.js";
+  import { executePipeline, executePipelineBatch, isAuthenticated, EVENT_GROUPS } from "../../lib/plugins/execution-service.js";
 
   let { msg, oncommand } = $props();
 
   let expandedGroups = $state({});
   let executionState = $state({});
+  /** Tracks which groups are in pending-approval state: key -> { actions, group } */
+  let approvalPending = $state({});
 
   function shortSender(from) {
     if (!from) return "—";
@@ -25,7 +27,7 @@
     oncommand?.({ event, commandId });
   }
 
-  async function handleExecute(event, emailId) {
+  async function handleExecute(event, emailId, approved = false) {
     if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
@@ -37,18 +39,21 @@
     try {
       const result = await executePipeline(event, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
-      });
+      }, approved);
+
+      if (result.requiresApproval) {
+        executionState[stateKey] = { running: false, progress: null, result: null };
+        approvalPending[stateKey] = { event, emailId, actions: result.actions, group: result.group, isBatch: false };
+        return;
+      }
+
       executionState[stateKey] = { running: false, progress: null, result };
     } catch (error) {
-      executionState[stateKey] = {
-        running: false,
-        progress: null,
-        result: { success: false, message: error.message },
-      };
+      executionState[stateKey] = { running: false, progress: null, result: { success: false, message: error.message } };
     }
   }
 
-  async function handleExecuteGroup(eventType, emails) {
+  async function handleExecuteGroup(eventType, emails, approved = false) {
     if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
@@ -60,15 +65,35 @@
     try {
       const result = await executePipelineBatch(eventType, emails, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
-      });
+      }, approved);
+
+      if (result.requiresApproval) {
+        executionState[stateKey] = { running: false, progress: null, result: null };
+        approvalPending[stateKey] = { eventType, emails, actions: result.actions, group: result.group, isBatch: true };
+        return;
+      }
+
       executionState[stateKey] = { running: false, progress: null, result };
     } catch (error) {
-      executionState[stateKey] = {
-        running: false,
-        progress: null,
-        result: { success: false, message: error.message },
-      };
+      executionState[stateKey] = { running: false, progress: null, result: { success: false, message: error.message } };
     }
+  }
+
+  async function handleApprove(stateKey) {
+    const pending = approvalPending[stateKey];
+    if (!pending) return;
+    delete approvalPending[stateKey];
+    approvalPending = { ...approvalPending };
+    if (pending.isBatch) {
+      await handleExecuteGroup(pending.eventType, pending.emails, true);
+    } else {
+      await handleExecute(pending.event, pending.emailId, true);
+    }
+  }
+
+  function handleDismissApproval(stateKey) {
+    delete approvalPending[stateKey];
+    approvalPending = { ...approvalPending };
   }
 
   function toggleGroup(eventType) {
@@ -171,13 +196,21 @@
 
     {#each msg.groups as group}
       {@const isExpanded = expandedGroups[group.eventType] ?? true}
-      {@const batchState = getExecutionState(`batch_${group.eventType}`)}
+      {@const batchStateKey = `batch_${group.eventType}`}
+      {@const batchState = getExecutionState(batchStateKey)}
+      {@const batchApproval = approvalPending[batchStateKey]}
+      {@const grpDef = group.group ? EVENT_GROUPS[group.group] : null}
       <div class="group-block">
         <div class="group-header-row">
           <button class="group-header" onclick={() => toggleGroup(group.eventType)}>
             <span class="group-badge" style:background={eventTypeColor(group.eventType)}>
               {formatLabel(group.eventType)}
             </span>
+            {#if grpDef}
+              <span class="group-tier-chip" style:color={grpDef.color} title={grpDef.description}>
+                {grpDef.label}
+              </span>
+            {/if}
             <span class="group-count">{group.emails.length}</span>
             <span class="spacer"></span>
             <svg
@@ -188,22 +221,60 @@
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </button>
-          <button
-            class="execute-all-btn"
-            onclick={(e) => { e.stopPropagation(); handleExecuteGroup(group.eventType, group.emails); }}
-            disabled={batchState?.running}
-          >
-            {#if batchState?.running}
-              ⏳ Running...
-            {:else if batchState?.result}
-              {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed (${batchState.result.failed}/${batchState.result.total})`}
-            {:else}
-              ▶ Execute All ({group.emails.length})
-            {/if}
-          </button>
+          {#if !batchApproval}
+            <button
+              class="execute-all-btn"
+              class:critical={grpDef?.requiresApproval}
+              onclick={(e) => { e.stopPropagation(); handleExecuteGroup(group.eventType, group.emails); }}
+              disabled={batchState?.running}
+            >
+              {#if batchState?.running}
+                ⏳ Running...
+              {:else if batchState?.result}
+                {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed`}
+              {:else if grpDef?.requiresApproval}
+                🔒 Review & Execute ({group.emails.length})
+              {:else}
+                ▶ Execute All ({group.emails.length})
+              {/if}
+            </button>
+          {/if}
         </div>
 
-        {#if batchState?.result}
+        <!-- CRITICAL approval dialog -->
+        {#if batchApproval}
+          <div class="approval-card">
+            <div class="approval-header">
+              <span class="approval-icon">⚠️</span>
+              <span class="approval-title">Review required — this is a CRITICAL event type</span>
+            </div>
+            <p class="approval-body">
+              The following actions will run on <strong>{group.emails.length} email{group.emails.length === 1 ? "" : "s"}</strong>.
+              This changes email state and cannot be undone easily.
+            </p>
+            {#if batchApproval.actions?.length}
+              <ul class="approval-actions">
+                {#each batchApproval.actions as action}
+                  <li>
+                    {#if action.icon}<span>{action.icon}</span>{/if}
+                    <strong>{action.name}</strong>
+                    {#if action.description}<span class="approval-action-desc"> — {action.description}</span>{/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+            <div class="approval-btns">
+              <button class="approval-confirm" onclick={() => handleApprove(batchStateKey)}>
+                ✓ Confirm & Execute
+              </button>
+              <button class="approval-cancel" onclick={() => handleDismissApproval(batchStateKey)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        {/if}
+
+        {#if batchState?.result && !batchApproval}
           <div class="batch-result" class:success={batchState.result.success} class:error={!batchState.result.success}>
             {batchState.result.message}
           </div>
@@ -212,7 +283,9 @@
         {#if isExpanded}
           <div class="group-emails">
             {#each group.emails as email}
-              {@const execState = getExecutionState(`single_${email.emailId}`)}
+              {@const execStateKey = `single_${email.emailId}`}
+              {@const execState = getExecutionState(execStateKey)}
+              {@const execApproval = approvalPending[execStateKey]}
               <div class="email-item">
                 <div class="email-main">
                   <div class="email-subject">{email.subject}</div>
@@ -234,20 +307,38 @@
                 <div class="email-pipeline">
                   <div class="pipeline-header">
                     <span class="pipeline-label">Action Pipeline</span>
-                    <button
-                      class="execute-btn"
-                      onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId)}
-                      disabled={execState?.running}
-                    >
-                      {#if execState?.running}
-                        ⏳ Running...
-                      {:else if execState?.result}
-                        {execState.result.success ? "✅ Done" : "❌ Failed"}
-                      {:else}
-                        ▶ Execute
-                      {/if}
-                    </button>
+                    {#if !execApproval}
+                      <button
+                        class="execute-btn"
+                        class:critical={grpDef?.requiresApproval}
+                        onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId)}
+                        disabled={execState?.running}
+                      >
+                        {#if execState?.running}
+                          ⏳ Running...
+                        {:else if execState?.result}
+                          {execState.result.success ? "✅ Done" : "❌ Failed"}
+                        {:else if grpDef?.requiresApproval}
+                          🔒 Review
+                        {:else}
+                          ▶ Execute
+                        {/if}
+                      </button>
+                    {/if}
                   </div>
+
+                  <!-- Per-email CRITICAL approval -->
+                  {#if execApproval}
+                    <div class="approval-card compact">
+                      <span class="approval-icon">⚠️</span>
+                      <span class="approval-title">Confirm execution?</span>
+                      <div class="approval-btns">
+                        <button class="approval-confirm" onclick={() => handleApprove(execStateKey)}>Confirm</button>
+                        <button class="approval-cancel" onclick={() => handleDismissApproval(execStateKey)}>Cancel</button>
+                      </div>
+                    </div>
+                  {/if}
+
                   {#if group.commands?.length}
                     <div class="pipeline-steps">
                       {#each group.commands as action, idx}
@@ -491,6 +582,92 @@
     background: rgba(16, 185, 129, 0.2);
     border-color: rgba(16, 185, 129, 0.5);
   }
+  .execute-all-btn.critical {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+  }
+  .execute-all-btn.critical:hover {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+  .execute-btn.critical {
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+  }
+
+  /* Group tier chip inside header */
+  .group-tier-chip {
+    font-size: 0.52rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    opacity: 0.9;
+  }
+
+  /* Approval card */
+  .approval-card {
+    margin: 0.4rem 0;
+    padding: 0.6rem 0.7rem;
+    background: rgba(245, 158, 11, 0.07);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 8px;
+  }
+  .approval-card.compact {
+    padding: 0.4rem 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .approval-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.35rem;
+  }
+  .approval-icon { font-size: 0.9rem; }
+  .approval-title { font-size: 0.68rem; font-weight: 700; color: #f59e0b; }
+  .approval-body { font-size: 0.63rem; color: #aaa; margin: 0 0 0.35rem; line-height: 1.5; }
+  .approval-actions {
+    font-size: 0.62rem;
+    color: #bbb;
+    margin: 0 0 0.4rem 1rem;
+    padding: 0;
+    line-height: 1.7;
+  }
+  .approval-action-desc { color: #777; }
+  .approval-btns { display: flex; gap: 0.4rem; }
+  .approval-confirm {
+    padding: 0.25rem 0.6rem;
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    border-radius: 5px;
+    color: #f59e0b;
+    font-size: 0.62rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .approval-confirm:hover {
+    background: rgba(245, 158, 11, 0.3);
+  }
+  .approval-cancel {
+    padding: 0.25rem 0.6rem;
+    background: none;
+    border: 1px solid #2a2a2a;
+    border-radius: 5px;
+    color: #666;
+    font-size: 0.62rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .approval-cancel:hover { color: #aaa; border-color: #444; }
+
   .group-badge {
     font-size: 0.6rem;
     font-weight: 700;

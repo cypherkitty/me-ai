@@ -7,14 +7,14 @@ alwaysApply: true
 
 **Browser-only AI assistant built on an event-stream model.** No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
 
-## Core Concept: Event Stream + Command Map
+## Core Concept: Event Stream + Action Pipeline
 
 **This is the most important architectural principle — the foundation of the entire system.**
 
-The system is modeled as a **stream of events** with associated **commands**:
+The system is modeled as a **stream of events** with associated **action pipelines** linked to **workers**:
 
 ```
-HashMap<EventType, List<Command>>
+HashMap<EventType, List<Action>>   where each Action.id maps to a WorkerHandler
 ```
 
 ### Events
@@ -23,56 +23,125 @@ An **event** is any discrete piece of data that enters the system. Examples:
 - Future: Telegram message, calendar invite, RSS item, webhook payload, etc.
 
 Each event has:
-- `type` — the event type (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`)
+- `type` — the event type label (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`)
 - `source` — where it came from (e.g. `"gmail"`, `"telegram"`)
 - `data` — the raw payload (email body, message text, etc.)
-- `metadata` — timestamps, sender, subject, tags, LLM classification result
+- `metadata` — timestamps, sender, subject, group, tags, LLM classification result
 
-### Commands
-A **command** is an action that can be taken on an event. Each event type maps to a list of commands:
+### Event Groups
+Every event type belongs to one of three tiers, controlling **how and when its pipeline executes**:
+
+| Group | Color | Auto-execute? | Approval required? | Typical use |
+|-------|-------|:---:|:---:|---|
+| `NOISE` | gray | ✅ yes | no | Newsletters, promos — auto-delete/archive |
+| `INFO` | blue | no | no | Receipts, updates — user triggers on demand |
+| `CRITICAL` | amber | no | ✅ yes | Transactions, purchases, security — must review & confirm |
+
+Rules:
+- **NOISE** pipelines run automatically when triggered (no user interaction needed)
+- **INFO** pipelines run when the user clicks Execute
+- **CRITICAL** pipelines show an approval card first — user sees the exact actions that will run and must click "Confirm & Execute"
+- Never suggest auto-deleting CRITICAL emails in LLM-suggested pipelines
+
+The LLM assigns a group when it classifies each email. Users can override the group per event type in the Action Pipeline Editor.
+
+### Actions & Workers
+An **action** is a step in a pipeline that calls a specific **worker** method.
 
 ```js
-// Example: email classified as REPLY
+// Example: email classified as PROMO (group: NOISE)
 {
-  eventType: "REPLY",
-  commands: [
-    { id: "draft_reply", name: "Draft Reply", description: "Generate a reply draft using LLM" },
-    { id: "mark_done",   name: "Mark Done",   description: "Mark as handled" },
-    { id: "snooze",      name: "Snooze",       description: "Remind me later" },
-    { id: "dismiss",     name: "Dismiss",      description: "Remove from queue" },
+  eventType: "PROMO",
+  group: "NOISE",
+  pipeline: [
+    { id: "trash",     name: "Move to Trash",  description: "Send to Gmail trash" },
+    { id: "mark_read", name: "Mark as Read",   description: "Remove unread indicator" },
   ]
 }
 ```
 
-Each command has:
-- `id` — unique identifier
-- `name` — display name
-- `description` — what it does
-- `body` — optional rich content (LLM-generated draft, parsed data, etc.)
+Each action `id` matches a handler registered in a worker (e.g. `gmail-worker.js`). The worker registry resolves the correct worker at execution time based on `event.source`.
+
+**Available Gmail action IDs** (registered in `gmail-worker.js`):
+`mark_read`, `mark_unread`, `star`, `unstar`, `trash`, `delete`, `mark_spam`, `archive`, `apply_label`, `remove_label`, `mark_important`, `mark_not_important`
+
+### LLM Pipeline Seeding
+When the LLM classifies an email for an **event type it has not seen before**, it also outputs:
+- `group` — suggested group (`NOISE`/`INFO`/`CRITICAL`)
+- `suggestedActions` — ordered list of action IDs to execute
+
+`triage.js` calls `seedEventTypeFromLLM()` which:
+1. Sets the group (if not already user-defined)
+2. Creates the pipeline from suggested actions (if not already user-defined)
+
+This means **pipelines are auto-created on first classification** and then editable by the user. No hardcoded defaults.
+
+### Plugin Architecture
+
+Plugins are **not** browser Web Workers — they run synchronously in the main thread and call external APIs directly. The term "plugin" distinguishes them from the LLM Web Worker (`src/worker.js`).
+
+```
+src/lib/plugins/
+  base-plugin.js       — BasePlugin class: registerHandler, execute, canExecute
+                         Typedefs: PluginContext, PluginResult, ActionHandler
+  gmail-plugin.js      — Extends BasePlugin; registers 12 Gmail action handlers
+                         Exports: gmailPlugin (singleton), GMAIL_LABELS
+  plugin-registry.js   — PluginRegistry singleton: resolves plugin by source, routes execution
+                         Exports: pluginRegistry
+  execution-service.js — High-level API consumed by UI components
+                         Exports: executePipeline, executePipelineBatch, getAvailableActions,
+                                  isAuthenticated, getRequiredScopes, EVENT_GROUPS
+```
+
+**Execution flow:**
+```
+UI → executePipeline(event, onProgress) or executePipelineBatch(eventType, emails, onProgress)
+  → getExecutionPolicy(event.type)         // returns { group, autoExecute, requiresApproval }
+  → if CRITICAL && !approved → return { requiresApproval: true, actions }
+  → pluginRegistry.executePipeline(actions, context)
+    → plugin.execute(actionId, { accessToken, event })
+      → Gmail API call
+```
+
+The `approved` parameter (default `false`) bypasses the approval check after the user confirms.
+
+**Adding a new plugin** (e.g. Telegram):
+1. Create `src/lib/plugins/telegram-plugin.js` extending `BasePlugin`
+2. Register handlers with `this.registerHandler({ actionId, name, description, execute })`
+3. Add `telegramPlugin` to `plugin-registry.js` `registerDefaultPlugins()`
+4. Add `telegram: "telegram"` to `resolvePluginId()` mapping
 
 ### Chat as Control Interface
 The **chat is the control interface** on top of the event stream. Chat messages can be:
 
 1. **Flat/regular** — plain text string (e.g. user questions, LLM text replies)
 2. **Typed** — structured message containing:
-   - An **event** (or list of events)
-   - A **list of commands** associated with the event
-   - Visual components/cards rendered inline in the chat
+   - An **event** (or list of events grouped by event type)
+   - A **pipeline** of actions associated with the event type
+   - Visual components rendered inline in the chat (approval cards for CRITICAL)
 
-This means chat messages are not just text — they can contain interactive command cards that let the user act on events directly from the conversation.
+CRITICAL event types show an amber **approval card** in the chat instead of a direct execute button. The card displays all pipeline steps before execution.
 
 ### Data Flow
 
 ```
 Data Sources (Gmail, future: Telegram, etc.)
     ↓
-Events (classified by LLM or rules)
+LLM Triage (triage.js)
+  → classifies each email → { action, group, suggestedActions, tags, summary }
+  → seeds event type pipeline if new (seedEventTypeFromLLM)
+  → saves to db.emailClassifications (with group field)
     ↓
-Event Type → Command Map (HashMap<EventType, List<Command>>)
+Event Type → Pipeline Map + Group Map
+  (me-ai-events setting: EventType → Action[])
+  (me-ai-event-groups setting: EventType → "NOISE"|"INFO"|"CRITICAL")
     ↓
 Chat Messages (flat text + typed event/command cards)
     ↓
-User interaction (execute commands, ask questions, drill down)
+User interaction:
+  NOISE    → execute automatically
+  INFO     → user clicks Execute
+  CRITICAL → user clicks Review → approval card → user confirms → execute
 ```
 
 ## Stack
@@ -121,7 +190,12 @@ src/
     gmail-api.js       — Gmail REST: getProfile, listMessages, getMessage,
                          getMessagesBatch, getHeader, getBody, getHtmlBody, base64url decode
     markdown-export.js — emailToMarkdown, htmlToMarkdownBody, emailFilename, downloadText
-    events.js          — Event type → Command map registry, command definitions
+    events.js          — Event type → Action pipeline registry; group management; LLM pipeline seeding
+    plugins/
+      base-plugin.js       — BasePlugin class (PluginContext, PluginResult, ActionHandler typedefs)
+      gmail-plugin.js      — Gmail API plugin (12 action handlers, gmailPlugin singleton)
+      plugin-registry.js   — PluginRegistry singleton (routes actions to plugins by source)
+      execution-service.js — High-level execution API (group policy, approval flow)
     models.js          — MODELS array constant (shared between components)
     format.js          — formatBytes, formatBytesPrecise, progressPct
     error-parser.js    — parseError() — structured error guidance for API errors
@@ -340,6 +414,18 @@ src/lib/store/
 src/components/dashboard/
   SyncStatus.svelte  — Sync progress UI (download button, progress bar, clear data)
 ```
+
+### App Settings (IndexedDB `settings` table)
+
+All persistent app configuration lives in the `settings` key-value table (key: `&key`):
+
+| Key | Type | Purpose |
+|-----|------|---------|
+| `me-ai-events` | `Record<string, Action[]>` | Event type → action pipeline map |
+| `me-ai-event-groups` | `Record<string, EventGroup>` | Event type → NOISE/INFO/CRITICAL |
+| `googleClientId` | `string` | OAuth Client ID (user-provided or default) |
+| `me-ai:oauth-token` | `object` | OAuth token `{ access_token, expires_in }` |
+| `me-ai:scan-history` | `object[]` | Recent scan history for display |
 
 ### Database Schema (Dexie)
 

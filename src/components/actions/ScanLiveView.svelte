@@ -1,4 +1,6 @@
 <script>
+  import { EVENT_GROUPS } from "../../lib/events.js";
+
   let { progress = null, onstop, oninspect, onclose } = $props();
 
   function fmtTime(ms) {
@@ -87,6 +89,14 @@
               <span class="ei-subj">{r.email.subject || "(no subject)"}</span>
               {#if r.success}
                 <span class="ei-tag">{r.classification.action}</span>
+                {#if r.classification.group}
+                  {@const grp = EVENT_GROUPS[r.classification.group]}
+                  {#if grp}
+                    <span class="ei-group" style:color={grp.color} title={grp.description}>
+                      {grp.label}
+                    </span>
+                  {/if}
+                {/if}
               {:else}
                 <span class="ei-tag err">ERROR</span>
               {/if}
@@ -279,6 +289,14 @@
     text-transform: uppercase;
   }
   .ei-tag.err { color: #f87171; }
+  .ei-group {
+    font-size: 0.52rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    opacity: 0.85;
+  }
   .ei-from { font-size: 0.58rem; color: #555; margin-bottom: 0.1rem; }
   .ei-summary { font-size: 0.62rem; color: #888; line-height: 1.4; margin-bottom: 0.1rem; }
   .ei-stats { font-size: 0.58rem; color: #555; }

@@ -71,6 +71,19 @@ db.version(5).stores({
   settings: "&key",
 });
 
+db.version(6).stores({
+  items:
+    "id, sourceType, sourceId, threadKey, date, from, *labels, [sourceType+date]",
+  contacts: "++id, &email, name, lastSeen",
+  syncState: "sourceType",
+
+  // ── Email classifications by LLM triage ──────────────────────────────
+  // group: NOISE | INFO | CRITICAL — execution tier for the event type
+  emailClassifications: "emailId, action, group, date, scannedAt, status, *tags, [action+status], [group+status]",
+
+  settings: "&key",
+});
+
 /**
  * Generate a universal item ID from source type and source-specific ID.
  * @param {string} sourceType - e.g. "gmail", "telegram"

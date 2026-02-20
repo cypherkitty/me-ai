@@ -1,6 +1,7 @@
 <script>
   import {
     getAllEventTypes,
+    getAllEventTypeGroups,
     getCommandsForEvent,
     saveCommandsForEvent,
     addCommandToEvent,
@@ -8,21 +9,48 @@
     updateCommandInEvent,
     addEventType,
     deleteEventType,
+    getGroupForEventType,
+    setGroupForEventType,
+    EVENT_GROUPS,
   } from "../../lib/events.js";
+  import { getAvailableActions } from "../../lib/plugins/execution-service.js";
   import { stringToHue } from "../../lib/format.js";
 
   let { open = $bindable(false) } = $props();
 
   let eventTypes = $state([]);
   let commandCounts = $state({});
+  let eventTypeGroups = $state({});
   let selectedType = $state(null);
   let selectedTypeHasOverride = $state(false);
+  let selectedTypeGroup = $state("INFO");
   let commands = $state([]);
   let editingCmd = $state(null);
   let showNewType = $state(false);
   let newTypeName = $state("");
-  let showNewCmd = $state(false);
-  let newCmd = $state({ name: "", description: "", icon: "" });
+  let showPicker = $state(false);
+
+  // All actions available from registered plugins, grouped by plugin
+  const PLUGIN_ACTIONS = (() => {
+    const gmail = getAvailableActions("gmail");
+    return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
+  })();
+
+  // Icons for well-known action IDs
+  const ACTION_ICONS = {
+    mark_read:         "✓",
+    mark_unread:       "○",
+    star:              "★",
+    unstar:            "☆",
+    trash:             "🗑",
+    delete:            "✕",
+    mark_spam:         "⚠",
+    archive:           "↓",
+    apply_label:       "🏷",
+    remove_label:      "🏷",
+    mark_important:    "!",
+    mark_not_important:"–",
+  };
 
   async function refresh() {
     eventTypes = await getAllEventTypes();
@@ -31,9 +59,11 @@
       counts[t] = (await getCommandsForEvent(t)).length;
     }));
     commandCounts = counts;
+    eventTypeGroups = await getAllEventTypeGroups();
     if (selectedType) {
       commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
       selectedTypeHasOverride = await hasUserOverride(selectedType);
+      selectedTypeGroup = await getGroupForEventType(selectedType);
     }
   }
 
@@ -45,8 +75,15 @@
     selectedType = type;
     commands = (await getCommandsForEvent(type)).map(c => ({ ...c }));
     selectedTypeHasOverride = await hasUserOverride(type);
+    selectedTypeGroup = await getGroupForEventType(type);
     editingCmd = null;
-    showNewCmd = false;
+    showPicker = false;
+  }
+
+  async function handleGroupChange(newGroup) {
+    if (!selectedType) return;
+    await setGroupForEventType(selectedType, newGroup);
+    selectedTypeGroup = newGroup;
   }
 
   function formatLabel(str) {
@@ -77,18 +114,20 @@
     await refresh();
   }
 
-  async function handleAddCommand() {
-    if (!newCmd.name.trim()) return;
-    const id = newCmd.name.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+  /** Add a plugin-provided action to the current event type's pipeline. */
+  async function handleAddPluginAction(handler) {
     await addCommandToEvent(selectedType, {
-      id,
-      name: newCmd.name.trim(),
-      description: newCmd.description.trim(),
-      icon: newCmd.icon.trim() || undefined,
+      id: handler.actionId,
+      name: handler.name,
+      description: handler.description,
+      icon: ACTION_ICONS[handler.actionId] || undefined,
     });
-    newCmd = { name: "", description: "", icon: "" };
-    showNewCmd = false;
     await refresh();
+  }
+
+  /** Whether an action ID is already in the current pipeline. */
+  function isInPipeline(actionId) {
+    return commands.some(c => c.id === actionId);
   }
 
   async function handleRemoveCommand(cmdId) {
@@ -163,6 +202,15 @@
               >
                 <span class="type-dot" style:background={typeColor(type)}></span>
                 <span class="type-label">{formatLabel(type)}</span>
+                <span class="spacer-flex"></span>
+                {#if eventTypeGroups[type]}
+                  {@const grp = EVENT_GROUPS[eventTypeGroups[type]]}
+                  {#if grp}
+                    <span class="type-group-chip" style:color={grp.color} title={grp.description}>
+                      {grp.label}
+                    </span>
+                  {/if}
+                {/if}
                 <span class="type-count">{commandCounts[type] ?? 0}</span>
               </button>
             {/each}
@@ -179,22 +227,52 @@
               <span class="cmd-count">{commands.length} action{commands.length === 1 ? "" : "s"}</span>
               <span class="pipeline-note">• Sequential pipeline</span>
               <span class="spacer"></span>
-              <button class="text-btn danger" onclick={handleDeleteType}>Delete event</button>
-              <button class="small-btn" onclick={() => { showNewCmd = !showNewCmd; editingCmd = null; }}>
-                {showNewCmd ? "Cancel" : "+ Add Action"}
+              <div class="group-selector">
+                {#each Object.values(EVENT_GROUPS) as grp}
+                  <button
+                    class="group-chip"
+                    class:active={selectedTypeGroup === grp.id}
+                    style:--grp-color={grp.color}
+                    onclick={() => handleGroupChange(grp.id)}
+                    title={grp.description}
+                  >
+                    {grp.label}
+                  </button>
+                {/each}
+              </div>
+              <button class="text-btn danger" onclick={handleDeleteType}>Delete</button>
+              <button class="small-btn" onclick={() => { showPicker = !showPicker; editingCmd = null; }}>
+                {showPicker ? "Cancel" : "+ Add Action"}
               </button>
             </div>
 
-            {#if showNewCmd}
-              <div class="cmd-form">
-                <div class="form-row">
-                  <input type="text" placeholder="Icon (emoji)" bind:value={newCmd.icon} class="icon-input" />
-                  <input type="text" placeholder="Action name" bind:value={newCmd.name} class="name-input" />
-                </div>
-                <input type="text" placeholder="Description" bind:value={newCmd.description} class="desc-input" />
-                <div class="form-actions">
-                  <button class="small-btn primary" onclick={handleAddCommand}>Add Action</button>
-                </div>
+            {#if showPicker}
+              <div class="action-picker">
+                {#each PLUGIN_ACTIONS as group}
+                  <div class="picker-group">
+                    <div class="picker-group-label">
+                      <span class="picker-plugin-badge">{group.pluginName}</span>
+                      <span class="picker-hint">Click to add to pipeline</span>
+                    </div>
+                    <div class="picker-grid">
+                      {#each group.actions as handler}
+                        {@const added = isInPipeline(handler.actionId)}
+                        <button
+                          class="picker-tile"
+                          class:added
+                          onclick={() => handleAddPluginAction(handler)}
+                          title={handler.description}
+                        >
+                          <span class="picker-tile-icon">{ACTION_ICONS[handler.actionId] ?? "·"}</span>
+                          <span class="picker-tile-name">{handler.name}</span>
+                          {#if added}
+                            <span class="picker-tile-added">✓ added</span>
+                          {/if}
+                        </button>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
               </div>
             {/if}
 
@@ -408,10 +486,49 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .spacer-flex { flex: 1; }
   .type-count {
     font-size: 0.58rem;
     color: #555;
     flex-shrink: 0;
+  }
+  .type-group-chip {
+    font-size: 0.52rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  /* ── Group selector ───────────────────────────────────────────────── */
+  .group-selector {
+    display: flex;
+    gap: 0.2rem;
+    flex-shrink: 0;
+  }
+  .group-chip {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.58rem;
+    font-weight: 600;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    background: #1a1a1a;
+    color: #555;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.12s;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .group-chip:hover {
+    color: var(--grp-color);
+    border-color: var(--grp-color);
+  }
+  .group-chip.active {
+    color: var(--grp-color);
+    border-color: var(--grp-color);
+    background: color-mix(in srgb, var(--grp-color) 12%, transparent);
   }
 
   /* ── Commands panel ───────────────────────────────────────────────── */
@@ -607,32 +724,15 @@
     color: #f87171;
   }
 
-  /* ── Form ─────────────────────────────────────────────────────────── */
-  .cmd-form {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.55rem 0.7rem;
-    border-bottom: 1px solid #1e1e1e;
-    background: rgba(59, 130, 246, 0.03);
-  }
+  /* ── Inline edit form (existing rows) ────────────────────────────── */
   .form-row {
     display: flex;
     gap: 0.3rem;
   }
-  .icon-input {
-    width: 50px;
-    flex-shrink: 0;
-    text-align: center;
-  }
-  .name-input {
-    flex: 1;
-    min-width: 0;
-  }
-  .desc-input {
-    width: 100%;
-  }
-  .cmd-form input, .cmd-row.editing input {
+  .icon-input { width: 50px; flex-shrink: 0; text-align: center; }
+  .name-input { flex: 1; min-width: 0; }
+  .desc-input { width: 100%; }
+  .cmd-row.editing input {
     padding: 0.3rem 0.4rem;
     font-size: 0.68rem;
     background: #1a1a1a;
@@ -642,13 +742,99 @@
     font-family: inherit;
     outline: none;
   }
-  .cmd-form input:focus, .cmd-row.editing input:focus {
+  .cmd-row.editing input:focus {
     border-color: #3b82f6;
   }
   .form-actions {
     display: flex;
     gap: 0.3rem;
     justify-content: flex-end;
+  }
+
+  /* ── Plugin action picker ─────────────────────────────────────────── */
+  .action-picker {
+    border-bottom: 1px solid #1e1e1e;
+    padding: 0.6rem 0.7rem;
+    background: #0d0d0d;
+    flex-shrink: 0;
+  }
+  .picker-group-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  .picker-plugin-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+  }
+  .picker-hint {
+    font-size: 0.58rem;
+    color: #444;
+  }
+  .picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.3rem;
+  }
+  .picker-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding: 0.45rem 0.5rem;
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    border-radius: 7px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: all 0.13s;
+    position: relative;
+    overflow: hidden;
+  }
+  .picker-tile:hover {
+    background: #1e1e1e;
+    border-color: #3b82f6;
+  }
+  .picker-tile.added {
+    border-color: rgba(52, 211, 153, 0.35);
+    background: rgba(52, 211, 153, 0.05);
+  }
+  .picker-tile.added:hover {
+    border-color: rgba(52, 211, 153, 0.6);
+    background: rgba(52, 211, 153, 0.1);
+  }
+  .picker-tile-icon {
+    font-size: 1rem;
+    line-height: 1;
+    margin-bottom: 0.1rem;
+    color: #aaa;
+  }
+  .picker-tile.added .picker-tile-icon {
+    color: #34d399;
+  }
+  .picker-tile-name {
+    font-size: 0.64rem;
+    font-weight: 600;
+    color: #ccc;
+    line-height: 1.3;
+  }
+  .picker-tile.added .picker-tile-name {
+    color: #34d399;
+  }
+  .picker-tile-added {
+    font-size: 0.52rem;
+    color: #34d399;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   /* ── Empty state ──────────────────────────────────────────────────── */

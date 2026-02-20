@@ -1,11 +1,11 @@
 /**
- * Gmail Worker
- * 
+ * Gmail Plugin
+ *
  * Executes actions on Gmail messages using the Gmail API.
  * Supports: mark read/unread, star, trash, delete, apply labels, etc.
  */
 
-import { BaseWorker } from "./base-worker.js";
+import { BasePlugin } from "./base-plugin.js";
 
 const BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -56,9 +56,9 @@ async function gmailApi(token, method, path, body = null) {
 }
 
 /**
- * Gmail Worker implementation.
+ * Gmail Plugin implementation.
  */
-class GmailWorker extends BaseWorker {
+class GmailPlugin extends BasePlugin {
   constructor() {
     super("gmail", "Gmail");
     this.registerAllHandlers();
@@ -73,19 +73,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           removeLabelIds: [GMAIL_LABELS.UNREAD],
         });
 
-        return {
-          success: true,
-          message: `Marked message as read`,
-          data: { messageId },
-        };
+        return { success: true, message: "Marked message as read", data: { messageId } };
       },
     });
 
@@ -97,19 +91,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           addLabelIds: [GMAIL_LABELS.UNREAD],
         });
 
-        return {
-          success: true,
-          message: `Marked message as unread`,
-          data: { messageId },
-        };
+        return { success: true, message: "Marked message as unread", data: { messageId } };
       },
     });
 
@@ -121,19 +109,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           addLabelIds: [GMAIL_LABELS.STARRED],
         });
 
-        return {
-          success: true,
-          message: `Starred message`,
-          data: { messageId },
-        };
+        return { success: true, message: "Starred message", data: { messageId } };
       },
     });
 
@@ -145,19 +127,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           removeLabelIds: [GMAIL_LABELS.STARRED],
         });
 
-        return {
-          success: true,
-          message: `Unstarred message`,
-          data: { messageId },
-        };
+        return { success: true, message: "Unstarred message", data: { messageId } };
       },
     });
 
@@ -169,17 +145,11 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/trash`);
 
-        return {
-          success: true,
-          message: `Moved message to trash`,
-          data: { messageId },
-        };
+        return { success: true, message: "Moved message to trash", data: { messageId } };
       },
     });
 
@@ -191,17 +161,11 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "DELETE", `/messages/${messageId}`);
 
-        return {
-          success: true,
-          message: `Permanently deleted message`,
-          data: { messageId },
-        };
+        return { success: true, message: "Permanently deleted message", data: { messageId } };
       },
     });
 
@@ -213,20 +177,14 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           addLabelIds: [GMAIL_LABELS.SPAM],
           removeLabelIds: [GMAIL_LABELS.INBOX],
         });
 
-        return {
-          success: true,
-          message: `Marked message as spam`,
-          data: { messageId },
-        };
+        return { success: true, message: "Marked message as spam", data: { messageId } };
       },
     });
 
@@ -238,19 +196,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           removeLabelIds: [GMAIL_LABELS.INBOX],
         });
 
-        return {
-          success: true,
-          message: `Archived message`,
-          data: { messageId },
-        };
+        return { success: true, message: "Archived message", data: { messageId } };
       },
     });
 
@@ -263,23 +215,14 @@ class GmailWorker extends BaseWorker {
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
         const labelId = ctx.config?.labelId;
-        
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
-        if (!labelId) {
-          throw new Error("No label ID provided in config");
-        }
+        if (!messageId) throw new Error("No message ID provided");
+        if (!labelId) throw new Error("No label ID provided in config");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           addLabelIds: [labelId],
         });
 
-        return {
-          success: true,
-          message: `Applied label: ${labelId}`,
-          data: { messageId, labelId },
-        };
+        return { success: true, message: `Applied label: ${labelId}`, data: { messageId, labelId } };
       },
     });
 
@@ -292,23 +235,14 @@ class GmailWorker extends BaseWorker {
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
         const labelId = ctx.config?.labelId;
-        
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
-        if (!labelId) {
-          throw new Error("No label ID provided in config");
-        }
+        if (!messageId) throw new Error("No message ID provided");
+        if (!labelId) throw new Error("No label ID provided in config");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           removeLabelIds: [labelId],
         });
 
-        return {
-          success: true,
-          message: `Removed label: ${labelId}`,
-          data: { messageId, labelId },
-        };
+        return { success: true, message: `Removed label: ${labelId}`, data: { messageId, labelId } };
       },
     });
 
@@ -320,19 +254,13 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           addLabelIds: [GMAIL_LABELS.IMPORTANT],
         });
 
-        return {
-          success: true,
-          message: `Marked as important`,
-          data: { messageId },
-        };
+        return { success: true, message: "Marked as important", data: { messageId } };
       },
     });
 
@@ -344,35 +272,24 @@ class GmailWorker extends BaseWorker {
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
         const messageId = ctx.event.data.emailId || ctx.event.data.id;
-        if (!messageId) {
-          throw new Error("No message ID provided");
-        }
+        if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
           removeLabelIds: [GMAIL_LABELS.IMPORTANT],
         });
 
-        return {
-          success: true,
-          message: `Marked as not important`,
-          data: { messageId },
-        };
+        return { success: true, message: "Marked as not important", data: { messageId } };
       },
     });
   }
 
   /**
-   * Batch operations for multiple messages.
+   * Batch modify multiple messages.
    * Uses Gmail's batchModify endpoint (up to 1000 messages).
    */
   async batchModify(accessToken, messageIds, addLabelIds = [], removeLabelIds = []) {
-    if (messageIds.length === 0) {
-      return { success: true, message: "No messages to modify" };
-    }
-
-    if (messageIds.length > 1000) {
-      throw new Error("Batch modify supports maximum 1000 messages at once");
-    }
+    if (messageIds.length === 0) return { success: true, message: "No messages to modify" };
+    if (messageIds.length > 1000) throw new Error("Batch modify supports maximum 1000 messages at once");
 
     await gmailApi(accessToken, "POST", "/messages/batchModify", {
       ids: messageIds,
@@ -380,11 +297,7 @@ class GmailWorker extends BaseWorker {
       removeLabelIds,
     });
 
-    return {
-      success: true,
-      message: `Modified ${messageIds.length} messages`,
-      data: { count: messageIds.length },
-    };
+    return { success: true, message: `Modified ${messageIds.length} messages`, data: { count: messageIds.length } };
   }
 
   /**
@@ -392,25 +305,14 @@ class GmailWorker extends BaseWorker {
    * Uses Gmail's batchDelete endpoint (up to 1000 messages).
    */
   async batchDelete(accessToken, messageIds) {
-    if (messageIds.length === 0) {
-      return { success: true, message: "No messages to delete" };
-    }
+    if (messageIds.length === 0) return { success: true, message: "No messages to delete" };
+    if (messageIds.length > 1000) throw new Error("Batch delete supports maximum 1000 messages at once");
 
-    if (messageIds.length > 1000) {
-      throw new Error("Batch delete supports maximum 1000 messages at once");
-    }
+    await gmailApi(accessToken, "POST", "/messages/batchDelete", { ids: messageIds });
 
-    await gmailApi(accessToken, "POST", "/messages/batchDelete", {
-      ids: messageIds,
-    });
-
-    return {
-      success: true,
-      message: `Deleted ${messageIds.length} messages`,
-      data: { count: messageIds.length },
-    };
+    return { success: true, message: `Deleted ${messageIds.length} messages`, data: { count: messageIds.length } };
   }
 }
 
 // Export singleton instance
-export const gmailWorker = new GmailWorker();
+export const gmailPlugin = new GmailPlugin();
