@@ -29,6 +29,42 @@
         <div class="backend-desc">Local server, larger models</div>
       </div>
     </button>
+
+    <button 
+      class="backend-btn" 
+      class:active={backend === "openai"}
+      onclick={() => backend = "openai"}
+    >
+      <span class="backend-icon">⚡</span>
+      <div class="backend-info">
+        <div class="backend-name">OpenAI</div>
+        <div class="backend-desc">GPT-4o, o1, o3-mini</div>
+      </div>
+    </button>
+
+    <button 
+      class="backend-btn" 
+      class:active={backend === "anthropic"}
+      onclick={() => backend = "anthropic"}
+    >
+      <span class="backend-icon">🧠</span>
+      <div class="backend-info">
+        <div class="backend-name">Anthropic</div>
+        <div class="backend-desc">Claude 3.7 Sonnet, Haiku</div>
+      </div>
+    </button>
+
+    <button 
+      class="backend-btn" 
+      class:active={backend === "xai"}
+      onclick={() => backend = "xai"}
+    >
+      <span class="backend-icon">✖️</span>
+      <div class="backend-info">
+        <div class="backend-name">xAI</div>
+        <div class="backend-desc">Grok 2 latest</div>
+      </div>
+    </button>
   </div>
 
   {#if !isWebGPUAvailable && backend === "webgpu"}
