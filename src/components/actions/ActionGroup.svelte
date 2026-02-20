@@ -3,7 +3,7 @@
 
   let {
     action, color = "#888", count = 0, items = [], expanded = false,
-    ontoggle, onmarkacted, ondismiss, onremove, oncleargroup,
+    ontoggle, onexecute, onmarkacted, ondismiss, onremove, oncleargroup,
   } = $props();
 
   let pendingItems = $derived(items.filter((i) => i.status === "pending"));
@@ -43,7 +43,7 @@
       {/if}
 
       {#each pendingItems as item (item.emailId)}
-        <EmailRow {item} actionColor={color} {onmarkacted} {ondismiss} {onremove} />
+        <EmailRow {item} actionColor={color} {onexecute} {onmarkacted} {ondismiss} {onremove} />
       {/each}
 
       {#if actedItems.length > 0}

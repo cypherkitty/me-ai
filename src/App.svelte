@@ -2,12 +2,12 @@
   import { onMount } from "svelte";
   import Chat from "./Chat.svelte";
   import Dashboard from "./Dashboard.svelte";
-  import Actions from "./Actions.svelte";
+  import ControlBoard from "./ControlBoard.svelte";
 
   function getPage() {
     const hash = location.hash;
     if (hash === "#dashboard") return "dashboard";
-    if (hash === "#actions") return "actions";
+    if (hash === "#control") return "control";
     return "chat";
   }
 
@@ -27,7 +27,7 @@
     <a class="nav-brand" href="#chat">me-ai</a>
     <div class="nav-links">
       <a href="#chat" class:active={page === "chat"}>Chat</a>
-      <a href="#actions" class:active={page === "actions"}>Actions</a>
+      <a href="#control" class:active={page === "control"}>Control Board</a>
       <a href="#dashboard" class:active={page === "dashboard"}>Dashboard</a>
     </div>
   </nav>
@@ -35,8 +35,8 @@
     <div class="page-view" style:display={page === "chat" ? "flex" : "none"}>
       <Chat />
     </div>
-    <div class="page-view" style:display={page === "actions" ? "flex" : "none"}>
-      <Actions />
+    <div class="page-view" style:display={page === "control" ? "flex" : "none"}>
+      <ControlBoard />
     </div>
     <div class="page-view" style:display={page === "dashboard" ? "flex" : "none"}>
       <Dashboard />

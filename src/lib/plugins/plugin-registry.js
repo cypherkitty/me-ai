@@ -139,12 +139,16 @@ class PluginRegistry {
       });
     }
 
+    const failedResults = results.filter(r => !r.success);
+    const failureMessages = failedResults.map(r => `${r.pluginId}·${r.commandId}: ${r.message || r.error?.message || "Unknown error"}`).join('; ');
+    const successMessages = results.filter(r => r.success).map(r => `${r.pluginId}·${r.commandId}`).join(', ');
+
     return {
       success: allSuccess,
       results,
       message: allSuccess
-        ? `All ${results.length} actions completed successfully`
-        : `Pipeline completed with ${results.filter(r => !r.success).length} failure(s)`,
+        ? `Successfully executed: ${successMessages}`
+        : `Pipeline failed: ${failureMessages}`,
     };
   }
 

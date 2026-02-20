@@ -10,7 +10,7 @@
  */
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const TOKEN_KEY = "me-ai:oauth-token";
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 min buffer before actual expiry
 
@@ -40,6 +40,7 @@ export async function getSavedToken() {
   try {
     const { getSetting } = await import("./store/settings.js");
     const data = await getSetting(TOKEN_KEY);
+
     if (!data) return null;
     const { access_token, expires_at } = data;
     if (!access_token || Date.now() > expires_at - EXPIRY_MARGIN_MS) {
@@ -150,7 +151,7 @@ export async function initGoogleAuth(clientId) {
 
 /**
  * Opens the Google OAuth consent popup and returns the token response.
- * The token is automatically saved to sessionStorage for persistence.
+ * The token is automatically saved to IndexedDB for persistence.
  * Resolves with { access_token, expires_in } on success.
  */
 export function requestAccessToken() {
