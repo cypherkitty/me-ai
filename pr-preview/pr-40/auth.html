@@ -152,24 +152,49 @@
     }
 
     function saveToken(accessToken, expiresIn) {
-      const expiresAt = Date.now() + expiresIn * 1000;
-      try {
-        sessionStorage.setItem(
-          TOKEN_KEY,
-          JSON.stringify({ access_token: accessToken, expires_at: expiresAt })
-        );
-        localStorage.setItem(
-          TOKEN_KEY,
-          JSON.stringify({ access_token: accessToken, expires_at: expiresAt })
-        );
-        return true;
-      } catch (e) {
-        console.error('Failed to save token:', e);
-        return false;
-      }
+      return new Promise((resolve) => {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        const request = indexedDB.open('me-ai-store');
+        
+        request.onerror = (e) => {
+          console.error('Failed to open IndexedDB:', e);
+          resolve(false);
+        };
+        
+        request.onsuccess = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('settings')) {
+            console.error('Settings store not found. Please open the main app first.');
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          try {
+            const tx = db.transaction('settings', 'readwrite');
+            const store = tx.objectStore('settings');
+            const putReq = store.put({ 
+              key: TOKEN_KEY, 
+              value: { access_token: accessToken, expires_at: expiresAt } 
+            });
+            
+            putReq.onsuccess = () => resolve(true);
+            putReq.onerror = (err) => {
+              console.error('Failed to put token in IndexedDB:', err);
+              resolve(false);
+            };
+            
+            tx.oncomplete = () => db.close();
+          } catch(err) {
+            console.error('Transaction failed:', err);
+            db.close();
+            resolve(false);
+          }
+        };
+      });
     }
 
-    function handleAuthResponse(response) {
+    async function handleAuthResponse(response) {
       if (response.error) {
         showStatus(`Error: ${response.error_description || response.error}`, 'error');
         signInBtn.disabled = false;
@@ -178,7 +203,7 @@
       }
 
       // Save token
-      const saved = saveToken(response.access_token, response.expires_in);
+      const saved = await saveToken(response.access_token, response.expires_in);
       
       // Show success
       showStatus('✓ Successfully authenticated! Token saved to storage.', 'success');
@@ -191,7 +216,7 @@
       tokenInfoDiv.innerHTML = `
         <strong>Token:</strong> ${truncatedToken}<br>
         <strong>Expires in:</strong> ${expiresInMin} minutes<br>
-        <strong>Saved to:</strong> ${saved ? 'sessionStorage & localStorage' : 'failed'}
+        <strong>Saved to:</strong> ${saved ? 'IndexedDB' : 'failed'}
       `;
       tokenInfoDiv.style.display = 'block';
 
