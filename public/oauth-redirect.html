@@ -122,20 +122,50 @@
   <script>
     const CLIENT_ID = '562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
-    const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+    const SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
     const TOKEN_KEY = 'me-ai:oauth-token';
 
     function saveToken(accessToken, expiresIn) {
-      const expiresAt = Date.now() + expiresIn * 1000;
-      const tokenData = JSON.stringify({ access_token: accessToken, expires_at: expiresAt });
-      try {
-        sessionStorage.setItem(TOKEN_KEY, tokenData);
-        localStorage.setItem(TOKEN_KEY, tokenData);
-        return true;
-      } catch (e) {
-        console.error('Failed to save token:', e);
-        return false;
-      }
+      return new Promise((resolve) => {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        const request = indexedDB.open('me-ai-store');
+        
+        request.onerror = (e) => {
+          console.error('Failed to open IndexedDB:', e);
+          resolve(false);
+        };
+        
+        request.onsuccess = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('settings')) {
+            console.error('Settings store not found. Please open the main app first.');
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          try {
+            const tx = db.transaction('settings', 'readwrite');
+            const store = tx.objectStore('settings');
+            const putReq = store.put({ 
+              key: TOKEN_KEY, 
+              value: { access_token: accessToken, expires_at: expiresAt } 
+            });
+            
+            putReq.onsuccess = () => resolve(true);
+            putReq.onerror = (err) => {
+              console.error('Failed to put token in IndexedDB:', err);
+              resolve(false);
+            };
+            
+            tx.oncomplete = () => db.close();
+          } catch(err) {
+            console.error('Transaction failed:', err);
+            db.close();
+            resolve(false);
+          }
+        };
+      });
     }
 
     function parseHashParams() {
@@ -187,8 +217,8 @@
       `;
     }
 
-    function showSuccessScreen(accessToken, expiresIn) {
-      const saved = saveToken(accessToken, expiresIn);
+    async function showSuccessScreen(accessToken, expiresIn) {
+      const saved = await saveToken(accessToken, expiresIn);
       const truncatedToken = accessToken.substring(0, 20) + '...' + accessToken.substring(accessToken.length - 20);
       const expiresInMin = Math.floor(expiresIn / 60);
 
@@ -203,7 +233,7 @@
         <div class="token-info">
           <strong>Token:</strong> ${truncatedToken}<br>
           <strong>Expires in:</strong> ${expiresInMin} minutes<br>
-          <strong>Saved to:</strong> ${saved ? 'sessionStorage & localStorage ✓' : 'failed ✗'}
+          <strong>Saved to:</strong> ${saved ? 'IndexedDB ✓' : 'failed ✗'}
         </div>
 
         <div class="info-box">

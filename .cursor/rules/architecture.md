@@ -7,29 +7,25 @@ alwaysApply: true
 
 **Browser-only AI assistant built on an event-stream model.** No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
 
-## Core Concept: Event Stream + Action Pipeline
+## Core Concept: Dynamically Generated Action Flow (n8n-like Architecture)
 
 **This is the most important architectural principle — the foundation of the entire system.**
 
-The system is modeled as a **stream of events** with associated **action pipelines** linked to **workers**:
+The system is modeled as a **dynamically generated flow of actions**, conceptually similar to tools like **n8n.io**. Rather than having a fixed, hardcoded set of rules, the LLM analyzes incoming data and dynamically structures the execution pipelines.
 
 ```
-HashMap<EventType, List<Action>>   where each Action.id maps to a WorkerHandler
+HashMap<EventType, List<Action>>   where each Action.id maps to a WorkerHandler/PluginCommand
 ```
 
-### Events
-An **event** is any discrete piece of data that enters the system. Examples:
-- **Email message** — arrives via Gmail sync, classified by the LLM into an event type (e.g. `REPLY`, `DELETE`, `TRACK_DELIVERY`, `PAY_BILL`)
-- Future: Telegram message, calendar invite, RSS item, webhook payload, etc.
+### 1. Extraction (The "Trigger" Phase)
+An **event** is any discrete piece of data that enters the system (e.g., an email message arriving via Gmail sync).
+When an event arrives, the LLM dynamically extracts:
+- `type` — the event type label (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`, `"PAY_BILL"`)
+- `group` — the execution policy tier (`NOISE`, `INFO`, `CRITICAL`)
+- `suggestedActions` — a dynamically generated list of steps to handle this event
 
-Each event has:
-- `type` — the event type label (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`)
-- `source` — where it came from (e.g. `"gmail"`, `"telegram"`)
-- `data` — the raw payload (email body, message text, etc.)
-- `metadata` — timestamps, sender, subject, group, tags, LLM classification result
-
-### Event Groups
-Every event type belongs to one of three tiers, controlling **how and when its pipeline executes**:
+### 2. Event Groups (Execution Policies)
+Just like an orchestration tool pauses for human approval or runs background jobs autonomously, every event type belongs to one of three tiers controlling **how and when its pipeline executes**:
 
 | Group | Color | Auto-execute? | Approval required? | Typical use |
 |-------|-------|:---:|:---:|---|
@@ -45,8 +41,8 @@ Rules:
 
 The LLM assigns a group when it classifies each email. Users can override the group per event type in the Action Pipeline Editor.
 
-### Actions & Workers
-An **action** is a step in a pipeline that calls a specific **worker** method.
+### 3. Action Pipelines (The "Workflow" Phase)
+An **action** is a step in a dynamically generated pipeline that calls a specific **plugin command** (similar to an n8n node executing an integration).
 
 ```js
 // Example: email classified as PROMO (group: NOISE)
@@ -54,27 +50,42 @@ An **action** is a step in a pipeline that calls a specific **worker** method.
   eventType: "PROMO",
   group: "NOISE",
   pipeline: [
-    { id: "trash",     name: "Move to Trash",  description: "Send to Gmail trash" },
-    { id: "mark_read", name: "Mark as Read",   description: "Remove unread indicator" },
+    { 
+      id: "custom_123", 
+      pluginId: "gmail", 
+      commandId: "trash",     
+      name: "Move to Trash",  
+      description: "Send to Gmail trash" 
+    },
+    { 
+      id: "custom_456", 
+      pluginId: "gmail", 
+      commandId: "mark_read", 
+      name: "Mark as Read",   
+      description: "Remove unread indicator" 
+    },
   ]
 }
 ```
 
-Each action `id` matches a handler registered in a worker (e.g. `gmail-worker.js`). The worker registry resolves the correct worker at execution time based on `event.source`.
+The UI provides a visual **Control Board** and an **Action Pipeline Editor** (similar to n8n's workflow editor) where users can:
+- View the LLM-generated pipelines
+- Create new custom actions
+- Link specific plugin commands to these actions (e.g., explicitly binding an action to `gmail·trash`)
+- Reorder, edit, or delete steps in the flow
 
-**Available Gmail action IDs** (registered in `gmail-worker.js`):
-`mark_read`, `mark_unread`, `star`, `unstar`, `trash`, `delete`, `mark_spam`, `archive`, `apply_label`, `remove_label`, `mark_important`, `mark_not_important`
+Each action maps to a handler registered in a plugin (e.g. `gmail-plugin.js`). The plugin registry resolves the correct execution method at runtime based on explicit bindings (`pluginId` and `commandId`), or falls back to resolving by `event.source`.
 
 ### LLM Pipeline Seeding
-When the LLM classifies an email for an **event type it has not seen before**, it also outputs:
+When the LLM classifies an email for an **event type it has not seen before**, it outputs:
 - `group` — suggested group (`NOISE`/`INFO`/`CRITICAL`)
-- `suggestedActions` — ordered list of action IDs to execute
+- `suggestedActions` — ordered list of action IDs to execute (drawn dynamically from the available plugin commands provided in the system prompt)
 
 `triage.js` calls `seedEventTypeFromLLM()` which:
 1. Sets the group (if not already user-defined)
 2. Creates the pipeline from suggested actions (if not already user-defined)
 
-This means **pipelines are auto-created on first classification** and then editable by the user. No hardcoded defaults.
+This means **pipelines are auto-created on first classification** and then fully editable by the user through the visual editor. No hardcoded defaults.
 
 ### Plugin Architecture
 

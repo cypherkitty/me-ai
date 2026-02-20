@@ -64,6 +64,13 @@ class GmailPlugin extends BasePlugin {
     this.registerAllHandlers();
   }
 
+  /** Extract raw Gmail message ID from the context (removes "gmail:" prefix if present) */
+  extractMessageId(ctx) {
+    const id = ctx.event.data.emailId || ctx.event.data.id;
+    if (!id) return null;
+    return id.startsWith("gmail:") ? id.substring(6) : id;
+  }
+
   registerAllHandlers() {
     // Mark as read
     this.registerHandler({
@@ -72,7 +79,7 @@ class GmailPlugin extends BasePlugin {
       description: "Remove the UNREAD label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -90,7 +97,7 @@ class GmailPlugin extends BasePlugin {
       description: "Add the UNREAD label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -108,7 +115,7 @@ class GmailPlugin extends BasePlugin {
       description: "Add the STARRED label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -126,7 +133,7 @@ class GmailPlugin extends BasePlugin {
       description: "Remove the STARRED label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -144,7 +151,7 @@ class GmailPlugin extends BasePlugin {
       description: "Move message to trash (recoverable for 30 days)",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/trash`);
@@ -160,7 +167,7 @@ class GmailPlugin extends BasePlugin {
       description: "Permanently delete message (cannot be recovered)",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "DELETE", `/messages/${messageId}`);
@@ -176,7 +183,7 @@ class GmailPlugin extends BasePlugin {
       description: "Move message to spam folder",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -195,7 +202,7 @@ class GmailPlugin extends BasePlugin {
       description: "Remove from inbox (keeps message, removes INBOX label)",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -213,7 +220,7 @@ class GmailPlugin extends BasePlugin {
       description: "Apply a custom label to the message",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         const labelId = ctx.config?.labelId;
         if (!messageId) throw new Error("No message ID provided");
         if (!labelId) throw new Error("No label ID provided in config");
@@ -233,7 +240,7 @@ class GmailPlugin extends BasePlugin {
       description: "Remove a label from the message",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         const labelId = ctx.config?.labelId;
         if (!messageId) throw new Error("No message ID provided");
         if (!labelId) throw new Error("No label ID provided in config");
@@ -253,7 +260,7 @@ class GmailPlugin extends BasePlugin {
       description: "Add the IMPORTANT label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {
@@ -271,7 +278,7 @@ class GmailPlugin extends BasePlugin {
       description: "Remove the IMPORTANT label",
       requiredScopes: ["https://www.googleapis.com/auth/gmail.modify"],
       execute: async (ctx) => {
-        const messageId = ctx.event.data.emailId || ctx.event.data.id;
+        const messageId = this.extractMessageId(ctx);
         if (!messageId) throw new Error("No message ID provided");
 
         await gmailApi(ctx.accessToken, "POST", `/messages/${messageId}/modify`, {

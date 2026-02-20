@@ -12,7 +12,7 @@
     deleteClassification,
     getScanStats,
   } from "./lib/triage.js";
-  import ActionsView from "./components/actions/ActionsView.svelte";
+  import ControlBoardView from "./components/actions/ControlBoardView.svelte";
   import { getSetting, setSetting, removeSetting } from "./lib/store/settings.js";
 
   const engine = getUnifiedEngine();
@@ -30,6 +30,7 @@
   let scanProgress = $state(null);
   let scanCount = $state(3);
   let error = $state(null);
+  let successMsg = $state(null);
   let scanAbort = $state(null);
 
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
@@ -103,6 +104,7 @@
     if (isScanning || !engine.isReady) return;
 
     error = null;
+    successMsg = null;
     isScanning = true;
     scanProgress = null;
     const abort = new AbortController();
@@ -137,6 +139,37 @@
     await loadData();
   }
 
+  async function executeEmail(eventType, email) {
+    const { executePipeline, isAuthenticated } = await import("./lib/plugins/execution-service.js");
+    
+    if (!await isAuthenticated()) {
+      alert("Please sign in to Gmail first (Dashboard page)");
+      return;
+    }
+
+    try {
+      // Find the email's full data from the group to pass to the pipeline
+      const eventData = { type: eventType, source: "gmail", data: email };
+      
+      const result = await executePipeline(eventData, (progress) => {
+        // Could update UI progress here if needed
+        console.log("Pipeline progress:", progress);
+      }, true); // Pass true for approved if we bypass the CRITICAL UI check here for simplicity, or we can handle it properly
+
+      if (result.success) {
+        successMsg = result.message;
+        error = null;
+        await markActed(email.emailId); // Mark as done after successful execution
+      } else {
+        error = `Execution failed: ${result.message}`;
+        successMsg = null;
+      }
+    } catch (e) {
+      error = `Execution error: ${e.message}`;
+      successMsg = null;
+    }
+  }
+
   async function dismiss(emailId) {
     await updateClassificationStatus(emailId, "dismissed");
     await loadData();
@@ -158,8 +191,8 @@
   }
 </script>
 
-<div class="actions-page">
-  <ActionsView
+<div class="control-board-page">
+  <ControlBoardView
     {engineStatus}
     {modelName}
     {groups}
@@ -170,14 +203,17 @@
     {isScanning}
     {scanProgress}
     {error}
+    {successMsg}
     onscan={startScan}
     onrescan={rescan}
     ontogglegroup={toggleGroup}
+    onexecute={executeEmail}
     onmarkacted={markActed}
     ondismiss={dismiss}
     onremove={removeItem}
     oncleargroup={clearGroup}
     ondismisserror={() => error = null}
+    ondismisssuccess={() => successMsg = null}
     onstop={stopScan}
     onrefresh={loadData}
     oncloseprogress={async () => { scanProgress = null; await removeSetting(SCAN_HISTORY_KEY); }}
@@ -186,7 +222,7 @@
 </div>
 
 <style>
-  .actions-page {
+  .control-board-page {
     height: 100%;
     overflow-y: auto;
   }

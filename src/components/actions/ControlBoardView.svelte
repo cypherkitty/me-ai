@@ -19,14 +19,17 @@
     scanProgress = null,
     scanCount = $bindable(20),
     error = null,
+    successMsg = null,
     onscan,
     onrescan,
     ontogglegroup,
+    onexecute,
     onmarkacted,
     ondismiss,
     onremove,
     oncleargroup,
     ondismisserror,
+    ondismisssuccess,
     onstop,
     onrefresh,
     oncloseprogress,
@@ -88,6 +91,13 @@
     </div>
   {/if}
 
+  {#if successMsg}
+    <div class="success-card">
+      <span>{successMsg}</span>
+      <button class="success-dismiss" onclick={ondismisssuccess}>✕</button>
+    </div>
+  {/if}
+
   {#if counts.total > 0}
     <div class="groups-list">
       {#each groupOrder as actionId (actionId)}
@@ -98,6 +108,7 @@
           items={groups[actionId] || []}
           expanded={expandedGroup === actionId}
           ontoggle={() => ontogglegroup(actionId)}
+          onexecute={(email) => onexecute(actionId, email)}
           {onmarkacted}
           {ondismiss}
           {onremove}
@@ -150,6 +161,28 @@
     background: none;
     border: none;
     color: #f87171;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 0.2rem;
+  }
+
+  .success-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    color: #34d399;
+  }
+
+  .success-dismiss {
+    background: none;
+    border: none;
+    color: #34d399;
     cursor: pointer;
     font-size: 1rem;
     padding: 0 0.2rem;
