@@ -106,15 +106,21 @@ export async function streamApiChat(
     
     const o1Family = modelName.startsWith("o1") || modelName.startsWith("o3");
     
-    body = JSON.stringify({
+    const bodyObj = {
       model: modelName,
       messages: systemMsg ? [systemMsg, ...otherMsgs] : otherMsgs,
-      // o1 models don't support temperature
-      temperature: o1Family ? 1 : temperature,
-      // Use max_completion_tokens for o1/o3, max_tokens for others
-      max_completion_tokens: maxTokens,
       stream: true
-    });
+    };
+
+    if (o1Family) {
+      bodyObj.temperature = 1;
+      bodyObj.max_completion_tokens = maxTokens;
+    } else {
+      bodyObj.temperature = temperature;
+      bodyObj.max_tokens = maxTokens;
+    }
+
+    body = JSON.stringify(bodyObj);
 
   } else if (provider === "anthropic") {
     url = "https://api.anthropic.com/v1/messages";
