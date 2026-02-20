@@ -293,8 +293,8 @@
     status = "loading";
     await setSetting("selectedModel", selectedModel);
     await setSetting("aiBackend", backend);
-    // Clear gpuInfo when switching to Ollama
-    if (backend === "ollama") {
+    // Clear gpuInfo when not using WebGPU
+    if (backend !== "webgpu") {
       gpuInfo = null;
     }
     engine.loadModel(selectedModel);

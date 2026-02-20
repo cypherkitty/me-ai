@@ -104,7 +104,7 @@ export async function streamApiChat(
     const systemMsg = messages.find(m => m.role === "system");
     const otherMsgs = messages.filter(m => m.role !== "system");
     
-    const o1Family = modelName.startsWith("o1") || modelName.startsWith("o3");
+    const o1Family = /^o\d/.test(modelName); // o1, o3, o4 families use different params
     
     const bodyObj = {
       model: modelName,
