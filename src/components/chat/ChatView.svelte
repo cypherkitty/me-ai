@@ -64,7 +64,13 @@
         WebGPU {showGpuPanel ? "▲" : "▼"}
       </button>
     {:else if backend === "ollama"}
-      <span class="backend-badge">🦙 Ollama</span>
+      <span class="backend-badge ollama">🦙 Ollama</span>
+    {:else if backend === "openai"}
+      <span class="backend-badge openai">⚡ OpenAI</span>
+    {:else if backend === "anthropic"}
+      <span class="backend-badge anthropic">🧠 Anthropic</span>
+    {:else if backend === "xai"}
+      <span class="backend-badge xai">✖️ xAI</span>
     {/if}
     {#if tps && !isRunning}
       <span class="stats">
@@ -189,13 +195,30 @@
   .backend-badge {
     font-size: 0.65rem;
     font-weight: 600;
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
-    border: 1px solid rgba(167, 139, 250, 0.3);
     padding: 0.2rem 0.55rem;
     border-radius: 4px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+  .backend-badge.ollama {
+    color: #a78bfa;
+    background: rgba(167, 139, 250, 0.1);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+  }
+  .backend-badge.openai {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+  }
+  .backend-badge.anthropic {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+  .backend-badge.xai {
+    color: #e8e8e8;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.3);
   }
 
   /* ── Messages ────────────────────────────────────────────────────── */

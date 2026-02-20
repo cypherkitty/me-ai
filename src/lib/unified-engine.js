@@ -10,10 +10,12 @@
 
 import { getEngine as getWebGPUEngine } from "./llm-engine.js";
 import { getOllamaEngine } from "./ollama-engine.js";
+import { getApiEngine } from "./api-engine.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
+import { getApiModelInfo } from "./api-models.js";
 
-let _currentBackend = null; // "webgpu" | "ollama"
+let _currentBackend = null; // "webgpu" | "ollama" | "openai" | "anthropic" | "xai"
 let _currentEngine = null;
 let _unifiedListeners = new Set(); // Listeners that should work across backends
 
@@ -23,6 +25,10 @@ let _unifiedListeners = new Set(); // Listeners that should work across backends
 function detectBackend(modelId) {
   if (modelId.startsWith("onnx-community/") || modelId.startsWith("microsoft/")) {
     return "webgpu";
+  }
+  const apiModel = getApiModelInfo(modelId);
+  if (apiModel) {
+    return apiModel.provider;
   }
   return "ollama";
 }
@@ -47,7 +53,13 @@ export function getUnifiedEngine() {
         
         // Create new engine
         _currentBackend = backend;
-        _currentEngine = backend === "webgpu" ? getWebGPUEngine() : getOllamaEngine();
+        if (backend === "webgpu") {
+          _currentEngine = getWebGPUEngine();
+        } else if (backend === "ollama") {
+          _currentEngine = getOllamaEngine();
+        } else {
+          _currentEngine = getApiEngine(backend);
+        }
         
         // Re-attach all unified listeners to the new engine
         for (const fn of _unifiedListeners) {
@@ -140,8 +152,10 @@ export function getUnifiedEngine() {
       
       if (_currentBackend === "webgpu") {
         return getModelInfo(modelId);
-      } else {
+      } else if (_currentBackend === "ollama") {
         return getOllamaModelInfo(modelId);
+      } else {
+        return getApiModelInfo(modelId);
       }
     },
 

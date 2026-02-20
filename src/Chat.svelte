@@ -3,6 +3,7 @@
   import { getSetting, setSetting } from "./lib/store/settings.js";
   import { MODELS } from "./lib/models.js";
   import { OLLAMA_MODELS } from "./lib/ollama-models.js";
+  import { API_MODELS } from "./lib/api-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
@@ -18,6 +19,7 @@
   import BackendSelector from "./components/chat/BackendSelector.svelte";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import OllamaSettings from "./components/chat/OllamaSettings.svelte";
+  import CloudApiSettings from "./components/chat/CloudApiSettings.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
 
@@ -304,6 +306,9 @@
       selectedModel = MODELS[0].id;
     } else if (backend === "ollama" && !OLLAMA_MODELS.find(m => m.name === selectedModel)) {
       selectedModel = OLLAMA_MODELS[0].name;
+    } else if ((backend === "openai" || backend === "anthropic" || backend === "xai") && 
+               !API_MODELS.find(m => m.provider === backend && m.id === selectedModel)) {
+      selectedModel = API_MODELS.find(m => m.provider === backend)?.id;
     }
   });
 
@@ -382,6 +387,13 @@
       />
     {:else if backend === "ollama"}
       <OllamaSettings
+        bind:selectedModel
+        bind:error
+        onload={loadModel}
+      />
+    {:else if backend === "openai" || backend === "anthropic" || backend === "xai"}
+      <CloudApiSettings
+        provider={backend}
         bind:selectedModel
         bind:error
         onload={loadModel}
