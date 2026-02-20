@@ -3,6 +3,7 @@
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
   import ActionEditor from "./ActionEditor.svelte";
+  import PluginRegistry from "./PluginRegistry.svelte";
   import DataManager from "./DataManager.svelte";
   import { actionColor } from "../../lib/triage.js";
 
@@ -33,6 +34,7 @@
 
   let showInspector = $state(false);
   let showActionEditor = $state(false);
+  let showPluginRegistry = $state(false);
 
   /** Grab a sample email from the first group to show in the inspector */
   let sampleEmail = $derived.by(() => {
@@ -61,8 +63,16 @@
 
   <PromptInspector bind:open={showInspector} {sampleEmail} />
   <ActionEditor bind:open={showActionEditor} />
+  <PluginRegistry bind:open={showPluginRegistry} />
 
   <div class="toolbar">
+    <button class="toolbar-btn" onclick={() => showPluginRegistry = true}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+      </svg>
+      Plugins
+    </button>
     <button class="toolbar-btn" onclick={() => showActionEditor = true}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 3v18M3 12h18"/>
