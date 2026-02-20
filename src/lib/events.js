@@ -3,19 +3,29 @@
  *
  * Event types — classification labels assigned by the LLM (e.g. "REVIEW", "DELETE"),
  *               plus any custom types the user creates.
- *               Each event type has a user-defined sequential action pipeline.
- *               No hardcoded defaults — all pipelines are user-managed.
+ *               Each event type belongs to a group and has a user-defined sequential
+ *               action pipeline. No hardcoded pipelines — all actions are user-managed
+ *               (seeded from LLM suggestions on first encounter).
  *
- * Tags — secondary metadata on emails (also output by the LLM). Present but not
- *        structurally important; used only for display purposes.
+ * Event groups — three tiers controlling how events are handled:
+ *   NOISE    — unimportant emails (promos, newsletters). Actions run automatically.
+ *   INFO     — informational emails to review. Actions run on user request.
+ *   CRITICAL — high-stakes emails that change state (transactions, approvals).
+ *              User must explicitly review and confirm before any action runs.
+ *
+ * Actions — each step in a pipeline maps to a worker method (e.g. gmail.trash).
+ *           Worker resolution happens at execution time via the worker registry.
+ *
+ * Tags — secondary metadata on emails (LLM output). Display only.
  */
 
 /**
  * @typedef {Object} Action
- * @property {string} id          — unique identifier (e.g. "mark_read")
+ * @property {string} id          — unique identifier matching a worker handler (e.g. "trash")
  * @property {string} name        — display name
  * @property {string} description — what it does
  * @property {string} [icon]      — optional emoji
+ * @property {string} [workerId]  — explicit worker override (default: resolved from event source)
  */
 
 /**
@@ -23,10 +33,50 @@
  * @property {string} type     — event type (e.g. "REVIEW", "DELETE")
  * @property {string} source   — origin (e.g. "gmail")
  * @property {Object} data     — email payload
- * @property {Object} metadata — scan metadata (summary, reason, tags, etc.)
+ * @property {Object} metadata — scan metadata (group, summary, reason, tags, etc.)
  */
 
+/**
+ * @typedef {"NOISE"|"INFO"|"CRITICAL"} EventGroup
+ */
+
+/**
+ * Event group definitions with their execution policies.
+ * NOISE    — auto-execute pipeline without user interaction
+ * INFO     — show to user; execute on demand
+ * CRITICAL — require explicit user approval before any action runs
+ */
+export const EVENT_GROUPS = {
+  NOISE: {
+    id: "NOISE",
+    label: "Noise",
+    description: "Unimportant emails that can be safely deleted or archived automatically.",
+    autoExecute: true,
+    requiresApproval: false,
+    color: "#6b7280",  // gray
+  },
+  INFO: {
+    id: "INFO",
+    label: "Info",
+    description: "Informational emails to review. Actions run on user request.",
+    autoExecute: false,
+    requiresApproval: false,
+    color: "#3b82f6",  // blue
+  },
+  CRITICAL: {
+    id: "CRITICAL",
+    label: "Critical",
+    description: "High-stakes emails that change state. User must approve before any action runs.",
+    autoExecute: false,
+    requiresApproval: true,
+    color: "#f59e0b",  // amber
+  },
+};
+
+export const DEFAULT_GROUP = "INFO";
+
 const STORAGE_KEY = "me-ai-events";
+const GROUPS_KEY = "me-ai-event-groups";
 
 // ── Persistence ─────────────────────────────────────────────────────
 
@@ -38,6 +88,16 @@ async function loadUserMap() {
 async function saveUserMap(map) {
   const { setSetting } = await import("./store/settings.js");
   await setSetting(STORAGE_KEY, map);
+}
+
+async function loadGroupsMap() {
+  const { getSetting } = await import("./store/settings.js");
+  return (await getSetting(GROUPS_KEY)) || {};
+}
+
+async function saveGroupsMap(map) {
+  const { setSetting } = await import("./store/settings.js");
+  await setSetting(GROUPS_KEY, map);
 }
 
 // ── Event type queries ──────────────────────────────────────────────
@@ -67,6 +127,51 @@ export async function getAllEventTypes() {
   const fromDB = await getEventTypesFromDB();
   const all = new Set([...Object.keys(map), ...fromDB]);
   return [...all].sort();
+}
+
+// ── Event group management ──────────────────────────────────────────
+
+/**
+ * Get the group for an event type.
+ * @param {string} eventType
+ * @returns {Promise<EventGroup>}
+ */
+export async function getGroupForEventType(eventType) {
+  const normalized = eventType?.toUpperCase?.() || "";
+  const map = await loadGroupsMap();
+  return map[normalized] || DEFAULT_GROUP;
+}
+
+/**
+ * Set the group for an event type.
+ * @param {string} eventType
+ * @param {EventGroup} group
+ */
+export async function setGroupForEventType(eventType, group) {
+  const normalized = eventType.toUpperCase();
+  if (!EVENT_GROUPS[group]) throw new Error(`Unknown group: ${group}`);
+  const map = await loadGroupsMap();
+  map[normalized] = group;
+  await saveGroupsMap(map);
+}
+
+/**
+ * Get groups for all known event types.
+ * @returns {Promise<Record<string, EventGroup>>}
+ */
+export async function getAllEventTypeGroups() {
+  return loadGroupsMap();
+}
+
+/**
+ * Get the execution policy for an event type based on its group.
+ * @param {string} eventType
+ * @returns {Promise<{ autoExecute: boolean, requiresApproval: boolean }>}
+ */
+export async function getExecutionPolicy(eventType) {
+  const group = await getGroupForEventType(eventType);
+  const def = EVENT_GROUPS[group] || EVENT_GROUPS[DEFAULT_GROUP];
+  return { autoExecute: def.autoExecute, requiresApproval: def.requiresApproval, group };
 }
 
 /**
@@ -111,6 +216,49 @@ export async function addEventType(eventType) {
   const map = await loadUserMap();
   if (!(normalized in map)) {
     map[normalized] = [];
+    await saveUserMap(map);
+  }
+}
+
+/**
+ * Seed an event type from LLM suggestions if no pipeline is defined yet.
+ * Called automatically when the LLM classifies an email for a new event type.
+ * Does not overwrite user-defined pipelines.
+ *
+ * @param {string} eventType
+ * @param {EventGroup} group        — LLM-suggested group
+ * @param {string[]} suggestedActionIds — LLM-suggested action IDs (e.g. ["trash", "mark_read"])
+ */
+export async function seedEventTypeFromLLM(eventType, group, suggestedActionIds) {
+  const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+  if (!normalized) return;
+
+  const map = await loadUserMap();
+  const groupsMap = await loadGroupsMap();
+
+  // Only set group if not already user-defined
+  if (!(normalized in groupsMap)) {
+    const validGroup = EVENT_GROUPS[group] ? group : DEFAULT_GROUP;
+    groupsMap[normalized] = validGroup;
+    await saveGroupsMap(groupsMap);
+  }
+
+  // Only seed pipeline if not already user-defined
+  if (!(normalized in map)) {
+    // Map action IDs to Action objects using the worker registry metadata
+    const { pluginRegistry } = await import("./plugins/plugin-registry.js");
+    const available = pluginRegistry.getAvailableActions("gmail");
+    const actionMap = Object.fromEntries(available.map(a => [a.actionId, a]));
+
+    const pipeline = (suggestedActionIds || [])
+      .filter(id => actionMap[id])
+      .map(id => ({
+        id,
+        name: actionMap[id].name,
+        description: actionMap[id].description,
+      }));
+
+    map[normalized] = pipeline;
     await saveUserMap(map);
   }
 }
@@ -264,6 +412,7 @@ export async function buildGroupedEventsMessage(grouped) {
   const groups = await Promise.all(grouped.order.map(async eventType => {
     const items = grouped.groups[eventType] || [];
     const commands = await getActionsForEvent(eventType);
+    const group = await getGroupForEventType(eventType);
     const emails = items.map(item => ({
       emailId: item.emailId,
       subject: item.subject || "(no subject)",
@@ -274,7 +423,7 @@ export async function buildGroupedEventsMessage(grouped) {
       tags: item.tags || [],
       status: item.status || "pending",
     }));
-    return { eventType, emails, commands };
+    return { eventType, group, emails, commands };
   }));
 
   const total = groups.reduce((sum, g) => sum + g.emails.length, 0);
