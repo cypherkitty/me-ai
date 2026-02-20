@@ -306,9 +306,8 @@
       selectedModel = MODELS[0].id;
     } else if (backend === "ollama" && !OLLAMA_MODELS.find(m => m.name === selectedModel)) {
       selectedModel = OLLAMA_MODELS[0].name;
-    } else if ((backend === "openai" || backend === "anthropic" || backend === "xai") && 
-               !API_MODELS.find(m => m.provider === backend && m.id === selectedModel)) {
-      selectedModel = API_MODELS.find(m => m.provider === backend)?.id;
+    } else if (backend === "cloud" && !API_MODELS.find(m => m.id === selectedModel)) {
+      selectedModel = API_MODELS[0].id;
     }
   });
 
@@ -391,9 +390,8 @@
         bind:error
         onload={loadModel}
       />
-    {:else if backend === "openai" || backend === "anthropic" || backend === "xai"}
+    {:else if backend === "cloud"}
       <CloudApiSettings
-        provider={backend}
         bind:selectedModel
         bind:error
         onload={loadModel}
@@ -416,7 +414,7 @@
     {numTokens}
     {generationPhase}
     {gpuInfo}
-    {backend}
+    backend={backend === "cloud" ? API_MODELS.find(m => m.id === selectedModel)?.provider || "cloud" : backend}
     bind:chatContainer
     onsend={send}
     onstop={stop}

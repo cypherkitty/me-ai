@@ -1,33 +1,23 @@
 export const API_MODELS = [
   // OpenAI
   {
+    id: "gpt-4.5-preview",
+    name: "gpt-4.5-preview",
+    displayName: "GPT-4.5 Preview",
+    provider: "openai",
+    description: "OpenAI's latest frontier model",
+    contextWindow: 128000,
+    maxEmailTokens: 16384,
+    recommendedForEmailProcessing: true,
+  },
+  {
     id: "gpt-4o",
     name: "gpt-4o",
     displayName: "GPT-4o",
     provider: "openai",
-    description: "OpenAI's most capable model",
+    description: "OpenAI's previous flagship model",
     contextWindow: 128000,
     maxEmailTokens: 16384,
-    recommendedForEmailProcessing: true,
-  },
-  {
-    id: "gpt-4o-mini",
-    name: "gpt-4o-mini",
-    displayName: "GPT-4o-mini",
-    provider: "openai",
-    description: "Fast, cost-effective model for everyday tasks",
-    contextWindow: 128000,
-    maxEmailTokens: 16384,
-    recommendedForEmailProcessing: true,
-  },
-  {
-    id: "o1",
-    name: "o1",
-    displayName: "o1",
-    provider: "openai",
-    description: "OpenAI's reasoning model",
-    contextWindow: 200000,
-    maxEmailTokens: 32000,
     recommendedForEmailProcessing: true,
   },
   {
@@ -65,11 +55,21 @@ export const API_MODELS = [
   
   // xAI
   {
+    id: "grok-3-latest",
+    name: "grok-3-latest",
+    displayName: "Grok 3",
+    provider: "xai",
+    description: "xAI's latest frontier model",
+    contextWindow: 128000,
+    maxEmailTokens: 16384,
+    recommendedForEmailProcessing: true,
+  },
+  {
     id: "grok-2-latest",
     name: "grok-2-latest",
     displayName: "Grok 2",
     provider: "xai",
-    description: "xAI's frontier model",
+    description: "xAI's previous model",
     contextWindow: 128000,
     maxEmailTokens: 16384,
     recommendedForEmailProcessing: true,

@@ -31,38 +31,14 @@
     </button>
 
     <button 
-      class="backend-btn" 
-      class:active={backend === "openai"}
-      onclick={() => backend = "openai"}
+      class="backend-btn cloud-btn" 
+      class:active={backend === "cloud"}
+      onclick={() => backend = "cloud"}
     >
-      <span class="backend-icon">⚡</span>
+      <span class="backend-icon">☁️</span>
       <div class="backend-info">
-        <div class="backend-name">OpenAI</div>
-        <div class="backend-desc">GPT-4o, o1, o3-mini</div>
-      </div>
-    </button>
-
-    <button 
-      class="backend-btn" 
-      class:active={backend === "anthropic"}
-      onclick={() => backend = "anthropic"}
-    >
-      <span class="backend-icon">🧠</span>
-      <div class="backend-info">
-        <div class="backend-name">Anthropic</div>
-        <div class="backend-desc">Claude 3.7 Sonnet, Haiku</div>
-      </div>
-    </button>
-
-    <button 
-      class="backend-btn" 
-      class:active={backend === "xai"}
-      onclick={() => backend = "xai"}
-    >
-      <span class="backend-icon">✖️</span>
-      <div class="backend-info">
-        <div class="backend-name">xAI</div>
-        <div class="backend-desc">Grok 2 latest</div>
+        <div class="backend-name">Cloud APIs</div>
+        <div class="backend-desc">ChatGPT, Claude, Grok</div>
       </div>
     </button>
   </div>
