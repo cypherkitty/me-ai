@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google OAuth - me-ai</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #0a0a0a;
+      color: #e8e8e8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 500px;
+      width: 100%;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 16px;
+      padding: 40px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+    p {
+      color: #888;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 28px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+    }
+    .btn:hover {
+      background: #2563eb;
+    }
+    .btn:disabled {
+      background: #333;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .status {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      color: #3b82f6;
+      display: none;
+    }
+    .status.success {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.3);
+      color: #34d399;
+    }
+    .status.error {
+      background: rgba(248, 113, 113, 0.1);
+      border-color: rgba(248, 113, 113, 0.3);
+      color: #f87171;
+    }
+    .token-info {
+      margin-top: 20px;
+      padding: 16px;
+      background: #0f0f0f;
+      border: 1px solid #222;
+      border-radius: 8px;
+      text-align: left;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #888;
+      word-break: break-all;
+      display: none;
+    }
+    .google-icon {
+      width: 20px;
+      height: 20px;
+    }
+    .client-id {
+      margin-top: 20px;
+      padding: 12px;
+      background: #0f0f0f;
+      border: 1px solid #222;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #666;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Google OAuth</h1>
+    <p>Sign in with your Google account to authorize me-ai to access your Gmail messages (read-only).</p>
+    
+    <button id="signInBtn" class="btn">
+      <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Sign in with Google
+    </button>
+
+    <div class="client-id">
+      Client ID: 562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com
+    </div>
+
+    <div id="status" class="status"></div>
+    <div id="tokenInfo" class="token-info"></div>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script>
+    const CLIENT_ID = '562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com';
+    const SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+    const TOKEN_KEY = 'me-ai:oauth-token';
+
+    let tokenClient;
+    const signInBtn = document.getElementById('signInBtn');
+    const statusDiv = document.getElementById('status');
+    const tokenInfoDiv = document.getElementById('tokenInfo');
+
+    function showStatus(message, type = 'info') {
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+      statusDiv.style.display = 'block';
+    }
+
+    function saveToken(accessToken, expiresIn) {
+      return new Promise((resolve) => {
+        const expiresAt = Date.now() + expiresIn * 1000;
+        const request = indexedDB.open('me-ai-store');
+        
+        request.onerror = (e) => {
+          console.error('Failed to open IndexedDB:', e);
+          resolve(false);
+        };
+        
+        request.onsuccess = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('settings')) {
+            console.error('Settings store not found. Please open the main app first.');
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          try {
+            const tx = db.transaction('settings', 'readwrite');
+            const store = tx.objectStore('settings');
+            const putReq = store.put({ 
+              key: TOKEN_KEY, 
+              value: { access_token: accessToken, expires_at: expiresAt } 
+            });
+            
+            putReq.onsuccess = () => resolve(true);
+            putReq.onerror = (err) => {
+              console.error('Failed to put token in IndexedDB:', err);
+              resolve(false);
+            };
+            
+            tx.oncomplete = () => db.close();
+          } catch(err) {
+            console.error('Transaction failed:', err);
+            db.close();
+            resolve(false);
+          }
+        };
+      });
+    }
+
+    async function handleAuthResponse(response) {
+      if (response.error) {
+        showStatus(`Error: ${response.error_description || response.error}`, 'error');
+        signInBtn.disabled = false;
+        signInBtn.textContent = 'Sign in with Google';
+        return;
+      }
+
+      // Save token
+      const saved = await saveToken(response.access_token, response.expires_in);
+      
+      // Show success
+      showStatus('✓ Successfully authenticated! Token saved to storage.', 'success');
+      signInBtn.disabled = true;
+      signInBtn.textContent = '✓ Signed In';
+
+      // Show token info (truncated for security)
+      const truncatedToken = response.access_token.substring(0, 20) + '...' + response.access_token.substring(response.access_token.length - 20);
+      const expiresInMin = Math.floor(response.expires_in / 60);
+      tokenInfoDiv.innerHTML = `
+        <strong>Token:</strong> ${truncatedToken}<br>
+        <strong>Expires in:</strong> ${expiresInMin} minutes<br>
+        <strong>Saved to:</strong> ${saved ? 'IndexedDB' : 'failed'}
+      `;
+      tokenInfoDiv.style.display = 'block';
+
+      // Notify user
+      setTimeout(() => {
+        showStatus('You can now close this page and return to the app at http://localhost:5173', 'success');
+      }, 2000);
+    }
+
+    // Initialize Google Identity Services
+    window.onload = function() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPE,
+        callback: handleAuthResponse,
+      });
+
+      signInBtn.addEventListener('click', () => {
+        signInBtn.disabled = true;
+        signInBtn.textContent = 'Opening Google...';
+        showStatus('Opening Google sign-in popup...', 'info');
+        
+        tokenClient.requestAccessToken();
+        
+        // Re-enable button after a delay in case popup was blocked
+        setTimeout(() => {
+          if (signInBtn.disabled && signInBtn.textContent === 'Opening Google...') {
+            signInBtn.disabled = false;
+            signInBtn.textContent = 'Sign in with Google';
+            showStatus('Popup may have been blocked. Please allow popups and try again.', 'error');
+          }
+        }, 3000);
+      });
+    };
+  </script>
+</body>
+</html>
