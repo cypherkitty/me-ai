@@ -15,6 +15,18 @@
   } from "../../lib/events.js";
   import { getAvailableActions } from "../../lib/plugins/execution-service.js";
   import { stringToHue } from "../../lib/format.js";
+  
+  import { SvelteFlow, Background, Controls } from '@xyflow/svelte';
+  import '@xyflow/svelte/dist/style.css';
+  import TriggerNode from "./nodes/TriggerNode.svelte";
+  import ActionNode from "./nodes/ActionNode.svelte";
+  import AddNode from "./nodes/AddNode.svelte";
+
+  const nodeTypes = {
+    trigger: TriggerNode,
+    action: ActionNode,
+    add: AddNode
+  };
 
   let { open = $bindable(false) } = $props();
 
@@ -22,13 +34,15 @@
   let commandCounts = $state({});
   let eventTypeGroups = $state({});
   let selectedType = $state(null);
-  let selectedTypeHasOverride = $state(false);
   let selectedTypeGroup = $state("INFO");
   let commands = $state([]);
   let editingCmd = $state(null);
   let showNewType = $state(false);
   let newTypeName = $state("");
   let showPicker = $state(false);
+
+  let nodes = $state.raw([]);
+  let edges = $state.raw([]);
 
   // All actions available from registered plugins, grouped by plugin
   const PLUGIN_ACTIONS = (() => {
@@ -62,7 +76,6 @@
     eventTypeGroups = await getAllEventTypeGroups();
     if (selectedType) {
       commands = (await getCommandsForEvent(selectedType)).map(c => ({ ...c }));
-      selectedTypeHasOverride = await hasUserOverride(selectedType);
       selectedTypeGroup = await getGroupForEventType(selectedType);
     }
   }
@@ -71,10 +84,79 @@
     if (open) refresh();
   });
 
+  $effect(() => {
+    if (selectedType) {
+      updateGraph();
+    } else {
+      nodes = [];
+      edges = [];
+    }
+  });
+
+  function updateGraph() {
+    const newNodes = [];
+    const newEdges = [];
+    
+    newNodes.push({
+      id: 'trigger',
+      type: 'trigger',
+      position: { x: 50, y: 100 },
+      data: { 
+        label: selectedType,
+        group: selectedTypeGroup,
+      }
+    });
+    
+    let prevId = 'trigger';
+    let x = 300;
+    
+    commands.forEach((cmd, i) => {
+      newNodes.push({
+        id: cmd.id,
+        type: 'action',
+        position: { x, y: 100 },
+        data: {
+          cmd,
+          onEdit: () => startEdit(cmd),
+          onDelete: () => handleRemoveCommand(cmd.id),
+        }
+      });
+      
+      newEdges.push({
+        id: `e-${prevId}-${cmd.id}`,
+        source: prevId,
+        target: cmd.id,
+        animated: true,
+        style: "stroke: #666; stroke-width: 2"
+      });
+      
+      prevId = cmd.id;
+      x += 270;
+    });
+    
+    // Add Node
+    newNodes.push({
+      id: 'add-action',
+      type: 'add',
+      position: { x, y: 135 },
+      data: {
+        onClick: () => { showPicker = true; editingCmd = null; }
+      }
+    });
+    newEdges.push({
+      id: `e-${prevId}-add-action`,
+      source: prevId,
+      target: 'add-action',
+      style: "stroke: #444; stroke-width: 2; stroke-dasharray: 4"
+    });
+    
+    nodes = newNodes;
+    edges = newEdges;
+  }
+
   async function selectType(type) {
     selectedType = type;
     commands = (await getCommandsForEvent(type)).map(c => ({ ...c }));
-    selectedTypeHasOverride = await hasUserOverride(type);
     selectedTypeGroup = await getGroupForEventType(type);
     editingCmd = null;
     showPicker = false;
@@ -84,6 +166,7 @@
     if (!selectedType) return;
     await setGroupForEventType(selectedType, newGroup);
     selectedTypeGroup = newGroup;
+    updateGraph();
   }
 
   function formatLabel(str) {
@@ -110,11 +193,9 @@
     await deleteEventType(selectedType);
     selectedType = null;
     commands = [];
-    selectedTypeHasOverride = false;
     await refresh();
   }
 
-  /** Add a plugin-provided action to the current event type's pipeline. */
   async function handleAddPluginAction(handler, pluginId) {
     await addCommandToEvent(selectedType, {
       id: handler.actionId,
@@ -124,10 +205,10 @@
       description: handler.description,
       icon: ACTION_ICONS[handler.actionId] || undefined,
     });
+    showPicker = false;
     await refresh();
   }
 
-  /** Whether an action ID is already in the current pipeline. */
   function isInPipeline(actionId) {
     return commands.some(c => c.id === actionId);
   }
@@ -138,6 +219,7 @@
   }
 
   function startEdit(cmd) {
+    showPicker = false;
     editingCmd = { 
       ...cmd, 
       pluginCommandKey: cmd.pluginId && cmd.commandId ? `${cmd.pluginId}:${cmd.commandId}` : "" 
@@ -171,18 +253,10 @@
       description: "",
       icon: "⚡",
     });
+    showPicker = false;
     await refresh();
     const cmd = commands.find(c => c.id === newId);
     if (cmd) startEdit(cmd);
-  }
-
-  async function moveCommand(idx, direction) {
-    const arr = [...commands];
-    const newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= arr.length) return;
-    [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
-    await saveCommandsForEvent(selectedType, arr);
-    await refresh();
   }
 </script>
 
@@ -191,7 +265,7 @@
     <div class="editor-panel">
       <div class="editor-header">
         <h2>Action Pipeline Editor</h2>
-        <span class="subtitle">Configure sequential action pipelines for each event type</span>
+        <span class="subtitle">n8n-like visual graph editor</span>
         <button class="close-btn" onclick={() => open = false}>&#10005;</button>
       </div>
 
@@ -239,7 +313,7 @@
           </div>
         </div>
 
-        <!-- Right: commands for selected type -->
+        <!-- Right: canvas panel -->
         <div class="commands-panel">
           {#if selectedType}
             <div class="commands-head">
@@ -247,7 +321,6 @@
                 {formatLabel(selectedType)}
               </span>
               <span class="cmd-count">{commands.length} action{commands.length === 1 ? "" : "s"}</span>
-              <span class="pipeline-note">• Sequential pipeline</span>
               <span class="spacer"></span>
               <div class="group-selector">
                 {#each Object.values(EVENT_GROUPS) as grp}
@@ -263,49 +336,70 @@
                 {/each}
               </div>
               <button class="text-btn danger" onclick={handleDeleteType}>Delete</button>
-              <button class="small-btn" onclick={() => { showPicker = !showPicker; editingCmd = null; }}>
-                {showPicker ? "Cancel" : "+ Add Action"}
-              </button>
             </div>
 
-            {#if showPicker}
-              <div class="action-picker">
-                {#each PLUGIN_ACTIONS as group}
-                  <div class="picker-group">
-                    <div class="picker-group-label">
-                      <span class="picker-plugin-badge">{group.pluginName}</span>
-                      <span class="picker-hint">Click to add to pipeline</span>
-                    </div>
-                    <div class="picker-grid">
-                      {#each group.actions as handler}
-                        {@const added = isInPipeline(handler.actionId)}
-                        <button
-                          class="picker-tile"
-                          class:added
-                          onclick={() => handleAddPluginAction(handler, group.pluginId)}
-                          title={handler.description}
-                        >
-                          <span class="picker-tile-icon">{ACTION_ICONS[handler.actionId] ?? "·"}</span>
-                          <span class="picker-tile-name">{handler.name}</span>
-                          {#if added}
-                            <span class="picker-tile-added">✓ added</span>
-                          {/if}
-                        </button>
-                      {/each}
+            <div class="canvas-wrapper">
+              <SvelteFlow 
+                {nodes} 
+                {edges} 
+                {nodeTypes} 
+                fitView 
+                fitViewOptions={{ padding: 0.2, minZoom: 0.8 }}
+                minZoom={0.5}
+                maxZoom={1.5}
+                colorMode="dark"
+              >
+                <Background bgColor="#111" patternColor="#333" />
+                <Controls showInteractive={false} />
+              </SvelteFlow>
+
+              <!-- Floating overlay panels for Picker & Editor -->
+              {#if showPicker}
+                <div class="floating-panel picker-panel">
+                  <div class="panel-header">
+                    <h3>Add Action Node</h3>
+                    <button class="close-btn" onclick={() => showPicker = false}>&#10005;</button>
+                  </div>
+                  <div class="action-picker">
+                    {#each PLUGIN_ACTIONS as group}
+                      <div class="picker-group">
+                        <div class="picker-group-label">
+                          <span class="picker-plugin-badge">{group.pluginName}</span>
+                        </div>
+                        <div class="picker-grid">
+                          {#each group.actions as handler}
+                            {@const added = isInPipeline(handler.actionId)}
+                            <button
+                              class="picker-tile"
+                              class:added
+                              onclick={() => handleAddPluginAction(handler, group.pluginId)}
+                              title={handler.description}
+                            >
+                              <span class="picker-tile-icon">{ACTION_ICONS[handler.actionId] ?? "·"}</span>
+                              <span class="picker-tile-name">{handler.name}</span>
+                              {#if added}
+                                <span class="picker-tile-added">✓ added</span>
+                              {/if}
+                            </button>
+                          {/each}
+                        </div>
+                      </div>
+                    {/each}
+                    <div class="picker-custom-row">
+                      <button class="small-btn primary" onclick={handleCreateCustomAction}>+ Create Custom Action</button>
+                      <span class="picker-hint" style="margin-left: 0.5rem;">Link to any plugin command</span>
                     </div>
                   </div>
-                {/each}
-                <div class="picker-custom-row">
-                  <button class="small-btn primary" onclick={handleCreateCustomAction}>+ Create Custom Action</button>
-                  <span class="picker-hint" style="margin-left: 0.5rem;">Create a new action and link it to any plugin command</span>
                 </div>
-              </div>
-            {/if}
+              {/if}
 
-            <div class="commands-list">
-              {#each commands as cmd, i (cmd.id)}
-                {#if editingCmd?.id === cmd.id}
-                  <div class="cmd-row editing">
+              {#if editingCmd}
+                <div class="floating-panel editor-panel-inner">
+                  <div class="panel-header">
+                    <h3>Edit Action Node</h3>
+                    <button class="close-btn" onclick={cancelEdit}>&#10005;</button>
+                  </div>
+                  <div class="cmd-form">
                     <div class="form-row">
                       <input type="text" bind:value={editingCmd.icon} class="icon-input" placeholder="Icon" />
                       <input type="text" bind:value={editingCmd.name} class="name-input" placeholder="Name" />
@@ -345,58 +439,15 @@
                       <button class="small-btn" onclick={cancelEdit}>Cancel</button>
                     </div>
                   </div>
-                {:else}
-                  <div class="cmd-row">
-                    <div class="step-marker">{i + 1}</div>
-                    <div class="cmd-main">
-                      {#if cmd.icon}<span class="cmd-icon">{cmd.icon}</span>{/if}
-                      <div class="cmd-info">
-                        <div class="cmd-name-row">
-                          <span class="cmd-name">{cmd.name}</span>
-                          {#if cmd.pluginId && cmd.commandId}
-                            <span class="cmd-binding" title="Calls {cmd.pluginId} plugin → {cmd.commandId}">
-                              {cmd.pluginId}<span class="cmd-binding-sep">·</span>{cmd.commandId}
-                            </span>
-                          {:else}
-                            <span class="cmd-binding unbound" title="No plugin bound — will attempt to resolve from event source">
-                              unbound
-                            </span>
-                          {/if}
-                        </div>
-                        <span class="cmd-desc">{cmd.description}</span>
-                      </div>
-                    </div>
-                    <div class="cmd-actions">
-                      <button
-                        class="icon-btn small"
-                        title="Move up"
-                        disabled={i === 0}
-                        onclick={() => moveCommand(i, -1)}
-                      >&#9650;</button>
-                      <button
-                        class="icon-btn small"
-                        title="Move down"
-                        disabled={i === commands.length - 1}
-                        onclick={() => moveCommand(i, 1)}
-                      >&#9660;</button>
-                      <button class="icon-btn small" title="Edit" onclick={() => startEdit(cmd)}>&#9998;</button>
-                      <button class="icon-btn small danger" title="Remove" onclick={() => handleRemoveCommand(cmd.id)}>&#10005;</button>
-                    </div>
-                  </div>
-                {/if}
-              {/each}
-
-              {#if commands.length === 0}
-                <div class="empty-cmds">No actions yet. Add one above.</div>
+                </div>
               {/if}
             </div>
-
           {:else}
             <div class="no-selection">
               {#if eventTypes.length === 0}
                 <p>No event types yet. Run a scan to discover event types, or click <strong>+</strong> to create one manually.</p>
               {:else}
-                <p>Select an event type on the left to view and edit its action pipeline.</p>
+                <p>Select an event type on the left to view and edit its visual graph.</p>
               {/if}
             </div>
           {/if}
@@ -410,7 +461,7 @@
   .editor-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
+    background: rgba(0, 0, 0, 0.75);
     z-index: 100;
     display: flex;
     align-items: center;
@@ -422,11 +473,12 @@
     border: 1px solid #2a2a2a;
     border-radius: 14px;
     width: 100%;
-    max-width: 720px;
-    max-height: 85vh;
+    max-width: 1000px;
+    height: 85vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
   }
 
   .editor-header {
@@ -436,6 +488,7 @@
     padding: 0.8rem 1rem;
     border-bottom: 1px solid #222;
     flex-shrink: 0;
+    background: #151515;
   }
   .editor-header h2 {
     font-size: 0.95rem;
@@ -472,17 +525,18 @@
 
   /* ── Sidebar ──────────────────────────────────────────────────────── */
   .types-sidebar {
-    width: 200px;
+    width: 240px;
     border-right: 1px solid #222;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    background: #131313;
   }
   .sidebar-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 0.6rem;
+    padding: 0.6rem 0.8rem;
     border-bottom: 1px solid #1e1e1e;
   }
   .sidebar-title {
@@ -495,15 +549,16 @@
   .new-type-form {
     display: flex;
     gap: 0.3rem;
-    padding: 0.4rem 0.5rem;
+    padding: 0.5rem 0.8rem;
     border-bottom: 1px solid #1e1e1e;
+    background: #1a1a1a;
   }
   .new-type-form input {
     flex: 1;
     min-width: 0;
     padding: 0.3rem 0.4rem;
     font-size: 0.65rem;
-    background: #1a1a1a;
+    background: #111;
     border: 1px solid #333;
     border-radius: 4px;
     color: #e8e8e8;
@@ -516,21 +571,21 @@
   .types-list {
     flex: 1;
     overflow-y: auto;
-    padding: 0.2rem 0;
+    padding: 0.4rem 0;
   }
   .type-item {
     display: flex;
     align-items: center;
     gap: 0.4rem;
     width: 100%;
-    padding: 0.4rem 0.6rem;
+    padding: 0.5rem 0.8rem;
     border: none;
     background: transparent;
     cursor: pointer;
     text-align: left;
     color: #bbb;
     font-family: inherit;
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     transition: background 0.12s;
   }
   .type-item:hover {
@@ -539,6 +594,8 @@
   .type-item.selected {
     background: rgba(59, 130, 246, 0.1);
     color: #e8e8e8;
+    border-left: 3px solid #3b82f6;
+    padding-left: calc(0.8rem - 3px);
   }
   .type-dot {
     width: 8px;
@@ -554,12 +611,12 @@
   }
   .spacer-flex { flex: 1; }
   .type-count {
-    font-size: 0.58rem;
+    font-size: 0.6rem;
     color: #555;
     flex-shrink: 0;
   }
   .type-group-chip {
-    font-size: 0.52rem;
+    font-size: 0.55rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -567,15 +624,55 @@
     opacity: 0.8;
   }
 
+  /* ── Canvas panel ─────────────────────────────────────────────────── */
+  .commands-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    position: relative;
+    background: #0d0d0d;
+  }
+  .commands-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #1e1e1e;
+    flex-shrink: 0;
+    background: #111;
+    z-index: 10;
+  }
+  .type-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 5px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  .cmd-count {
+    font-size: 0.65rem;
+    color: #666;
+  }
+  .spacer { flex: 1; }
+
+  .canvas-wrapper {
+    flex: 1;
+    position: relative;
+  }
+
   /* ── Group selector ───────────────────────────────────────────────── */
   .group-selector {
     display: flex;
-    gap: 0.2rem;
+    gap: 0.25rem;
     flex-shrink: 0;
   }
   .group-chip {
-    padding: 0.15rem 0.45rem;
-    font-size: 0.58rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6rem;
     font-weight: 600;
     border-radius: 4px;
     border: 1px solid transparent;
@@ -597,275 +694,45 @@
     background: color-mix(in srgb, var(--grp-color) 12%, transparent);
   }
 
-  /* ── Commands panel ───────────────────────────────────────────────── */
-  .commands-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-width: 0;
-  }
-  .commands-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.7rem;
-    border-bottom: 1px solid #1e1e1e;
-    flex-shrink: 0;
-  }
-  .type-badge {
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 0.12rem 0.45rem;
-    border-radius: 5px;
-    color: #fff;
-    white-space: nowrap;
-  }
-  .cmd-count {
-    font-size: 0.62rem;
-    color: #666;
-  }
-  .pipeline-note {
-    font-size: 0.58rem;
-    color: #555;
-    font-style: italic;
-  }
-  .spacer { flex: 1; }
-
-  .commands-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0.3rem 0;
-  }
-
-  .cmd-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.45rem 0.7rem;
-    border-bottom: 1px solid #181818;
-    transition: background 0.12s;
-  }
-  .cmd-row:hover {
-    background: rgba(255, 255, 255, 0.02);
-  }
-  .step-marker {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 50%;
-    color: #3b82f6;
-    font-size: 0.62rem;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .cmd-row.editing {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.3rem;
-    padding: 0.55rem 0.7rem;
-    background: rgba(59, 130, 246, 0.04);
-    border: 1px solid rgba(59, 130, 246, 0.15);
+  /* ── Floating panels (over canvas) ────────────────────────────────── */
+  .floating-panel {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 320px;
+    background: #161616;
+    border: 1px solid #333;
     border-radius: 8px;
-    margin: 0.2rem 0.4rem;
-  }
-  .cmd-main {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    min-width: 0;
-    flex: 1;
-  }
-  .cmd-icon {
-    font-size: 0.85rem;
-    flex-shrink: 0;
-  }
-  .cmd-info {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     display: flex;
     flex-direction: column;
-    gap: 0.05rem;
-    min-width: 0;
+    z-index: 50;
+    max-height: calc(100% - 40px);
   }
-  .cmd-name-row {
+  .picker-panel {
+    width: 360px;
+  }
+  .panel-header {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-  }
-  .cmd-name {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #ddd;
-  }
-  .cmd-binding {
-    font-size: 0.58rem;
-    font-family: 'Courier New', monospace;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: 3px;
-    padding: 0.05rem 0.35rem;
-    white-space: nowrap;
-  }
-  .cmd-binding.unbound {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.08);
-    border-color: rgba(245, 158, 11, 0.2);
-  }
-  .cmd-binding-sep {
-    opacity: 0.4;
-    margin: 0 0.1rem;
-  }
-  .cmd-desc {
-    font-size: 0.6rem;
-    color: #777;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .cmd-actions {
-    display: flex;
-    gap: 0.15rem;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .cmd-row:hover .cmd-actions {
-    opacity: 1;
-  }
-
-  /* ── Buttons ──────────────────────────────────────────────────────── */
-  .icon-btn {
-    background: none;
-    border: 1px solid #333;
-    border-radius: 4px;
-    color: #888;
-    cursor: pointer;
-    font-size: 0.72rem;
-    padding: 0.2rem 0.4rem;
-    line-height: 1;
-    transition: all 0.12s;
-    font-family: inherit;
-  }
-  .icon-btn:hover:not(:disabled) {
-    color: #ccc;
-    border-color: #555;
-    background: rgba(255, 255, 255, 0.05);
-  }
-  .icon-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-  .icon-btn.small {
-    font-size: 0.58rem;
-    padding: 0.15rem 0.3rem;
-  }
-  .icon-btn.danger:hover {
-    color: #f87171;
-    border-color: rgba(248, 113, 113, 0.4);
-  }
-
-  .small-btn {
+    justify-content: space-between;
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid #2a2a2a;
     background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 5px;
-    color: #ccc;
-    cursor: pointer;
-    font-size: 0.62rem;
-    padding: 0.25rem 0.55rem;
-    font-family: inherit;
-    transition: all 0.12s;
-    white-space: nowrap;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
   }
-  .small-btn:hover {
-    background: #222;
-    border-color: #444;
+  .panel-header h3 {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #eee;
   }
-  .small-btn.primary {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: #fff;
-  }
-  .small-btn.primary:hover {
-    background: #2563eb;
-  }
-
-  .text-btn {
-    background: none;
-    border: none;
-    color: #666;
-    cursor: pointer;
-    font-size: 0.6rem;
-    text-decoration: underline;
-    padding: 0;
-    font-family: inherit;
-  }
-  .text-btn:hover {
-    color: #999;
-  }
-  .text-btn.danger {
-    color: #555;
-  }
-  .text-btn.danger:hover {
-    color: #f87171;
-  }
-
-  /* ── Inline edit form (existing rows) ────────────────────────────── */
-  .form-row {
-    display: flex;
-    gap: 0.3rem;
-  }
-  .icon-input { width: 50px; flex-shrink: 0; text-align: center; }
-  .name-input { flex: 1; min-width: 0; }
-  .desc-input { width: 100%; }
-  .cmd-row.editing input,
-  .plugin-select {
-    padding: 0.3rem 0.4rem;
-    font-size: 0.68rem;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 4px;
-    color: #e8e8e8;
-    font-family: inherit;
-    outline: none;
-  }
-  .cmd-row.editing input:focus,
-  .plugin-select:focus {
-    border-color: #3b82f6;
-  }
-  .plugin-select {
-    width: 100%;
-    cursor: pointer;
-  }
-  .form-actions {
-    display: flex;
-    gap: 0.3rem;
-    justify-content: flex-end;
-  }
-
-  /* ── Plugin action picker ─────────────────────────────────────────── */
+  
   .action-picker {
-    border-bottom: 1px solid #1e1e1e;
-    padding: 0.6rem 0.7rem;
-    background: #0d0d0d;
-    flex-shrink: 0;
-  }
-  .picker-custom-row {
-    margin-top: 0.6rem;
-    padding-top: 0.6rem;
-    border-top: 1px dashed #222;
-    display: flex;
-    align-items: center;
+    padding: 0.8rem;
+    overflow-y: auto;
   }
   .picker-group-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
     margin-bottom: 0.5rem;
   }
   .picker-plugin-badge {
@@ -879,30 +746,25 @@
     border-radius: 4px;
     padding: 0.1rem 0.4rem;
   }
-  .picker-hint {
-    font-size: 0.58rem;
-    color: #444;
-  }
   .picker-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 0.3rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.4rem;
+    margin-bottom: 1rem;
   }
   .picker-tile {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.15rem;
-    padding: 0.45rem 0.5rem;
-    background: #161616;
+    padding: 0.5rem;
+    background: #111;
     border: 1px solid #2a2a2a;
     border-radius: 7px;
     cursor: pointer;
     text-align: left;
     font-family: inherit;
     transition: all 0.13s;
-    position: relative;
-    overflow: hidden;
   }
   .picker-tile:hover {
     background: #1e1e1e;
@@ -912,36 +774,115 @@
     border-color: rgba(52, 211, 153, 0.35);
     background: rgba(52, 211, 153, 0.05);
   }
-  .picker-tile.added:hover {
-    border-color: rgba(52, 211, 153, 0.6);
-    background: rgba(52, 211, 153, 0.1);
-  }
   .picker-tile-icon {
-    font-size: 1rem;
+    font-size: 1.1rem;
     line-height: 1;
-    margin-bottom: 0.1rem;
+    margin-bottom: 0.2rem;
     color: #aaa;
   }
-  .picker-tile.added .picker-tile-icon {
-    color: #34d399;
-  }
+  .picker-tile.added .picker-tile-icon { color: #34d399; }
   .picker-tile-name {
-    font-size: 0.64rem;
+    font-size: 0.68rem;
     font-weight: 600;
     color: #ccc;
     line-height: 1.3;
   }
-  .picker-tile.added .picker-tile-name {
-    color: #34d399;
-  }
+  .picker-tile.added .picker-tile-name { color: #34d399; }
   .picker-tile-added {
-    font-size: 0.52rem;
+    font-size: 0.55rem;
     color: #34d399;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    margin-top: 0.2rem;
+  }
+  .picker-custom-row {
+    padding-top: 0.8rem;
+    border-top: 1px dashed #333;
+    display: flex;
+    align-items: center;
+  }
+  .picker-hint {
+    font-size: 0.6rem;
+    color: #666;
   }
 
-  /* ── Empty state ──────────────────────────────────────────────────── */
+  .cmd-form {
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .form-row {
+    display: flex;
+    gap: 0.4rem;
+  }
+  .icon-input { width: 50px; flex-shrink: 0; text-align: center; }
+  .name-input { flex: 1; min-width: 0; }
+  .cmd-form input, .plugin-select {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.72rem;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #e8e8e8;
+    font-family: inherit;
+    outline: none;
+    width: 100%;
+  }
+  .cmd-form input:focus, .plugin-select:focus { border-color: #3b82f6; }
+  .form-actions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
+    margin-top: 0.5rem;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
+  .icon-btn {
+    background: none;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #888;
+    cursor: pointer;
+    font-size: 0.72rem;
+    padding: 0.2rem 0.4rem;
+    line-height: 1;
+    transition: all 0.12s;
+  }
+  .icon-btn:hover:not(:disabled) {
+    color: #ccc;
+    border-color: #555;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .small-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 0.65rem;
+    padding: 0.3rem 0.6rem;
+    font-family: inherit;
+    transition: all 0.12s;
+    white-space: nowrap;
+  }
+  .small-btn:hover { background: #222; border-color: #444; }
+  .small-btn.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+  .small-btn.primary:hover { background: #2563eb; }
+
+  .text-btn {
+    background: none;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 0.65rem;
+    text-decoration: underline;
+    padding: 0;
+  }
+  .text-btn:hover { color: #999; }
+  .text-btn.danger { color: #555; }
+  .text-btn.danger:hover { color: #f87171; }
+
   .no-selection {
     display: flex;
     align-items: center;
@@ -951,13 +892,7 @@
   }
   .no-selection p {
     color: #555;
-    font-size: 0.78rem;
-    text-align: center;
-  }
-  .empty-cmds {
-    padding: 1.5rem;
-    color: #555;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     text-align: center;
   }
 </style>
