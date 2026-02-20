@@ -10,7 +10,7 @@
  */
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const TOKEN_KEY = "me-ai:oauth-token";
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 min buffer before actual expiry
 

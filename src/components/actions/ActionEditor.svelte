@@ -138,7 +138,10 @@
   }
 
   function startEdit(cmd) {
-    editingCmd = { ...cmd };
+    editingCmd = { 
+      ...cmd, 
+      pluginCommandKey: cmd.pluginId && cmd.commandId ? `${cmd.pluginId}:${cmd.commandId}` : "" 
+    };
   }
 
   async function saveEdit() {
@@ -147,6 +150,8 @@
       name: editingCmd.name,
       description: editingCmd.description,
       icon: editingCmd.icon,
+      pluginId: editingCmd.pluginId,
+      commandId: editingCmd.commandId,
     });
     editingCmd = null;
     await refresh();
@@ -154,6 +159,21 @@
 
   function cancelEdit() {
     editingCmd = null;
+  }
+
+  async function handleCreateCustomAction() {
+    const newId = `custom_${Date.now()}`;
+    await addCommandToEvent(selectedType, {
+      id: newId,
+      pluginId: "",
+      commandId: "",
+      name: "New Custom Action",
+      description: "",
+      icon: "⚡",
+    });
+    await refresh();
+    const cmd = commands.find(c => c.id === newId);
+    if (cmd) startEdit(cmd);
   }
 
   async function moveCommand(idx, direction) {
@@ -275,6 +295,10 @@
                     </div>
                   </div>
                 {/each}
+                <div class="picker-custom-row">
+                  <button class="small-btn primary" onclick={handleCreateCustomAction}>+ Create Custom Action</button>
+                  <span class="picker-hint" style="margin-left: 0.5rem;">Create a new action and link it to any plugin command</span>
+                </div>
               </div>
             {/if}
 
@@ -287,6 +311,35 @@
                       <input type="text" bind:value={editingCmd.name} class="name-input" placeholder="Name" />
                     </div>
                     <input type="text" bind:value={editingCmd.description} class="desc-input" placeholder="Description" />
+                    
+                    <div class="form-row">
+                      <select 
+                        class="plugin-select" 
+                        bind:value={editingCmd.pluginCommandKey} 
+                        onchange={(e) => {
+                          if (e.target.value) {
+                            const [pId, cId] = e.target.value.split(':');
+                            editingCmd.pluginId = pId;
+                            editingCmd.commandId = cId;
+                          } else {
+                            editingCmd.pluginId = "";
+                            editingCmd.commandId = "";
+                          }
+                        }}
+                      >
+                        <option value="">-- Select Plugin Command --</option>
+                        {#each PLUGIN_ACTIONS as group}
+                          <optgroup label={group.pluginName}>
+                            {#each group.actions as handler}
+                              <option value="{group.pluginId}:{handler.actionId}">
+                                {handler.name} ({handler.actionId})
+                              </option>
+                            {/each}
+                          </optgroup>
+                        {/each}
+                      </select>
+                    </div>
+
                     <div class="form-actions">
                       <button class="small-btn primary" onclick={saveEdit}>Save</button>
                       <button class="small-btn" onclick={cancelEdit}>Cancel</button>
@@ -770,7 +823,8 @@
   .icon-input { width: 50px; flex-shrink: 0; text-align: center; }
   .name-input { flex: 1; min-width: 0; }
   .desc-input { width: 100%; }
-  .cmd-row.editing input {
+  .cmd-row.editing input,
+  .plugin-select {
     padding: 0.3rem 0.4rem;
     font-size: 0.68rem;
     background: #1a1a1a;
@@ -780,8 +834,13 @@
     font-family: inherit;
     outline: none;
   }
-  .cmd-row.editing input:focus {
+  .cmd-row.editing input:focus,
+  .plugin-select:focus {
     border-color: #3b82f6;
+  }
+  .plugin-select {
+    width: 100%;
+    cursor: pointer;
   }
   .form-actions {
     display: flex;
@@ -795,6 +854,13 @@
     padding: 0.6rem 0.7rem;
     background: #0d0d0d;
     flex-shrink: 0;
+  }
+  .picker-custom-row {
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed #222;
+    display: flex;
+    align-items: center;
   }
   .picker-group-label {
     display: flex;

@@ -174,7 +174,7 @@ export async function streamOllamaChat(
       num_predict: maxTokens,
     },
   };
-  // Keep model in memory (default 10m so it stays loaded when switching to Actions)
+  // Keep model in memory (default 10m so it stays loaded when switching to Control Board)
   if (keepAlive !== undefined) {
     body.keep_alive = keepAlive;
   } else {

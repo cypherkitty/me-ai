@@ -16,7 +16,7 @@ test.describe("App shell", () => {
     const navLinks = page.locator(".nav-links a");
     await expect(navLinks).toHaveCount(3);
     await expect(navLinks.nth(0)).toHaveText("Chat");
-    await expect(navLinks.nth(1)).toHaveText("Actions");
+    await expect(navLinks.nth(1)).toHaveText("Control Board");
     await expect(navLinks.nth(2)).toHaveText("Dashboard");
   });
 
@@ -159,14 +159,14 @@ test.describe("Dashboard page (with client ID)", () => {
 });
 
 // ────────────────────────────────────────────────────────────
-// Actions page
+// Control Board page
 // ────────────────────────────────────────────────────────────
-test.describe("Actions page", () => {
-  test("navigates to Actions page and shows empty state", async ({ page }) => {
-    await page.goto("/#actions");
+test.describe("Control Board page", () => {
+  test("navigates to Control Board page and shows empty state", async ({ page }) => {
+    await page.goto("/#control");
 
-    // Actions link should be active
-    const actionsLink = page.locator('.nav-links a[href="#actions"]');
+    // Control Board link should be active
+    const actionsLink = page.locator('.nav-links a[href="#control"]');
     await expect(actionsLink).toHaveClass(/active/);
 
     // Should show the empty state
@@ -175,7 +175,7 @@ test.describe("Actions page", () => {
   });
 
   test("shows scan control with model status", async ({ page }) => {
-    await page.goto("/#actions");
+    await page.goto("/#control");
 
     // Should see the Email Triage label
     const triageLabel = page.getByText("Email Triage");
@@ -186,13 +186,13 @@ test.describe("Actions page", () => {
     await expect(scanButton).toBeVisible();
   });
 
-  test("navigates from Chat to Actions", async ({ page }) => {
+  test("navigates from Chat to Control Board", async ({ page }) => {
     await page.goto("/");
 
-    await page.locator('.nav-links a[href="#actions"]').click();
-    await expect(page).toHaveURL(/#actions/);
+    await page.locator('.nav-links a[href="#control"]').click();
+    await expect(page).toHaveURL(/#control/);
 
-    const actionsLink = page.locator('.nav-links a[href="#actions"]');
+    const actionsLink = page.locator('.nav-links a[href="#control"]');
     await expect(actionsLink).toHaveClass(/active/);
   });
 });

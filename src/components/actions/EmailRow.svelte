@@ -1,7 +1,7 @@
 <script>
   import { tagColor } from "../../lib/triage.js";
 
-  let { item, actionColor = "#666", dimmed = false, onmarkacted, ondismiss, onremove } = $props();
+  let { item, actionColor = "#666", dimmed = false, onexecute, onmarkacted, ondismiss, onremove } = $props();
 
   function formatDate(timestamp) {
     if (!timestamp) return "";
@@ -42,12 +42,19 @@
 
   <div class="row-actions">
     {#if isPending}
-      <button class="icon-btn done-btn" title="Mark handled" onclick={() => onmarkacted(item.emailId)}>
+      {#if onexecute}
+        <button class="icon-btn exec-btn" title="Execute actions" onclick={(e) => { e.stopPropagation(); onexecute(item); }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </button>
+      {/if}
+      <button class="icon-btn done-btn" title="Mark handled" onclick={(e) => { e.stopPropagation(); onmarkacted(item.emailId); }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </button>
-      <button class="icon-btn dismiss-btn" title="Dismiss" onclick={() => ondismiss(item.emailId)}>
+      <button class="icon-btn dismiss-btn" title="Dismiss" onclick={(e) => { e.stopPropagation(); ondismiss(item.emailId); }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/>
           <line x1="6" y1="6" x2="18" y2="18"/>
@@ -57,7 +64,7 @@
       <span class="status-label">{item.status}</span>
     {/if}
     {#if onremove}
-      <button class="icon-btn remove-btn" title="Remove classification" onclick={() => onremove(item.emailId)}>
+      <button class="icon-btn remove-btn" title="Remove classification" onclick={(e) => { e.stopPropagation(); onremove(item.emailId); }}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 6h18"/>
           <path d="M8 6V4h8v2"/>
@@ -178,6 +185,12 @@
     background: transparent;
     cursor: pointer;
     transition: background 0.15s, color 0.15s;
+  }
+
+  .exec-btn { color: #555; }
+  .exec-btn:hover {
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
   }
 
   .done-btn { color: #555; }
