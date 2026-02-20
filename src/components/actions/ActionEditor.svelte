@@ -115,9 +115,11 @@
   }
 
   /** Add a plugin-provided action to the current event type's pipeline. */
-  async function handleAddPluginAction(handler) {
+  async function handleAddPluginAction(handler, pluginId) {
     await addCommandToEvent(selectedType, {
       id: handler.actionId,
+      pluginId,
+      commandId: handler.actionId,
       name: handler.name,
       description: handler.description,
       icon: ACTION_ICONS[handler.actionId] || undefined,
@@ -260,7 +262,7 @@
                         <button
                           class="picker-tile"
                           class:added
-                          onclick={() => handleAddPluginAction(handler)}
+                          onclick={() => handleAddPluginAction(handler, group.pluginId)}
                           title={handler.description}
                         >
                           <span class="picker-tile-icon">{ACTION_ICONS[handler.actionId] ?? "·"}</span>
@@ -296,7 +298,18 @@
                     <div class="cmd-main">
                       {#if cmd.icon}<span class="cmd-icon">{cmd.icon}</span>{/if}
                       <div class="cmd-info">
-                        <span class="cmd-name">{cmd.name}</span>
+                        <div class="cmd-name-row">
+                          <span class="cmd-name">{cmd.name}</span>
+                          {#if cmd.pluginId && cmd.commandId}
+                            <span class="cmd-binding" title="Calls {cmd.pluginId} plugin → {cmd.commandId}">
+                              {cmd.pluginId}<span class="cmd-binding-sep">·</span>{cmd.commandId}
+                            </span>
+                          {:else}
+                            <span class="cmd-binding unbound" title="No plugin bound — will attempt to resolve from event source">
+                              unbound
+                            </span>
+                          {/if}
+                        </div>
                         <span class="cmd-desc">{cmd.description}</span>
                       </div>
                     </div>
@@ -625,10 +638,35 @@
     gap: 0.05rem;
     min-width: 0;
   }
+  .cmd-name-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
   .cmd-name {
     font-size: 0.72rem;
     font-weight: 600;
     color: #ddd;
+  }
+  .cmd-binding {
+    font-size: 0.58rem;
+    font-family: 'Courier New', monospace;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 3px;
+    padding: 0.05rem 0.35rem;
+    white-space: nowrap;
+  }
+  .cmd-binding.unbound {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.2);
+  }
+  .cmd-binding-sep {
+    opacity: 0.4;
+    margin: 0 0.1rem;
   }
   .cmd-desc {
     font-size: 0.6rem;
