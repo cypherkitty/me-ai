@@ -28,8 +28,6 @@ async function saveToken(accessToken, expiresIn) {
 
 async function clearSavedToken() {
   _expiresAt = 0;
-  sessionStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(TOKEN_KEY);
   const { removeSetting } = await import("./store/settings.js");
   await removeSetting(TOKEN_KEY);
 }
@@ -40,20 +38,8 @@ async function clearSavedToken() {
  */
 export async function getSavedToken() {
   try {
-    const { getSetting, setSetting } = await import("./store/settings.js");
-    let data = await getSetting(TOKEN_KEY);
-    
-    // Fallback/Migration: Check sessionStorage/localStorage
-    if (!data) {
-      const legacyData = sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
-      if (legacyData) {
-        data = JSON.parse(legacyData);
-        // Migrate to IndexedDB
-        if (data && data.access_token && data.expires_at) {
-          await setSetting(TOKEN_KEY, data);
-        }
-      }
-    }
+    const { getSetting } = await import("./store/settings.js");
+    const data = await getSetting(TOKEN_KEY);
 
     if (!data) return null;
     const { access_token, expires_at } = data;
@@ -165,7 +151,7 @@ export async function initGoogleAuth(clientId) {
 
 /**
  * Opens the Google OAuth consent popup and returns the token response.
- * The token is automatically saved to sessionStorage for persistence.
+ * The token is automatically saved to IndexedDB for persistence.
  * Resolves with { access_token, expires_in } on success.
  */
 export function requestAccessToken() {
