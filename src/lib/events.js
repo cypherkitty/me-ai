@@ -111,8 +111,8 @@ async function saveGroupsMap(map) {
 async function getEventTypesFromDB() {
   try {
     const { db } = await import("./store/db.js");
-    const classifications = await db.emailClassifications.toArray();
-    const types = new Set(classifications.map(c => c.action).filter(Boolean));
+    const docs   = await db.emailClassifications.toArray();
+    const types  = new Set(docs.map(d => d.action).filter(Boolean));
     return [...types].sort();
   } catch {
     return [];

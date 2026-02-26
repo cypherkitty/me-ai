@@ -7,7 +7,6 @@
  * queries work across all sources automatically.
  */
 
-import Dexie from "dexie";
 import { db } from "./db.js";
 import { truncate } from "../format.js";
 import { groupByAction } from "../email-utils.js";
@@ -19,23 +18,17 @@ import { groupByAction } from "../email-utils.js";
  * Suitable for always-on system prompt context (small token footprint).
  */
 export async function getDataSummary() {
-  const totalEmails = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .count();
+  const totalEmails   = await db.items.where("sourceType").equals("gmail").count();
   const totalContacts = await db.contacts.count();
 
-  if (totalEmails === 0) {
-    return null; // No data — don't inject anything
-  }
+  if (totalEmails === 0) return null;
 
   const lines = [`Stored data: ${totalEmails} emails, ${totalContacts} contacts.`];
 
-  // Date range — use compound index for efficiency (no full table scan)
   const { oldest, newest } = await getDateRange();
   if (oldest && newest) {
     const from = new Date(oldest.date).toLocaleDateString();
-    const to = new Date(newest.date).toLocaleDateString();
+    const to   = new Date(newest.date).toLocaleDateString();
     lines.push(`Date range: ${from} to ${to}.`);
   }
 
@@ -46,10 +39,7 @@ export async function getDataSummary() {
  * Get a detailed summary with label distribution, top senders, etc.
  */
 export async function getDetailedSummary() {
-  const totalEmails = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .count();
+  const totalEmails   = await db.items.where("sourceType").equals("gmail").count();
   const totalContacts = await db.contacts.count();
 
   if (totalEmails === 0) return "No emails stored locally.";
@@ -60,11 +50,10 @@ export async function getDetailedSummary() {
     `- **Contacts:** ${totalContacts}`,
   ];
 
-  // Date range — use compound index (no full table scan)
   const { oldest, newest } = await getDateRange();
   if (oldest && newest) {
     const from = new Date(oldest.date).toLocaleDateString();
-    const to = new Date(newest.date).toLocaleDateString();
+    const to   = new Date(newest.date).toLocaleDateString();
     parts.push(`- **Date range:** ${from} — ${to}`);
   }
 
@@ -80,9 +69,9 @@ export async function getDetailedSummary() {
  */
 export async function getRecentEmails(limit = 10) {
   const items = await db.items
-    .where("[sourceType+date]")
-    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+    .orderBy("date")
     .reverse()
+    .filter(x => x.sourceType === "gmail")
     .limit(limit)
     .toArray();
 
@@ -99,22 +88,17 @@ export async function getRecentEmails(limit = 10) {
 export async function searchData(query, limit = 10) {
   if (!query) return "No search query provided.";
 
-  const q = query.toLowerCase();
+  const q     = query.toLowerCase();
+  const items = await db.items.where("sourceType").equals("gmail").toArray();
 
-  // Filter by sourceType index first, then scan in memory
-  const allItems = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .toArray();
-
-  const scored = allItems
+  const scored = items
     .map((item) => {
       let score = 0;
       if (item.subject?.toLowerCase().includes(q)) score += 3;
-      if (item.from?.toLowerCase().includes(q)) score += 2;
-      if (item.to?.toLowerCase().includes(q)) score += 2;
+      if (item.from?.toLowerCase().includes(q))    score += 2;
+      if (item.to?.toLowerCase().includes(q))      score += 2;
       if (item.snippet?.toLowerCase().includes(q)) score += 1;
-      if (item.body?.toLowerCase().includes(q)) score += 1;
+      if (item.body?.toLowerCase().includes(q))    score += 1;
       return { item, score };
     })
     .filter(({ score }) => score > 0)
@@ -129,18 +113,16 @@ export async function searchData(query, limit = 10) {
  * Get emails from a specific sender.
  */
 export async function getEmailsFrom(sender, limit = 10) {
-  const q = sender.toLowerCase();
-  const items = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .filter((item) => item.from?.toLowerCase().includes(q))
-    .limit(limit)
-    .toArray();
+  const q     = sender.toLowerCase();
+  const items = await db.items.where("sourceType").equals("gmail").toArray();
 
-  items.sort((a, b) => (b.date || 0) - (a.date || 0));
+  const filtered = items
+    .filter(item => item.from?.toLowerCase().includes(q))
+    .sort((a, b) => (b.date || 0) - (a.date || 0))
+    .slice(0, limit);
 
-  if (items.length === 0) return `No emails found from "${sender}".`;
-  return items.map(formatItemForLLM).join("\n\n---\n\n");
+  if (filtered.length === 0) return `No emails found from "${sender}".`;
+  return filtered.map(formatItemForLLM).join("\n\n---\n\n");
 }
 
 /**
@@ -148,25 +130,24 @@ export async function getEmailsFrom(sender, limit = 10) {
  */
 export async function getEmailsByLabel(label, limit = 10) {
   const items = await db.items
-    .where("labels")
-    .equals(label)
+    .where("sourceType")
+    .equals("gmail")
+    .filter(x => x.labels?.includes(label))
     .limit(limit)
     .toArray();
 
-  items.sort((a, b) => (b.date || 0) - (a.date || 0));
+  const sorted = items.sort((a, b) => (b.date || 0) - (a.date || 0));
 
-  if (items.length === 0) return `No emails found with label "${label}".`;
-  return items.map(formatItemForLLM).join("\n\n---\n\n");
+  if (sorted.length === 0) return `No emails found with label "${label}".`;
+  return sorted.map(formatItemForLLM).join("\n\n---\n\n");
 }
 
 /**
  * Get a full email thread by threadKey.
  */
 export async function getThread(threadKey) {
-  const items = await db.items
-    .where("threadKey")
-    .equals(threadKey)
-    .sortBy("date");
+  const items = await db.items.where("threadKey").equals(threadKey).toArray();
+  items.sort((a, b) => (a.date || 0) - (b.date || 0));
 
   if (items.length === 0) return "Thread not found.";
   return items.map(formatItemForLLM).join("\n\n---\n\n");
@@ -176,11 +157,7 @@ export async function getThread(threadKey) {
  * Get all known contacts.
  */
 export async function getContacts(limit = 50) {
-  const contacts = await db.contacts
-    .orderBy("lastSeen")
-    .reverse()
-    .limit(limit)
-    .toArray();
+  const contacts = await db.contacts.orderBy("lastSeen").reverse().limit(limit).toArray();
 
   if (contacts.length === 0) return "No contacts found.";
 
@@ -201,11 +178,7 @@ export async function getContacts(limit = 50) {
  * @returns {Promise<{groups: Object, order: string[], total: number}|null>}
  */
 export async function getPendingActions() {
-  const all = await db.emailClassifications
-    .where("status")
-    .equals("pending")
-    .toArray();
-
+  const all = await db.emailClassifications.where("status").equals("pending").toArray();
   if (all.length === 0) return null;
 
   const { groups, order } = groupByAction(all);
@@ -226,10 +199,10 @@ export async function getPendingActions() {
  */
 export async function getStoredEmails({ query, limit = 50, offset = 0 } = {}) {
   if (query) {
-    const q = query.toLowerCase();
-    const allMatching = await db.items
-      .where("sourceType")
-      .equals("gmail")
+    const q    = query.toLowerCase();
+    const all  = await db.items.where("sourceType").equals("gmail").toArray();
+
+    const allMatching = all
       .filter(
         (item) =>
           item.subject?.toLowerCase().includes(q) ||
@@ -237,9 +210,7 @@ export async function getStoredEmails({ query, limit = 50, offset = 0 } = {}) {
           item.to?.toLowerCase().includes(q) ||
           item.snippet?.toLowerCase().includes(q)
       )
-      .toArray();
-
-    allMatching.sort((a, b) => (b.date || 0) - (a.date || 0));
+      .sort((a, b) => (b.date || 0) - (a.date || 0));
 
     return {
       items: allMatching.slice(offset, offset + limit),
@@ -247,16 +218,11 @@ export async function getStoredEmails({ query, limit = 50, offset = 0 } = {}) {
     };
   }
 
-  // No query — get all, sorted by date descending
-  const total = await db.items
-    .where("sourceType")
-    .equals("gmail")
-    .count();
-
+  const total = await db.items.where("sourceType").equals("gmail").count();
   const items = await db.items
-    .where("[sourceType+date]")
-    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+    .orderBy("date")
     .reverse()
+    .filter(x => x.sourceType === "gmail")
     .offset(offset)
     .limit(limit)
     .toArray();
@@ -266,23 +232,24 @@ export async function getStoredEmails({ query, limit = 50, offset = 0 } = {}) {
 
 // ── Internal helpers ────────────────────────────────────────────────
 
-/** Get oldest and newest gmail items by date using compound index */
+/** Get oldest and newest gmail items by date */
 async function getDateRange() {
   const oldest = await db.items
-    .where("[sourceType+date]")
-    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+    .orderBy("date")
+    .filter(x => x.sourceType === "gmail")
     .first();
+
   const newest = await db.items
-    .where("[sourceType+date]")
-    .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
-    .last();
-  return { oldest, newest };
+    .orderBy("date")
+    .reverse()
+    .filter(x => x.sourceType === "gmail")
+    .first();
+
+  return { oldest: oldest ?? null, newest: newest ?? null };
 }
 
 function formatItemForLLM(item) {
-  const date = item.date
-    ? new Date(item.date).toLocaleString()
-    : "Unknown date";
+  const date = item.date ? new Date(item.date).toLocaleString() : "Unknown date";
   const body = truncate(item.body || item.snippet || "", 500);
 
   switch (item.type) {

@@ -7,7 +7,6 @@
  */
 
 import { db } from "./store/db.js";
-import Dexie from "dexie";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
@@ -35,7 +34,6 @@ export const CLASSIFICATION_CONFIG = {
  * @returns {string}
  */
 export function buildSystemPrompt(plugins) {
-  // Build the actions catalogue section
   const actionLines = [];
   const allActionIds = [];
 
@@ -43,7 +41,6 @@ export function buildSystemPrompt(plugins) {
     if (!plugin.actions.length) continue;
     actionLines.push(`${plugin.pluginName} plugin:`);
     for (const a of plugin.actions) {
-      // Pad action IDs so descriptions align neatly
       actionLines.push(`  ${a.actionId.padEnd(22)} — ${a.name}: ${a.description}`);
       allActionIds.push(a.actionId);
     }
@@ -122,18 +119,10 @@ Rules:
  */
 function getPluginsForPrompt() {
   return pluginRegistry.getAllPlugins().map(plugin => ({
-    pluginId: plugin.pluginId,
+    pluginId:   plugin.pluginId,
     pluginName: plugin.serviceName,
-    actions: plugin.getHandlers(),
+    actions:    plugin.getHandlers(),
   }));
-}
-
-/**
- * Get all valid action IDs from registered plugins (for parseClassification validation).
- */
-function getAllValidActionIds() {
-  return pluginRegistry.getAllPlugins()
-    .flatMap(p => p.getHandlers().map(h => h.actionId));
 }
 
 /**
@@ -171,35 +160,34 @@ export async function scanEmails(
   let skipped = 0;
 
   if (force) {
-    // Rescan: take the N most recent emails regardless of classification status
     toProcess = await db.items
-      .where("[sourceType+date]")
-      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+      .orderBy("date")
       .reverse()
+      .filter(x => x.sourceType === "gmail")
       .limit(count)
       .toArray();
   } else {
-    // Scan new: find unclassified emails without loading all data.
-    // Only fetch primary keys from classifications (lightweight) and
-    // iterate emails with early termination once we have enough.
+    // Collect IDs of already-classified emails
     const classifiedIds = new Set(
-      await db.emailClassifications.toCollection().primaryKeys()
+      (await db.emailClassifications.toArray()).map(d => d.emailId)
     );
 
-    skipped = 0;
     toProcess = [];
-    await db.items
-      .where("[sourceType+date]")
-      .between(["gmail", Dexie.minKey], ["gmail", Dexie.maxKey])
+    // Stream through recent emails and stop once we have `count` unclassified
+    const allDocs = await db.items
+      .orderBy("date")
       .reverse()
-      .until(() => toProcess.length >= count)
-      .each((email) => {
-        if (classifiedIds.has(email.id)) {
-          skipped++;
-        } else {
-          toProcess.push(email);
-        }
-      });
+      .filter(x => x.sourceType === "gmail")
+      .toArray();
+
+    for (const email of allDocs) {
+      if (toProcess.length >= count) break;
+      if (classifiedIds.has(email.id)) {
+        skipped++;
+      } else {
+        toProcess.push(email);
+      }
+    }
   }
 
   if (toProcess.length === 0) {
@@ -210,34 +198,30 @@ export async function scanEmails(
     return { scanned: 0, classified: 0, skipped, errors: 0 };
   }
 
-  const scannedAt = Date.now();
-  const scanStart = performance.now();
-  let classified = 0;
-  let errors = 0;
+  const scannedAt  = Date.now();
+  const scanStart  = performance.now();
+  let classified   = 0;
+  let errors       = 0;
   let totalOutputTokens = 0;
-  let totalInputTokens = 0;
-  const results = [];
+  let totalInputTokens  = 0;
+  const results    = [];
 
-  // Build the system prompt fresh from the currently registered plugins.
-  // This ensures the LLM always sees the real available action IDs.
-  const plugins = getPluginsForPrompt();
-  const systemPrompt = buildSystemPrompt(plugins);
+  const plugins       = getPluginsForPrompt();
+  const systemPrompt  = buildSystemPrompt(plugins);
   const validActionIds = new Set(plugins.flatMap(p => p.actions.map(a => a.actionId)));
 
-  // Check model capabilities and warn if suboptimal
   const currentModel = engine.modelId;
-  const modelInfo = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
+  const modelInfo    = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
 
-  // Warn if using a model not recommended for email processing
   if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
-    const { MODELS } = await import("./models.js");
-    const { OLLAMA_MODELS } = await import("./ollama-models.js");
-    const recommendedModels = [
+    const { MODELS }         = await import("./models.js");
+    const { OLLAMA_MODELS }  = await import("./ollama-models.js");
+    const recommendedModels  = [
       ...MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.name),
-      ...OLLAMA_MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.displayName)
+      ...OLLAMA_MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.displayName),
     ];
     const displayName = modelInfo.displayName || modelInfo.name;
     console.warn(
@@ -250,26 +234,26 @@ export async function scanEmails(
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
-    const email = toProcess[i];
-    const emailPrompt = formatEmailPrompt(email);
+    const email        = toProcess[i];
+    const emailPrompt  = formatEmailPrompt(email);
     const promptMessages = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: emailPrompt },
+      { role: "user",   content: emailPrompt  },
     ];
 
     onProgress({
-      phase: "scanning",
-      current: i + 1,
-      total: toProcess.length,
+      phase:    "scanning",
+      current:  i + 1,
+      total:    toProcess.length,
       classified,
       errors,
       results,
-      email: { subject: email.subject, from: email.from, date: email.date },
-      prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
+      email:    { subject: email.subject, from: email.from, date: email.date },
+      prompt:   { system: SYSTEM_PROMPT, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
-      live: null,
+      live:     null,
       lastResult: null,
-      totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+      totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
     });
 
     const emailStart = performance.now();
@@ -280,39 +264,39 @@ export async function scanEmails(
         { maxTokens: 512, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
           onProgress({
-            phase: "generating",
-            current: i + 1,
-            total: toProcess.length,
+            phase:    "generating",
+            current:  i + 1,
+            total:    toProcess.length,
             classified,
             errors,
             results,
-            email: { subject: email.subject, from: email.from, date: email.date },
-            live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
+            email:    { subject: email.subject, from: email.from, date: email.date },
+            live:     { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
             streamingText: tokenInfo.text || "",
-            totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+            totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
           });
         }
       );
 
       totalOutputTokens += numTokens;
-      totalInputTokens += inputTokens;
+      totalInputTokens  += inputTokens;
 
       const classification = parseClassification(response, validActionIds);
-      const emailElapsed = performance.now() - emailStart;
+      const emailElapsed   = performance.now() - emailStart;
 
       if (classification) {
         await db.emailClassifications.put({
-          emailId: email.id,
-          action: classification.action,
-          group: classification.group,
-          reason: classification.reason,
-          summary: classification.summary,
-          tags: classification.tags,
-          subject: email.subject || "(no subject)",
-          from: email.from || "",
-          date: email.date,
+          emailId:   email.id,
+          action:    classification.action,
+          group:     classification.group,
+          reason:    classification.reason,
+          summary:   classification.summary,
+          tags:      classification.tags,
+          subject:   email.subject || "(no subject)",
+          from:      email.from || "",
+          date:      email.date,
           scannedAt,
-          status: "pending",
+          status:    "pending",
         });
 
         // Auto-seed pipeline for this event type if it's new
@@ -325,46 +309,45 @@ export async function scanEmails(
         classified++;
 
         const emailResult = {
-          success: true,
-          email: { subject: email.subject, from: email.from, date: email.date },
+          success:     true,
+          email:       { subject: email.subject, from: email.from, date: email.date },
           classification,
           rawResponse: response,
-          stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          promptSize: emailPrompt.length,
+          stats:       { tps, numTokens, inputTokens, elapsed: emailElapsed },
+          promptSize:  emailPrompt.length,
         };
         results.push(emailResult);
 
         onProgress({
-          phase: "classified",
-          current: i + 1,
-          total: toProcess.length,
+          phase:    "classified",
+          current:  i + 1,
+          total:    toProcess.length,
           classified,
           errors,
           results,
-          email: { subject: email.subject, from: email.from, date: email.date },
-          result: classification,
+          email:    { subject: email.subject, from: email.from, date: email.date },
+          result:   classification,
           rawResponse: response,
           emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+          totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
         });
       }
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
-      // Truncate error messages to prevent UI hangs from massive WebGPU errors
-      const errMsg = e.message || String(e);
+      const errMsg       = e.message || String(e);
       const truncatedError = errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg;
       results.push({
-        success: false,
-        email: { subject: email.subject, from: email.from, date: email.date },
-        error: truncatedError,
+        success:    false,
+        email:      { subject: email.subject, from: email.from, date: email.date },
+        error:      truncatedError,
         promptSize: emailPrompt.length,
       });
     }
   }
 
-  const totalElapsed = performance.now() - scanStart;
-  const avgPromptSize = results.length > 0 
+  const totalElapsed  = performance.now() - scanStart;
+  const avgPromptSize = results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.promptSize, 0) / results.length)
     : 0;
   const avgTps = results.filter(r => r.success && r.stats?.tps).length > 0
@@ -372,20 +355,20 @@ export async function scanEmails(
     : null;
 
   onProgress({
-    phase: "done",
-    current: toProcess.length,
-    total: toProcess.length,
+    phase:    "done",
+    current:  toProcess.length,
+    total:    toProcess.length,
     classified,
     errors,
     results,
     summary: {
       avgPromptSize,
       avgTps,
-      systemPromptSize: systemPrompt.length,
-      processed: toProcess.length,
+      systemPromptSize:    systemPrompt.length,
+      processed:           toProcess.length,
       skipped,
-      modelName: modelInfo.displayName || modelInfo.name,
-      modelContextWindow: modelInfo.contextWindow,
+      modelName:           modelInfo.displayName || modelInfo.name,
+      modelContextWindow:  modelInfo.contextWindow,
       modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
@@ -398,10 +381,10 @@ export async function scanEmails(
  * Get all classifications, optionally filtered by action type.
  */
 export async function getClassifications({ action } = {}) {
-  if (action) {
-    return db.emailClassifications.where("action").equals(action).reverse().sortBy("date");
-  }
-  return db.emailClassifications.reverse().sortBy("date");
+  const all = action
+    ? await db.emailClassifications.where("action").equals(action).toArray()
+    : await db.emailClassifications.toArray();
+  return all.sort((a, b) => (b.date || 0) - (a.date || 0));
 }
 
 /**
@@ -418,7 +401,7 @@ export async function getClassificationsGrouped() {
  * Get count per action type (dynamic).
  */
 export async function getClassificationCounts() {
-  const all = await db.emailClassifications.toArray();
+  const all    = await db.emailClassifications.toArray();
   const counts = { total: all.length };
   for (const item of all) {
     const key = item.action || "UNKNOWN";
@@ -431,7 +414,7 @@ export async function getClassificationCounts() {
  * Get all unique tags with their counts.
  */
 export async function getTagCounts() {
-  const all = await db.emailClassifications.toArray();
+  const all    = await db.emailClassifications.toArray();
   const tagMap = {};
   for (const item of all) {
     if (Array.isArray(item.tags)) {
@@ -476,7 +459,7 @@ export async function deleteClassification(emailId) {
  */
 export async function getScanStats() {
   const totalEmails = await db.items.where("sourceType").equals("gmail").count();
-  const classified = await db.emailClassifications.count();
+  const classified  = await db.emailClassifications.count();
   return {
     totalEmails,
     classified,
@@ -529,9 +512,8 @@ export function parseClassification(response, knownActionIds) {
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
   text = text.trim();
 
-  // Try to find a JSON object (not inside an array)
-  const firstBrace = text.indexOf("{");
-  const lastBrace = text.lastIndexOf("}");
+  const firstBrace  = text.indexOf("{");
+  const lastBrace   = text.lastIndexOf("}");
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
     console.warn("Triage: no JSON object found in response");
@@ -550,24 +532,20 @@ export function parseClassification(response, knownActionIds) {
     const parsed = JSON.parse(jsonStr);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
-    // Action is required
     const action = normalizeAction(parsed.action);
     if (!action) {
       console.warn("Triage: missing or invalid action field");
       return null;
     }
 
-    // Group: must be one of the three tiers
     const VALID_GROUPS = ["NOISE", "INFO", "CRITICAL"];
     const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "INFO";
 
-    // Suggested actions — validate against live plugin registry IDs when provided
     let suggestedActions = [];
     if (Array.isArray(parsed.suggestedActions)) {
       suggestedActions = parsed.suggestedActions
         .filter(a => {
           if (typeof a !== "string" || !a.trim()) return false;
-          // Strict mode: reject IDs the registry doesn't know about
           if (knownActionIds) return knownActionIds.has(a.trim());
           return true;
         })
@@ -578,7 +556,6 @@ export function parseClassification(response, knownActionIds) {
       console.warn("Triage: suggestedActions contained unknown IDs — all filtered out:", parsed.suggestedActions);
     }
 
-    // Tags: normalize to array of lowercase strings
     let tags = [];
     if (Array.isArray(parsed.tags)) {
       tags = parsed.tags
@@ -591,7 +568,7 @@ export function parseClassification(response, knownActionIds) {
       action,
       group,
       suggestedActions,
-      reason: String(parsed.reason || "").slice(0, 300),
+      reason:  String(parsed.reason  || "").slice(0, 300),
       summary: String(parsed.summary || "").slice(0, 500),
       tags,
     };

@@ -26,10 +26,10 @@ import {
   GmailApiError,
 } from "../gmail-api.js";
 
-const SOURCE_TYPE = "gmail";
-const BATCH_SIZE = 8;
+const SOURCE_TYPE        = "gmail";
+const BATCH_SIZE         = 8;
 const DEFAULT_SYNC_LIMIT = 50;
-const PAGE_SIZE = 100;
+const PAGE_SIZE          = 100;
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -49,13 +49,12 @@ export async function syncGmail(
   token,
   { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
 ) {
-  const state = await db.syncState.get(SOURCE_TYPE);
+  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
 
   if (state?.historyId) {
     try {
       return await incrementalSync(token, state, onProgress, signal);
     } catch (e) {
-      // historyId expired or invalid — fall through to full sync
       const isHistoryExpired =
         (e instanceof GmailApiError && (e.status === 404 || e.code === "notFound")) ||
         e.message?.includes("Start history id");
@@ -91,35 +90,31 @@ export async function syncGmailMore(
   token,
   { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
 ) {
-  const state = await db.syncState.get(SOURCE_TYPE);
+  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
+
   if (!state?.oldestPageToken) {
     onProgress({ phase: "done", message: "All messages already synced" });
     return { added: 0, errors: 0 };
   }
 
   const effectiveLimit = limit === 0 ? Infinity : limit;
-  return await continueFetch(
-    token,
-    state,
-    effectiveLimit,
-    onProgress,
-    signal
-  );
+  return await continueFetch(token, state, effectiveLimit, onProgress, signal);
 }
 
 /**
  * Get current sync status for Gmail.
  */
 export async function getGmailSyncStatus() {
-  const state = await db.syncState.get(SOURCE_TYPE);
+  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
+
   if (!state) return { synced: false, totalItems: 0, lastSyncAt: null, hasMore: false };
 
   return {
-    synced: true,
+    synced:     true,
     totalItems: state.totalItems || 0,
     lastSyncAt: state.lastSyncAt,
-    historyId: state.historyId,
-    hasMore: !!state.oldestPageToken,
+    historyId:  state.historyId,
+    hasMore:    !!state.oldestPageToken,
   };
 }
 
@@ -127,10 +122,8 @@ export async function getGmailSyncStatus() {
  * Clear all Gmail data from the store.
  */
 export async function clearGmailData() {
-  await db.transaction("rw", [db.items, db.syncState], async () => {
-    await db.items.where("sourceType").equals(SOURCE_TYPE).delete();
-    await db.syncState.delete(SOURCE_TYPE);
-  });
+  await db.items.where("sourceType").equals(SOURCE_TYPE).delete();
+  await db.syncState.delete(SOURCE_TYPE);
 }
 
 /**
@@ -148,12 +141,11 @@ async function fullSync(token, limit, onProgress, signal) {
 
   const profile = await getProfile(token);
 
-  // Step 1: Collect message IDs (paginated, up to limit)
   onProgress({
-    phase: "listing",
+    phase:   "listing",
     message: "Listing messages...",
     current: 0,
-    total: Math.min(profile.messagesTotal || limit, limit),
+    total:   Math.min(profile.messagesTotal || limit, limit),
   });
 
   const allIds = [];
@@ -172,57 +164,45 @@ async function fullSync(token, limit, onProgress, signal) {
     allIds.push(...ids);
 
     onProgress({
-      phase: "listing",
+      phase:   "listing",
       message: `Listed ${allIds.length} messages...`,
       current: allIds.length,
-      total: Math.min(profile.messagesTotal || limit, limit),
+      total:   Math.min(profile.messagesTotal || limit, limit),
     });
 
     pageToken = result.nextPageToken;
     if (!pageToken || ids.length === 0) break;
   }
 
-  // If we stopped before exhausting all messages, save the page token
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
     await db.syncState.put({
-      sourceType: SOURCE_TYPE,
-      historyId: profile.historyId,
-      lastSyncAt: Date.now(),
-      totalItems: 0,
-      oldestPageToken: null,
+      sourceType:      SOURCE_TYPE,
+      historyId:       profile.historyId,
+      lastSyncAt:      Date.now(),
+      totalItems:      0,
+      oldestPageToken: "",
     });
     return { added: 0, deleted: 0, errors: 0 };
   }
 
-  // Step 2: Batch-fetch and store
-  const { added, errors } = await batchFetchAndStore(
-    token,
-    allIds,
-    onProgress,
-    signal
-  );
-
-  // Step 3: Save sync state
-  const totalItems = await db.items
-    .where("sourceType")
-    .equals(SOURCE_TYPE)
-    .count();
+  const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
+  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
 
   await db.syncState.put({
-    sourceType: SOURCE_TYPE,
-    historyId: profile.historyId,
-    lastSyncAt: Date.now(),
+    sourceType:      SOURCE_TYPE,
+    historyId:       profile.historyId,
+    lastSyncAt:      Date.now(),
     totalItems,
-    oldestPageToken: nextPageAfterLimit,
+    oldestPageToken: nextPageAfterLimit ?? "",
   });
 
   onProgress({
-    phase: "done",
+    phase:   "done",
     message: `Synced ${added} messages`,
     current: added,
-    total: added,
+    total:   added,
   });
 
   return { added, deleted: 0, errors };
@@ -231,11 +211,7 @@ async function fullSync(token, limit, onProgress, signal) {
 // ── Continue fetch (sync more older messages) ───────────────────────
 
 async function continueFetch(token, state, limit, onProgress, signal) {
-  onProgress({
-    phase: "listing",
-    message: "Loading more messages...",
-    current: 0,
-  });
+  onProgress({ phase: "listing", message: "Loading more messages...", current: 0 });
   throwIfAborted(signal);
 
   const allIds = [];
@@ -254,7 +230,7 @@ async function continueFetch(token, state, limit, onProgress, signal) {
     allIds.push(...ids);
 
     onProgress({
-      phase: "listing",
+      phase:   "listing",
       message: `Listed ${allIds.length} more messages...`,
       current: allIds.length,
     });
@@ -266,41 +242,27 @@ async function continueFetch(token, state, limit, onProgress, signal) {
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await db.syncState.update(SOURCE_TYPE, {
-      oldestPageToken: null,
-      lastSyncAt: Date.now(),
-    });
+    await db.syncState.update(SOURCE_TYPE, { oldestPageToken: "", lastSyncAt: Date.now() });
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
 
-  // Batch-fetch and store
-  const { added, errors } = await batchFetchAndStore(
-    token,
-    allIds,
-    onProgress,
-    signal
-  );
-
-  // Update sync state
-  const totalItems = await db.items
-    .where("sourceType")
-    .equals(SOURCE_TYPE)
-    .count();
+  const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
+  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
 
   await db.syncState.update(SOURCE_TYPE, {
     totalItems,
-    lastSyncAt: Date.now(),
-    oldestPageToken: nextPageAfterLimit,
+    lastSyncAt:      Date.now(),
+    oldestPageToken: nextPageAfterLimit ?? "",
   });
 
   onProgress({
-    phase: "done",
+    phase:   "done",
     message: nextPageAfterLimit
       ? `Downloaded ${added} more (more available)`
       : `Downloaded ${added} more (all synced)`,
     current: totalItems,
-    total: totalItems,
+    total:   totalItems,
   });
 
   return { added, errors };
@@ -323,19 +285,18 @@ async function incrementalSync(token, state, onProgress, signal) {
 
     const history = await listHistory(token, {
       startHistoryId: state.historyId,
-      pageToken: nextPageToken,
+      pageToken:      nextPageToken,
     });
 
-    newHistoryId = history.historyId || newHistoryId;
+    newHistoryId  = history.historyId || newHistoryId;
     nextPageToken = history.nextPageToken;
 
     if (!history.history) continue;
 
     for (const record of history.history) {
-      // Handle added messages
       if (record.messagesAdded) {
-        const newIds = record.messagesAdded.map((m) => m.message.id);
-        const uniqueIds = [...new Set(newIds.filter((id) => id))];
+        const newIds    = record.messagesAdded.map((m) => m.message.id);
+        const uniqueIds = [...new Set(newIds.filter(Boolean))];
 
         if (uniqueIds.length > 0) {
           const results = await Promise.allSettled(
@@ -359,11 +320,10 @@ async function incrementalSync(token, state, onProgress, signal) {
         }
       }
 
-      // Handle deleted messages
       if (record.messagesDeleted) {
         const deletedIds = record.messagesDeleted
           .map((m) => makeItemId(SOURCE_TYPE, m.message.id))
-          .filter((id) => id);
+          .filter(Boolean);
 
         if (deletedIds.length > 0) {
           await db.items.bulkDelete(deletedIds);
@@ -373,34 +333,29 @@ async function incrementalSync(token, state, onProgress, signal) {
     }
 
     onProgress({
-      phase: "syncing",
+      phase:   "syncing",
       message: `Changes: +${added} -${deleted}`,
       current: added + deleted,
     });
   } while (nextPageToken);
 
-  // Update sync state
-  const totalItems = await db.items
-    .where("sourceType")
-    .equals(SOURCE_TYPE)
-    .count();
+  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
 
   await db.syncState.put({
-    sourceType: SOURCE_TYPE,
-    historyId: newHistoryId,
-    lastSyncAt: Date.now(),
+    sourceType:      SOURCE_TYPE,
+    historyId:       newHistoryId,
+    lastSyncAt:      Date.now(),
     totalItems,
-    oldestPageToken: state.oldestPageToken, // preserve
+    oldestPageToken: state.oldestPageToken ?? "",
   });
 
   onProgress({
-    phase: "done",
-    message:
-      added === 0 && deleted === 0
-        ? "Already up to date"
-        : `Synced: +${added} -${deleted}`,
+    phase:   "done",
+    message: added === 0 && deleted === 0
+      ? "Already up to date"
+      : `Synced: +${added} -${deleted}`,
     current: totalItems,
-    total: totalItems,
+    total:   totalItems,
   });
 
   return { added, deleted, errors };
@@ -410,19 +365,19 @@ async function incrementalSync(token, state, onProgress, signal) {
 
 async function batchFetchAndStore(token, ids, onProgress, signal) {
   onProgress({
-    phase: "downloading",
+    phase:   "downloading",
     message: "Downloading messages...",
     current: 0,
-    total: ids.length,
+    total:   ids.length,
   });
 
-  let added = 0;
+  let added  = 0;
   let errors = 0;
 
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
     throwIfAborted(signal);
 
-    const batch = ids.slice(i, i + BATCH_SIZE);
+    const batch   = ids.slice(i, i + BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map((id) => getMessage(token, id))
     );
@@ -443,10 +398,10 @@ async function batchFetchAndStore(token, ids, onProgress, signal) {
 
     added += items.length;
     onProgress({
-      phase: "downloading",
+      phase:   "downloading",
       message: `Downloaded ${added} of ${ids.length} messages`,
       current: added,
-      total: ids.length,
+      total:   ids.length,
     });
   }
 
@@ -456,14 +411,14 @@ async function batchFetchAndStore(token, ids, onProgress, signal) {
 // ── Normalization ───────────────────────────────────────────────────
 
 function normalizeGmailMessage(msg) {
-  const from = getHeader(msg, "From");
-  const to = getHeader(msg, "To");
-  const cc = getHeader(msg, "Cc");
-  const subject = getHeader(msg, "Subject") || "(no subject)";
-  const dateStr = getHeader(msg, "Date");
-  const messageId = getHeader(msg, "Message-ID");
-  const inReplyTo = getHeader(msg, "In-Reply-To");
-  const references = getHeader(msg, "References");
+  const from       = getHeader(msg, "From")       ?? "";
+  const to         = getHeader(msg, "To")         ?? "";
+  const cc         = getHeader(msg, "Cc")         ?? "";
+  const subject    = getHeader(msg, "Subject")    || "(no subject)";
+  const dateStr    = getHeader(msg, "Date");
+  const messageId  = getHeader(msg, "Message-ID") ?? "";
+  const inReplyTo  = getHeader(msg, "In-Reply-To") ?? "";
+  const references = getHeader(msg, "References")  ?? "";
 
   let date;
   try {
@@ -477,25 +432,25 @@ function normalizeGmailMessage(msg) {
   }
 
   return {
-    id: makeItemId(SOURCE_TYPE, msg.id),
+    id:         makeItemId(SOURCE_TYPE, msg.id),
     sourceType: SOURCE_TYPE,
-    sourceId: msg.id,
-    threadKey: `gmail:${msg.threadId}`,
-    type: "email",
+    sourceId:   msg.id,
+    threadKey:  `gmail:${msg.threadId ?? "unknown"}`,
+    type:       "email",
     from,
     to,
     cc,
     subject,
-    snippet: msg.snippet || "",
-    body: getBody(msg),
-    htmlBody: getHtmlBody(msg),
+    snippet:    msg.snippet || "",
+    body:       getBody(msg) ?? "",
+    htmlBody:   getHtmlBody(msg) ?? "",
     date,
-    labels: msg.labelIds || [],
+    labels:     msg.labelIds || [],
     messageId,
     inReplyTo,
     references,
-    raw: msg,
-    syncedAt: Date.now(),
+    raw:        msg,
+    syncedAt:   Date.now(),
   };
 }
 
@@ -507,10 +462,7 @@ async function upsertContacts(items) {
   for (const item of items) {
     for (const field of [item.from, item.to, item.cc]) {
       if (!field) continue;
-      const addresses = field
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const addresses = field.split(",").map((s) => s.trim()).filter(Boolean);
       for (const addr of addresses) {
         const parsed = parseEmailAddress(addr);
         if (parsed && !contactMap.has(parsed.email)) {
@@ -522,24 +474,18 @@ async function upsertContacts(items) {
 
   for (const [email, { name, date }] of contactMap) {
     try {
-      const existing = await db.contacts.where("email").equals(email).first();
+      const existing = await db.contacts.get(email);
       if (existing) {
         const updates = {};
         if (name && !existing.name) updates.name = name;
         if (date > (existing.lastSeen || 0)) updates.lastSeen = date;
         if (Object.keys(updates).length > 0) {
-          await db.contacts.update(existing.id, updates);
+          await db.contacts.update(email, updates);
         }
       } else {
-        await db.contacts.add({
-          email,
-          name: name || "",
-          firstSeen: date,
-          lastSeen: date,
-        });
+        await db.contacts.add({ email, name: name || "", firstSeen: date, lastSeen: date });
       }
     } catch (e) {
-      // Expected for duplicate/constraint errors; log others for debugging
       if (e?.name !== "ConstraintError") {
         console.debug("Contact upsert skipped:", email, e?.message || e);
       }
@@ -552,16 +498,11 @@ function parseEmailAddress(str) {
   const match = str.match(/<([^>]+)>/);
   if (match) {
     const email = match[1].toLowerCase().trim();
-    const name = str
-      .slice(0, str.indexOf("<"))
-      .replace(/"/g, "")
-      .trim();
+    const name  = str.slice(0, str.indexOf("<")).replace(/"/g, "").trim();
     return { email, name };
   }
   const email = str.toLowerCase().trim();
-  if (email.includes("@")) {
-    return { email, name: "" };
-  }
+  if (email.includes("@")) return { email, name: "" };
   return null;
 }
 
