@@ -21,29 +21,29 @@
   .trigger-node {
     background: #1e1e1e;
     border: 2px solid #555;
-    border-radius: 8px;
-    width: 180px;
+    border-radius: 7px;
+    width: 150px;
     font-family: sans-serif;
     color: #eee;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
   }
   .trigger-header {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 10px;
     font-weight: bold;
-    border-top-left-radius: 6px;
-    border-top-right-radius: 6px;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
     color: #111;
     display: flex;
     align-items: center;
-    gap: 6px;
-  }
-  .trigger-body {
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
     gap: 4px;
   }
-  .label { font-size: 14px; font-weight: 600; }
-  .group { font-size: 10px; text-transform: uppercase; font-weight: bold; opacity: 0.8; }
+  .trigger-body {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .label { font-size: 12px; font-weight: 700; }
+  .group { font-size: 9px; text-transform: uppercase; font-weight: bold; opacity: 0.8; }
 </style>

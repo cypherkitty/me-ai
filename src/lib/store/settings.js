@@ -1,13 +1,11 @@
 /**
- * Settings Store — key/value persistence via IndexedDB.
+ * Settings Store — key/value persistence via Dexie (IndexedDB).
  *
- * Replaces localStorage and sessionStorage entirely.
- * All app settings, preferences, and session tokens live here.
- *
- * API mirrors localStorage for easy migration:
+ * API mirrors localStorage for easy use:
  *   getSetting(key, fallback?)  →  async get
  *   setSetting(key, value)      →  async set
  *   removeSetting(key)          →  async remove
+ *   getSettings(keys[])         →  async bulk-get
  */
 
 import { db } from "./db.js";
@@ -21,8 +19,8 @@ import { db } from "./db.js";
  */
 export async function getSetting(key, fallback = null) {
   try {
-    const row = await db.settings.get(key);
-    return row?.value ?? fallback;
+    const doc = await db.settings.get(key);
+    return doc ? doc.value : fallback;
   } catch {
     return fallback;
   }
@@ -59,8 +57,8 @@ export async function removeSetting(key) {
  * @returns {Promise<Record<string, *>>}
  */
 export async function getSettings(keys) {
-  const rows = await db.settings.bulkGet(keys);
+  const docs = await db.settings.bulkGet(keys);
   return Object.fromEntries(
-    keys.map((key, i) => [key, rows[i]?.value ?? null])
+    keys.map((key, i) => [key, docs[i]?.value ?? null])
   );
 }
