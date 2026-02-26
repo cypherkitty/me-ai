@@ -1,202 +1,385 @@
 <script>
+  import { marked } from "marked";
+  import DOMPurify from "dompurify";
   import { onMount } from "svelte";
   import { mountLog } from "../../lib/debug.js";
-  let { msg, isLast = false, isRunning = false, generationPhase = null, numTokens = null } = $props();
+
+  let {
+    msg,
+    isLast = false,
+    isRunning = false,
+    generationPhase = null,
+    numTokens = null,
+    backend = null,
+  } = $props();
 
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
+
+  const BACKEND_LABELS = {
+    webgpu: "WebGPU",
+    ollama: "Ollama",
+    openai: "OpenAI",
+    anthropic: "Claude",
+    google: "Gemini",
+    xai: "Grok",
+  };
+
+  const BACKEND_COLORS = {
+    webgpu: "#4ade80",
+    ollama: "#a78bfa",
+    openai: "#10b981",
+    anthropic: "#f59e0b",
+    google: "#3b82f6",
+    xai: "#e8e8e8",
+  };
+
+  let modelLabel = $derived(backend ? (BACKEND_LABELS[backend] ?? backend) : "AI");
+  let modelColor = $derived(backend ? (BACKEND_COLORS[backend] ?? "#888") : "#888");
+
+  let html = $derived.by(() => {
+    if (msg.role !== "assistant" || !msg.content) return "";
+    try {
+      const raw = marked.parse(msg.content, { breaks: true, gfm: true });
+      return DOMPurify.sanitize(raw);
+    } catch {
+      return msg.content;
+    }
+  });
+
+  let isStreaming = $derived(isRunning && isLast);
 </script>
 
-<div class="bubble {msg.role}">
-  <div class="role">{msg.role === "user" ? "You" : "AI"}</div>
+{#if msg.role === "user"}
+  <div class="user-row">
+    <div class="user-pill">{msg.content}</div>
+  </div>
+{:else}
+  <div class="ai-row">
+    <!-- Model label -->
+    <div class="ai-header">
+      <span class="ai-badge" style:color={modelColor} style:border-color={"color-mix(in srgb," + modelColor + " 30%, transparent)"} style:background={"color-mix(in srgb," + modelColor + " 8%, transparent)"}>
+        {modelLabel}
+      </span>
 
-  {#if msg.role === "assistant"}
-    {#if isRunning && isLast && generationPhase === "thinking"}
-      <div class="thinking-bar active">
-        <span class="gen-dots"><span></span><span></span><span></span></span>
-        <span>Thinking...</span>
-        {#if numTokens}
-          <span class="thinking-tokens">{numTokens} tokens</span>
-        {/if}
-      </div>
-    {:else if isRunning && isLast && generationPhase === "preparing"}
-      <div class="thinking-bar active">
-        <span class="gen-dots"><span></span><span></span><span></span></span>
-        <span>Preparing...</span>
-      </div>
-    {/if}
+      {#if isStreaming && generationPhase === "thinking"}
+        <span class="phase-tag thinking">
+          <span class="dot-pulse"></span>
+          Thinking…{#if numTokens}<span class="token-count">{numTokens} tok</span>{/if}
+        </span>
+      {:else if isStreaming && generationPhase === "preparing"}
+        <span class="phase-tag preparing">
+          <span class="dot-pulse"></span>
+          Preparing…
+        </span>
+      {:else if isStreaming && generationPhase === "generating"}
+        <span class="phase-tag generating">
+          <span class="dot-pulse"></span>
+          Generating…
+        </span>
+      {/if}
+    </div>
 
+    <!-- Thinking disclosure -->
     {#if msg.thinking}
       <details class="thinking-details">
         <summary class="thinking-summary">
-          <span class="thinking-icon">💭</span>
-          Thinking
-          <span class="thinking-token-count">
-            {msg.thinking.split(/\s+/).length} words
-          </span>
+          <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          Internal reasoning
+          <span class="thinking-words">{msg.thinking.split(/\s+/).filter(Boolean).length} words</span>
         </summary>
-        <div class="thinking-content">{msg.thinking}</div>
+        <pre class="thinking-content">{msg.thinking}</pre>
       </details>
     {/if}
 
-    <div class="content">
-      {#if isRunning && isLast && !msg.content && generationPhase !== "thinking"}
-        <div class="gen-status">
-          <span class="gen-dots"><span></span><span></span><span></span></span>
-          Generating...
+    <!-- Content area -->
+    <div class="ai-content">
+      {#if isStreaming && !msg.content && generationPhase !== "thinking"}
+        <div class="gen-placeholder">
+          <span class="dot-row"><span></span><span></span><span></span></span>
         </div>
-      {:else}
-        {msg.content}{#if isRunning && isLast}<span class="cursor">|</span>{/if}
+      {:else if html}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="md-body">{@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
+      {:else if msg.content}
+        <div class="md-body plain">{msg.content}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
       {/if}
     </div>
-  {:else}
-    <div class="content">{msg.content}</div>
-  {/if}
-</div>
+  </div>
+{/if}
 
 <style>
-  .bubble {
-    max-width: 80%;
-    padding: 0.7rem 1rem;
-    border-radius: 12px;
-    line-height: 1.55;
-    font-size: 0.92rem;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-  .bubble.user {
-    align-self: flex-end;
-    background: #3b82f6;
-    color: #fff;
-    border-bottom-right-radius: 4px;
-  }
-  .bubble.assistant {
-    align-self: flex-start;
-    background: #1e1e1e;
-    border-bottom-left-radius: 4px;
-  }
-  .role {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.25rem;
-    opacity: 0.6;
-  }
-  .cursor {
-    animation: blink 0.7s step-end infinite;
-  }
-  @keyframes blink {
-    50% { opacity: 0; }
+  /* ── User message ─────────────────────────────────────────────── */
+  .user-row {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.1rem 0;
   }
 
-  /* ── Generation status ───────────────────────────────────────────── */
-  .gen-status {
+  .user-pill {
+    max-width: 72%;
+    background: #2563eb;
+    color: #fff;
+    padding: 0.55rem 0.95rem;
+    border-radius: 18px;
+    border-bottom-right-radius: 5px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  /* ── AI message ───────────────────────────────────────────────── */
+  .ai-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0 0.75rem;
+    border-bottom: 1px solid #181818;
+  }
+  .ai-row:last-child {
+    border-bottom: none;
+  }
+
+  /* header row with model badge */
+  .ai-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #888;
-    font-size: 0.85rem;
+    flex-wrap: wrap;
+  }
+
+  .ai-badge {
+    font-size: 0.67rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+
+  /* phase tags */
+  .phase-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: #666;
     font-style: italic;
   }
-  .gen-dots {
-    display: inline-flex;
-    gap: 3px;
-  }
-  .gen-dots span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #666;
-    animation: dotPulse 1.2s ease-in-out infinite;
-  }
-  .gen-dots span:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  .gen-dots span:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-  @keyframes dotPulse {
-    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-    40% { opacity: 1; transform: scale(1.2); }
-  }
+  .phase-tag.thinking { color: #a78bfa; }
+  .phase-tag.generating { color: #3b82f6; }
+  .phase-tag.preparing { color: #888; }
 
-  /* ── Thinking bar (live) ────────────────────────────────────────── */
-  .thinking-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.6rem;
-    margin-bottom: 0.4rem;
-    font-size: 0.8rem;
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.08);
-    border-radius: 6px;
-    border-left: 3px solid #a78bfa;
-  }
-  .thinking-bar .gen-dots span {
-    background: #a78bfa;
-  }
-  .thinking-tokens {
-    margin-left: auto;
-    font-size: 0.7rem;
-    color: #7c6dbd;
+  .token-count {
+    font-size: 0.62rem;
+    color: #665da0;
+    font-style: normal;
     font-variant-numeric: tabular-nums;
   }
 
-  /* ── Collapsible thinking section ────────────────────────────────── */
+  /* animated dot pulse */
+  .dot-pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.25; transform: scale(0.75); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+
+  /* ── Thinking disclosure ──────────────────────────────────────── */
   .thinking-details {
-    margin-bottom: 0.4rem;
+    margin: 0.1rem 0;
   }
   .thinking-summary {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     cursor: pointer;
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: #7c6dbd;
-    padding: 0.35rem 0.6rem;
-    background: rgba(167, 139, 250, 0.06);
+    padding: 0.25rem 0.55rem;
+    background: rgba(167, 139, 250, 0.07);
+    border: 1px solid rgba(167, 139, 250, 0.15);
     border-radius: 6px;
-    border-left: 3px solid rgba(167, 139, 250, 0.4);
     user-select: none;
     transition: background 0.15s;
     list-style: none;
   }
-  .thinking-summary::-webkit-details-marker {
-    display: none;
-  }
-  .thinking-summary::after {
-    content: "▶";
-    margin-left: auto;
-    font-size: 0.6rem;
+  .thinking-summary::-webkit-details-marker { display: none; }
+  .thinking-summary:hover { background: rgba(167, 139, 250, 0.13); }
+
+  .chevron {
     transition: transform 0.15s;
+    flex-shrink: 0;
   }
-  .thinking-details[open] .thinking-summary::after {
+  .thinking-details[open] .chevron {
     transform: rotate(90deg);
   }
-  .thinking-summary:hover {
-    background: rgba(167, 139, 250, 0.12);
-  }
-  .thinking-icon {
-    font-size: 0.85rem;
-  }
-  .thinking-token-count {
-    font-size: 0.65rem;
-    color: #665da0;
-    margin-left: 0.3rem;
+  .thinking-words {
+    font-size: 0.6rem;
+    color: #5a4f90;
+    margin-left: 0.2rem;
   }
   .thinking-content {
-    font-size: 0.75rem;
-    color: #888;
-    line-height: 1.5;
-    padding: 0.5rem 0.6rem;
+    font-size: 0.73rem;
+    color: #777;
+    line-height: 1.6;
+    padding: 0.55rem 0.75rem;
     margin-top: 0.3rem;
     background: rgba(167, 139, 250, 0.04);
     border-radius: 0 0 6px 6px;
-    border-left: 3px solid rgba(167, 139, 250, 0.2);
-    max-height: 300px;
+    border-left: 2px solid rgba(167, 139, 250, 0.2);
+    max-height: 280px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
+    font-family: inherit;
+  }
+
+  /* ── Content ──────────────────────────────────────────────────── */
+  .ai-content {
+    min-height: 1.2em;
+  }
+
+  .gen-placeholder {
+    padding: 0.3rem 0;
+  }
+
+  .dot-row {
+    display: inline-flex;
+    gap: 4px;
+  }
+  .dot-row span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #444;
+    animation: dotBounce 1.2s ease-in-out infinite;
+  }
+  .dot-row span:nth-child(2) { animation-delay: 0.18s; }
+  .dot-row span:nth-child(3) { animation-delay: 0.36s; }
+  @keyframes dotBounce {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.15); }
+  }
+
+  .cursor {
+    display: inline-block;
+    color: #3b82f6;
+    animation: blinkCursor 0.8s step-end infinite;
+    font-size: 0.85em;
+    line-height: 1;
+    margin-left: 1px;
+  }
+  @keyframes blinkCursor {
+    50% { opacity: 0; }
+  }
+
+  /* ── Markdown body ────────────────────────────────────────────── */
+  .md-body {
+    font-size: 0.9rem;
+    line-height: 1.65;
+    color: #d4d4d4;
+    word-break: break-word;
+  }
+  .md-body.plain {
+    white-space: pre-wrap;
+  }
+
+  /* markdown element styles (applied via :global since content is innerHTML) */
+  .md-body :global(p) {
+    margin: 0 0 0.7em;
+  }
+  .md-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .md-body :global(h1), .md-body :global(h2), .md-body :global(h3),
+  .md-body :global(h4), .md-body :global(h5), .md-body :global(h6) {
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 1em 0 0.4em;
+    color: #e8e8e8;
+  }
+  .md-body :global(h1) { font-size: 1.2em; }
+  .md-body :global(h2) { font-size: 1.08em; }
+  .md-body :global(h3) { font-size: 0.97em; }
+  .md-body :global(h1:first-child), .md-body :global(h2:first-child), .md-body :global(h3:first-child) {
+    margin-top: 0;
+  }
+  .md-body :global(ul), .md-body :global(ol) {
+    margin: 0.4em 0 0.7em;
+    padding-left: 1.4em;
+  }
+  .md-body :global(li) {
+    margin: 0.2em 0;
+  }
+  .md-body :global(code) {
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.84em;
+    background: #1e1e1e;
+    border: 1px solid #2a2a2a;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+    color: #c9d1d9;
+  }
+  .md-body :global(pre) {
+    background: #141414;
+    border: 1px solid #252525;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    margin: 0.6em 0;
+  }
+  .md-body :global(pre code) {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.83em;
+    color: #c9d1d9;
+  }
+  .md-body :global(blockquote) {
+    border-left: 3px solid #333;
+    margin: 0.5em 0;
+    padding: 0.3em 0.8em;
+    color: #888;
+  }
+  .md-body :global(hr) {
+    border: none;
+    border-top: 1px solid #252525;
+    margin: 0.8em 0;
+  }
+  .md-body :global(a) {
+    color: #60a5fa;
+    text-decoration: none;
+  }
+  .md-body :global(a:hover) {
+    text-decoration: underline;
+  }
+  .md-body :global(strong) {
+    font-weight: 600;
+    color: #e8e8e8;
+  }
+  .md-body :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85em;
+    margin: 0.6em 0;
+  }
+  .md-body :global(th), .md-body :global(td) {
+    border: 1px solid #2a2a2a;
+    padding: 0.35em 0.65em;
+    text-align: left;
+  }
+  .md-body :global(th) {
+    background: #1a1a1a;
+    font-weight: 600;
+    color: #e8e8e8;
   }
 </style>
