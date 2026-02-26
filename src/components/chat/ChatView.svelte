@@ -95,8 +95,12 @@
   {/if}
 
   <div class="messages" bind:this={chatContainer}>
-    {#if messages.length === 0 && !(pendingData && pendingData.total > 0)}
-      <div class="empty">Send a message to start chatting.</div>
+    {#if messages.length === 0}
+      <div class="empty">
+        <div class="empty-icon">✦</div>
+        <div class="empty-title">Start a conversation</div>
+        <div class="empty-sub">Ask about your emails, events, or anything else.</div>
+      </div>
     {/if}
 
     {#each messages as msg, i}
@@ -118,6 +122,7 @@
           {isRunning}
           {generationPhase}
           {numTokens}
+          {backend}
         />
       {/if}
     {/each}
@@ -156,9 +161,10 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid #1f1f1f;
+    padding: 0.5rem 1.5rem;
+    border-bottom: 1px solid #181818;
     flex-shrink: 0;
+    min-height: 44px;
   }
   .spacer {
     flex: 1;
@@ -232,15 +238,33 @@
   .messages {
     flex: 1;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
   .empty {
     margin: auto;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 2rem;
+  }
+  .empty-icon {
+    font-size: 1.8rem;
+    color: #333;
+    line-height: 1;
+  }
+  .empty-title {
+    font-size: 1rem;
+    font-weight: 500;
     color: #555;
-    font-size: 0.95rem;
+  }
+  .empty-sub {
+    font-size: 0.82rem;
+    color: #404040;
   }
 
   /* ── Buttons ─────────────────────────────────────────────────────── */
@@ -277,28 +301,34 @@
   /* ── Input row ───────────────────────────────────────────────────── */
   .input-row {
     display: flex;
+    align-items: flex-end;
     gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid #1f1f1f;
+    padding: 0.75rem 1.5rem 1rem;
+    border-top: 1px solid #181818;
     flex-shrink: 0;
   }
   textarea {
     flex: 1;
     resize: none;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 12px;
+    background: #141414;
     color: #e8e8e8;
-    padding: 0.6rem 0.8rem;
-    font-size: 0.92rem;
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
     font-family: inherit;
-    line-height: 1.4;
+    line-height: 1.5;
     outline: none;
+    min-height: 42px;
+    max-height: 160px;
+    overflow-y: auto;
+    transition: border-color 0.15s;
   }
   textarea:focus {
     border-color: #3b82f6;
+    background: #171717;
   }
   textarea:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
   }
 </style>
