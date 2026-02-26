@@ -17,6 +17,7 @@
   import { stringToHue } from "../../lib/format.js";
   
   import { SvelteFlow, Background, Controls } from '@xyflow/svelte';
+  import FitViewOnChange from './nodes/FitViewOnChange.svelte';
   import '@xyflow/svelte/dist/style.css';
   import TriggerNode from "./nodes/TriggerNode.svelte";
   import ActionNode from "./nodes/ActionNode.svelte";
@@ -108,7 +109,7 @@
     });
     
     let prevId = 'trigger';
-    let x = 300;
+    let x = 230;
     
     commands.forEach((cmd, i) => {
       newNodes.push({
@@ -131,14 +132,14 @@
       });
       
       prevId = cmd.id;
-      x += 270;
+      x += 220;
     });
     
     // Add Node
     newNodes.push({
       id: 'add-action',
       type: 'add',
-      position: { x, y: 135 },
+      position: { x, y: 130 },
       data: {
         onClick: () => { showPicker = true; editingCmd = null; }
       }
@@ -344,13 +345,15 @@
                 {edges} 
                 {nodeTypes} 
                 fitView 
-                fitViewOptions={{ padding: 0.2, minZoom: 0.8 }}
-                minZoom={0.5}
+                fitViewOptions={{ padding: 0.3 }}
+                minZoom={0.15}
                 maxZoom={1.5}
                 colorMode="dark"
+                style="width: 100%; height: 100%;"
               >
                 <Background bgColor="#111" patternColor="#333" />
                 <Controls showInteractive={false} />
+                <FitViewOnChange {nodes} />
               </SvelteFlow>
 
               <!-- Floating overlay panels for Picker & Editor -->
@@ -631,6 +634,7 @@
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+    min-height: 0;
     position: relative;
     background: #0d0d0d;
   }
@@ -662,6 +666,9 @@
   .canvas-wrapper {
     flex: 1;
     position: relative;
+    overflow: hidden;
+    min-height: 0;
+    height: 0; /* let flex:1 own the sizing */
   }
 
   /* ── Group selector ───────────────────────────────────────────────── */

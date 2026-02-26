@@ -239,16 +239,111 @@
   async function triggerScan() {
     if (isScanning || !engine.isReady) return;
     isScanning = true;
+
+    // Determine current model label for the task card badge
+    const activeBackend = backend === "cloud"
+      ? (API_MODELS.find(m => m.id === selectedModel)?.provider || "cloud")
+      : backend;
+
+    // Push a live task card into the chat.
+    // Capture the index so we can mutate through the $state proxy later.
+    const taskIdx = messages.length;
+    messages = [
+      ...messages,
+      {
+        role: "assistant",
+        type: "task-card",
+        title: "Scanning Emails",
+        model: activeBackend,
+        status: "running",
+        steps: [
+          { id: "fetch", label: "Fetching recent emails…", status: "running", startedAt: Date.now() },
+        ],
+      },
+    ];
+    scrollToBottom();
+
+    // Helper: mutate the task card through the reactive proxy
+    const updateTask = (patch) => Object.assign(messages[taskIdx], patch);
+
     let scanResults = null;
+    let emailCount = 0;
+
+    // Completed email steps accumulate here during the scan
+    const completedSteps = [];
+
     try {
+      let classifyStartedAt = null;
+      let totalEmails = 0;
+
       await scanEmails(engine, {
         count: 20,
         onProgress: (progress) => {
-          if (progress.phase === "done" && progress.results?.length > 0) {
-            scanResults = progress.results;
+          if (progress.phase === "loading") {
+            messages[taskIdx].steps = [
+              { id: "fetch", label: "Loading recent emails…", status: "running", startedAt: Date.now() },
+            ];
+          } else if (progress.phase === "scanning") {
+            totalEmails = progress.total ?? 0;
+            if (!classifyStartedAt) classifyStartedAt = Date.now();
+            const subject = progress.email?.subject ?? "unknown";
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            // Show completed steps + a running step for current email
+            messages[taskIdx].steps = [
+              { id: "fetch", label: `Found ${totalEmails} emails to scan`, status: "done", detail: `${totalEmails} messages` },
+              ...completedSteps,
+              { id: `email-${progress.current}`, label: shortSubj, status: "running", startedAt: classifyStartedAt, detail: `${progress.current}/${progress.total}` },
+            ];
+          } else if (progress.phase === "classified") {
+            const subject = progress.email?.subject ?? "unknown";
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const cls = progress.result;
+            const group = cls?.group ?? "";
+            const action = cls?.action ?? "";
+            const reason = cls?.reason ?? "";
+            const summary = cls?.summary ?? "";
+
+            // Build expandable detail text
+            const lines = [];
+            if (summary) lines.push(summary);
+            if (action) lines.push(`Action: ${action}`);
+            if (reason) lines.push(`Reason: ${reason}`);
+
+            completedSteps.push({
+              id: `email-${progress.current}`,
+              label: shortSubj,
+              status: "done",
+              detail: action || group,
+              expandable: true,
+              badges: [group, action].filter(Boolean),
+              subContent: lines.join("\n"),
+            });
+
+            // Continue showing current completed steps + next running slot
+            messages[taskIdx].steps = [
+              { id: "fetch", label: `Found ${totalEmails} emails to scan`, status: "done", detail: `${totalEmails} messages` },
+              ...completedSteps,
+            ];
+          } else if (progress.phase === "done") {
+            if (progress.results?.length > 0) {
+              scanResults = progress.results;
+            }
+            emailCount = totalEmails;
           }
         },
       });
+
+      // Final state: fetch step + all individual email steps (already in completedSteps)
+      const classified = completedSteps.length;
+      messages[taskIdx].steps = [
+        { id: "fetch", label: `Fetched ${emailCount} emails`, status: "done", detail: `${emailCount} messages` },
+        ...completedSteps,
+      ];
+      messages[taskIdx].description = classified > 0
+        ? `Classified ${classified} email${classified !== 1 ? "s" : ""} into event types. Expand any row to see classification details.`
+        : "No new emails to classify.";
+      updateTask({ status: "done", title: `Scanned ${emailCount} Emails` });
+
       await refreshPendingData();
 
       // Show scan results as a batch event message in chat
@@ -268,6 +363,11 @@
       }
     } catch (e) {
       console.error("Scan failed:", e);
+      messages[taskIdx].status = "error";
+      messages[taskIdx].steps = [
+        ...(messages[taskIdx].steps ?? []).filter(s => s.status !== "running"),
+        { id: "error", label: `Scan failed: ${e.message}`, status: "error" },
+      ];
     } finally {
       isScanning = false;
     }
@@ -425,6 +525,7 @@
     oncleargroup={clearGroup}
     onscan={triggerScan}
     oncommand={handleCommand}
+    onexecuted={refreshPendingData}
   />
 {/if}
 

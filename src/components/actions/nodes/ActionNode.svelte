@@ -31,11 +31,11 @@
   .action-node {
     background: #1e1e1e;
     border: 1px solid #444;
-    border-radius: 8px;
-    width: 200px;
+    border-radius: 7px;
+    width: 160px;
     font-family: sans-serif;
     color: #eee;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
     transition: border-color 0.2s;
   }
   .action-node:hover {
@@ -43,32 +43,31 @@
   }
   .action-header {
     background: #2a2a2a;
-    padding: 6px 10px;
-    font-size: 13px;
+    padding: 5px 8px;
+    font-size: 11px;
     font-weight: 600;
-    border-top-left-radius: 7px;
-    border-top-right-radius: 7px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     border-bottom: 1px solid #333;
   }
-  .icon { font-size: 14px; }
+  .icon { font-size: 12px; }
   .action-body {
-    padding: 10px;
+    padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 5px;
   }
   .desc {
-    font-size: 11px;
+    font-size: 10px;
     color: #aaa;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.45;
+    word-break: break-word;
   }
   .binding {
-    font-size: 10px;
+    font-size: 9px;
     font-family: monospace;
     color: #3b82f6;
     background: rgba(59, 130, 246, 0.1);
@@ -81,14 +80,14 @@
     background: rgba(245, 158, 11, 0.1);
   }
   .action-footer {
-    padding: 6px 10px;
+    padding: 4px 8px;
     display: flex;
     justify-content: space-between;
     gap: 4px;
     border-top: 1px solid #333;
     background: #161616;
-    border-bottom-left-radius: 7px;
-    border-bottom-right-radius: 7px;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
   }
   .action-footer button {
     background: none;
@@ -96,8 +95,8 @@
     border-radius: 4px;
     color: #888;
     cursor: pointer;
-    font-size: 11px;
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 2px 5px;
     transition: all 0.2s;
   }
   .action-footer button:hover {

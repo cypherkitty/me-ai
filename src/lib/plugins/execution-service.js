@@ -9,6 +9,7 @@
 import { pluginRegistry } from "./plugin-registry.js";
 import { getActionsForEvent, getExecutionPolicy, EVENT_GROUPS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
+import { logExecution, syncAfterExecution } from "../store/audit.js";
 
 /**
  * @typedef {Object} ExecutionProgress
@@ -68,6 +69,21 @@ export async function executePipeline(event, onProgress, approved = false) {
     const context = { accessToken, event, onProgress };
     const result = await pluginRegistry.executePipeline(actions, context);
 
+    // ── Post-execution: sync local DB and write audit log ──────────────
+    const emailId = event.data?.emailId ?? event.data?.id;
+    await Promise.all([
+      logExecution({
+        emailId,
+        subject:   event.data?.subject,
+        from:      event.data?.from,
+        eventType: event.type,
+        actions,
+        results:   result.results ?? [],
+        success:   result.success,
+      }),
+      syncAfterExecution(emailId, result.results ?? []),
+    ]);
+
     onProgress?.({ phase: "done", result });
     return result;
   } catch (error) {
@@ -121,6 +137,23 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
     const baseContext = { accessToken, onProgress };
 
     const result = await pluginRegistry.executePipelineBatch(actions, eventObjects, baseContext);
+
+    // ── Post-execution: audit log + DB sync per email ──────────────────
+    await Promise.all((result.results ?? []).map(async (r) => {
+      const emailId = r.event?.data?.emailId ?? r.event?.data?.id;
+      await Promise.all([
+        logExecution({
+          emailId,
+          subject:   r.event?.data?.subject,
+          from:      r.event?.data?.from,
+          eventType,
+          actions,
+          results:   r.results ?? [],
+          success:   r.success,
+        }),
+        syncAfterExecution(emailId, r.results ?? []),
+      ]);
+    }));
 
     onProgress?.({ phase: "done", result });
     return result;

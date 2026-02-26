@@ -3,6 +3,7 @@
   import MessageBubble from "./MessageBubble.svelte";
   import EventMessage from "./EventMessage.svelte";
   import ActionDashboard from "./ActionDashboard.svelte";
+  import TaskCard from "./TaskCard.svelte";
   import QuickActions from "./QuickActions.svelte";
   import GpuPanel from "./GpuPanel.svelte";
   import { mountLog } from "../../lib/debug.js";
@@ -31,6 +32,7 @@
     oncleargroup,
     onscan,
     oncommand,
+    onexecuted,
   } = $props();
 
   let input = $state("");
@@ -113,8 +115,10 @@
           {oncleargroup}
           onaskai={handleAskAI}
         />
+      {:else if msg.type === "task-card"}
+        <TaskCard {msg} />
       {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
-        <EventMessage {msg} {oncommand} />
+        <EventMessage {msg} {oncommand} {onexecuted} />
       {:else}
         <MessageBubble
           {msg}

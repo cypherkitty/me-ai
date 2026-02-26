@@ -1,15 +1,18 @@
 <script>
   import CommandCard from "./CommandCard.svelte";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
+  import TaskCard from "./TaskCard.svelte";
   import { stringToHue } from "../../lib/format.js";
   import { executePipeline, executePipelineBatch, isAuthenticated, EVENT_GROUPS } from "../../lib/plugins/execution-service.js";
 
-  let { msg, oncommand } = $props();
+  let { msg, oncommand, onexecuted } = $props();
 
   let expandedGroups = $state({});
   let executionState = $state({});
   /** Tracks which groups are in pending-approval state: key -> { actions, group } */
   let approvalPending = $state({});
+  /** Task card data per execution key */
+  let executionCards = $state({});
 
   function shortSender(from) {
     if (!from) return "—";
@@ -28,6 +31,51 @@
     oncommand?.({ event, commandId });
   }
 
+  /** Build an execution task card step from an action_start/action_complete event */
+  function applyProgressToCard(key, progress, title) {
+    const card = executionCards[key] ?? {
+      type: "task-card", role: "assistant",
+      title, model: null, status: "running", steps: [],
+    };
+
+    if (progress.phase === "pipeline_loaded") {
+      card.steps = progress.actions.map(a => ({
+        id: a.id ?? a.commandId,
+        label: a.name ?? a.commandId,
+        status: "pending",
+      }));
+    } else if (progress.phase === "action_start") {
+      card.steps = card.steps.map(s =>
+        s.id === (progress.actionId ?? progress.commandId)
+          ? { ...s, status: "running", startedAt: Date.now() }
+          : s
+      );
+    } else if (progress.phase === "action_complete") {
+      const success = progress.result?.success !== false;
+      card.steps = card.steps.map(s =>
+        s.id === (progress.actionId ?? progress.commandId)
+          ? {
+              ...s,
+              status: success ? "done" : "error",
+              expandable: !!progress.result?.message,
+              subContent: progress.result?.message ?? "",
+            }
+          : s
+      );
+    } else if (progress.phase === "done") {
+      const allOk = card.steps.every(s => s.status !== "error");
+      card.status = allOk ? "done" : "error";
+    } else if (progress.phase === "error") {
+      card.status = "error";
+      card.steps = [
+        ...card.steps.filter(s => s.status !== "running"),
+        { id: "__err", label: progress.error ?? "Execution failed", status: "error" },
+      ];
+    }
+
+    executionCards = { ...executionCards, [key]: { ...card } };
+  }
+
   async function handleExecute(event, emailId, approved = false) {
     if (!await isAuthenticated()) {
       alert("Please sign in to Gmail first (Dashboard page)");
@@ -35,22 +83,33 @@
     }
 
     const stateKey = `single_${emailId}`;
+    const subject = event.data?.subject ?? event.type;
+    const shortSubj = subject.length > 38 ? subject.slice(0, 36) + "…" : subject;
     executionState[stateKey] = { running: true, progress: null, result: null };
+    executionCards = {
+      ...executionCards,
+      [stateKey]: { type: "task-card", role: "assistant", title: shortSubj, model: null, status: "running", steps: [] },
+    };
 
     try {
       const result = await executePipeline(event, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
+        applyProgressToCard(stateKey, progress, shortSubj);
       }, approved);
 
       if (result.requiresApproval) {
         executionState[stateKey] = { running: false, progress: null, result: null };
+        delete executionCards[stateKey];
+        executionCards = { ...executionCards };
         approvalPending[stateKey] = { event, emailId, actions: result.actions, group: result.group, isBatch: false };
         return;
       }
 
       executionState[stateKey] = { running: false, progress: null, result };
+      if (result.success) onexecuted?.();
     } catch (error) {
       executionState[stateKey] = { running: false, progress: null, result: { success: false, message: error.message } };
+      applyProgressToCard(stateKey, { phase: "error", error: error.message }, shortSubj);
     }
   }
 
@@ -61,22 +120,32 @@
     }
 
     const stateKey = `batch_${eventType}`;
+    const title = `${formatLabel(eventType)} (${emails.length})`;
     executionState[stateKey] = { running: true, progress: null, result: null };
+    executionCards = {
+      ...executionCards,
+      [stateKey]: { type: "task-card", role: "assistant", title, model: null, status: "running", steps: [] },
+    };
 
     try {
       const result = await executePipelineBatch(eventType, emails, (progress) => {
         executionState[stateKey] = { ...executionState[stateKey], progress };
+        applyProgressToCard(stateKey, progress, title);
       }, approved);
 
       if (result.requiresApproval) {
         executionState[stateKey] = { running: false, progress: null, result: null };
+        delete executionCards[stateKey];
+        executionCards = { ...executionCards };
         approvalPending[stateKey] = { eventType, emails, actions: result.actions, group: result.group, isBatch: true };
         return;
       }
 
       executionState[stateKey] = { running: false, progress: null, result };
+      if (result.success) onexecuted?.();
     } catch (error) {
       executionState[stateKey] = { running: false, progress: null, result: { success: false, message: error.message } };
+      applyProgressToCard(stateKey, { phase: "error", error: error.message }, title);
     }
   }
 
@@ -162,13 +231,13 @@
             disabled={execState?.running}
           >
             {#if execState?.running}
-              ⏳ Running...
+              Running…
             {:else if execState?.result}
-              {execState.result.success ? "✅ Done" : "❌ Failed"}
+              {execState.result.success ? "Done" : "Failed"}
             {:else if grpDef?.requiresApproval}
-              🔒 Review
+              Review
             {:else}
-              ▶ Execute
+              Execute
             {/if}
           </button>
         {/if}
@@ -185,6 +254,7 @@
         </div>
       {/if}
 
+      <!-- n8n-style workflow graph (always shown) -->
       <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
         <PipelineGraph 
           eventType={msg.event.type} 
@@ -192,10 +262,11 @@
           commands={msg.commands} 
         />
       </div>
-      
-      {#if execState?.result}
-        <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
-          {execState.result.message}
+
+      <!-- Task card execution progress (shown when running or complete) -->
+      {#if executionCards[execStateKey]}
+        <div class="exec-task-card">
+          <TaskCard msg={executionCards[execStateKey]} />
         </div>
       {/if}
     {/if}
@@ -278,13 +349,13 @@
               disabled={batchState?.running}
             >
               {#if batchState?.running}
-                ⏳ Running...
+                Running…
               {:else if batchState?.result}
-                {batchState.result.success ? `✅ Done (${batchState.result.successful}/${batchState.result.total})` : `❌ Failed`}
+                {batchState.result.success ? `Done (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})` : `Failed`}
               {:else if grpDef?.requiresApproval}
-                🔒 Review & Execute ({group.emails.length})
+                Review & Execute ({group.emails.length})
               {:else}
-                ▶ Execute All ({group.emails.length})
+                Execute All ({group.emails.length})
               {/if}
             </button>
           {/if}
@@ -323,9 +394,10 @@
           </div>
         {/if}
 
-        {#if batchState?.result && !batchApproval}
-          <div class="batch-result" class:success={batchState.result.success} class:error={!batchState.result.success}>
-            {batchState.result.message}
+        <!-- Batch execution task card -->
+        {#if executionCards[batchStateKey] && !batchApproval}
+          <div class="exec-task-card">
+            <TaskCard msg={executionCards[batchStateKey]} />
           </div>
         {/if}
 
@@ -364,13 +436,13 @@
                         disabled={execState?.running}
                       >
                         {#if execState?.running}
-                          ⏳ Running...
+                          Running…
                         {:else if execState?.result}
-                          {execState.result.success ? "✅ Done" : "❌ Failed"}
+                          {execState.result.success ? "Done" : "Failed"}
                         {:else if grpDef?.requiresApproval}
-                          🔒 Review
+                          Review
                         {:else}
-                          ▶ Execute
+                          Execute
                         {/if}
                       </button>
                     {/if}
@@ -399,9 +471,10 @@
                   {:else}
                     <div class="pipeline-empty">No actions defined — configure in Control Board</div>
                   {/if}
-                  {#if execState?.result}
-                    <div class="execution-result" class:success={execState.result.success} class:error={!execState.result.success}>
-                      {execState.result.message}
+                  <!-- Per-email execution task card -->
+                  {#if executionCards[execStateKey] && !execApproval}
+                    <div class="exec-task-card">
+                      <TaskCard msg={executionCards[execStateKey]} />
                     </div>
                   {/if}
                 </div>
@@ -415,6 +488,11 @@
 {/if}
 
 <style>
+  .exec-task-card {
+    margin-top: 0.5rem;
+    width: 100%;
+  }
+
   .event-msg {
     align-self: flex-start;
     max-width: 90%;
@@ -513,21 +591,6 @@
     border-radius: 3px;
   }
 
-  /* Commands */
-  .commands {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-  .commands.compact {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.2rem;
-  }
-  .commands.compact :global(.command-card) {
-    width: auto;
-    flex: 0 0 auto;
-  }
 
   /* Batch container */
   .event-batch {
@@ -805,72 +868,11 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .pipeline-steps {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-  .pipeline-step {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.3rem 0.4rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid #1a1a1a;
-    border-radius: 6px;
-  }
-  .step-number {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 50%;
-    color: #3b82f6;
-    font-size: 0.58rem;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .step-info {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    min-width: 0;
-    flex: 1;
-  }
-  .step-icon { font-size: 0.7rem; flex-shrink: 0; }
-  .step-name { font-size: 0.65rem; font-weight: 600; color: #ccc; flex-shrink: 0; }
-  .step-desc {
-    font-size: 0.58rem;
-    color: #666;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
   .pipeline-empty {
     font-size: 0.6rem;
     color: #555;
     font-style: italic;
     padding: 0.2rem 0;
-  }
-  .execution-result {
-    padding: 0.4rem 0.5rem;
-    border-radius: 5px;
-    font-size: 0.62rem;
-    font-weight: 500;
-    margin-top: 0.2rem;
-  }
-  .execution-result.success {
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    color: #22c55e;
-  }
-  .execution-result.error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #ef4444;
   }
 
   .execute-btn {
@@ -896,24 +898,6 @@
     opacity: 0.6;
     cursor: not-allowed;
   }
-  .batch-result {
-    padding: 0.4rem 0.5rem;
-    border-radius: 5px;
-    font-size: 0.62rem;
-    font-weight: 500;
-    margin: 0.2rem 0.7rem 0.3rem;
-  }
-  .batch-result.success {
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.3);
-    color: #22c55e;
-  }
-  .batch-result.error {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    color: #ef4444;
-  }
-
   .execute-all-btn {
     display: flex;
     align-items: center;
