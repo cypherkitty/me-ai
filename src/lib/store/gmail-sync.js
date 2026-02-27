@@ -2,19 +2,19 @@
  * Gmail sync adapter.
  *
  * Three operations:
- * 1. syncGmail()  — First time: full sync (configurable limit, default 50).
- *                   Subsequent: incremental sync via History API (new + deleted).
+ * 1. syncGmail()     — First time: full sync (configurable limit, default 50).
+ *                      Subsequent: incremental sync via History API (new + deleted).
  * 2. syncGmailMore() — Continue downloading older messages beyond the initial sync.
  * 3. clearGmailData() — Wipe all local Gmail data.
  *
  * syncState tracks:
- * - historyId — for incremental sync
+ * - historyId       — for incremental sync
  * - oldestPageToken — resume point for "sync more" (null = all synced)
- * - hasMore — whether there are older messages to download
- * - totalItems — count of locally stored items
+ * - hasMore         — whether there are older messages to download
+ * - totalItems      — count of locally stored items
  */
 
-import { db, makeItemId } from "./db.js";
+import { query, exec, makeItemId, toJson, fromJson } from "./db.js";
 import {
   getProfile,
   listMessages,
@@ -49,7 +49,7 @@ export async function syncGmail(
   token,
   { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
 ) {
-  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
+  const state = await getSyncState(SOURCE_TYPE);
 
   if (state?.historyId) {
     try {
@@ -64,7 +64,7 @@ export async function syncGmail(
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
-        await db.syncState.delete(SOURCE_TYPE);
+        await exec(`DELETE FROM syncState WHERE sourceType = ?`, [SOURCE_TYPE]);
       } else {
         throw e;
       }
@@ -90,7 +90,7 @@ export async function syncGmailMore(
   token,
   { limit = DEFAULT_SYNC_LIMIT, onProgress = () => {}, signal } = {}
 ) {
-  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
+  const state = await getSyncState(SOURCE_TYPE);
 
   if (!state?.oldestPageToken) {
     onProgress({ phase: "done", message: "All messages already synced" });
@@ -105,7 +105,7 @@ export async function syncGmailMore(
  * Get current sync status for Gmail.
  */
 export async function getGmailSyncStatus() {
-  const state = await db.syncState.get(SOURCE_TYPE) ?? null;
+  const state = await getSyncState(SOURCE_TYPE);
 
   if (!state) return { synced: false, totalItems: 0, lastSyncAt: null, hasMore: false };
 
@@ -122,15 +122,19 @@ export async function getGmailSyncStatus() {
  * Clear all Gmail data from the store.
  */
 export async function clearGmailData() {
-  await db.items.where("sourceType").equals(SOURCE_TYPE).delete();
-  await db.syncState.delete(SOURCE_TYPE);
+  await exec(`DELETE FROM items WHERE sourceType = ?`, [SOURCE_TYPE]);
+  await exec(`DELETE FROM syncState WHERE sourceType = ?`, [SOURCE_TYPE]);
 }
 
 /**
  * Get count of locally stored Gmail messages.
  */
 export async function getGmailItemCount() {
-  return db.items.where("sourceType").equals(SOURCE_TYPE).count();
+  const [row] = await query(
+    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = ?`,
+    [SOURCE_TYPE]
+  );
+  return Number(row?.cnt ?? 0);
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -177,7 +181,7 @@ async function fullSync(token, limit, onProgress, signal) {
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await db.syncState.put({
+    await upsertSyncState({
       sourceType:      SOURCE_TYPE,
       historyId:       profile.historyId,
       lastSyncAt:      Date.now(),
@@ -188,9 +192,9 @@ async function fullSync(token, limit, onProgress, signal) {
   }
 
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
-  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
+  const totalItems = await getGmailItemCount();
 
-  await db.syncState.put({
+  await upsertSyncState({
     sourceType:      SOURCE_TYPE,
     historyId:       profile.historyId,
     lastSyncAt:      Date.now(),
@@ -242,19 +246,22 @@ async function continueFetch(token, state, limit, onProgress, signal) {
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await db.syncState.update(SOURCE_TYPE, { oldestPageToken: "", lastSyncAt: Date.now() });
+    await exec(
+      `UPDATE syncState SET oldestPageToken = '', lastSyncAt = ? WHERE sourceType = ?`,
+      [Date.now(), SOURCE_TYPE]
+    );
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
 
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
-  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
+  const totalItems = await getGmailItemCount();
 
-  await db.syncState.update(SOURCE_TYPE, {
-    totalItems,
-    lastSyncAt:      Date.now(),
-    oldestPageToken: nextPageAfterLimit ?? "",
-  });
+  await exec(
+    `UPDATE syncState SET totalItems = ?, lastSyncAt = ?, oldestPageToken = ?
+     WHERE sourceType = ?`,
+    [totalItems, Date.now(), nextPageAfterLimit ?? "", SOURCE_TYPE]
+  );
 
   onProgress({
     phase:   "done",
@@ -313,7 +320,7 @@ async function incrementalSync(token, state, onProgress, signal) {
           }
 
           if (items.length > 0) {
-            await db.items.bulkPut(items);
+            await bulkUpsertItems(items);
             await upsertContacts(items);
             added += items.length;
           }
@@ -326,7 +333,7 @@ async function incrementalSync(token, state, onProgress, signal) {
           .filter(Boolean);
 
         if (deletedIds.length > 0) {
-          await db.items.bulkDelete(deletedIds);
+          await bulkDeleteItems(deletedIds);
           deleted += deletedIds.length;
         }
       }
@@ -339,9 +346,9 @@ async function incrementalSync(token, state, onProgress, signal) {
     });
   } while (nextPageToken);
 
-  const totalItems = await db.items.where("sourceType").equals(SOURCE_TYPE).count();
+  const totalItems = await getGmailItemCount();
 
-  await db.syncState.put({
+  await upsertSyncState({
     sourceType:      SOURCE_TYPE,
     historyId:       newHistoryId,
     lastSyncAt:      Date.now(),
@@ -392,7 +399,7 @@ async function batchFetchAndStore(token, ids, onProgress, signal) {
     }
 
     if (items.length > 0) {
-      await db.items.bulkPut(items);
+      await bulkUpsertItems(items);
       await upsertContacts(items);
     }
 
@@ -408,15 +415,15 @@ async function batchFetchAndStore(token, ids, onProgress, signal) {
   return { added, errors };
 }
 
-// ── Normalization ───────────────────────────────────────────────────
+// ── Normalisation ───────────────────────────────────────────────────
 
 function normalizeGmailMessage(msg) {
-  const from       = getHeader(msg, "From")       ?? "";
-  const to         = getHeader(msg, "To")         ?? "";
-  const cc         = getHeader(msg, "Cc")         ?? "";
-  const subject    = getHeader(msg, "Subject")    || "(no subject)";
+  const from       = getHeader(msg, "From")        ?? "";
+  const to         = getHeader(msg, "To")          ?? "";
+  const cc         = getHeader(msg, "Cc")          ?? "";
+  const subject    = getHeader(msg, "Subject")     || "(no subject)";
   const dateStr    = getHeader(msg, "Date");
-  const messageId  = getHeader(msg, "Message-ID") ?? "";
+  const messageId  = getHeader(msg, "Message-ID")  ?? "";
   const inReplyTo  = getHeader(msg, "In-Reply-To") ?? "";
   const references = getHeader(msg, "References")  ?? "";
 
@@ -454,6 +461,54 @@ function normalizeGmailMessage(msg) {
   };
 }
 
+// ── Bulk DB helpers ─────────────────────────────────────────────────
+
+async function bulkUpsertItems(items) {
+  for (const item of items) {
+    await exec(
+      `INSERT INTO items
+         (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
+          snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
+          raw, syncedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET
+         sourceType  = excluded.sourceType,
+         sourceId    = excluded.sourceId,
+         threadKey   = excluded.threadKey,
+         type        = excluded.type,
+         "from"      = excluded."from",
+         "to"        = excluded."to",
+         cc          = excluded.cc,
+         subject     = excluded.subject,
+         snippet     = excluded.snippet,
+         body        = excluded.body,
+         htmlBody    = excluded.htmlBody,
+         date        = excluded.date,
+         labels      = excluded.labels,
+         messageId   = excluded.messageId,
+         inReplyTo   = excluded.inReplyTo,
+         "references" = excluded."references",
+         raw         = excluded.raw,
+         syncedAt    = excluded.syncedAt`,
+      [
+        item.id, item.sourceType, item.sourceId, item.threadKey, item.type,
+        item.from, item.to, item.cc, item.subject, item.snippet,
+        item.body, item.htmlBody, item.date,
+        toJson(item.labels),
+        item.messageId, item.inReplyTo, item.references,
+        toJson(item.raw),
+        item.syncedAt,
+      ]
+    );
+  }
+}
+
+async function bulkDeleteItems(ids) {
+  for (const id of ids) {
+    await exec(`DELETE FROM items WHERE id = ?`, [id]);
+  }
+}
+
 // ── Contact extraction ──────────────────────────────────────────────
 
 async function upsertContacts(items) {
@@ -474,21 +529,30 @@ async function upsertContacts(items) {
 
   for (const [email, { name, date }] of contactMap) {
     try {
-      const existing = await db.contacts.get(email);
-      if (existing) {
-        const updates = {};
-        if (name && !existing.name) updates.name = name;
-        if (date > (existing.lastSeen || 0)) updates.lastSeen = date;
-        if (Object.keys(updates).length > 0) {
-          await db.contacts.update(email, updates);
+      const existing = await query(
+        `SELECT * FROM contacts WHERE email = ?`,
+        [email]
+      );
+
+      if (existing.length > 0) {
+        const updates = [];
+        const vals    = [];
+        if (name && !existing[0].name) { updates.push(`name = ?`);     vals.push(name); }
+        if (date > (Number(existing[0].lastSeen) || 0)) { updates.push(`lastSeen = ?`); vals.push(date); }
+        if (updates.length > 0) {
+          await exec(
+            `UPDATE contacts SET ${updates.join(", ")} WHERE email = ?`,
+            [...vals, email]
+          );
         }
       } else {
-        await db.contacts.add({ email, name: name || "", firstSeen: date, lastSeen: date });
+        await exec(
+          `INSERT INTO contacts (email, name, firstSeen, lastSeen) VALUES (?, ?, ?, ?)`,
+          [email, name || "", date, date]
+        );
       }
     } catch (e) {
-      if (e?.name !== "ConstraintError") {
-        console.debug("Contact upsert skipped:", email, e?.message || e);
-      }
+      console.debug("Contact upsert skipped:", email, e?.message || e);
     }
   }
 }
@@ -504,6 +568,37 @@ function parseEmailAddress(str) {
   const email = str.toLowerCase().trim();
   if (email.includes("@")) return { email, name: "" };
   return null;
+}
+
+// ── syncState helpers ───────────────────────────────────────────────
+
+async function getSyncState(sourceType) {
+  const rows = await query(
+    `SELECT * FROM syncState WHERE sourceType = ?`,
+    [sourceType]
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    sourceType:      r.sourceType,
+    historyId:       r.historyId,
+    lastSyncAt:      r.lastSyncAt != null ? Number(r.lastSyncAt) : null,
+    totalItems:      r.totalItems != null ? Number(r.totalItems) : 0,
+    oldestPageToken: r.oldestPageToken ?? "",
+  };
+}
+
+async function upsertSyncState({ sourceType, historyId, lastSyncAt, totalItems, oldestPageToken }) {
+  await exec(
+    `INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (sourceType) DO UPDATE SET
+       historyId       = excluded.historyId,
+       lastSyncAt      = excluded.lastSyncAt,
+       totalItems      = excluded.totalItems,
+       oldestPageToken = excluded.oldestPageToken`,
+    [sourceType, historyId, lastSyncAt, totalItems, oldestPageToken]
+  );
 }
 
 // ── Utilities ───────────────────────────────────────────────────────
