@@ -249,7 +249,8 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       add_generation_prompt: true,
       return_dict: true,
     };
-    if (!enableThinking) {
+    // enable_thinking is a Qwen3-specific option; skip for Harmony models
+    if (!enableThinking && !useHarmony) {
       templateOpts.enable_thinking = false;
     }
 
@@ -270,9 +271,11 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     let harmonyContentStarted = false;
     let harmonyThinkingStarted = false;
     let harmonyThinkingDone = false;
+    let harmonyRawBuffer = ""; // full raw stream, used as fallback
     const harmony = useHarmony ? new HarmonyParser() : null;
 
     const harmony_callback = (output) => {
+      harmonyRawBuffer += output;
       const events = harmony.push(output);
       for (const ev of events) {
         if (ev.t === "think-chunk") {
@@ -374,6 +377,7 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     if (useHarmony) {
       if (harmony.channel === "final" && harmony.buf.trim()) {
         self.postMessage({ status: "update", output: harmony.buf.trim(), tps, numTokens });
+        harmonyContentStarted = true;
       }
       if (harmony.channel === "analysis") {
         const remaining = (harmony.thinkBuffer + harmony.buf).trim();
@@ -386,6 +390,19 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
           tps,
           numTokens,
         });
+        harmonyContentStarted = true;
+      }
+      // Hard fallback: parser produced nothing — strip all Harmony tokens and show raw text
+      if (!harmonyContentStarted) {
+        const stripped = harmonyRawBuffer
+          .replace(/<\|[^|]*\|>/g, "")   // remove <|token|> style tokens
+          .replace(/<\|[^|]*$/g, "")     // remove incomplete trailing token
+          .replace(/^(analysis|final|commentary|assistant|user|system)\b/g, "") // strip bare channel names at start
+          .trim();
+        if (stripped) {
+          self.postMessage({ status: "phase", phase: "generating" });
+          self.postMessage({ status: "update", output: stripped, tps, numTokens });
+        }
       }
     }
 
