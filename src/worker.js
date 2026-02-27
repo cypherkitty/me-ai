@@ -406,7 +406,7 @@ self.addEventListener("message", async (e) => {
       check();
       break;
     case "load":
-      load(modelId || "onnx-community/Qwen3-0.6B-ONNX");
+      load(modelId || "onnx-community/gpt-oss-20b-ONNX");
       break;
     case "generate":
       stopping_criteria.reset();
