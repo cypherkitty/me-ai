@@ -3,6 +3,7 @@
   import DOMPurify from "dompurify";
   import { onMount } from "svelte";
   import { mountLog } from "../../lib/debug.js";
+  import { getModelInfo } from "../../lib/models.js";
 
   let {
     msg,
@@ -36,6 +37,18 @@
   let modelLabel = $derived(backend ? (BACKEND_LABELS[backend] ?? backend) : "AI");
   let modelColor = $derived(backend ? (BACKEND_COLORS[backend] ?? "#888") : "#888");
 
+  let modelName = $derived.by(() => {
+    if (!msg.model) return null;
+    const info = getModelInfo(msg.model);
+    if (info) return info.name;
+    // fallback: strip namespace and common ONNX suffixes, humanise
+    return msg.model
+      .split("/").pop()
+      .replace(/[-_](ONNX|onnx)([-_](GQA|MHA|web|DQ))*$/i, "")
+      .replace(/[-_]/g, " ")
+      .trim();
+  });
+
   let html = $derived.by(() => {
     if (msg.role !== "assistant" || !msg.content) return "";
     try {
@@ -60,6 +73,10 @@
       <span class="ai-badge" style:color={modelColor} style:border-color={"color-mix(in srgb," + modelColor + " 30%, transparent)"} style:background={"color-mix(in srgb," + modelColor + " 8%, transparent)"}>
         {modelLabel}
       </span>
+
+      {#if modelName}
+        <span class="model-name">{modelName}</span>
+      {/if}
 
       {#if isStreaming && generationPhase === "thinking"}
         <span class="phase-tag thinking">
@@ -157,6 +174,13 @@
     border-radius: 4px;
     border: 1px solid;
     flex-shrink: 0;
+  }
+
+  .model-name {
+    font-size: 0.7rem;
+    color: #4a4a4a;
+    font-weight: 400;
+    letter-spacing: 0;
   }
 
   /* phase tags */
