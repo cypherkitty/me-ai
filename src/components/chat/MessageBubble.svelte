@@ -12,6 +12,7 @@
     generationPhase = null,
     numTokens = null,
     backend = null,
+    showModelName = false,
   } = $props();
 
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
@@ -74,7 +75,7 @@
         {modelLabel}
       </span>
 
-      {#if modelName}
+      {#if showModelName && modelName}
         <span class="model-name">{modelName}</span>
       {/if}
 

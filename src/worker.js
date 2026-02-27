@@ -64,11 +64,16 @@ function isHarmonyModel(model_id) {
  *   <|start|assistant<|channel|final<|message|[response]<|return|
  *
  * We buffer the stream and emit typed events as we detect boundaries.
+ *
+ * Key subtlety: special tokens like <|channel|> and <|message|> arrive
+ * in separate callback invocations, so we need a two-step "seenChannel"
+ * flag to pair them correctly across calls.
  */
 class HarmonyParser {
   constructor() {
     this.buf = "";
-    this.channel = null; // null | "analysis" | "final" | "skip"
+    this.channel = null;       // null | "analysis" | "final" | "skip"
+    this.seenChannel = false;  // consumed <|channel|>, waiting for <|message|>
     this.thinkBuffer = "";
   }
 
@@ -82,14 +87,21 @@ class HarmonyParser {
       changed = false;
 
       if (this.channel === null) {
-        const ci = this.buf.indexOf("<|channel|");
-        if (ci !== -1) {
-          // Drop everything before the channel marker (e.g. "<|start|assistant")
-          this.buf = this.buf.slice(ci + "<|channel|".length);
+        if (!this.seenChannel) {
+          const ci = this.buf.indexOf("<|channel|");
+          if (ci !== -1) {
+            // Drop everything before the channel marker (e.g. "<|start|assistant")
+            this.buf = this.buf.slice(ci + "<|channel|".length);
+            this.seenChannel = true;
+            changed = true;
+          }
+        } else {
+          // Already consumed <|channel|> — now wait for <|message|> to learn the name
           const mi = this.buf.indexOf("<|message|");
           if (mi !== -1) {
             const name = this.buf.slice(0, mi);
             this.buf = this.buf.slice(mi + "<|message|".length);
+            this.seenChannel = false;
             this.channel =
               name === "analysis" ? "analysis" :
               name === "final"    ? "final"    : "skip";
@@ -363,19 +375,17 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       if (harmony.channel === "final" && harmony.buf.trim()) {
         self.postMessage({ status: "update", output: harmony.buf.trim(), tps, numTokens });
       }
-      if (harmony.channel === "analysis" && harmony.thinkBuffer) {
-        self.postMessage({ status: "thinking-done", content: harmony.thinkBuffer, tps, numTokens });
+      if (harmony.channel === "analysis") {
+        const remaining = (harmony.thinkBuffer + harmony.buf).trim();
+        if (remaining) {
+          self.postMessage({ status: "thinking-done", content: remaining, tps, numTokens });
+        }
         self.postMessage({
           status: "update",
           output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
           tps,
           numTokens,
         });
-      }
-      if (!harmonyContentStarted && !harmonyThinkingStarted) {
-        // Model produced no recognized output — show raw buffer as fallback
-        const raw = harmony.buf.replace(/<\|[^|]+\|>/g, "").trim();
-        if (raw) self.postMessage({ status: "update", output: raw, tps, numTokens });
       }
     }
 

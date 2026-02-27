@@ -120,6 +120,7 @@
       {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
         <EventMessage {msg} {oncommand} {onexecuted} />
       {:else}
+        {@const prevModel = messages.slice(0, i).filter(m => m.role === "assistant").at(-1)?.model}
         <MessageBubble
           {msg}
           isLast={i === messages.length - 1}
@@ -127,6 +128,7 @@
           {generationPhase}
           {numTokens}
           {backend}
+          showModelName={msg.role === "assistant" && !!msg.model && msg.model !== prevModel}
         />
       {/if}
     {/each}
