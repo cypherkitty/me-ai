@@ -41,15 +41,6 @@ class TextGenerationPipeline {
       dtype: "q4f16",
       device: "webgpu",
       progress_callback,
-      // Graph capture: after the first decode step the WebGPU command
-      // sequence is recorded and replayed without CPU re-dispatch,
-      // recovering the utilisation drop seen during autoregressive decode.
-      // NOTE: enableGraphCapture requires ALL outputs to be on gpu-buffer;
-      // do NOT set preferredOutputLocation here — ONNX Runtime manages
-      // output locations automatically when graph capture is enabled.
-      session_options: {
-        enableGraphCapture: true,
-      },
     });
 
     return Promise.all([this.tokenizer, this.model]);
