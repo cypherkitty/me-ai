@@ -98,7 +98,7 @@
         case "start":
           if (!isRunning) break;
           generationPhase = msg.phase || "preparing";
-          messages = [...messages, { role: "assistant", content: "", thinking: "" }];
+          messages = [...messages, { role: "assistant", content: "", thinking: "", model: selectedModel }];
           break;
 
         case "phase":
