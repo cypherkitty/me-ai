@@ -90,22 +90,19 @@ Each triple maps to a **Rule node** in the graph. Rules are the central unit of 
 
 An `Event` is a single incoming message from any source. It is raw data — it carries no routing logic.
 
-| Field | Description |
-|-------|-------------|
-| `id` | Unique identifier |
-| `content` | Raw message body |
-| `sender` | Who sent it |
-| `timestamp` | When it arrived |
-| `status` | `pending` / `completed` / `awaiting_user` / `failed` / `escalated` |
-
-An Event gains meaning through relationships:
-
 ```
-(:Event)-[:HAS_TYPE]->(:EventType)
-(:Event)-[:HAS_CATEGORY]->(:EventCategory)
-(:Event)-[:FROM_SOURCE]->(:Source)
-(:Event)-[:PROCESSED_BY]->(:Rule)       ← added at runtime
-(:Event)-[:ACTION_TAKEN]->(:Action)     ← added at runtime
+(:Event)
+  - id
+  - content
+  - sender
+  - timestamp
+  - status  ← completed | awaiting_user | failed | escalated
+
+  -[:HAS_TYPE]→     (:EventType)
+  -[:HAS_CATEGORY]→ (:EventCategory)
+  -[:FROM_SOURCE]→  (:Source)
+  -[:PROCESSED_BY]→ (:Rule)    ← added at runtime
+  -[:ACTION_TAKEN]→ (:Action)  ← added at runtime
 ```
 
 > **Important:** An Event never stores its own policy or routing decision. Those belong entirely to the Rule that matches it.
