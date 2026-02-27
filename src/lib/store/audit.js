@@ -5,7 +5,7 @@
  * Used for the audit log UI and to keep the local DB in sync after actions run.
  */
 
-import { db } from "./db.js";
+import { query, exec, toJson, fromJson } from "./db.js";
 
 /**
  * Actions that remove an email from the mailbox (Gmail side) and should
@@ -39,24 +39,30 @@ const ARCHIVING_COMMAND_IDS = new Set([
  * @param {string}   [params.error]    - Top-level error message if any
  */
 export async function logExecution({ emailId, subject, from, eventType, actions, results, success, error }) {
-  await db.auditLog.add({
-    id:         crypto.randomUUID(),
-    emailId,
-    subject:    subject ?? "(no subject)",
-    from:       from ?? "",
-    eventType,
-    executedAt: Date.now(),
-    success:    !!success,
-    error:      error ?? "",
-    steps: (results ?? []).map((r, i) => ({
-      actionId:   r.actionId   ?? actions?.[i]?.id ?? "",
-      actionName: r.actionName ?? actions?.[i]?.name ?? r.actionId ?? "",
-      commandId:  r.commandId  ?? actions?.[i]?.commandId ?? "",
-      pluginId:   r.pluginId   ?? actions?.[i]?.pluginId ?? "",
-      success:    r.success    ?? false,
-      message:    r.message    ?? "",
-    })),
-  });
+  const steps = (results ?? []).map((r, i) => ({
+    actionId:   r.actionId   ?? actions?.[i]?.id ?? "",
+    actionName: r.actionName ?? actions?.[i]?.name ?? r.actionId ?? "",
+    commandId:  r.commandId  ?? actions?.[i]?.commandId ?? "",
+    pluginId:   r.pluginId   ?? actions?.[i]?.pluginId ?? "",
+    success:    r.success    ?? false,
+    message:    r.message    ?? "",
+  }));
+
+  await exec(
+    `INSERT INTO auditLog (id, emailId, subject, "from", eventType, executedAt, success, error, steps)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      crypto.randomUUID(),
+      emailId,
+      subject ?? "(no subject)",
+      from ?? "",
+      eventType,
+      Date.now(),
+      !!success,
+      error ?? "",
+      toJson(steps),
+    ]
+  );
 }
 
 /**
@@ -76,13 +82,16 @@ export async function syncAfterExecution(emailId, results) {
     .map(r => r.commandId)
     .filter(Boolean);
 
-  await db.emailClassifications.update(emailId, { status: "executed" });
+  await exec(
+    `UPDATE emailClassifications SET status = 'executed' WHERE emailId = ?`,
+    [emailId]
+  );
 
   const isDestructive = successfulCommandIds.some(id => DESTRUCTIVE_COMMAND_IDS.has(id));
   const isArchiving   = successfulCommandIds.some(id => ARCHIVING_COMMAND_IDS.has(id));
 
   if (isDestructive || isArchiving) {
-    await db.items.delete(emailId);
+    await exec(`DELETE FROM items WHERE id = ?`, [emailId]);
   }
 }
 
@@ -96,17 +105,32 @@ export async function syncAfterExecution(emailId, results) {
  * @returns {Promise<{entries: Object[], total: number}>}
  */
 export async function getAuditLog({ limit = 50, offset = 0, failuresOnly = false } = {}) {
-  const all = await db.auditLog.orderBy("executedAt").reverse().toArray();
-  const filtered = failuresOnly ? all.filter(e => !e.success) : all;
-  return {
-    entries: filtered.slice(offset, offset + limit),
-    total:   filtered.length,
-  };
+  const whereClause = failuresOnly ? "WHERE success = false" : "";
+
+  const [countRow] = await query(
+    `SELECT COUNT(*) AS cnt FROM auditLog ${whereClause}`
+  );
+  const total = Number(countRow?.cnt ?? 0);
+
+  const rows = await query(
+    `SELECT * FROM auditLog ${whereClause}
+     ORDER BY executedAt DESC
+     LIMIT ? OFFSET ?`,
+    [limit, offset]
+  );
+
+  const entries = rows.map(r => ({
+    ...r,
+    steps:   fromJson(r.steps, []),
+    success: Boolean(r.success),
+  }));
+
+  return { entries, total };
 }
 
 /**
  * Delete all audit log entries.
  */
 export async function clearAuditLog() {
-  await db.auditLog.clear();
+  await exec(`DELETE FROM auditLog`);
 }

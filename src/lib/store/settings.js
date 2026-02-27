@@ -1,14 +1,16 @@
 /**
- * Settings Store — key/value persistence via Dexie (IndexedDB).
+ * Settings Store — key/value persistence via DuckDB (OPFS).
  *
- * API mirrors localStorage for easy use:
+ * API mirrors the old Dexie-based interface:
  *   getSetting(key, fallback?)  →  async get
  *   setSetting(key, value)      →  async set
  *   removeSetting(key)          →  async remove
  *   getSettings(keys[])         →  async bulk-get
+ *
+ * Values are JSON-encoded so any serialisable type is supported.
  */
 
-import { db } from "./db.js";
+import { query, exec, toJson, fromJson } from "./db.js";
 
 /**
  * Get a setting value by key.
@@ -19,8 +21,12 @@ import { db } from "./db.js";
  */
 export async function getSetting(key, fallback = null) {
   try {
-    const doc = await db.settings.get(key);
-    return doc ? doc.value : fallback;
+    const rows = await query(
+      `SELECT value FROM settings WHERE key = ?`,
+      [key]
+    );
+    if (rows.length === 0) return fallback;
+    return fromJson(rows[0].value, fallback);
   } catch {
     return fallback;
   }
@@ -34,7 +40,11 @@ export async function getSetting(key, fallback = null) {
  */
 export async function setSetting(key, value) {
   try {
-    await db.settings.put({ key, value });
+    await exec(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
+      [key, toJson(value)]
+    );
   } catch (e) {
     console.error(`[settings] setSetting("${key}") failed:`, e);
   }
@@ -47,7 +57,7 @@ export async function setSetting(key, value) {
  */
 export async function removeSetting(key) {
   try {
-    await db.settings.delete(key);
+    await exec(`DELETE FROM settings WHERE key = ?`, [key]);
   } catch {}
 }
 
@@ -57,8 +67,12 @@ export async function removeSetting(key) {
  * @returns {Promise<Record<string, *>>}
  */
 export async function getSettings(keys) {
-  const docs = await db.settings.bulkGet(keys);
-  return Object.fromEntries(
-    keys.map((key, i) => [key, docs[i]?.value ?? null])
+  if (keys.length === 0) return {};
+  const placeholders = keys.map(() => "?").join(", ");
+  const rows = await query(
+    `SELECT key, value FROM settings WHERE key IN (${placeholders})`,
+    keys
   );
+  const map = Object.fromEntries(rows.map(r => [r.key, fromJson(r.value)]));
+  return Object.fromEntries(keys.map(k => [k, map[k] ?? null]));
 }

@@ -1,5 +1,5 @@
 <script>
-  import { db } from "../../lib/store/db.js";
+  import { query, exec, getDb } from "../../lib/store/db.js";
   import { clearGmailData } from "../../lib/store/gmail-sync.js";
   import { clearClassifications, clearClassificationsByAction } from "../../lib/triage.js";
 
@@ -11,11 +11,14 @@
   let storageSummary = $state(null);
 
   async function loadSummary() {
-    const [emailCount, classCount, contactCount] = await Promise.all([
-      db.items.where("sourceType").equals("gmail").count(),
-      db.emailClassifications.count(),
-      db.contacts.count(),
+    const [[emailRow], [classRow], [contactRow]] = await Promise.all([
+      query(`SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`),
+      query(`SELECT COUNT(*) AS cnt FROM emailClassifications`),
+      query(`SELECT COUNT(*) AS cnt FROM contacts`),
     ]);
+    const emailCount   = Number(emailRow?.cnt   ?? 0);
+    const classCount   = Number(classRow?.cnt   ?? 0);
+    const contactCount = Number(contactRow?.cnt ?? 0);
 
     let totalBytes = 0;
     try {
@@ -66,12 +69,21 @@
   }
 
   async function clearContactsAction() {
-    await execAction(() => db.contacts.clear());
+    await execAction(() => exec(`DELETE FROM contacts`));
   }
 
   async function nukeEverything() {
     await execAction(async () => {
-      await db.delete();
+      // Drop and recreate all tables by wiping every table's data.
+      // The DuckDB OPFS file persists but is now empty.
+      await Promise.all([
+        exec(`DELETE FROM items`),
+        exec(`DELETE FROM emailClassifications`),
+        exec(`DELETE FROM contacts`),
+        exec(`DELETE FROM syncState`),
+        exec(`DELETE FROM settings`),
+        exec(`DELETE FROM auditLog`),
+      ]);
       window.location.reload();
     });
   }

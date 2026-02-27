@@ -125,24 +125,19 @@ test.describe("Dashboard page (no client ID)", () => {
 // Dashboard page — with client ID (AuthCard)
 // ────────────────────────────────────────────────────────────
 test.describe("Dashboard page (with client ID)", () => {
-  test("shows auth card when client ID is set via IndexedDB", async ({ page }) => {
-    // Load page first so the DB is created and upgraded to version 5
+  test("shows auth card when client ID is set via DuckDB settings", async ({ page }) => {
+    // Load page first so DuckDB initialises and the schema is created.
+    // The app exposes window.__setSetting for test use (set in main.js).
     await page.goto("/#dashboard");
     await page.waitForLoadState("networkidle");
 
-    // Write clientId directly into the IndexedDB settings table using raw IDB API
-    // Open without specifying version to use whatever version the app created
-    await page.evaluate(() => new Promise((resolve, reject) => {
-      const req = indexedDB.open("me-ai");
-      req.onsuccess = () => {
-        const db = req.result;
-        const tx = db.transaction("settings", "readwrite");
-        tx.objectStore("settings").put({ key: "googleClientId", value: "fake-client-id.apps.googleusercontent.com" });
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-      req.onerror = () => reject(req.error);
-    }));
+    // Wait for the DuckDB-backed __setSetting helper to be available
+    await page.waitForFunction(() => typeof window.__setSetting === "function", { timeout: 15000 });
+
+    // Write clientId via the app's DuckDB settings store
+    await page.evaluate(async () => {
+      await window.__setSetting("googleClientId", "fake-client-id.apps.googleusercontent.com");
+    });
 
     // Reload so the app picks up the new setting
     await page.reload();

@@ -6,7 +6,7 @@
  * for each email. Action groups emerge dynamically from the data.
  */
 
-import { db } from "./store/db.js";
+import { query, exec, toJson, fromJson } from "./store/db.js";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
@@ -160,34 +160,26 @@ export async function scanEmails(
   let skipped = 0;
 
   if (force) {
-    toProcess = await db.items
-      .orderBy("date")
-      .reverse()
-      .filter(x => x.sourceType === "gmail")
-      .limit(count)
-      .toArray();
-  } else {
-    // Collect IDs of already-classified emails
-    const classifiedIds = new Set(
-      (await db.emailClassifications.toArray()).map(d => d.emailId)
+    const rows = await query(
+      `SELECT * FROM items WHERE sourceType = 'gmail' ORDER BY date DESC LIMIT ?`,
+      [count]
     );
+    toProcess = rows.map(normaliseItemRow);
+  } else {
+    const rows = await query(
+      `SELECT i.* FROM items i
+       LEFT JOIN emailClassifications ec ON ec.emailId = i.id
+       WHERE i.sourceType = 'gmail' AND ec.emailId IS NULL
+       ORDER BY i.date DESC
+       LIMIT ?`,
+      [count]
+    );
+    toProcess = rows.map(normaliseItemRow);
 
-    toProcess = [];
-    // Stream through recent emails and stop once we have `count` unclassified
-    const allDocs = await db.items
-      .orderBy("date")
-      .reverse()
-      .filter(x => x.sourceType === "gmail")
-      .toArray();
-
-    for (const email of allDocs) {
-      if (toProcess.length >= count) break;
-      if (classifiedIds.has(email.id)) {
-        skipped++;
-      } else {
-        toProcess.push(email);
-      }
-    }
+    const [skipRow] = await query(
+      `SELECT COUNT(*) AS cnt FROM emailClassifications`
+    );
+    skipped = Number(skipRow?.cnt ?? 0);
   }
 
   if (toProcess.length === 0) {
@@ -285,19 +277,34 @@ export async function scanEmails(
       const emailElapsed   = performance.now() - emailStart;
 
       if (classification) {
-        await db.emailClassifications.put({
-          emailId:   email.id,
-          action:    classification.action,
-          group:     classification.group,
-          reason:    classification.reason,
-          summary:   classification.summary,
-          tags:      classification.tags,
-          subject:   email.subject || "(no subject)",
-          from:      email.from || "",
-          date:      email.date,
-          scannedAt,
-          status:    "pending",
-        });
+        await exec(
+          `INSERT INTO emailClassifications
+             (emailId, action, "group", reason, summary, tags, subject, "from", date, scannedAt, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+           ON CONFLICT (emailId) DO UPDATE SET
+             action    = excluded.action,
+             "group"   = excluded."group",
+             reason    = excluded.reason,
+             summary   = excluded.summary,
+             tags      = excluded.tags,
+             subject   = excluded.subject,
+             "from"    = excluded."from",
+             date      = excluded.date,
+             scannedAt = excluded.scannedAt,
+             status    = 'pending'`,
+          [
+            email.id,
+            classification.action,
+            classification.group,
+            classification.reason,
+            classification.summary,
+            toJson(classification.tags),
+            email.subject || "(no subject)",
+            email.from || "",
+            email.date,
+            scannedAt,
+          ]
+        );
 
         // Auto-seed pipeline for this event type if it's new
         await seedEventTypeFromLLM(
@@ -381,10 +388,10 @@ export async function scanEmails(
  * Get all classifications, optionally filtered by action type.
  */
 export async function getClassifications({ action } = {}) {
-  const all = action
-    ? await db.emailClassifications.where("action").equals(action).toArray()
-    : await db.emailClassifications.toArray();
-  return all.sort((a, b) => (b.date || 0) - (a.date || 0));
+  const rows = action
+    ? await query(`SELECT * FROM emailClassifications WHERE action = ? ORDER BY date DESC`, [action])
+    : await query(`SELECT * FROM emailClassifications ORDER BY date DESC`);
+  return rows.map(normaliseClassificationRow);
 }
 
 /**
@@ -393,19 +400,21 @@ export async function getClassifications({ action } = {}) {
  * Also returns the group order sorted by count descending.
  */
 export async function getClassificationsGrouped() {
-  const all = await db.emailClassifications.toArray();
-  return groupByAction(all);
+  const rows = await query(`SELECT * FROM emailClassifications`);
+  return groupByAction(rows.map(normaliseClassificationRow));
 }
 
 /**
  * Get count per action type (dynamic).
  */
 export async function getClassificationCounts() {
-  const all    = await db.emailClassifications.toArray();
-  const counts = { total: all.length };
-  for (const item of all) {
-    const key = item.action || "UNKNOWN";
-    counts[key] = (counts[key] || 0) + 1;
+  const rows = await query(
+    `SELECT action, COUNT(*) AS cnt FROM emailClassifications GROUP BY action`
+  );
+  const [totalRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
+  const counts = { total: Number(totalRow?.cnt ?? 0) };
+  for (const r of rows) {
+    counts[r.action || "UNKNOWN"] = Number(r.cnt);
   }
   return counts;
 }
@@ -414,11 +423,12 @@ export async function getClassificationCounts() {
  * Get all unique tags with their counts.
  */
 export async function getTagCounts() {
-  const all    = await db.emailClassifications.toArray();
+  const rows   = await query(`SELECT tags FROM emailClassifications`);
   const tagMap = {};
-  for (const item of all) {
-    if (Array.isArray(item.tags)) {
-      for (const tag of item.tags) {
+  for (const r of rows) {
+    const tags = fromJson(r.tags, []);
+    if (Array.isArray(tags)) {
+      for (const tag of tags) {
         tagMap[tag] = (tagMap[tag] || 0) + 1;
       }
     }
@@ -430,40 +440,68 @@ export async function getTagCounts() {
  * Update a classification's status.
  */
 export async function updateClassificationStatus(emailId, newStatus) {
-  await db.emailClassifications.update(emailId, { status: newStatus });
+  await exec(
+    `UPDATE emailClassifications SET status = ? WHERE emailId = ?`,
+    [newStatus, emailId]
+  );
 }
 
 /**
  * Clear all classifications.
  */
 export async function clearClassifications() {
-  await db.emailClassifications.clear();
+  await exec(`DELETE FROM emailClassifications`);
 }
 
 /**
  * Clear classifications for a specific action group.
  */
 export async function clearClassificationsByAction(action) {
-  await db.emailClassifications.where("action").equals(action).delete();
+  await exec(`DELETE FROM emailClassifications WHERE action = ?`, [action]);
 }
 
 /**
  * Delete a single classification by emailId.
  */
 export async function deleteClassification(emailId) {
-  await db.emailClassifications.delete(emailId);
+  await exec(`DELETE FROM emailClassifications WHERE emailId = ?`, [emailId]);
 }
 
 /**
  * Get scan stats: total emails in storage, how many classified, how many unclassified.
  */
 export async function getScanStats() {
-  const totalEmails = await db.items.where("sourceType").equals("gmail").count();
-  const classified  = await db.emailClassifications.count();
+  const [emailRow] = await query(
+    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`
+  );
+  const [classRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
+  const totalEmails = Number(emailRow?.cnt ?? 0);
+  const classified  = Number(classRow?.cnt ?? 0);
   return {
     totalEmails,
     classified,
     unclassified: Math.max(0, totalEmails - classified),
+  };
+}
+
+// ── Row normalisers ──────────────────────────────────────────────────
+
+function normaliseItemRow(row) {
+  return {
+    ...row,
+    date:     row.date     != null ? Number(row.date)     : null,
+    syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
+    labels:   fromJson(row.labels, []),
+    raw:      fromJson(row.raw, null),
+  };
+}
+
+function normaliseClassificationRow(row) {
+  return {
+    ...row,
+    date:      row.date      != null ? Number(row.date)      : null,
+    scannedAt: row.scannedAt != null ? Number(row.scannedAt) : null,
+    tags:      fromJson(row.tags, []),
   };
 }
 
