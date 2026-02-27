@@ -49,6 +49,111 @@ class TextGenerationPipeline {
 
 const stopping_criteria = new InterruptableStoppingCriteria();
 
+// ── Harmony format detection ────────────────────────────────────────
+// GPT-OSS uses a channel-based format: <|channel|analysis<|message|>...
+// <|channel|final<|message|>... instead of <think>...</think>.
+function isHarmonyModel(model_id) {
+  return model_id.includes("gpt-oss");
+}
+
+/**
+ * Streaming parser for the GPT-OSS Harmony format.
+ *
+ * With skip_special_tokens=false, raw output looks like:
+ *   <|channel|analysis<|message|[thinking]<|end|
+ *   <|start|assistant<|channel|final<|message|[response]<|return|
+ *
+ * We buffer the stream and emit typed events as we detect boundaries.
+ */
+class HarmonyParser {
+  constructor() {
+    this.buf = "";
+    this.channel = null; // null | "analysis" | "final" | "skip"
+    this.thinkBuffer = "";
+  }
+
+  // Returns an array of { t, text } event objects
+  push(raw) {
+    this.buf += raw;
+    const events = [];
+    let changed = true;
+
+    while (changed) {
+      changed = false;
+
+      if (this.channel === null) {
+        const ci = this.buf.indexOf("<|channel|");
+        if (ci !== -1) {
+          // Drop everything before the channel marker (e.g. "<|start|assistant")
+          this.buf = this.buf.slice(ci + "<|channel|".length);
+          const mi = this.buf.indexOf("<|message|");
+          if (mi !== -1) {
+            const name = this.buf.slice(0, mi);
+            this.buf = this.buf.slice(mi + "<|message|".length);
+            this.channel =
+              name === "analysis" ? "analysis" :
+              name === "final"    ? "final"    : "skip";
+            changed = true;
+          }
+          // else: wait for more data
+        }
+      } else if (this.channel === "analysis") {
+        const ei = this.buf.indexOf("<|end|");
+        if (ei !== -1) {
+          const text = this.buf.slice(0, ei);
+          this.buf = this.buf.slice(ei + "<|end|".length);
+          this.channel = null;
+          if (text) { this.thinkBuffer += text; events.push({ t: "think-chunk", text }); }
+          events.push({ t: "think-done", text: this.thinkBuffer });
+          changed = true;
+        } else {
+          // Stream what is safe to emit; hold back enough chars to detect "<|end|"
+          const safe = this.buf.length - "<|end|".length;
+          if (safe > 0) {
+            const text = this.buf.slice(0, safe);
+            this.buf = this.buf.slice(safe);
+            this.thinkBuffer += text;
+            events.push({ t: "think-chunk", text });
+          }
+        }
+      } else if (this.channel === "final") {
+        const ri = this.buf.indexOf("<|return|");
+        const ei = this.buf.indexOf("<|end|");
+        const stop = Math.min(
+          ri === -1 ? Infinity : ri,
+          ei === -1 ? Infinity : ei,
+        );
+        if (isFinite(stop)) {
+          const text = this.buf.slice(0, stop);
+          this.buf = this.buf.slice(stop);
+          this.channel = null;
+          if (text) events.push({ t: "content", text });
+          changed = true;
+        } else {
+          const safe = this.buf.length - "<|return|".length;
+          if (safe > 0) {
+            const text = this.buf.slice(0, safe);
+            this.buf = this.buf.slice(safe);
+            if (text) events.push({ t: "content", text });
+          }
+        }
+      } else {
+        // skip (commentary / tool calls) — discard until <|end|
+        const ei = this.buf.indexOf("<|end|");
+        if (ei !== -1) {
+          this.buf = this.buf.slice(ei + "<|end|".length);
+          this.channel = null;
+          changed = true;
+        } else {
+          this.buf = this.buf.slice(-"<|end|".length); // hold back tail
+        }
+      }
+    }
+
+    return events;
+  }
+}
+
 // ── Check WebGPU availability and report adapter info ──────────────
 async function check() {
   try {
@@ -123,9 +228,10 @@ async function load(model_id) {
 // ── Streaming generation ───────────────────────────────────────────
 async function generate(messages, { maxTokens = 4096, enableThinking = true } = {}) {
   try {
-    const [tokenizer, model] = await TextGenerationPipeline.getInstance(
-      TextGenerationPipeline.model_id
-    );
+    const modelId = TextGenerationPipeline.model_id;
+    const useHarmony = isHarmonyModel(modelId);
+
+    const [tokenizer, model] = await TextGenerationPipeline.getInstance(modelId);
 
     const templateOpts = {
       add_generation_prompt: true,
@@ -141,12 +247,6 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     let numTokens = 0;
     let tps;
 
-    // ── <think> tracking ──────────────────────────────────────────
-    let fullOutput = "";
-    let isThinking = false;    // currently inside <think>...</think>
-    let thinkingDone = false;  // </think> has been seen
-    let thinkBuffer = "";      // accumulated thinking text
-
     const token_callback_function = () => {
       startTime ??= performance.now();
       if (numTokens++ > 0) {
@@ -154,16 +254,47 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       }
     };
 
-    const callback_function = (output) => {
+    // ── Harmony path (GPT-OSS) ─────────────────────────────────────
+    let harmonyContentStarted = false;
+    let harmonyThinkingStarted = false;
+    let harmonyThinkingDone = false;
+    const harmony = useHarmony ? new HarmonyParser() : null;
+
+    const harmony_callback = (output) => {
+      const events = harmony.push(output);
+      for (const ev of events) {
+        if (ev.t === "think-chunk") {
+          if (!harmonyThinkingStarted) {
+            harmonyThinkingStarted = true;
+            self.postMessage({ status: "phase", phase: "thinking" });
+          }
+          self.postMessage({ status: "thinking", content: ev.text, tps, numTokens });
+        } else if (ev.t === "think-done") {
+          harmonyThinkingDone = true;
+          self.postMessage({ status: "thinking-done", content: ev.text, tps, numTokens });
+        } else if (ev.t === "content") {
+          if (!harmonyContentStarted) {
+            harmonyContentStarted = true;
+            self.postMessage({ status: "phase", phase: "generating" });
+          }
+          self.postMessage({ status: "update", output: ev.text, tps, numTokens });
+        }
+      }
+    };
+
+    // ── <think> path (Qwen3, DeepSeek R1, etc.) ───────────────────
+    let fullOutput = "";
+    let isThinking = false;
+    let thinkingDone = false;
+    let thinkBuffer = "";
+
+    const think_callback = (output) => {
       fullOutput += output;
 
-      // ── Phase 1: Haven't seen </think> yet ──────────────────────
       if (!thinkingDone) {
-        // Detect opening <think>
         if (!isThinking && fullOutput.includes("<think>")) {
           isThinking = true;
           self.postMessage({ status: "phase", phase: "thinking" });
-          // Grab anything after <think> as thinking content
           const afterOpen = fullOutput.split("<think>")[1] || "";
           if (afterOpen && !afterOpen.includes("</think>")) {
             thinkBuffer = afterOpen;
@@ -171,17 +302,14 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
           }
         }
 
-        // Detect closing </think>
         const closeIdx = fullOutput.indexOf("</think>");
         if (closeIdx !== -1) {
           thinkingDone = true;
-          // Extract final thinking content
           const openIdx = fullOutput.indexOf("<think>");
           if (openIdx !== -1) {
             thinkBuffer = fullOutput.slice(openIdx + "<think>".length, closeIdx).trim();
             self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
           }
-          // Stream anything after </think>
           const afterClose = fullOutput.slice(closeIdx + "</think>".length).trimStart();
           if (afterClose) {
             self.postMessage({ status: "phase", phase: "generating" });
@@ -192,14 +320,12 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
           return;
         }
 
-        // Still inside <think>, stream thinking content
         if (isThinking) {
           thinkBuffer += output;
           self.postMessage({ status: "thinking", content: output, tps, numTokens });
           return;
         }
 
-        // No <think> tag seen after a few tokens — model is responding directly
         if (numTokens > 3 && !fullOutput.includes("<think>")) {
           thinkingDone = true;
           self.postMessage({ status: "phase", phase: "generating" });
@@ -210,19 +336,17 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
         return;
       }
 
-      // ── Phase 2: After </think>, stream the real response ───────
       self.postMessage({ status: "update", output, tps, numTokens });
     };
 
     const inputTokens = inputs.input_ids.dims[1];
-
-    // Let the UI know we're preparing (tokenising the prompt)
     self.postMessage({ status: "start", phase: "preparing", inputTokens });
 
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,
-      skip_special_tokens: true,
-      callback_function,
+      // Keep special tokens for Harmony so we can parse channel boundaries
+      skip_special_tokens: !useHarmony,
+      callback_function: useHarmony ? harmony_callback : think_callback,
       token_callback_function,
     });
 
@@ -234,8 +358,29 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       stopping_criteria,
     });
 
-    // Safety: if model used all tokens and never closed </think>
-    if (!thinkingDone && isThinking && thinkBuffer.length > 0) {
+    // Safety: flush remaining Harmony buffer content
+    if (useHarmony) {
+      if (harmony.channel === "final" && harmony.buf.trim()) {
+        self.postMessage({ status: "update", output: harmony.buf.trim(), tps, numTokens });
+      }
+      if (harmony.channel === "analysis" && harmony.thinkBuffer) {
+        self.postMessage({ status: "thinking-done", content: harmony.thinkBuffer, tps, numTokens });
+        self.postMessage({
+          status: "update",
+          output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
+          tps,
+          numTokens,
+        });
+      }
+      if (!harmonyContentStarted && !harmonyThinkingStarted) {
+        // Model produced no recognized output — show raw buffer as fallback
+        const raw = harmony.buf.replace(/<\|[^|]+\|>/g, "").trim();
+        if (raw) self.postMessage({ status: "update", output: raw, tps, numTokens });
+      }
+    }
+
+    // Safety: <think> path — model used all tokens without closing </think>
+    if (!useHarmony && !thinkingDone && isThinking && thinkBuffer.length > 0) {
       self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
       self.postMessage({
         status: "update",
