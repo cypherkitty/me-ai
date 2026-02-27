@@ -41,6 +41,15 @@ class TextGenerationPipeline {
       dtype: "q4f16",
       device: "webgpu",
       progress_callback,
+      // Keep all output tensors on the GPU buffer between decode steps —
+      // avoids GPU→CPU copies on every token, the biggest decode bottleneck.
+      session_options: {
+        preferredOutputLocation: "gpu-buffer",
+        // Graph capture: after the first decode step the WebGPU command
+        // sequence is recorded and replayed without CPU re-dispatch,
+        // recovering the utilisation drop seen during autoregressive decode.
+        enableGraphCapture: true,
+      },
     });
 
     return Promise.all([this.tokenizer, this.model]);
@@ -158,9 +167,13 @@ async function load(model_id) {
       data: "Compiling shaders and warming up model...",
     });
 
-    // Warm-up run to compile WebGPU shaders
-    const inputs = tokenizer("a");
-    await model.generate({ ...inputs, max_new_tokens: 1 });
+    // Warm-up: use apply_chat_template so the full generation path
+    // (including KV cache allocation and graph capture) is exercised.
+    const warmupInputs = tokenizer.apply_chat_template(
+      [{ role: "user", content: "hi" }],
+      { add_generation_prompt: true, return_dict: true },
+    );
+    await model.generate({ ...warmupInputs, max_new_tokens: 1 });
 
     self.postMessage({ status: "ready" });
   } catch (e) {
@@ -282,6 +295,7 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     await model.generate({
       ...inputs,
       do_sample: false,
+      num_beams: 1,       // greedy, no beam search overhead
       max_new_tokens: maxTokens,
       streamer,
       stopping_criteria,
