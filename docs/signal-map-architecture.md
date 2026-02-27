@@ -6,11 +6,81 @@
 
 ---
 
+## Motivation
+
+Modern people receive a continuous, high-volume stream of messages from many different platforms at the same time — emails, Telegram messages, Instagram posts, YouTube videos, Slack notifications, invoices, security alerts, and more. The sources are heterogeneous, the content varies wildly in urgency, and the right response is different for each combination of type, category, and context.
+
+The goal of **me-ai** is to act as a personal AI agent that sits in front of this stream. Instead of the user manually triaging every message, the agent should:
+
+1. **Continuously ingest** messages from all connected sources into a single unified event stream.
+2. **Automatically classify** each event — understanding what it is (type) and how important it is (category).
+3. **Route each event** through a user-defined pipeline of actions, either executing them autonomously or pausing for user approval depending on the stakes.
+4. **Give the user full control** over how the pipeline is configured — without requiring any code changes. Adding a rule, changing what happens to ads, or switching a policy from auto to manual should be something any user can do through a UI.
+
+The key insight is that the relationship between an event and what should happen to it is **not static**. It changes as the user's preferences evolve, as new sources are added, and as new types of content emerge. This rules out any hardcoded workflow. The system must be **fully dynamic**.
+
+---
+
+## Why Event Sourcing
+
+The incoming data is modelled as an **event stream** rather than a mutable database of inboxes. This is a deliberate architectural choice:
+
+- Every message that arrives becomes an immutable `Event` node. It is never updated in place.
+- All state changes (classification, processing, action outcomes) are recorded as new relationships on that node, not as mutations of it.
+- This gives a complete, queryable audit trail: for any event, you can always answer "what happened to this, and why?" by traversing its edges in the graph.
+- It also makes the system naturally replayable — if a rule changes, you can re-evaluate past events against the new rule without data loss.
+
+---
+
+## Why a Graph Database (Neo4j)
+
+A relational database would model the pipeline as foreign-key joins between static tables. This breaks down quickly when the relationships themselves need to be dynamic and user-editable:
+
+- In SQL, changing what actions fire for a given event type means schema migrations or complex pivot table updates.
+- In a graph, it means adding or removing a single edge. No migration, no downtime.
+
+Neo4j was chosen because the entire architecture **is** a graph:
+
+- Events connect to their types, categories, and sources.
+- Rules connect to their triggers, actions, and policies.
+- Plugins connect to the actions they provide and the sources they handle.
+- Every relationship between these concepts is a first-class, traversable edge.
+
+This means the pipeline editor UI can be built directly on top of graph mutations — creating a rule is a `CREATE` statement, disabling one is a property update, reordering actions is updating an `order` property on an edge.
+
+---
+
+## Why n8n-Inspired (Dynamic Pipelines, Not Hardcoded Workflows)
+
+[n8n](https://n8n.io) is a workflow automation tool where users visually connect trigger nodes to action nodes to build pipelines. The key property is that the workflow is data, not code — users change it at runtime without deploying anything.
+
+Signal Map applies the same principle to personal AI agents:
+
+- **No hardcoded pipelines.** The agent does not have a fixed set of rules baked into the source code. All routing logic lives in the graph.
+- **User-owned rules.** Every `Rule` node is owned by a `User`. Different users (or future multi-user scenarios) have independent pipeline configurations.
+- **Live editing.** A user can open the pipeline editor, change "delete ads automatically" to "archive ads and notify me", and the next ad that arrives will follow the new rule — no restart, no deploy.
+- **Extensibility through plugins.** Adding a new integration (e.g. WhatsApp) means adding a new `Plugin` node with its `Source` and `Action` edges. Existing rules that act on message types will automatically become available for the new source, with no rule changes needed.
+
+---
+
 ## Overview
 
-Signal Map is the routing and action layer of the me-ai agent. It defines how incoming events (emails, messages, social posts, videos, etc.) are automatically classified, matched against user-defined rules, and dispatched to actions — either autonomously or with user approval.
+Signal Map is the routing and action layer of me-ai. It defines how incoming events (emails, messages, social posts, videos, etc.) are continuously classified, matched against user-defined rules, and dispatched to actions — either autonomously or with user approval.
 
-The architecture is inspired by **n8n**: pipelines are dynamic, user-editable, and driven by a graph database (Neo4j). There are no hardcoded workflows. Every connection between an event, a rule, and an action is a live graph edge that can be added, removed, or reordered at runtime.
+The three axes of every routing decision are captured in a simple triple notation borrowed from the original design sketch:
+
+```
+event_type : action : execution_policy
+
+Examples:
+  ad            : delete      : auto
+  newsletter    : archive     : auto
+  personal_msg  : reply       : manual
+  security_alert: escalate    : supervised
+  invoice       : notify+fwd  : manual
+```
+
+Each triple maps to a **Rule node** in the graph. Rules are the central unit of the pipeline. They are explicit, first-class, user-owned, and fully editable at runtime.
 
 ---
 
