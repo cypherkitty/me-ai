@@ -41,13 +41,13 @@ class TextGenerationPipeline {
       dtype: "q4f16",
       device: "webgpu",
       progress_callback,
-      // Keep all output tensors on the GPU buffer between decode steps —
-      // avoids GPU→CPU copies on every token, the biggest decode bottleneck.
+      // Graph capture: after the first decode step the WebGPU command
+      // sequence is recorded and replayed without CPU re-dispatch,
+      // recovering the utilisation drop seen during autoregressive decode.
+      // NOTE: enableGraphCapture requires ALL outputs to be on gpu-buffer;
+      // do NOT set preferredOutputLocation here — ONNX Runtime manages
+      // output locations automatically when graph capture is enabled.
       session_options: {
-        preferredOutputLocation: "gpu-buffer",
-        // Graph capture: after the first decode step the WebGPU command
-        // sequence is recorded and replayed without CPU re-dispatch,
-        // recovering the utilisation drop seen during autoregressive decode.
         enableGraphCapture: true,
       },
     });
