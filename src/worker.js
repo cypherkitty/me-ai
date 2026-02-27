@@ -50,120 +50,52 @@ class TextGenerationPipeline {
 const stopping_criteria = new InterruptableStoppingCriteria();
 
 // ── Harmony format detection ────────────────────────────────────────
-// GPT-OSS uses a channel-based format: <|channel|analysis<|message|>...
-// <|channel|final<|message|>... instead of <think>...</think>.
+// GPT-OSS uses a Harmony channel format. After Transformers.js decodes
+// with skip_special_tokens=true (the default), all <|token|> markers are
+// stripped, leaving plain channel-name boundaries:
+//   analysis[thinking text]assistant[role]final[response text]
+// We parse this post-hoc once generation is complete.
 function isHarmonyModel(model_id) {
   return model_id.includes("gpt-oss");
 }
 
 /**
- * Streaming parser for the GPT-OSS Harmony format.
+ * Parse the complete GPT-OSS Harmony output (after all tokens are decoded).
  *
- * With skip_special_tokens=false, raw output looks like:
- *   <|channel|analysis<|message|[thinking]<|end|
- *   <|start|assistant<|channel|final<|message|[response]<|return|
+ * The decoded stream looks like:
+ *   "analysis<thinking>assistant<role>final<response>"
+ * where the channel names are literal word boundaries left after special
+ * token stripping. We split on them to extract thinking and response.
  *
- * We buffer the stream and emit typed events as we detect boundaries.
- *
- * Key subtlety: special tokens like <|channel|> and <|message|> arrive
- * in separate callback invocations, so we need a two-step "seenChannel"
- * flag to pair them correctly across calls.
+ * Returns { thinking: string|null, response: string }
  */
-class HarmonyParser {
-  constructor() {
-    this.buf = "";
-    this.channel = null;       // null | "analysis" | "final" | "skip"
-    this.seenChannel = false;  // consumed <|channel|>, waiting for <|message|>
-    this.thinkBuffer = "";
+function parseHarmonyOutput(raw) {
+  // Locate the "final" boundary — everything after it is the response
+  const finalIdx = raw.indexOf("final");
+  if (finalIdx === -1) {
+    // No "final" channel found — return everything as the response
+    return { thinking: null, response: raw.trim() };
   }
 
-  // Returns an array of { t, text } event objects
-  push(raw) {
-    this.buf += raw;
-    const events = [];
-    let changed = true;
+  const response = raw.slice(finalIdx + "final".length).trim();
 
-    while (changed) {
-      changed = false;
-
-      if (this.channel === null) {
-        if (!this.seenChannel) {
-          const ci = this.buf.indexOf("<|channel|");
-          if (ci !== -1) {
-            // Drop everything before the channel marker (e.g. "<|start|assistant")
-            this.buf = this.buf.slice(ci + "<|channel|".length);
-            this.seenChannel = true;
-            changed = true;
-          }
-        } else {
-          // Already consumed <|channel|> — now wait for <|message|> to learn the name
-          const mi = this.buf.indexOf("<|message|");
-          if (mi !== -1) {
-            const name = this.buf.slice(0, mi);
-            this.buf = this.buf.slice(mi + "<|message|".length);
-            this.seenChannel = false;
-            this.channel =
-              name === "analysis" ? "analysis" :
-              name === "final"    ? "final"    : "skip";
-            changed = true;
-          }
-          // else: wait for more data
-        }
-      } else if (this.channel === "analysis") {
-        const ei = this.buf.indexOf("<|end|");
-        if (ei !== -1) {
-          const text = this.buf.slice(0, ei);
-          this.buf = this.buf.slice(ei + "<|end|".length);
-          this.channel = null;
-          if (text) { this.thinkBuffer += text; events.push({ t: "think-chunk", text }); }
-          events.push({ t: "think-done", text: this.thinkBuffer });
-          changed = true;
-        } else {
-          // Stream what is safe to emit; hold back enough chars to detect "<|end|"
-          const safe = this.buf.length - "<|end|".length;
-          if (safe > 0) {
-            const text = this.buf.slice(0, safe);
-            this.buf = this.buf.slice(safe);
-            this.thinkBuffer += text;
-            events.push({ t: "think-chunk", text });
-          }
-        }
-      } else if (this.channel === "final") {
-        const ri = this.buf.indexOf("<|return|");
-        const ei = this.buf.indexOf("<|end|");
-        const stop = Math.min(
-          ri === -1 ? Infinity : ri,
-          ei === -1 ? Infinity : ei,
-        );
-        if (isFinite(stop)) {
-          const text = this.buf.slice(0, stop);
-          this.buf = this.buf.slice(stop);
-          this.channel = null;
-          if (text) events.push({ t: "content", text });
-          changed = true;
-        } else {
-          const safe = this.buf.length - "<|return|".length;
-          if (safe > 0) {
-            const text = this.buf.slice(0, safe);
-            this.buf = this.buf.slice(safe);
-            if (text) events.push({ t: "content", text });
-          }
-        }
-      } else {
-        // skip (commentary / tool calls) — discard until <|end|
-        const ei = this.buf.indexOf("<|end|");
-        if (ei !== -1) {
-          this.buf = this.buf.slice(ei + "<|end|".length);
-          this.channel = null;
-          changed = true;
-        } else {
-          this.buf = this.buf.slice(-"<|end|".length); // hold back tail
-        }
-      }
+  // Locate the "analysis" channel for thinking content
+  const analysisIdx = raw.indexOf("analysis");
+  let thinking = null;
+  if (analysisIdx !== -1) {
+    // Thinking is between "analysis" and the next channel marker
+    // The next marker is typically "assistant" or "final"
+    const afterAnalysis = raw.slice(analysisIdx + "analysis".length);
+    // Find where thinking ends: at "assistant" or "final"
+    const endMatch = afterAnalysis.search(/assistant|final/);
+    if (endMatch !== -1) {
+      thinking = afterAnalysis.slice(0, endMatch).trim();
+    } else {
+      thinking = afterAnalysis.trim();
     }
-
-    return events;
   }
+
+  return { thinking: thinking || null, response };
 }
 
 // ── Check WebGPU availability and report adapter info ──────────────
@@ -268,33 +200,16 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     };
 
     // ── Harmony path (GPT-OSS) ─────────────────────────────────────
-    let harmonyContentStarted = false;
-    let harmonyThinkingStarted = false;
-    let harmonyThinkingDone = false;
-    let harmonyRawBuffer = ""; // full raw stream, used as fallback
-    const harmony = useHarmony ? new HarmonyParser() : null;
+    // Collect the full output, then parse it once generation is done.
+    // Streaming per-token parsing is unreliable because Transformers.js
+    // strips all <|token|> markers, leaving only plain channel names as
+    // word boundaries — impossible to detect mid-stream reliably.
+    let harmonyRawBuffer = "";
 
     const harmony_callback = (output) => {
       harmonyRawBuffer += output;
-      const events = harmony.push(output);
-      for (const ev of events) {
-        if (ev.t === "think-chunk") {
-          if (!harmonyThinkingStarted) {
-            harmonyThinkingStarted = true;
-            self.postMessage({ status: "phase", phase: "thinking" });
-          }
-          self.postMessage({ status: "thinking", content: ev.text, tps, numTokens });
-        } else if (ev.t === "think-done") {
-          harmonyThinkingDone = true;
-          self.postMessage({ status: "thinking-done", content: ev.text, tps, numTokens });
-        } else if (ev.t === "content") {
-          if (!harmonyContentStarted) {
-            harmonyContentStarted = true;
-            self.postMessage({ status: "phase", phase: "generating" });
-          }
-          self.postMessage({ status: "update", output: ev.text, tps, numTokens });
-        }
-      }
+      // Keep the phase indicator alive while generating
+      self.postMessage({ status: "phase", phase: "generating" });
     };
 
     // ── <think> path (Qwen3, DeepSeek R1, etc.) ───────────────────
@@ -359,8 +274,7 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
 
     const streamer = new TextStreamer(tokenizer, {
       skip_prompt: true,
-      // Keep special tokens for Harmony so we can parse channel boundaries
-      skip_special_tokens: !useHarmony,
+      skip_special_tokens: true,
       callback_function: useHarmony ? harmony_callback : think_callback,
       token_callback_function,
     });
@@ -373,37 +287,15 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       stopping_criteria,
     });
 
-    // Safety: flush remaining Harmony buffer content
-    if (useHarmony) {
-      if (harmony.channel === "final" && harmony.buf.trim()) {
-        self.postMessage({ status: "update", output: harmony.buf.trim(), tps, numTokens });
-        harmonyContentStarted = true;
+    // Parse and emit Harmony output after generation completes
+    if (useHarmony && harmonyRawBuffer) {
+      const { thinking, response } = parseHarmonyOutput(harmonyRawBuffer);
+      if (thinking) {
+        self.postMessage({ status: "phase", phase: "thinking" });
+        self.postMessage({ status: "thinking-done", content: thinking, tps, numTokens });
       }
-      if (harmony.channel === "analysis") {
-        const remaining = (harmony.thinkBuffer + harmony.buf).trim();
-        if (remaining) {
-          self.postMessage({ status: "thinking-done", content: remaining, tps, numTokens });
-        }
-        self.postMessage({
-          status: "update",
-          output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
-          tps,
-          numTokens,
-        });
-        harmonyContentStarted = true;
-      }
-      // Hard fallback: parser produced nothing — strip all Harmony tokens and show raw text
-      if (!harmonyContentStarted) {
-        const stripped = harmonyRawBuffer
-          .replace(/<\|[^|]*\|>/g, "")   // remove <|token|> style tokens
-          .replace(/<\|[^|]*$/g, "")     // remove incomplete trailing token
-          .replace(/^(analysis|final|commentary|assistant|user|system)\b/g, "") // strip bare channel names at start
-          .trim();
-        if (stripped) {
-          self.postMessage({ status: "phase", phase: "generating" });
-          self.postMessage({ status: "update", output: stripped, tps, numTokens });
-        }
-      }
+      self.postMessage({ status: "phase", phase: "generating" });
+      self.postMessage({ status: "update", output: response || harmonyRawBuffer.trim(), tps, numTokens });
     }
 
     // Safety: <think> path — model used all tokens without closing </think>
