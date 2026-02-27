@@ -7,22 +7,22 @@ export default defineConfig({
   base: process.env.VITE_BASE || (process.env.GITHUB_ACTIONS ? "/me-ai/" : "/"),
   plugins: [
     svelte(),
-    // Cross-Origin Isolation headers required for:
-    //   - OPFS (SharedArrayBuffer / synchronous OPFS access)
-    //   - DuckDB WASM pthread workers
+    // COOP header needed for OPFS (DuckDB persistence).
+    // We use "same-origin-allow-popups" instead of the stricter "same-origin"
+    // so that Google OAuth popups can still communicate back to this window.
+    // Chrome 109+ removed the crossOriginIsolated requirement for OPFS sync
+    // handles, so OPFS keeps working without COEP / strict COOP.
     {
-      name: "cross-origin-isolation",
+      name: "cross-origin-opener-policy",
       configureServer(server) {
         server.middlewares.use((_req, res, next) => {
-          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
           next();
         });
       },
       configurePreviewServer(server) {
         server.middlewares.use((_req, res, next) => {
-          res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-          res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+          res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
           next();
         });
       },

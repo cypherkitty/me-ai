@@ -13,6 +13,12 @@
  * Persistence strategy:
  *   Chrome/Edge  → OPFS  (survives restarts, cache clears)
  *   Firefox/Safari → in-memory (data lost on tab close)
+ *
+ * OPFS + CHECKPOINT:
+ *   DuckDB WASM uses a WAL; writes are buffered in memory and only reach
+ *   the OPFS file after an explicit CHECKPOINT.  exec() schedules a
+ *   debounced checkpoint (50 ms) after every write, and a best-effort
+ *   checkpoint fires on beforeunload.
  */
 
 import duckdb_mvp_wasm  from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url";
@@ -29,6 +35,31 @@ let _db   = null;
 let _conn = null;
 /** @type {Promise<duckdb.AsyncDuckDB> | null} */
 let _initPromise = null;
+/** @type {boolean} Whether the current open path is OPFS (not :memory:) */
+let _usingOpfs = false;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let _checkpointTimer = null;
+
+/**
+ * Debounced CHECKPOINT — flushes the DuckDB WAL to the OPFS file.
+ * DuckDB WASM does NOT auto-flush on page unload, so without this every
+ * write is lost when the tab is closed or reloaded.
+ *
+ * We debounce (50 ms) to batch rapid writes (e.g. bulk email sync) into
+ * a single checkpoint rather than one per row.
+ */
+function _scheduleCheckpoint() {
+  if (!_usingOpfs || !_conn) return;
+  if (_checkpointTimer) clearTimeout(_checkpointTimer);
+  _checkpointTimer = setTimeout(async () => {
+    try {
+      await _conn.query("CHECKPOINT");
+    } catch (e) {
+      console.warn("[db] CHECKPOINT failed:", e?.message ?? e);
+    }
+    _checkpointTimer = null;
+  }, 50);
+}
 
 // ── Init ─────────────────────────────────────────────────────────────
 
@@ -52,6 +83,7 @@ async function _init() {
   if (opfsSupported) {
     try {
       await _db.open({ path: "opfs://me-ai.db", accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
+      _usingOpfs = true;
       console.info("[db] Using OPFS persistence (opfs://me-ai.db)");
     } catch (e) {
       console.warn("[db] OPFS open failed, falling back to in-memory:", e?.message ?? e);
@@ -63,6 +95,14 @@ async function _init() {
   }
 
   _conn = await _db.connect();
+
+  // Best-effort flush on page unload.
+  if (_usingOpfs && typeof window !== "undefined") {
+    window.addEventListener("beforeunload", () => {
+      _conn.query("CHECKPOINT").catch(() => {});
+    });
+  }
+
   await _createSchema(_conn);
 
   return _db;
@@ -197,12 +237,13 @@ export async function query(sql, params = []) {
   } else {
     result = await conn.query(sql);
   }
-  return result.toArray().map(row => row.toJSON());
+  return result.toArray().map(row => row.toJSON ? row.toJSON() : row);
 }
 
 /**
  * Execute a SQL statement (INSERT / UPDATE / DELETE / DDL).
  * Returns nothing — use query() if you need results.
+ * Schedules a debounced CHECKPOINT to flush the WAL to OPFS.
  *
  * @param {string}  sql
  * @param {any[]}   [params]
@@ -216,6 +257,8 @@ export async function exec(sql, params = []) {
   } else {
     await conn.query(sql);
   }
+  // Flush WAL to OPFS after every write so data survives page reloads.
+  _scheduleCheckpoint();
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────
