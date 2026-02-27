@@ -1,5 +1,17 @@
 /** Available ONNX models for browser inference with Transformers.js v4 */
 export const MODELS = [
+  {
+    id: "onnx-community/gpt-oss-20b-ONNX",
+    name: "GPT-OSS 20B",
+    size: "~12 GB",
+    contextWindow: 131072, // 128k
+    maxEmailTokens: 16000,
+    description: "OpenAI open-source 20B, 128k context, built-in reasoning",
+    requiresV4: true,
+    gpuWarning: "Requires powerful GPU (12GB+ VRAM). ~12 GB download.",
+    isExperimental: true,
+    recommendedForEmailProcessing: true
+  },
   { 
     id: "onnx-community/Qwen3-0.6B-ONNX", 
     name: "Qwen3 0.6B", 
@@ -70,17 +82,6 @@ export const MODELS = [
     contextWindow: 8192, // 8k
     maxEmailTokens: 2000, // Small model, limited WebGPU memory
     description: "Smallest, ultra fast, 8k context, not for long emails"
-  },
-  {
-    id: "onnx-community/gpt-oss-20b-ONNX",
-    name: "GPT-OSS 20B",
-    size: "~12 GB",
-    contextWindow: 131072, // 128k
-    maxEmailTokens: 16000,
-    description: "OpenAI open-source 20B, 128k context, built-in reasoning",
-    requiresV4: true,
-    gpuWarning: "Requires powerful GPU (12GB+ VRAM). ~12 GB download.",
-    isExperimental: true
   },
 ];
 
