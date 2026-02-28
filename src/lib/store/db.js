@@ -110,13 +110,11 @@ async function _init() {
 
   _conn = await _db.connect();
 
-  // Best-effort flush on page unload and visibility change.
+  // Best-effort flush on page unload and visibility change (OPFS only).
   if (_usingOpfs && typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
       _conn.query("CHECKPOINT").catch(() => {});
     });
-    // visibilitychange fires reliably on mobile and when switching tabs,
-    // giving us a chance to flush before the page is frozen/discarded.
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         _conn.query("CHECKPOINT").catch(() => {});
@@ -126,7 +124,83 @@ async function _init() {
 
   await _createSchema(_conn);
 
+  // Rehydrate email data from IndexedDB into DuckDB (in-memory fallback path).
+  // This runs regardless of OPFS status — IndexedDB is the reliable source of
+  // truth for emails; DuckDB is the query engine.
+  await _rehydrateFromIdb(_conn);
+
   return _db;
+}
+
+/**
+ * Restore items, syncState, and contacts from IndexedDB into DuckDB.
+ * Called once on startup so queries work even when OPFS is unavailable.
+ */
+async function _rehydrateFromIdb(conn) {
+  try {
+    const { idbGetAllItems, idbGetAllSyncStates, idbGetAllContacts } = await import("./idb.js");
+
+    const [items, syncStates, contacts] = await Promise.all([
+      idbGetAllItems(),
+      idbGetAllSyncStates(),
+      idbGetAllContacts(),
+    ]);
+
+    if (items.length > 0) {
+      console.info(`[db] Rehydrating ${items.length} emails from IndexedDB`);
+      const sql = `INSERT INTO items
+         (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
+          snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
+          raw, syncedAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO NOTHING`;
+      for (const item of items) {
+        try {
+          const stmt = await conn.prepare(sql);
+          await stmt.query(
+            item.id, item.sourceType, item.sourceId, item.threadKey, item.type,
+            item.from, item.to, item.cc, item.subject, item.snippet,
+            item.body, item.htmlBody, item.date,
+            item.labels,
+            item.messageId, item.inReplyTo, item.references,
+            item.raw,
+            item.syncedAt,
+          );
+          await stmt.close();
+        } catch {}
+      }
+    }
+
+    for (const s of syncStates) {
+      try {
+        const stmt = await conn.prepare(
+          `INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT (sourceType) DO NOTHING`
+        );
+        await stmt.query(s.sourceType, s.historyId, s.lastSyncAt, s.totalItems, s.oldestPageToken);
+        await stmt.close();
+      } catch {}
+    }
+
+    for (const c of contacts) {
+      try {
+        const stmt = await conn.prepare(
+          `INSERT INTO contacts (email, name, firstSeen, lastSeen)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT (email) DO NOTHING`
+        );
+        await stmt.query(c.email, c.name, c.firstSeen, c.lastSeen);
+        await stmt.close();
+      } catch {}
+    }
+
+    if (items.length > 0 || syncStates.length > 0) {
+      console.info("[db] Rehydration complete");
+    }
+  } catch (e) {
+    console.warn("[db] Rehydration from IndexedDB failed:", e?.message ?? e);
+  }
 }
 
 /**

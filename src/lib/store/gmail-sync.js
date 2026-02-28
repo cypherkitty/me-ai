@@ -16,6 +16,11 @@
 
 import { query, exec, execBatch, checkpoint, makeItemId, toJson, fromJson } from "./db.js";
 import {
+  idbPutItems, idbDeleteItems, idbClearItemsBySource,
+  idbPutSyncState, idbDeleteSyncState,
+  idbPutContacts,
+} from "./idb.js";
+import {
   getProfile,
   listMessages,
   getMessage,
@@ -124,6 +129,8 @@ export async function getGmailSyncStatus() {
 export async function clearGmailData() {
   await exec(`DELETE FROM items WHERE sourceType = ?`, [SOURCE_TYPE]);
   await exec(`DELETE FROM syncState WHERE sourceType = ?`, [SOURCE_TYPE]);
+  await idbClearItemsBySource(SOURCE_TYPE);
+  await idbDeleteSyncState(SOURCE_TYPE);
 }
 
 /**
@@ -510,6 +517,15 @@ async function bulkUpsertItems(items) {
       item.syncedAt,
     ],
   })));
+
+  // Write-through to IndexedDB — the reliable persistence layer.
+  // Store labels and raw as JSON strings (same as DuckDB columns) so
+  // rehydration can insert them back verbatim.
+  await idbPutItems(items.map(item => ({
+    ...item,
+    labels: toJson(item.labels),
+    raw:    toJson(item.raw),
+  })));
 }
 
 async function bulkDeleteItems(ids) {
@@ -517,6 +533,7 @@ async function bulkDeleteItems(ids) {
     sql: `DELETE FROM items WHERE id = ?`,
     params: [id],
   })));
+  await idbDeleteItems(ids);
 }
 
 // ── Contact extraction ──────────────────────────────────────────────
@@ -537,6 +554,8 @@ async function upsertContacts(items) {
     }
   }
 
+  const idbBatch = [];
+
   for (const [email, { name, date }] of contactMap) {
     try {
       const existing = await query(
@@ -555,15 +574,21 @@ async function upsertContacts(items) {
             [...vals, email]
           );
         }
+        idbBatch.push({ email, name: existing[0].name || name || "", firstSeen: Number(existing[0].firstSeen) || date, lastSeen: Math.max(date, Number(existing[0].lastSeen) || 0) });
       } else {
         await exec(
           `INSERT INTO contacts (email, name, firstSeen, lastSeen) VALUES (?, ?, ?, ?)`,
           [email, name || "", date, date]
         );
+        idbBatch.push({ email, name: name || "", firstSeen: date, lastSeen: date });
       }
     } catch (e) {
       console.debug("Contact upsert skipped:", email, e?.message || e);
     }
+  }
+
+  if (idbBatch.length > 0) {
+    await idbPutContacts(idbBatch);
   }
 }
 
@@ -609,6 +634,8 @@ async function upsertSyncState({ sourceType, historyId, lastSyncAt, totalItems, 
        oldestPageToken = excluded.oldestPageToken`,
     [sourceType, historyId, lastSyncAt, totalItems, oldestPageToken]
   );
+  // Mirror to IndexedDB — reliable persistence.
+  await idbPutSyncState({ sourceType, historyId, lastSyncAt, totalItems, oldestPageToken });
 }
 
 // ── Utilities ───────────────────────────────────────────────────────
