@@ -467,6 +467,37 @@ export async function exec(sql, params = []) {
   _scheduleCheckpoint();
 }
 
+/**
+ * Execute multiple SQL statements inside a single BEGIN/COMMIT transaction.
+ * Much faster than individual exec() calls for bulk inserts, and guarantees
+ * all rows land in the WAL atomically. Calls an immediate checkpoint after
+ * commit so the data survives a page reload.
+ *
+ * @param {Array<{sql: string, params?: any[]}>} statements
+ */
+export async function execBatch(statements) {
+  if (!statements.length) return;
+  const conn = await _getConn();
+  await conn.query("BEGIN");
+  try {
+    for (const { sql, params = [] } of statements) {
+      if (params.length > 0) {
+        const stmt = await conn.prepare(sql);
+        await stmt.query(...params);
+        await stmt.close();
+      } else {
+        await conn.query(sql);
+      }
+    }
+    await conn.query("COMMIT");
+  } catch (e) {
+    await conn.query("ROLLBACK").catch(() => {});
+    throw e;
+  }
+  // Flush immediately after a bulk write — don't debounce.
+  await checkpoint();
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────
 
 /**

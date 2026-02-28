@@ -14,7 +14,7 @@
  * - totalItems      — count of locally stored items
  */
 
-import { query, exec, makeItemId, toJson, fromJson } from "./db.js";
+import { query, exec, execBatch, checkpoint, makeItemId, toJson, fromJson } from "./db.js";
 import {
   getProfile,
   listMessages,
@@ -202,6 +202,9 @@ async function fullSync(token, limit, onProgress, signal) {
     oldestPageToken: nextPageAfterLimit ?? "",
   });
 
+  // Flush WAL to OPFS so emails survive a page reload.
+  await checkpoint();
+
   onProgress({
     phase:   "done",
     message: `Synced ${added} messages`,
@@ -262,6 +265,9 @@ async function continueFetch(token, state, limit, onProgress, signal) {
      WHERE sourceType = ?`,
     [totalItems, Date.now(), nextPageAfterLimit ?? "", SOURCE_TYPE]
   );
+
+  // Flush WAL to OPFS so emails survive a page reload.
+  await checkpoint();
 
   onProgress({
     phase:   "done",
@@ -355,6 +361,9 @@ async function incrementalSync(token, state, onProgress, signal) {
     totalItems,
     oldestPageToken: state.oldestPageToken ?? "",
   });
+
+  // Flush WAL to OPFS so changes survive a page reload.
+  await checkpoint();
 
   onProgress({
     phase:   "done",
@@ -464,49 +473,50 @@ function normalizeGmailMessage(msg) {
 // ── Bulk DB helpers ─────────────────────────────────────────────────
 
 async function bulkUpsertItems(items) {
-  for (const item of items) {
-    await exec(
-      `INSERT INTO items
-         (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
-          snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
-          raw, syncedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (id) DO UPDATE SET
-         sourceType  = excluded.sourceType,
-         sourceId    = excluded.sourceId,
-         threadKey   = excluded.threadKey,
-         type        = excluded.type,
-         "from"      = excluded."from",
-         "to"        = excluded."to",
-         cc          = excluded.cc,
-         subject     = excluded.subject,
-         snippet     = excluded.snippet,
-         body        = excluded.body,
-         htmlBody    = excluded.htmlBody,
-         date        = excluded.date,
-         labels      = excluded.labels,
-         messageId   = excluded.messageId,
-         inReplyTo   = excluded.inReplyTo,
-         "references" = excluded."references",
-         raw         = excluded.raw,
-         syncedAt    = excluded.syncedAt`,
-      [
-        item.id, item.sourceType, item.sourceId, item.threadKey, item.type,
-        item.from, item.to, item.cc, item.subject, item.snippet,
-        item.body, item.htmlBody, item.date,
-        toJson(item.labels),
-        item.messageId, item.inReplyTo, item.references,
-        toJson(item.raw),
-        item.syncedAt,
-      ]
-    );
-  }
+  const sql = `INSERT INTO items
+       (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
+        snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
+        raw, syncedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET
+       sourceType   = excluded.sourceType,
+       sourceId     = excluded.sourceId,
+       threadKey    = excluded.threadKey,
+       type         = excluded.type,
+       "from"       = excluded."from",
+       "to"         = excluded."to",
+       cc           = excluded.cc,
+       subject      = excluded.subject,
+       snippet      = excluded.snippet,
+       body         = excluded.body,
+       htmlBody     = excluded.htmlBody,
+       date         = excluded.date,
+       labels       = excluded.labels,
+       messageId    = excluded.messageId,
+       inReplyTo    = excluded.inReplyTo,
+       "references" = excluded."references",
+       raw          = excluded.raw,
+       syncedAt     = excluded.syncedAt`;
+
+  await execBatch(items.map(item => ({
+    sql,
+    params: [
+      item.id, item.sourceType, item.sourceId, item.threadKey, item.type,
+      item.from, item.to, item.cc, item.subject, item.snippet,
+      item.body, item.htmlBody, item.date,
+      toJson(item.labels),
+      item.messageId, item.inReplyTo, item.references,
+      toJson(item.raw),
+      item.syncedAt,
+    ],
+  })));
 }
 
 async function bulkDeleteItems(ids) {
-  for (const id of ids) {
-    await exec(`DELETE FROM items WHERE id = ?`, [id]);
-  }
+  await execBatch(ids.map(id => ({
+    sql: `DELETE FROM items WHERE id = ?`,
+    params: [id],
+  })));
 }
 
 // ── Contact extraction ──────────────────────────────────────────────
