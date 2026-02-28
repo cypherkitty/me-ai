@@ -43,7 +43,7 @@ import * as Table      from "$lib/components/ui/table/index.js";
 import * as Dialog     from "$lib/components/ui/dialog/index.js";
 import * as Sheet      from "$lib/components/ui/sheet/index.js";
 import * as Tooltip    from "$lib/components/ui/tooltip/index.js";
-import { cn }          from "$lib/utils.js";
+import { cn }          from "$lib/utils.js"; // will become utils.ts after migration
 ```
 
 Icons from **lucide-svelte**: `import { Mail, Settings, Zap } from "lucide-svelte";`
