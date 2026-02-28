@@ -1,27 +1,31 @@
 <script>
   import { onMount } from "svelte";
-  import StreamView    from "./views/StreamView.svelte";
-  import PipelinesView from "./views/PipelinesView.svelte";
-  import ApprovalsView from "./views/ApprovalsView.svelte";
-  import SourcesView   from "./views/SourcesView.svelte";
-  import PluginsView   from "./views/PluginsView.svelte";
-  import AuditView     from "./views/AuditView.svelte";
-  import Chat          from "./Chat.svelte";
-  import ControlBoard  from "./ControlBoard.svelte";
+  import StreamView        from "./views/StreamView.svelte";
+  import PipelinesView     from "./views/PipelinesView.svelte";
+  import ApprovalsView     from "./views/ApprovalsView.svelte";
+  import SourcesView       from "./views/SourcesView.svelte";
+  import PluginsView       from "./views/PluginsView.svelte";
+  import AuditView         from "./views/AuditView.svelte";
+  import OAuthView         from "./views/OAuthView.svelte";
+  import OAuthRedirectView from "./views/OAuthRedirectView.svelte";
+  import Chat              from "./Chat.svelte";
+  import ControlBoard      from "./ControlBoard.svelte";
   import { cn }        from "$lib/utils.js";
   import { Zap, Activity, GitBranch, CheckSquare, Settings, Mail, ScanSearch, ClipboardList, ChevronLeft } from "lucide-svelte";
   import { getEventStats } from "./lib/rules.js";
   import { getSavedToken, isTokenValid } from "./lib/google-auth.js";
 
+  const OAUTH_PAGES    = ["auth", "oauth-redirect"];
   const PIPELINE_PAGES = ["stream", "pipelines", "approvals", "sources", "plugins", "audit", "scan"];
-  const ALL_PAGES      = [...PIPELINE_PAGES, "chat"];
+  const ALL_PAGES      = [...OAUTH_PAGES, ...PIPELINE_PAGES, "chat"];
 
   function getPage() {
     const h = location.hash.replace("#", "");
     return ALL_PAGES.includes(h) ? h : "chat";
   }
 
-  let page       = $state(getPage());
+  let page         = $state(getPage());
+  const inOAuth    = $derived(OAUTH_PAGES.includes(page));
   const inPipeline = $derived(PIPELINE_PAGES.includes(page));
 
   let stats            = $state({ total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 });
@@ -65,7 +69,17 @@
   });
 </script>
 
-{#if !inPipeline}
+{#if inOAuth}
+  <!-- ── OAuth pages (full-screen, no chrome) ─────────────────── -->
+  <div class="flex flex-col h-dvh w-full overflow-hidden bg-background">
+    {#if page === "auth"}
+      <OAuthView />
+    {:else}
+      <OAuthRedirectView />
+    {/if}
+  </div>
+
+{:else if !inPipeline}
   <!-- ── Chat mode ────────────────────────────────────────────── -->
   <div class="flex flex-col h-dvh w-full overflow-hidden">
     <header class="flex items-center justify-between px-5 h-11 border-b border-border bg-sidebar shrink-0">
