@@ -12,11 +12,10 @@
   import ControlBoard      from "./ControlBoard.svelte";
   import { cn }            from "$lib/utils.js";
   import {
-    Zap, Activity, GitBranch, CheckSquare, Mail,
+    Zap, Activity, GitBranch, CheckSquare,
     ScanSearch, ClipboardList, ChevronLeft, ArrowLeft,
   } from "lucide-svelte";
   import { getEventStats } from "./lib/rules.js";
-  import { getSavedToken, isTokenValid } from "./lib/google-auth.js";
 
   const OAUTH_PAGES   = ["auth", "oauth-redirect"];
   const SOURCE_PAGES  = ["sources", "plugins"];
@@ -38,40 +37,18 @@
 
   interface EventStats { total: number; completed: number; awaiting_user: number; escalated: number; failed: number; }
   let stats         = $state<EventStats>({ total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 });
-  let gmailEmail    = $state<string | null>(null);
-  let gmailChecking = $state(true);
-
   async function loadStats() {
     try { stats = await getEventStats() as EventStats; } catch {}
-  }
-
-  async function checkGmailAuth() {
-    gmailChecking = true;
-    try {
-      const token = await getSavedToken();
-      if (token && isTokenValid()) {
-        const { getSetting } = await import("./lib/store/settings.js");
-        const profile = await getSetting("gmail-profile") as { emailAddress?: string } | null;
-        gmailEmail = profile?.emailAddress ?? "Gmail";
-      } else {
-        gmailEmail = null;
-      }
-    } catch {
-      gmailEmail = null;
-    }
-    gmailChecking = false;
   }
 
   onMount(() => {
     const onHash = () => { page = getPage(); };
     window.addEventListener("hashchange", onHash);
-    checkGmailAuth();
     loadStats();
     return () => window.removeEventListener("hashchange", onHash);
   });
 
   $effect(() => {
-    if (inHome || inSources) checkGmailAuth();
     if (inCP) loadStats();
   });
 </script>
@@ -87,65 +64,25 @@
   </div>
 
 {:else if inHome}
-  <!-- ── Home: setup panel + chat ─────────────────────────────── -->
-  <div class="flex flex-col h-dvh w-full overflow-hidden">
-    <!-- Minimal top bar -->
-    <header class="flex items-center justify-between px-5 h-11 border-b border-border bg-sidebar shrink-0">
-      <div class="flex items-center gap-2">
-        <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-          <Zap class="size-3.5 text-primary-foreground" />
-        </div>
-        <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
-      </div>
-      <div class="flex items-center gap-2">
-        {#if !gmailChecking}
-          {#if gmailEmail}
-            <a href="#sources" class="flex items-center gap-1.5 px-2 py-1 rounded border text-xs
-               text-success border-success/25 bg-success/6 hover:bg-success/12 transition-colors no-underline">
-              <span class="size-1 rounded-full bg-success shrink-0"></span>
-              <Mail class="size-3 shrink-0" />
-              <span class="truncate max-w-[140px] tracking-tight">{gmailEmail}</span>
-            </a>
-          {:else}
-            <a href="#sources" class="flex items-center gap-1.5 px-2 py-1 rounded border text-xs
-               text-muted-foreground border-border hover:text-foreground transition-colors no-underline tracking-tight">
-              <Mail class="size-3" />Connect Gmail
-            </a>
-          {/if}
-        {/if}
-        <a href="#pipelines" class="flex items-center gap-1.5 px-2 py-1 rounded border text-xs font-medium
-           text-muted-foreground border-border hover:text-primary hover:border-primary/40 transition-colors no-underline tracking-tight">
-          <Zap class="size-3" />Control Plane
-        </a>
-      </div>
-    </header>
-    <div class="flex-1 overflow-hidden">
-      <HomeView />
-    </div>
+  <!-- ── Home: setup panel + chat (no top bar — left panel is the nav) -->
+  <div class="h-dvh w-full overflow-hidden">
+    <HomeView />
   </div>
 
 {:else if inSources}
   <!-- ── Sources: standalone, no control-plane sidebar ────────── -->
   <div class="flex flex-col h-dvh w-full overflow-hidden">
-    <header class="flex items-center justify-between px-5 h-11 border-b border-border bg-sidebar shrink-0">
-      <div class="flex items-center gap-3">
-        <a href="#home" class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground
-           transition-colors no-underline">
-          <ArrowLeft class="size-3.5" />
-          <span class="tracking-tight">Home</span>
-        </a>
-        <div class="w-px h-4 bg-border shrink-0"></div>
-        <div class="flex items-center gap-2">
-          <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-            <Zap class="size-3.5 text-primary-foreground" />
-          </div>
-          <span class="text-sm font-semibold tracking-tight text-foreground">Sources</span>
-        </div>
-      </div>
-      <a href="#pipelines" class="flex items-center gap-1.5 px-2 py-1 rounded border text-xs font-medium
-         text-muted-foreground border-border hover:text-primary hover:border-primary/40 transition-colors no-underline tracking-tight">
-        <Zap class="size-3" />Control Plane
+    <header class="flex items-center gap-3 px-5 h-11 border-b border-border bg-sidebar shrink-0">
+      <a href="#home" class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground
+         transition-colors no-underline shrink-0">
+        <ArrowLeft class="size-3.5" />
+        <span class="tracking-tight">Home</span>
       </a>
+      <div class="w-px h-4 bg-border shrink-0"></div>
+      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
+        <Zap class="size-3.5 text-primary-foreground" />
+      </div>
+      <span class="text-sm font-semibold tracking-tight text-foreground">Sources</span>
     </header>
     <div class="flex-1 overflow-hidden flex flex-col">
       <div style:display={page === "sources" ? "contents" : "none"}><SourcesView /></div>
