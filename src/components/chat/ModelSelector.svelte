@@ -14,12 +14,7 @@
   onMount(() => mountLog("ModelSelector"));
 </script>
 
-<div class="w-full overflow-y-auto flex justify-center px-4 py-8">
-  <div class="w-full max-w-[520px] flex flex-col items-center gap-5 text-center">
-    <p class="text-sm text-muted-foreground leading-relaxed">
-      A private AI chat that runs <strong class="text-foreground">entirely in your browser</strong> using WebGPU.
-    </p>
-
+<div class="w-full flex flex-col items-center gap-5 text-center">
     <!-- Model selector -->
     <div class="w-full text-left flex flex-col gap-1.5">
       <Label for="model-select" class="text-[0.68rem] uppercase tracking-wider opacity-60">
@@ -126,4 +121,3 @@
       Load Model
     </Button>
   </div>
-</div>

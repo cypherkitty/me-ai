@@ -22,13 +22,4 @@
   </div>
 </div>
 
-<Handle
-  type="source"
-  position={Position.Right}
-  style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.08); width:8px; height:8px; right:-4px;"
-/>
-
-<style>
-  :global(.svelte-flow__node:focus) { outline: none; }
-  :global(.svelte-flow__node.selected > div) { box-shadow: none; }
-</style>
+<Handle type="source" position={Position.Right} />

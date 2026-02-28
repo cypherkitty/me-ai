@@ -474,29 +474,31 @@
 </script>
 
 {#if status === null}
-  <div class="max-w-[520px] mx-auto px-8 flex flex-col items-center justify-center text-center h-full gap-3">
-    <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
+  <div class="w-full h-full overflow-y-auto flex justify-center">
+    <div class="w-full max-w-[520px] px-4 py-8 flex flex-col gap-0">
+      <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
-    {#if backend === "webgpu"}
-      <ModelSelector
-        bind:selectedModel
-        {gpuInfo}
-        {error}
-        onload={loadModel}
-      />
-    {:else if backend === "ollama"}
-      <OllamaSettings
-        bind:selectedModel
-        bind:error
-        onload={loadModel}
-      />
-    {:else if backend === "cloud"}
-      <CloudApiSettings
-        bind:selectedModel
-        bind:error
-        onload={loadModel}
-      />
-    {/if}
+      {#if backend === "webgpu"}
+        <ModelSelector
+          bind:selectedModel
+          {gpuInfo}
+          {error}
+          onload={loadModel}
+        />
+      {:else if backend === "ollama"}
+        <OllamaSettings
+          bind:selectedModel
+          bind:error
+          onload={loadModel}
+        />
+      {:else if backend === "cloud"}
+        <CloudApiSettings
+          bind:selectedModel
+          bind:error
+          onload={loadModel}
+        />
+      {/if}
+    </div>
   </div>
 
 {:else if status === "loading"}

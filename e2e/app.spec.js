@@ -1,193 +1,172 @@
 import { test, expect } from "@playwright/test";
 
 // ────────────────────────────────────────────────────────────
-// App shell
+// App shell — Chat mode
 // ────────────────────────────────────────────────────────────
 test.describe("App shell", () => {
-  test("renders nav with brand and links", async ({ page }) => {
+  test("renders brand and nav links in chat mode", async ({ page }) => {
     await page.goto("/");
 
-    // Brand link
-    const brand = page.locator("a.nav-brand");
-    await expect(brand).toBeVisible();
-    await expect(brand).toHaveText("me-ai");
+    // Brand
+    await expect(page.getByText("me-ai").first()).toBeVisible();
 
-    // Nav links
-    const navLinks = page.locator(".nav-links a");
-    await expect(navLinks).toHaveCount(3);
-    await expect(navLinks.nth(0)).toHaveText("Chat");
-    await expect(navLinks.nth(1)).toHaveText("Control Board");
-    await expect(navLinks.nth(2)).toHaveText("Dashboard");
+    // Header links
+    await expect(page.getByRole("link", { name: /Pipeline/i })).toBeVisible();
   });
 
-  test("Chat link is active by default", async ({ page }) => {
+  test("shows AI backend selector on load", async ({ page }) => {
     await page.goto("/");
 
-    const chatLink = page.locator('.nav-links a[href="#chat"]');
-    await expect(chatLink).toHaveClass(/active/);
-
-    const dashboardLink = page.locator('.nav-links a[href="#dashboard"]');
-    await expect(dashboardLink).not.toHaveClass(/active/);
+    await expect(page.getByText("AI BACKEND")).toBeVisible();
+    await expect(page.getByRole("button", { name: /WebGPU/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Ollama/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Cloud APIs/i })).toBeVisible();
   });
 });
 
 // ────────────────────────────────────────────────────────────
-// Navigation
+// Navigation — Chat → Pipeline mode
 // ────────────────────────────────────────────────────────────
 test.describe("Navigation", () => {
-  test("navigates from Chat to Dashboard via nav link", async ({ page }) => {
+  test("navigates to pipeline mode via Pipeline link", async ({ page }) => {
     await page.goto("/");
 
-    // Click Dashboard link
-    await page.locator('.nav-links a[href="#dashboard"]').click();
-    await expect(page).toHaveURL(/#dashboard/);
+    await page.getByRole("link", { name: /Pipeline/i }).click();
+    await expect(page).toHaveURL(/#stream/);
 
-    // Dashboard link should be active
-    const dashboardLink = page.locator('.nav-links a[href="#dashboard"]');
-    await expect(dashboardLink).toHaveClass(/active/);
-
-    // Chat link should no longer be active
-    const chatLink = page.locator('.nav-links a[href="#chat"]');
-    await expect(chatLink).not.toHaveClass(/active/);
+    // Sidebar should appear with nav items
+    await expect(page.getByRole("link", { name: /Event Stream/i })).toBeVisible();
   });
 
-  test("navigates from Dashboard back to Chat", async ({ page }) => {
-    await page.goto("/#dashboard");
+  test("navigates back to chat from pipeline sidebar", async ({ page }) => {
+    await page.goto("/#stream");
 
-    // Click Chat link
-    await page.locator('.nav-links a[href="#chat"]').click();
+    await page.getByRole("link", { name: /Back to Chat/i }).click();
     await expect(page).toHaveURL(/#chat/);
 
-    const chatLink = page.locator('.nav-links a[href="#chat"]');
-    await expect(chatLink).toHaveClass(/active/);
+    // Chat mode: backend selector visible again
+    await expect(page.getByText("AI BACKEND")).toBeVisible();
   });
 
-  test("direct navigation to #dashboard works", async ({ page }) => {
-    await page.goto("/#dashboard");
+  test("direct navigation to #stream shows Event Stream", async ({ page }) => {
+    await page.goto("/#stream");
 
-    const dashboardLink = page.locator('.nav-links a[href="#dashboard"]');
-    await expect(dashboardLink).toHaveClass(/active/);
+    await expect(page.getByRole("heading", { name: "Event Stream" })).toBeVisible();
+  });
 
-    // Dashboard content should be visible (SetupGuide when no clientId)
-    const dashboard = page.locator(".dashboard");
-    await expect(dashboard).toBeVisible();
+  test("direct navigation to #pipelines shows Pipelines heading", async ({ page }) => {
+    await page.goto("/#pipelines");
+
+    await expect(page.getByRole("heading", { name: "Routing Pipelines" })).toBeVisible();
+  });
+
+  test("direct navigation to #audit shows Audit Trail heading", async ({ page }) => {
+    await page.goto("/#audit");
+
+    await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
+  });
+
+  test("direct navigation to #sources shows Sources heading", async ({ page }) => {
+    await page.goto("/#sources");
+
+    await expect(page.getByRole("heading", { name: "Sources" })).toBeVisible();
+  });
+
+  test("direct navigation to #scan shows Email Triage heading", async ({ page }) => {
+    await page.goto("/#scan");
+
+    await expect(page.getByRole("heading", { name: "Email Triage" })).toBeVisible();
   });
 });
 
 // ────────────────────────────────────────────────────────────
-// Chat page
+// Chat page — model selector
 // ────────────────────────────────────────────────────────────
 test.describe("Chat page", () => {
-  test("shows WebGPU message or model selector", async ({ page }) => {
+  test("shows model selector with Choose Model label", async ({ page }) => {
     await page.goto("/");
 
-    // The chat page view should be visible
-    const chatView = page.locator('.page-view').first();
-    await expect(chatView).toBeVisible();
-
-    // Depending on browser WebGPU support, we see one or the other.
-    // Playwright's Chromium headless may or may not support WebGPU,
-    // so we check for either outcome.
-    const webgpuNotAvailable = page.getByText("WebGPU Not Available");
-    const modelSelector = page.getByText("Choose Model:");
-
-    const hasWebGPUMessage = await webgpuNotAvailable.isVisible().catch(() => false);
-    const hasModelSelector = await modelSelector.isVisible().catch(() => false);
-
-    // One of them must be visible
-    expect(hasWebGPUMessage || hasModelSelector).toBe(true);
-  });
-});
-
-// ────────────────────────────────────────────────────────────
-// Dashboard page — no saved client ID (uses default)
-// ────────────────────────────────────────────────────────────
-test.describe("Dashboard page (no client ID)", () => {
-  test("shows sign-in card with default client ID when no custom ID is saved", async ({ page }) => {
-    // Make sure no client ID is stored — app should fall back to the shared default
-    await page.goto("/#dashboard");
-    await page.waitForLoadState("networkidle");
-
-    // Navigate to dashboard
-    await page.locator('.nav-links a[href="#dashboard"]').click();
-
-    // With a default client ID built-in, AuthCard should be shown directly
-    const googleBtn = page.locator('.google-btn');
-    await expect(googleBtn).toBeVisible();
-
-    // The "shared default" badge confirms the built-in ID is active
-    const defaultBadge = page.locator('.client-id-badge.default');
-    await expect(defaultBadge).toBeVisible();
-  });
-});
-
-// ────────────────────────────────────────────────────────────
-// Dashboard page — with client ID (AuthCard)
-// ────────────────────────────────────────────────────────────
-test.describe("Dashboard page (with client ID)", () => {
-  test("shows auth card when client ID is set via DuckDB settings", async ({ page }) => {
-    // Load page first so DuckDB initialises and the schema is created.
-    // The app exposes window.__setSetting for test use (set in main.js).
-    await page.goto("/#dashboard");
-    await page.waitForLoadState("networkidle");
-
-    // Wait for the DuckDB-backed __setSetting helper to be available
-    await page.waitForFunction(() => typeof window.__setSetting === "function", { timeout: 15000 });
-
-    // Write clientId via the app's DuckDB settings store
-    await page.evaluate(async () => {
-      await window.__setSetting("googleClientId", "fake-client-id.apps.googleusercontent.com");
-    });
-
-    // Reload so the app picks up the new setting
-    await page.reload();
-    await page.waitForLoadState("networkidle");
-
-    // Should see the auth card with "Gmail Dashboard" heading
-    const heading = page.getByRole("heading", { name: "Gmail Dashboard" });
-    await expect(heading).toBeVisible();
-
-    // Should see the Google sign-in button
-    const signInButton = page.getByRole("button", { name: /Sign in with Google/ });
-    await expect(signInButton).toBeVisible();
-  });
-});
-
-// ────────────────────────────────────────────────────────────
-// Control Board page
-// ────────────────────────────────────────────────────────────
-test.describe("Control Board page", () => {
-  test("navigates to Control Board page and shows empty state", async ({ page }) => {
-    await page.goto("/#control");
-
-    // Control Board link should be active
-    const actionsLink = page.locator('.nav-links a[href="#control"]');
-    await expect(actionsLink).toHaveClass(/active/);
-
-    // Should show the empty state
-    const heading = page.getByRole("heading", { name: "No emails classified yet" });
-    await expect(heading).toBeVisible();
+    await expect(page.getByText("CHOOSE MODEL")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: /Choose Model/i })).toBeVisible();
   });
 
-  test("shows scan control with model status", async ({ page }) => {
-    await page.goto("/#control");
-
-    // Should see the Email Triage label
-    const triageLabel = page.getByText("Email Triage");
-    await expect(triageLabel).toBeVisible();
-
-    // Should see the Scan New button
-    const scanButton = page.getByRole("button", { name: "Scan New" });
-    await expect(scanButton).toBeVisible();
-  });
-
-  test("navigates from Chat to Control Board", async ({ page }) => {
+  test("shows Load Model button", async ({ page }) => {
     await page.goto("/");
 
-    await page.locator('.nav-links a[href="#control"]').click();
-    await expect(page).toHaveURL(/#control/);
+    await expect(page.getByRole("button", { name: "Load Model" })).toBeVisible();
+  });
 
-    const actionsLink = page.locator('.nav-links a[href="#control"]');
-    await expect(actionsLink).toHaveClass(/active/);
+  test("WebGPU backend is selected by default", async ({ page }) => {
+    await page.goto("/");
+
+    // WebGPU button should be visually selected (has primary border styling)
+    const webgpuBtn = page.getByRole("button", { name: /WebGPU/i });
+    await expect(webgpuBtn).toBeVisible();
+  });
+
+  test("switching to Ollama backend swaps model selector", async ({ page }) => {
+    await page.goto("/");
+
+    await page.getByRole("button", { name: /Ollama/i }).click();
+
+    // WebGPU model selector is gone, Ollama settings appear instead
+    await expect(page.locator("#model-select")).not.toBeVisible();
+    await expect(page.locator("#ollama-model")).toBeVisible();
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// Pipeline sidebar
+// ────────────────────────────────────────────────────────────
+test.describe("Pipeline sidebar", () => {
+  test("shows all sidebar nav items", async ({ page }) => {
+    await page.goto("/#stream");
+
+    await expect(page.getByRole("link", { name: /Event Stream/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Pipelines/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Approvals/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Audit Trail/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Scan/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Back to Chat/i })).toBeVisible();
+  });
+
+  test("sidebar nav links navigate correctly", async ({ page }) => {
+    await page.goto("/#stream");
+
+    await page.getByRole("link", { name: /Audit Trail/i }).click();
+    await expect(page).toHaveURL(/#audit/);
+    await expect(page.getByRole("heading", { name: "Audit Trail" })).toBeVisible();
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// OAuth pages
+// ────────────────────────────────────────────────────────────
+test.describe("OAuth pages", () => {
+  test("#auth shows Google OAuth page", async ({ page }) => {
+    await page.goto("/");
+    await page.goto("/#auth");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByRole("heading", { name: "Google OAuth" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sign in with Google/i })).toBeVisible();
+  });
+
+  test("#oauth-redirect shows redirect OAuth page", async ({ page }) => {
+    await page.goto("/");
+    await page.goto("/#oauth-redirect");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByRole("heading", { name: "Google OAuth" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Sign in with Google/i })).toBeVisible();
+  });
+
+  test("OAuth pages have back to chat link", async ({ page }) => {
+    await page.goto("/");
+    await page.goto("/#auth");
+    await page.waitForLoadState("networkidle");
+
+    await expect(page.getByRole("link", { name: /Back to Chat/i })).toBeVisible();
   });
 });

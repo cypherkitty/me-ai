@@ -1,49 +1,26 @@
 <script>
   import { Handle, Position } from '@xyflow/svelte';
   import { EVENT_GROUPS } from '../../../lib/events.js';
-  
+
   let { data } = $props();
   let groupInfo = $derived(EVENT_GROUPS[data.group] || EVENT_GROUPS.INFO);
 </script>
 
-<div class="trigger-node" style:border-color={groupInfo.color}>
-  <div class="trigger-header" style:background={groupInfo.color}>
-    <span class="icon">⚡</span> Trigger
+<div
+  class="bg-card border-2 rounded-xl w-[150px] text-foreground flex flex-col"
+  style:border-color={groupInfo.color}
+>
+  <div
+    class="px-2 py-1 text-[10px] font-bold rounded-t-xl text-background flex items-center gap-1"
+    style:background={groupInfo.color}
+  >
+    <span>⚡</span> Trigger
   </div>
-  <div class="trigger-body">
-    <div class="label">Event: {data.label}</div>
-    <div class="group" style:color={groupInfo.color}>{groupInfo.label}</div>
+  <div class="p-2 flex flex-col gap-[3px]">
+    <div class="text-xs font-bold">Event: {data.label}</div>
+    <div class="text-[9px] uppercase font-bold opacity-80" style:color={groupInfo.color}>
+      {groupInfo.label}
+    </div>
   </div>
   <Handle type="source" position={Position.Right} />
 </div>
-
-<style>
-  .trigger-node {
-    background: #1e1e1e;
-    border: 2px solid #555;
-    border-radius: 7px;
-    width: 150px;
-    font-family: sans-serif;
-    color: #eee;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  }
-  .trigger-header {
-    padding: 4px 8px;
-    font-size: 10px;
-    font-weight: bold;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-    color: #111;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .trigger-body {
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .label { font-size: 12px; font-weight: 700; }
-  .group { font-size: 9px; text-transform: uppercase; font-weight: bold; opacity: 0.8; }
-</style>

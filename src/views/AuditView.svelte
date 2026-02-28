@@ -125,7 +125,7 @@
                 <div class="flex items-center gap-1.5">
                   <span
                     class="size-2 rounded-full shrink-0"
-                    style="background:{SOURCE_COLORS[evt.source_name] ?? '#6b7280'};"
+                    style="background:{SOURCE_COLORS[evt.source_name] ?? 'var(--muted-foreground)'}"
                   ></span>
                   <span class="text-muted-foreground">{evt.source_name ?? "—"}</span>
                 </div>
