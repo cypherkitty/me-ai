@@ -47,7 +47,7 @@
 
       <p class="text-xs text-muted-foreground/50 leading-relaxed">
         Popup blocked? Use
-        <a href="/oauth-redirect.html" class="text-primary hover:underline">Sign in with Google (redirect)</a>
+        <a href="#oauth-redirect" class="text-primary hover:underline">Sign in with Google (redirect)</a>
         — works in Cursor and environments without popups.
       </p>
 

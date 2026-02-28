@@ -126,8 +126,8 @@
             <Mail class="size-3.5" />
             Go to Sources
           </Button>
-          <Button variant="outline" href="#chat" class="w-full">
-            Back to Chat
+          <Button variant="outline" href="#home" class="w-full">
+            Back to Home
           </Button>
         </div>
 
@@ -181,8 +181,8 @@
 
     </div>
 
-    <a href="#chat" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
-      ← Back to Chat
+    <a href="#home" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
+      ← Back to Home
     </a>
   </div>
 </div>

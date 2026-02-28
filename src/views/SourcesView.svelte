@@ -403,7 +403,7 @@
                         </button>
                         <p class="text-xs text-muted-foreground/60">
                           Popup blocked?
-                          <a href="/oauth-redirect.html" class="text-primary hover:underline">Use redirect flow</a>
+                          <a href="#oauth-redirect" class="text-primary hover:underline">Use redirect flow</a>
                         </p>
                         <div class="flex items-center gap-1.5 text-xs text-muted-foreground/50">
                           <span>Client ID:</span>
