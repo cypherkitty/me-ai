@@ -7,7 +7,8 @@
  */
 
 import { pluginRegistry } from "./plugin-registry.js";
-import { getActionsForEvent, getExecutionPolicy, EVENT_GROUPS } from "../events.js";
+import { findMatchingRules } from "../rules.js";
+import { EVENT_GROUPS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
 import { logExecution, syncAfterExecution } from "../store/audit.js";
 
@@ -39,15 +40,30 @@ export async function executePipeline(event, onProgress, approved = false) {
   try {
     onProgress?.({ phase: "starting", event });
 
-    const policy = await getExecutionPolicy(event.type);
-    onProgress?.({ phase: "policy_check", group: policy.group, policy });
+    const category = event.metadata?.category || event.data?.category || "";
+    const rules = await findMatchingRules(event.type, category);
+    const rule = rules[0];
 
-    if (policy.requiresApproval && !approved) {
-      const actions = await getActionsForEvent(event.type);
+    let group = "INFO";
+    let requiresApproval = false;
+    let actions = [];
+
+    if (rule) {
+      if (rule.policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
+      else if (rule.policy === "auto") { group = "NOISE"; }
+      actions = rule.actions || [];
+    } else {
+      // Fallback if no matching rule
+      return { success: true, message: `No enabled pipeline rule matches event type: ${event.type}`, results: [] };
+    }
+
+    onProgress?.({ phase: "policy_check", group, policy: rule.policy });
+
+    if (requiresApproval && !approved) {
       return {
         success: false,
         requiresApproval: true,
-        group: policy.group,
+        group,
         actions,
         message: `This event type is CRITICAL — review the actions below and confirm before executing.`,
       };
@@ -59,9 +75,8 @@ export async function executePipeline(event, onProgress, approved = false) {
     }
     const accessToken = tokenData.access_token;
 
-    const actions = await getActionsForEvent(event.type);
     if (!actions || actions.length === 0) {
-      return { success: true, message: `No actions defined for event type: ${event.type}`, results: [] };
+      return { success: true, message: `No actions defined for rule: ${rule.name}`, results: [] };
     }
 
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length });
@@ -74,12 +89,12 @@ export async function executePipeline(event, onProgress, approved = false) {
     await Promise.all([
       logExecution({
         emailId,
-        subject:   event.data?.subject,
-        from:      event.data?.from,
+        subject: event.data?.subject,
+        from: event.data?.from,
         eventType: event.type,
         actions,
-        results:   result.results ?? [],
-        success:   result.success,
+        results: result.results ?? [],
+        success: result.success,
       }),
       syncAfterExecution(emailId, result.results ?? []),
     ]);
@@ -105,13 +120,29 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
   try {
     onProgress?.({ phase: "starting", eventType, eventCount: events.length });
 
-    const policy = await getExecutionPolicy(eventType);
-    if (policy.requiresApproval && !approved) {
-      const actions = await getActionsForEvent(eventType);
+    // In batch mode, we assume events generally share the same rule logic.
+    // We'll use the first event's category to find the matching rule for the batch.
+    const sampleCategory = events[0]?.metadata?.category || events[0]?.data?.category || "";
+    const rules = await findMatchingRules(eventType, sampleCategory);
+    const rule = rules[0];
+
+    let group = "INFO";
+    let requiresApproval = false;
+    let actions = [];
+
+    if (rule) {
+      if (rule.policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
+      else if (rule.policy === "auto") { group = "NOISE"; }
+      actions = rule.actions || [];
+    } else {
+      return { success: true, message: `No enabled pipeline rule matches event type: ${eventType}`, results: [], total: 0, successful: 0, failed: 0 };
+    }
+
+    if (requiresApproval && !approved) {
       return {
         success: false,
         requiresApproval: true,
-        group: policy.group,
+        group,
         actions,
         total: events.length,
         successful: 0,
@@ -126,9 +157,8 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
     }
     const accessToken = tokenData.access_token;
 
-    const actions = await getActionsForEvent(eventType);
     if (!actions || actions.length === 0) {
-      return { success: true, message: `No actions defined for event type: ${eventType}`, results: [], total: 0, successful: 0, failed: 0 };
+      return { success: true, message: `No actions defined for rule: ${rule.name}`, results: [], total: 0, successful: 0, failed: 0 };
     }
 
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length });
@@ -144,12 +174,12 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
       await Promise.all([
         logExecution({
           emailId,
-          subject:   r.event?.data?.subject,
-          from:      r.event?.data?.from,
+          subject: r.event?.data?.subject,
+          from: r.event?.data?.from,
           eventType,
           actions,
-          results:   r.results ?? [],
-          success:   r.success,
+          results: r.results ?? [],
+          success: r.success,
         }),
         syncAfterExecution(emailId, r.results ?? []),
       ]);

@@ -14,16 +14,26 @@ import { query, exec, toJson, fromJson } from "./store/db.js";
 // ── Types ──────────────────────────────────────────────────────────────
 
 /**
+ * @typedef {Object} Action
+ * @property {string}  id          — unique command instance ID within this rule
+ * @property {string}  pluginId    — plugin that handles this step (e.g. "gmail")
+ * @property {string}  commandId   — handler ID on that plugin (e.g. "trash")
+ * @property {string}  name        — display name
+ * @property {string}  description — what it does
+ * @property {string}  [icon]      — optional emoji
+ */
+
+/**
  * @typedef {Object} Rule
  * @property {string}   id
- * @property {string}   name           — triple notation display name
+ * @property {string}   name
  * @property {string}   description
  * @property {boolean}  enabled
- * @property {number}   priority       — higher = evaluated first
- * @property {number}   created_at     — unix ms
+ * @property {number}   priority    — higher = evaluated first
+ * @property {number}   created_at  — unix ms
  * @property {Trigger[]} triggers
- * @property {string[]} actions        — ordered action names
- * @property {string}   policy         — 'auto' | 'supervised' | 'manual'
+ * @property {Action[]} actions     — ordered plugin-bound action objects
+ * @property {string}   policy      — 'auto' | 'supervised' | 'manual'
  */
 
 /**
@@ -98,7 +108,9 @@ export async function getRules() {
        FROM sm_rule_triggers WHERE rule_id = '${r.id}'`
     );
     const actions = await query(
-      `SELECT action_name FROM sm_rule_actions
+      `SELECT command_id as id, plugin_id as pluginId, action_id as commandId, 
+              name, description, icon 
+       FROM sm_rule_commands
        WHERE rule_id = '${r.id}' ORDER BY order_idx`
     );
     const policyRow = await query(
@@ -108,7 +120,7 @@ export async function getRules() {
       ...r,
       enabled: Boolean(r.enabled),
       triggers,
-      actions: actions.map(a => a.action_name),
+      actions: actions,
       policy: policyRow[0]?.policy_name ?? "auto",
     };
   }));
@@ -135,7 +147,9 @@ export async function getRule(id) {
      FROM sm_rule_triggers WHERE rule_id = '${id}'`
   );
   const actions = await query(
-    `SELECT action_name FROM sm_rule_actions
+    `SELECT command_id as id, plugin_id as pluginId, action_id as commandId, 
+            name, description, icon 
+     FROM sm_rule_commands
      WHERE rule_id = '${id}' ORDER BY order_idx`
   );
   const policyRow = await query(
@@ -145,7 +159,7 @@ export async function getRule(id) {
     ...r,
     enabled: Boolean(r.enabled),
     triggers,
-    actions: actions.map(a => a.action_name),
+    actions: actions,
     policy: policyRow[0]?.policy_name ?? "auto",
   };
 }
@@ -172,9 +186,10 @@ export async function createRule({ name, description, enabled, priority, trigger
   }
 
   for (let i = 0; i < (actions ?? []).length; i++) {
+    const a = actions[i];
     await exec(
-      `INSERT INTO sm_rule_actions VALUES (?, ?, ?)`,
-      [id, actions[i], i + 1]
+      `INSERT INTO sm_rule_commands VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, a.id, a.pluginId, a.commandId, a.name, a.description, a.icon, i + 1]
     );
   }
 
@@ -195,10 +210,10 @@ export async function updateRule(id, updates) {
   const fields = [];
   const params = [];
 
-  if (updates.name        !== undefined) { fields.push("name = ?");        params.push(updates.name); }
+  if (updates.name !== undefined) { fields.push("name = ?"); params.push(updates.name); }
   if (updates.description !== undefined) { fields.push("description = ?"); params.push(updates.description); }
-  if (updates.enabled     !== undefined) { fields.push("enabled = ?");     params.push(updates.enabled); }
-  if (updates.priority    !== undefined) { fields.push("priority = ?");    params.push(updates.priority); }
+  if (updates.enabled !== undefined) { fields.push("enabled = ?"); params.push(updates.enabled); }
+  if (updates.priority !== undefined) { fields.push("priority = ?"); params.push(updates.priority); }
 
   if (fields.length > 0) {
     await exec(`UPDATE sm_rules SET ${fields.join(", ")} WHERE id = ?`, [...params, id]);
@@ -212,9 +227,13 @@ export async function updateRule(id, updates) {
   }
 
   if (updates.actions !== undefined) {
-    await exec(`DELETE FROM sm_rule_actions WHERE rule_id = ?`, [id]);
+    await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
     for (let i = 0; i < updates.actions.length; i++) {
-      await exec(`INSERT INTO sm_rule_actions VALUES (?, ?, ?)`, [id, updates.actions[i], i + 1]);
+      const a = updates.actions[i];
+      await exec(
+        `INSERT INTO sm_rule_commands VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, a.id, a.pluginId, a.commandId, a.name, a.description, a.icon, i + 1]
+      );
     }
   }
 
@@ -240,7 +259,7 @@ export async function setRuleEnabled(id, enabled) {
 export async function deleteRule(id) {
   await exec(`DELETE FROM sm_rules WHERE id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_triggers WHERE rule_id = ?`, [id]);
-  await exec(`DELETE FROM sm_rule_actions WHERE rule_id = ?`, [id]);
+  await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_policies WHERE rule_id = ?`, [id]);
 }
 
@@ -256,9 +275,9 @@ export async function getEvents({ status, eventType, source, limit = 100 } = {})
   await getDb();
 
   const conditions = [];
-  if (status)    conditions.push(`status = '${status}'`);
+  if (status) conditions.push(`status = '${status}'`);
   if (eventType) conditions.push(`event_type = '${eventType}'`);
-  if (source)    conditions.push(`source_name = '${source}'`);
+  if (source) conditions.push(`source_name = '${source}'`);
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const rows = await query(
@@ -349,10 +368,10 @@ export async function findMatchingRules(eventType, eventCategory) {
   return enabled
     .filter(rule => {
       const typeTriggers = rule.triggers.filter(t => t.type === "event_type");
-      const catTriggers  = rule.triggers.filter(t => t.type === "event_category");
+      const catTriggers = rule.triggers.filter(t => t.type === "event_category");
 
       const typeMatch = typeTriggers.length === 0 || typeTriggers.some(t => t.name === eventType);
-      const catMatch  = catTriggers.length  === 0 || catTriggers.some(t => t.name === eventCategory);
+      const catMatch = catTriggers.length === 0 || catTriggers.some(t => t.name === eventCategory);
 
       return typeMatch && catMatch;
     })
@@ -377,4 +396,46 @@ export async function setSourceEnabled(name, enabled) {
  */
 export async function setPluginEnabled(name, enabled) {
   await exec(`UPDATE sm_plugins SET enabled = ? WHERE name = ?`, [enabled, name]);
+}
+
+// ── Auto-seeding ────────────────────────────────────────────────────────────
+
+/**
+ * Auto-seed a pipeline rule for a newly discovered event type (from LLM triage).
+ * Creates a new rule only if no enabled rule already has a matching event_type trigger.
+ * Called by `seedEventTypeFromLLM` in events.js each time the LLM classifies
+ * a new event type so that `findMatchingRules` / execution-service.js can run it.
+ *
+ * @param {string}   eventType — normalized event type key (e.g. "TRASH", "AD")
+ * @param {string}   policy    — 'auto' | 'supervised' | 'manual'
+ * @param {Action[]} actions   — plugin-bound action objects (pluginId + commandId must be set)
+ */
+export async function seedRuleForEventType(eventType, policy, actions) {
+  if (!eventType || !actions?.length) return;
+
+  const existing = await findMatchingRules(eventType, "");
+  const alreadyHasRule = existing.some(r =>
+    r.triggers.some(t => t.type === "event_type" && t.name === eventType)
+  );
+  if (alreadyHasRule) return;
+
+  const label = eventType.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  const ts = Date.now();
+
+  await createRule({
+    name: `${label} Pipeline`,
+    description: `Auto-generated pipeline for "${eventType}" events`,
+    enabled: true,
+    priority: 5,
+    triggers: [{ type: "event_type", name: eventType }],
+    actions: actions.map((a, i) => ({
+      id: `${a.commandId || "cmd"}_${ts}_${i}`,
+      pluginId: a.pluginId || "",
+      commandId: a.commandId || "",
+      name: a.name || a.commandId || "",
+      description: a.description || "",
+      icon: a.icon,
+    })),
+    policy: policy || "supervised",
+  });
 }

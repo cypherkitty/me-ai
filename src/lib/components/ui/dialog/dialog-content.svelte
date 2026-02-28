@@ -6,9 +6,9 @@
 	import { cn } from "$lib/utils.js";
 	let {
 		ref = $bindable(null),
-		class: className,
-		portalProps,
-		children,
+		class: className = undefined,
+		portalProps = undefined,
+		children = undefined,
 		showCloseButton = true,
 		...restProps
 	} = $props();
