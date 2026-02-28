@@ -10,6 +10,7 @@
     "test": "vitest",
     "test:ci": "vitest run",
     "test:e2e": "playwright test",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
     "postinstall": "node scripts/ensure-tslib.cjs"
   },
   "dependencies": {
@@ -32,8 +33,10 @@
     "bits-ui": "^2.16.2",
     "jsdom": "^27.0.1",
     "svelte": "^5.0.0",
+    "svelte-check": "^4.4.4",
     "tailwind-variants": "^3.2.2",
     "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
     "vite": "^6.2.0",
     "vitest": "^3.2.4"
   }
