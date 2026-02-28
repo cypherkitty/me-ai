@@ -5,49 +5,91 @@
  * Uses the "implicit grant" flow via google.accounts.oauth2.initTokenClient
  * to get an access_token directly in the browser.
  *
- * Token is persisted in IndexedDB (settings table) so it survives page
- * navigation and refreshes. Cleared on revoke or expiry.
+ * Token is persisted in two places for reliability:
+ *   1. localStorage  — synchronous, survives reloads instantly (primary read source)
+ *   2. DuckDB/OPFS   — async, kept in sync for consistency with the rest of the app
  */
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 const TOKEN_KEY = "me-ai:oauth-token";
+const LS_KEY = "me-ai:oauth-token"; // localStorage mirror
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000; // 5 min buffer before actual expiry
 
 let tokenClient = null;
 let _pendingResolve = null;
 let _expiresAt = 0; // in-memory expiry tracker (epoch ms)
 
-// ── Token persistence via IndexedDB ─────────────────────────────────
+// ── localStorage helpers (synchronous, always reliable) ──────────────
+
+function _lsSave(accessToken, expiresAt) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ access_token: accessToken, expires_at: expiresAt }));
+  } catch {}
+}
+
+function _lsClear() {
+  try { localStorage.removeItem(LS_KEY); } catch {}
+}
+
+function _lsRead() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+// ── Token persistence (localStorage + DuckDB) ────────────────────────
 
 async function saveToken(accessToken, expiresIn) {
   _expiresAt = Date.now() + expiresIn * 1000;
-  const { setSetting } = await import("./store/settings.js");
-  await setSetting(TOKEN_KEY, { access_token: accessToken, expires_at: _expiresAt });
+  // Write to localStorage first — synchronous and guaranteed to persist.
+  _lsSave(accessToken, _expiresAt);
+  // Also write to DuckDB and flush immediately.
+  try {
+    const { setSetting } = await import("./store/settings.js");
+    await setSetting(TOKEN_KEY, { access_token: accessToken, expires_at: _expiresAt });
+    const { checkpoint } = await import("./store/db.js");
+    await checkpoint();
+  } catch {}
 }
 
 async function clearSavedToken() {
   _expiresAt = 0;
-  const { removeSetting } = await import("./store/settings.js");
-  await removeSetting(TOKEN_KEY);
+  _lsClear();
+  try {
+    const { removeSetting } = await import("./store/settings.js");
+    await removeSetting(TOKEN_KEY);
+  } catch {}
 }
 
 /**
  * Restore a previously saved token if it hasn't expired.
+ * Reads from localStorage first (fast, synchronous), then falls back to DuckDB.
  * Returns { access_token } or null.
  */
 export async function getSavedToken() {
+  // Fast path: localStorage is always available and synchronous.
+  const ls = _lsRead();
+  if (ls?.access_token && Date.now() < ls.expires_at - EXPIRY_MARGIN_MS) {
+    _expiresAt = ls.expires_at;
+    return { access_token: ls.access_token };
+  }
+
+  // Slow path: try DuckDB (may not be ready yet on first load).
   try {
     const { getSetting } = await import("./store/settings.js");
     const data = await getSetting(TOKEN_KEY);
-
-    if (!data) return null;
+    if (!data) { _lsClear(); return null; }
     const { access_token, expires_at } = data;
     if (!access_token || Date.now() > expires_at - EXPIRY_MARGIN_MS) {
       await clearSavedToken();
       return null;
     }
     _expiresAt = expires_at;
+    // Sync back to localStorage in case it was missing.
+    _lsSave(access_token, expires_at);
     return { access_token };
   } catch {
     await clearSavedToken();

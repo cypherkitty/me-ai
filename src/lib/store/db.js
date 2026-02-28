@@ -61,6 +61,20 @@ function _scheduleCheckpoint() {
   }, 50);
 }
 
+/**
+ * Immediate CHECKPOINT — use for critical writes (auth tokens, settings)
+ * where we can't afford to lose data on a fast reload.
+ */
+export async function checkpoint() {
+  if (!_usingOpfs || !_conn) return;
+  if (_checkpointTimer) { clearTimeout(_checkpointTimer); _checkpointTimer = null; }
+  try {
+    await _conn.query("CHECKPOINT");
+  } catch (e) {
+    console.warn("[db] CHECKPOINT failed:", e?.message ?? e);
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────
 
 async function _init() {
@@ -96,10 +110,17 @@ async function _init() {
 
   _conn = await _db.connect();
 
-  // Best-effort flush on page unload.
+  // Best-effort flush on page unload and visibility change.
   if (_usingOpfs && typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
       _conn.query("CHECKPOINT").catch(() => {});
+    });
+    // visibilitychange fires reliably on mobile and when switching tabs,
+    // giving us a chance to flush before the page is frozen/discarded.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        _conn.query("CHECKPOINT").catch(() => {});
+      }
     });
   }
 
