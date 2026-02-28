@@ -25,10 +25,10 @@
 
 	let {
 		ref = $bindable(null),
-		href,
-		class: className,
+		href = undefined,
+		class: className = undefined,
 		variant = "default",
-		children,
+		children = undefined,
 		...restProps
 	} = $props();
 </script>

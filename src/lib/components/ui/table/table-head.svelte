@@ -2,8 +2,8 @@
 	import { cn } from "$lib/utils.js";
 	let {
 		ref = $bindable(null),
-		class: className,
-		children,
+		class: className = undefined,
+		children = undefined,
 		...restProps
 	} = $props();
 </script>

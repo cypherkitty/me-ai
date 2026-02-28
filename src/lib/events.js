@@ -311,6 +311,18 @@ export async function seedEventTypeFromLLM(eventType, group, suggestedActionIds)
 
     map[normalized] = pipeline;
     await saveUserMap(map);
+
+    // Bridge: also create a matching rule in the rules pipeline system so that
+    // execution-service.js (which uses findMatchingRules) can run this pipeline.
+    if (pipeline.length > 0) {
+      try {
+        const { seedRuleForEventType } = await import("./rules.js");
+        const validGroup = groupsMap[normalized] || DEFAULT_GROUP;
+        await seedRuleForEventType(normalized, groupToPolicy(validGroup), pipeline);
+      } catch (e) {
+        console.warn("[events] Failed to bridge rule for event type:", normalized, e?.message ?? e);
+      }
+    }
   }
 }
 

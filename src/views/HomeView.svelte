@@ -6,7 +6,7 @@
   import { getClassificationCounts } from "../lib/triage.js";
   import { getGmailSyncStatus } from "../lib/store/gmail-sync.js";
   import Chat from "../Chat.svelte";
-  import { GitBranch, CheckCircle2, Zap, ScanSearch, Mail, ArrowRight } from "lucide-svelte";
+  import { GitBranch, CheckCircle2, Zap, ScanSearch, Mail, ArrowRight, ShieldCheck } from "lucide-svelte";
 
   interface SyncStatus { synced: boolean; totalItems: number; lastSyncAt: number | null; hasMore: boolean; }
 
@@ -59,6 +59,15 @@
       <Zap class="size-3.5 text-primary-foreground" />
     </div>
     <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
+    <div class="flex-1"></div>
+    <a href="#admin"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-muted-foreground/50
+             hover:text-muted-foreground hover:bg-sidebar-accent/60 transition-colors no-underline"
+      title="Admin dashboard"
+    >
+      <ShieldCheck class="size-3.5" />
+      <span class="tracking-tight">Admin</span>
+    </a>
   </div>
 
   <!-- ── Workflow strip ────────────────────────────────────────── -->
@@ -186,12 +195,13 @@
           </div>
         </a>
 
+
       </div>
     {/if}
   </div>
 
   <!-- ── Chat: full remaining height ──────────────────────────── -->
-  <div class="flex-1 overflow-hidden flex flex-col">
+  <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
     <Chat />
   </div>
 

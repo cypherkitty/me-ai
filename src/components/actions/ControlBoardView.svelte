@@ -1,15 +1,12 @@
 <script>
-import ScanControl from "./ScanControl.svelte";
-import ActionGroup from "./ActionGroup.svelte";
-import PromptInspector from "./PromptInspector.svelte";
-import ActionEditor from "./ActionEditor.svelte";
-import PluginRegistry from "./PluginRegistry.svelte";
-import DataManager from "./DataManager.svelte";
-import AuditLog from "./AuditLog.svelte";
-import { actionColor } from "../../lib/triage.js";
-import { Button } from "$lib/components/ui/button/index.js";
-import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-import { Puzzle, Plus, ClipboardList, Database } from "lucide-svelte";
+  import ScanControl from "./ScanControl.svelte";
+  import ActionGroup from "./ActionGroup.svelte";
+  import PromptInspector from "./PromptInspector.svelte";
+  import DataManager from "./DataManager.svelte";
+  import { actionColor } from "../../lib/triage.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+  import { Plus, ShieldCheck, Database } from "lucide-svelte";
 
   let {
     engineStatus,
@@ -40,9 +37,6 @@ import { Puzzle, Plus, ClipboardList, Database } from "lucide-svelte";
   } = $props();
 
   let showInspector = $state(false);
-  let showActionEditor = $state(false);
-  let showPluginRegistry = $state(false);
-  let showAuditLog = $state(false);
 
   /** Grab a sample email from the first group to show in the inspector */
   let sampleEmail = $derived.by(() => {
@@ -56,44 +50,59 @@ import { Puzzle, Plus, ClipboardList, Database } from "lucide-svelte";
 
 <div class="flex flex-col h-full overflow-hidden">
   <!-- Page header -->
-  <div class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border">
+  <div
+    class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border"
+  >
     <div>
       <div class="flex items-center gap-2 mb-0.5">
-        <h1 class="text-sm font-semibold tracking-tight text-foreground">Email Triage</h1>
-        <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50">/ scan</span>
+        <h1 class="text-sm font-semibold tracking-tight text-foreground">
+          Email Triage
+        </h1>
+        <span
+          class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
+          >/ scan</span
+        >
       </div>
-      <p class="text-xs text-muted-foreground">Classify emails using AI and execute actions by group.</p>
+      <p class="text-xs text-muted-foreground">
+        Classify emails using AI and execute actions by group.
+      </p>
     </div>
     <div class="flex items-center gap-1">
-      <Button variant="ghost" size="sm" onclick={() => showPluginRegistry = true} class="gap-1.5 h-7 text-xs">
-        <Puzzle class="size-3.5" />Plugins
-      </Button>
-      <Button variant="ghost" size="sm" onclick={() => showActionEditor = true} class="gap-1.5 h-7 text-xs">
-        <Plus class="size-3.5" />Edit Actions
-      </Button>
-      <Button variant="ghost" size="sm" onclick={() => showAuditLog = true} class="gap-1.5 h-7 text-xs">
-        <ClipboardList class="size-3.5" />Audit Log
-      </Button>
+      <a
+        href="#admin"
+        class="inline-flex items-center gap-1.5 h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors rounded hover:bg-accent no-underline"
+      >
+        <ShieldCheck class="size-3.5" />Admin
+      </a>
     </div>
   </div>
 
   <PromptInspector bind:open={showInspector} {sampleEmail} />
-  <ActionEditor bind:open={showActionEditor} />
-  <PluginRegistry bind:open={showPluginRegistry} />
-  <AuditLog bind:open={showAuditLog} />
 
   <ScrollArea class="flex-1 px-8 py-5">
     <!-- Error / success banners -->
     {#if error}
-      <div class="flex items-center justify-between px-3 py-2 rounded border border-destructive/30 bg-destructive/8 text-xs text-destructive mb-4">
+      <div
+        class="flex items-center justify-between px-3 py-2 rounded border border-destructive/30 bg-destructive/8 text-xs text-destructive mb-4"
+      >
         <span>{error}</span>
-        <button onclick={ondismisserror} class="text-destructive/60 hover:text-destructive ml-3 transition-colors">✕</button>
+        <button
+          onclick={ondismisserror}
+          class="text-destructive/60 hover:text-destructive ml-3 transition-colors"
+          >✕</button
+        >
       </div>
     {/if}
     {#if successMsg}
-      <div class="flex items-center justify-between px-3 py-2 rounded border border-success/30 bg-success/8 text-xs text-success mb-4">
+      <div
+        class="flex items-center justify-between px-3 py-2 rounded border border-success/30 bg-success/8 text-xs text-success mb-4"
+      >
         <span>{successMsg}</span>
-        <button onclick={ondismisssuccess} class="text-success/60 hover:text-success ml-3 transition-colors">✕</button>
+        <button
+          onclick={ondismisssuccess}
+          class="text-success/60 hover:text-success ml-3 transition-colors"
+          >✕</button
+        >
       </div>
     {/if}
 
@@ -108,7 +117,7 @@ import { Puzzle, Plus, ClipboardList, Database } from "lucide-svelte";
       {onrescan}
       {onstop}
       {oncloseprogress}
-      oninspect={() => showInspector = true}
+      oninspect={() => (showInspector = true)}
     />
 
     {#if counts.total > 0}
@@ -135,20 +144,35 @@ import { Puzzle, Plus, ClipboardList, Database } from "lucide-svelte";
         </span>
       </div>
     {:else if !isScanning}
-      <div class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="opacity-20">
-          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-          <rect x="9" y="3" width="6" height="4" rx="1"/>
-          <path d="m9 14 2 2 4-4"/>
+      <div
+        class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground"
+      >
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          class="opacity-20"
+        >
+          <path
+            d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
+          />
+          <rect x="9" y="3" width="6" height="4" rx="1" />
+          <path d="m9 14 2 2 4-4" />
         </svg>
         <span class="text-sm">No emails classified yet</span>
-        <p class="text-xs text-muted-foreground/50 text-center max-w-[340px] leading-relaxed">
-          Click <strong class="text-muted-foreground/70">Scan New</strong> to classify your recent emails.
-          The LLM will determine action types, tags, and summaries automatically.
+        <p
+          class="text-xs text-muted-foreground/50 text-center max-w-[340px] leading-relaxed"
+        >
+          Click <strong class="text-muted-foreground/70">Scan New</strong> to classify
+          your recent emails. The LLM will determine action types, tags, and summaries
+          automatically.
         </p>
       </div>
     {/if}
 
-    <DataManager {groupOrder} onrefresh={onrefresh} />
+    <DataManager {groupOrder} {onrefresh} />
   </ScrollArea>
 </div>

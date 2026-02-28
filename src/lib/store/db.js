@@ -21,16 +21,16 @@
  *   checkpoint fires on beforeunload.
  */
 
-import duckdb_mvp_wasm  from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url";
-import duckdb_eh_wasm   from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url";
-import mvp_worker_url   from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url";
-import eh_worker_url    from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
-import * as duckdb      from "@duckdb/duckdb-wasm";
+import duckdb_mvp_wasm from "@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url";
+import duckdb_eh_wasm from "@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url";
+import mvp_worker_url from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url";
+import eh_worker_url from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
+import * as duckdb from "@duckdb/duckdb-wasm";
 
 // ── Singleton ────────────────────────────────────────────────────────
 
 /** @type {duckdb.AsyncDuckDB | null} */
-let _db   = null;
+let _db = null;
 /** @type {duckdb.AsyncDuckDBConnection | null} */
 let _conn = null;
 /** @type {Promise<duckdb.AsyncDuckDB> | null} */
@@ -80,7 +80,7 @@ export async function checkpoint() {
 async function _init() {
   const BUNDLES = {
     mvp: { mainModule: duckdb_mvp_wasm, mainWorker: mvp_worker_url },
-    eh:  { mainModule: duckdb_eh_wasm,  mainWorker: eh_worker_url  },
+    eh: { mainModule: duckdb_eh_wasm, mainWorker: eh_worker_url },
   };
 
   const bundle = await duckdb.selectBundle(BUNDLES);
@@ -113,11 +113,11 @@ async function _init() {
   // Best-effort flush on page unload and visibility change (OPFS only).
   if (_usingOpfs && typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
-      _conn.query("CHECKPOINT").catch(() => {});
+      _conn.query("CHECKPOINT").catch(() => { });
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
-        _conn.query("CHECKPOINT").catch(() => {});
+        _conn.query("CHECKPOINT").catch(() => { });
       }
     });
   }
@@ -167,7 +167,7 @@ async function _rehydrateFromIdb(conn) {
             item.syncedAt,
           );
           await stmt.close();
-        } catch {}
+        } catch { }
       }
     }
 
@@ -180,7 +180,7 @@ async function _rehydrateFromIdb(conn) {
         );
         await stmt.query(s.sourceType, s.historyId, s.lastSyncAt, s.totalItems, s.oldestPageToken);
         await stmt.close();
-      } catch {}
+      } catch { }
     }
 
     for (const c of contacts) {
@@ -192,7 +192,7 @@ async function _rehydrateFromIdb(conn) {
         );
         await stmt.query(c.email, c.name, c.firstSeen, c.lastSeen);
         await stmt.close();
-      } catch {}
+      } catch { }
     }
 
     if (items.length > 0 || syncStates.length > 0) {
@@ -282,9 +282,14 @@ async function _createSchema(conn) {
       trigger_name VARCHAR
     );
 
-    CREATE TABLE IF NOT EXISTS sm_rule_actions (
+    CREATE TABLE IF NOT EXISTS sm_rule_commands (
       rule_id     VARCHAR,
-      action_name VARCHAR,
+      command_id  VARCHAR,
+      plugin_id   VARCHAR,
+      action_id   VARCHAR,
+      name        VARCHAR,
+      description VARCHAR,
+      icon        VARCHAR,
       order_idx   INTEGER
     );
 
@@ -316,6 +321,13 @@ async function _createSchema(conn) {
   `);
 
   await _seedSignalMap(conn);
+
+  // One-time migration: remove sm_rule_commands rows created by an older version
+  // of PipelinesView that stored actions as plain string names (no plugin binding).
+  // Those rows have NULL plugin_id and NULL action_id and are not executable.
+  await conn.query(`
+    DELETE FROM sm_rule_commands WHERE plugin_id IS NULL AND action_id IS NULL
+  `);
 
   await conn.query(`
     CREATE TABLE IF NOT EXISTS items (
@@ -565,7 +577,7 @@ export async function execBatch(statements) {
     }
     await conn.query("COMMIT");
   } catch (e) {
-    await conn.query("ROLLBACK").catch(() => {});
+    await conn.query("ROLLBACK").catch(() => { });
     throw e;
   }
   // Flush immediately after a bulk write — don't debounce.
