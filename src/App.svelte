@@ -13,7 +13,7 @@
   import { cn }            from "$lib/utils.js";
   import {
     Zap, Activity, GitBranch, CheckSquare,
-    ScanSearch, ClipboardList, ChevronLeft, ArrowLeft,
+    ScanSearch, ClipboardList, ArrowLeft,
   } from "lucide-svelte";
   import { getEventStats } from "./lib/rules.js";
 
@@ -96,7 +96,13 @@
     <!-- Sidebar -->
     <aside class="w-52 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border overflow-hidden">
       <!-- Brand -->
-      <div class="flex items-center gap-2.5 px-4 h-12 border-b border-sidebar-border shrink-0">
+      <div class="flex items-center gap-3 px-4 h-11 border-b border-sidebar-border shrink-0">
+        <a href="#home" class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground
+           transition-colors no-underline shrink-0">
+          <ArrowLeft class="size-3.5" />
+          <span class="tracking-tight">Home</span>
+        </a>
+        <div class="w-px h-4 bg-sidebar-border shrink-0"></div>
         <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
           <Zap class="size-3.5 text-primary-foreground" />
         </div>
@@ -180,15 +186,6 @@
         </a>
       </nav>
 
-      <!-- Bottom -->
-      <div class="h-px bg-sidebar-border mx-4 shrink-0"></div>
-      <div class="py-2 flex flex-col shrink-0">
-        <a href="#home" class="flex items-center gap-2 px-4 py-1.5 text-xs text-muted-foreground/50
-           hover:text-muted-foreground transition-colors no-underline">
-          <ChevronLeft class="size-3" />
-          Back to Home
-        </a>
-      </div>
     </aside>
 
     <!-- Content -->
