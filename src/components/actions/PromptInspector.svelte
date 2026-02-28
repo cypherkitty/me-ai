@@ -7,15 +7,7 @@
 
   function samplePrompt() {
     if (sampleEmail) return formatEmailPrompt(sampleEmail);
-    return [
-      "Subject: Your order has shipped!",
-      "From: orders@example.com",
-      "To: me",
-      "Date: Sat, Feb 15, 2026",
-      "Labels: INBOX, CATEGORY_UPDATES",
-      "",
-      "Hi! Your order #12345 has shipped via FedEx. Tracking number: 7891011...",
-    ].join("\n");
+    return null;
   }
 
   function close() {
@@ -74,10 +66,16 @@ Labels: {"{email.labels}"}
 
 {"{email.body (full content)"}</pre>
           </div>
-          <div class="template-format">
-            <div class="format-label">Sample:</div>
-            <pre class="code-block sample">{samplePrompt()}</pre>
-          </div>
+          {#if samplePrompt()}
+            <div class="template-format">
+              <div class="format-label">Sample (first scanned email):</div>
+              <pre class="code-block sample">{samplePrompt()}</pre>
+            </div>
+          {:else}
+            <div class="section-desc" style="margin-top: 0.5rem;">
+              No emails scanned yet. Run a scan to see a real example here.
+            </div>
+          {/if}
 
         {:else if activeTab === "config"}
           <div class="section-desc">
