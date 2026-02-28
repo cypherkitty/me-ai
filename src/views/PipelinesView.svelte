@@ -10,7 +10,6 @@
   import { Label }      from "$lib/components/ui/label/index.js";
   import { Switch }     from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import * as Sheet     from "$lib/components/ui/sheet/index.js";
   import * as Dialog    from "$lib/components/ui/dialog/index.js";
   import { Separator }  from "$lib/components/ui/separator/index.js";
   import { cn }         from "$lib/utils.js";
@@ -300,18 +299,17 @@
   </ScrollArea>
 </div>
 
-<!-- ── Parameters panel (Sheet) ─────────────────────────────────────────── -->
-<Sheet.Root bind:open={panelOpen}>
-  <Sheet.Content side="right" class="w-[340px] sm:w-[380px] flex flex-col p-0 gap-0">
+<!-- ── Parameters modal (Dialog) ────────────────────────────────────────── -->
+<Dialog.Root bind:open={panelOpen}>
+  <Dialog.Content class="max-w-md flex flex-col p-0 gap-0 max-h-[85vh]">
     <!-- Header -->
-    <div class="flex items-center gap-2.5 px-6 pt-6 pb-4 border-b border-border shrink-0">
-      <Settings class="size-4 text-muted-foreground" />
-      <Sheet.Title class="text-base font-semibold">Parameters</Sheet.Title>
-      <Sheet.Close class="ml-auto" />
-    </div>
+    <Dialog.Header class="flex-row items-center gap-2.5 px-6 pt-5 pb-4 border-b border-border shrink-0 space-y-0">
+      <Settings class="size-4 text-muted-foreground shrink-0" />
+      <Dialog.Title class="text-base font-semibold">Parameters</Dialog.Title>
+    </Dialog.Header>
 
     {#if panelRule}
-      <ScrollArea class="flex-1">
+      <ScrollArea class="flex-1 min-h-0">
         <div class="flex flex-col gap-6 px-6 py-5">
 
           <!-- META: rule name, description, priority -->
@@ -459,14 +457,14 @@
       </ScrollArea>
 
       <!-- Done button -->
-      <div class="px-6 py-4 border-t border-border shrink-0">
+      <Dialog.Footer class="px-6 py-4 border-t border-border shrink-0">
         <Button onclick={savePanel} disabled={saving} class="w-full">
           {saving ? "Saving…" : "Done"}
         </Button>
-      </div>
+      </Dialog.Footer>
     {/if}
-  </Sheet.Content>
-</Sheet.Root>
+  </Dialog.Content>
+</Dialog.Root>
 
 <!-- Delete confirm dialog -->
 <Dialog.Root bind:open={deleteOpen} onOpenChange={(o) => { if (!o) deleteId = null; }}>
