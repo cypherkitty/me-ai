@@ -140,7 +140,7 @@
           </div>
         </div>
         <Button href={buildRedirectAuthUrl()} class="w-full gap-2.5">
-          <GoogleIcon />
+          {@render GoogleIcon()}
           Try again
         </Button>
 
@@ -169,7 +169,7 @@
         </div>
 
         <Button href={buildRedirectAuthUrl()} class="w-full gap-2.5">
-          <GoogleIcon />
+          {@render GoogleIcon()}
           Sign in with Google (redirect)
         </Button>
 

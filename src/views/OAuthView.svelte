@@ -125,7 +125,7 @@
           </div>
         </div>
         <Button onclick={signIn} class="w-full gap-2" disabled={!initialized}>
-          <GoogleIcon />
+          {@render GoogleIcon()}
           Try again
         </Button>
 
@@ -154,7 +154,7 @@
         </div>
 
         <Button onclick={signIn} class="w-full gap-2.5" disabled={!initialized}>
-          <GoogleIcon />
+          {@render GoogleIcon()}
           Sign in with Google
         </Button>
 
