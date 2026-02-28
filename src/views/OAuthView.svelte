@@ -166,8 +166,8 @@
     </div>
 
     <!-- Back link -->
-    <a href="#chat" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
-      ← Back to Chat
+    <a href="#home" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
+      ← Back to Home
     </a>
   </div>
 </div>
