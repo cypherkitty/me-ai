@@ -1,23 +1,16 @@
 /**
  * Event Stream + Action Pipeline
  *
- * Event types — classification labels assigned by the LLM (e.g. "REVIEW", "DELETE"),
- *               plus any custom types the user creates.
- *               Each event type belongs to a group and has a user-defined sequential
- *               action pipeline. No hardcoded pipelines — all actions are user-managed
- *               (seeded from LLM suggestions on first encounter).
+ * This module bridges the legacy email scan/triage flow with the new routing
+ * architecture. It retains backward-compatible exports while integrating:
  *
- * Event groups — three tiers controlling how events are handled:
- *   NOISE    — unimportant emails (promos, newsletters). Actions run automatically.
- *   INFO     — informational emails to review. Actions run on user request.
- *   CRITICAL — high-stakes emails that change state (transactions, approvals).
- *              User must explicitly review and confirm before any action runs.
+ *   EventType       — what kind of content (ad, newsletter, invoice, …)
+ *   EventCategory   — urgency tier (noise / informational / important / urgent)
+ *   Rule            — the central pipeline unit connecting trigger → actions → policy
+ *   ExecutionPolicy — auto / supervised / manual
  *
- * Actions — each step in a pipeline calls a specific plugin command explicitly.
- *           pluginId + commandId are required so execution is unambiguous regardless
- *           of event source. (e.g. { pluginId: "gmail", commandId: "trash" })
- *
- * Tags — secondary metadata on emails (LLM output). Display only.
+ * Legacy event groups (NOISE/INFO/CRITICAL) are preserved for the existing
+ * triage/execution pipeline until that pipeline is fully migrated.
  */
 
 /**
@@ -76,6 +69,61 @@ export const EVENT_GROUPS = {
 };
 
 export const DEFAULT_GROUP = "INFO";
+
+// ── EventCategory ─────────────────────────────────────────────────────
+
+/**
+ * Event categories (urgency tiers).
+ * Maps to the sm_event_categories table.
+ */
+export const EVENT_CATEGORIES = {
+  noise:         { name: "noise",         label: "Noise",         priority: 1, color: "#4b5563" },
+  informational: { name: "informational", label: "Informational", priority: 2, color: "#3b82f6" },
+  important:     { name: "important",     label: "Important",     priority: 3, color: "#d97706" },
+  urgent:        { name: "urgent",        label: "Urgent",        priority: 4, color: "#dc2626" },
+};
+
+/**
+ * Execution policies.
+ */
+export const EXECUTION_POLICIES = {
+  auto:       { name: "auto",       label: "Auto",       description: "Executes without user input",    color: "#10b981" },
+  supervised: { name: "supervised", label: "Supervised", description: "Executes then notifies user",   color: "#f59e0b" },
+  manual:     { name: "manual",     label: "Manual",     description: "Waits for user approval",        color: "#6366f1" },
+};
+
+/**
+ * Map legacy event group → ExecutionPolicy name.
+ * @param {string} group — NOISE | INFO | CRITICAL
+ * @returns {string} policy name
+ */
+export function groupToPolicy(group) {
+  if (group === "NOISE")    return "auto";
+  if (group === "CRITICAL") return "manual";
+  return "supervised"; // INFO
+}
+
+/**
+ * Map ExecutionPolicy → legacy event group.
+ * @param {string} policy — auto | supervised | manual
+ * @returns {string} group
+ */
+export function policyToGroup(policy) {
+  if (policy === "auto")   return "NOISE";
+  if (policy === "manual") return "CRITICAL";
+  return "INFO";
+}
+
+/**
+ * Map legacy event group → EventCategory name.
+ * @param {string} group
+ * @returns {string} category name
+ */
+export function groupToCategory(group) {
+  if (group === "NOISE")    return "noise";
+  if (group === "CRITICAL") return "important";
+  return "informational";
+}
 
 const STORAGE_KEY = "me-ai-events";
 const GROUPS_KEY = "me-ai-event-groups";

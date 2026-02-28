@@ -191,7 +191,7 @@
   }
 </script>
 
-<div class="control-board-page">
+<div class="flex-1 min-h-0 overflow-y-auto">
   <ControlBoardView
     {engineStatus}
     {modelName}
@@ -220,11 +220,3 @@
     bind:scanCount
   />
 </div>
-
-<style>
-  .control-board-page {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-</style>

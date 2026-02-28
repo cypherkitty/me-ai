@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { parseError } from "../../lib/error-parser.js";
   import { mountLog } from "../../lib/debug.js";
+  import { Button } from "$lib/components/ui/button/index.js";
 
   let { error, ondismiss = null, onsignout = null } = $props();
 
@@ -10,109 +11,41 @@
   onMount(() => mountLog("ErrorCard"));
 </script>
 
-<div class="error-card">
+<div class="flex flex-col gap-1.5 mb-5 px-4 py-3.5 rounded border-l-4 border border-destructive/20 border-l-destructive bg-destructive/5">
   {#if ondismiss}
-    <div class="error-card-header">
-      <div class="error-card-title">{parsed.title}</div>
-      <button class="error-dismiss" onclick={ondismiss}>✕</button>
+    <div class="flex items-center justify-between gap-2">
+      <span class="text-sm font-bold text-destructive">{parsed.title}</span>
+      <button
+        onclick={ondismiss}
+        class="text-muted-foreground/40 hover:text-destructive transition-colors text-base leading-none"
+        aria-label="Dismiss"
+      >✕</button>
     </div>
   {:else}
-    <div class="error-card-title">{parsed.title}</div>
+    <span class="text-sm font-bold text-destructive">{parsed.title}</span>
   {/if}
-  <p class="error-card-desc">{parsed.description}</p>
+
+  <p class="text-[0.8rem] text-foreground/75 leading-relaxed">{parsed.description}</p>
+
   {#if parsed.fix}
-    <p class="error-card-fix">{parsed.fix}</p>
+    <p class="text-[0.78rem] text-success leading-relaxed">{parsed.fix}</p>
   {/if}
+
   {#if parsed.link}
-    <a class="error-card-link" href={parsed.link.url} target="_blank" rel="noopener">
-      {parsed.link.label} →
-    </a>
+    <a
+      href={parsed.link.url}
+      target="_blank"
+      rel="noopener"
+      class="text-[0.8rem] font-medium text-primary hover:underline"
+    >{parsed.link.label} →</a>
   {/if}
+
   {#if parsed.action === "signout" && onsignout}
-    <button class="btn small error-action" onclick={onsignout}>Sign Out & Retry</button>
+    <Button
+      variant="outline"
+      size="sm"
+      onclick={onsignout}
+      class="mt-1 self-start text-destructive border-destructive/30 hover:bg-destructive/8"
+    >Sign Out & Retry</Button>
   {/if}
 </div>
-
-<style>
-  .error-card {
-    background: rgba(248, 113, 113, 0.06);
-    border: 1px solid rgba(248, 113, 113, 0.25);
-    border-left: 4px solid #f87171;
-    border-radius: 8px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-  .error-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-  }
-  .error-card-title {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: #f87171;
-    margin-bottom: 0.35rem;
-  }
-  .error-dismiss {
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 1rem;
-    cursor: pointer;
-    padding: 0.1rem;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .error-dismiss:hover {
-    color: #f87171;
-  }
-  .error-card-desc {
-    font-size: 0.82rem;
-    color: #ccc;
-    line-height: 1.5;
-    margin-bottom: 0.35rem;
-  }
-  .error-card-fix {
-    font-size: 0.8rem;
-    color: #4ade80;
-    line-height: 1.5;
-    margin-bottom: 0.5rem;
-  }
-  .error-card-link {
-    display: inline-block;
-    font-size: 0.82rem;
-    color: #60a5fa;
-    text-decoration: none;
-    font-weight: 500;
-    margin-bottom: 0.3rem;
-  }
-  .error-card-link:hover {
-    text-decoration: underline;
-  }
-  .btn {
-    padding: 0.55rem 1.2rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #1a1a1a;
-    color: #e8e8e8;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn:hover:not(:disabled) {
-    background: #2a2a2a;
-  }
-  .btn.small {
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
-  }
-  .error-action {
-    margin-top: 0.5rem;
-    border-color: rgba(248, 113, 113, 0.4);
-    color: #f87171;
-  }
-  .error-action:hover:not(:disabled) {
-    background: rgba(248, 113, 113, 0.1);
-  }
-</style>

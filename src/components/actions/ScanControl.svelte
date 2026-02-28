@@ -1,5 +1,7 @@
 <script>
   import ScanLiveView from "./ScanLiveView.svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Search } from "lucide-svelte";
 
   let {
     engineStatus = "idle",
@@ -34,9 +36,9 @@
   }
 
   function statusColor() {
-    if (engineStatus === "ready") return "#34d399";
-    if (engineStatus === "loading") return "#fbbf24";
-    return "#666";
+    if (engineStatus === "ready") return "var(--color-success)";
+    if (engineStatus === "loading") return "var(--color-warning)";
+    return "var(--color-muted-foreground)";
   }
 
   function canScan() {
@@ -46,263 +48,79 @@
   let isVisuallyScanning = $derived(isScanning && scanProgress?.phase !== "done");
 </script>
 
-<div class="scan-card">
-  <div class="scan-header">
-    <div class="scan-icon">
+<div class="rounded border border-border bg-card mb-4 overflow-hidden">
+  <!-- Header row -->
+  <div class="flex items-center gap-3 px-4 py-3 border-b border-border">
+    <div class="size-7 rounded border border-border bg-muted/30 flex items-center justify-center shrink-0 text-muted-foreground">
       {#if isVisuallyScanning}
-        <span class="spinner"></span>
+        <div class="size-3.5 border-2 border-border border-t-primary rounded-full animate-spin"></div>
       {:else}
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
+        <Search class="size-3.5" />
       {/if}
     </div>
-    <div class="scan-info">
-      <div class="scan-title-row">
-        <span class="scan-title">Email Triage</span>
-        <button class="inspect-btn" onclick={oninspect} title="View system prompt and LLM config">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 16v-4"/>
-            <path d="M12 8h.01"/>
-          </svg>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-0.5">
+        <span class="text-sm font-semibold tracking-tight text-foreground">Email Triage</span>
+        <button
+          onclick={oninspect}
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded border border-border text-[0.6rem] text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+        >
           Prompt
         </button>
       </div>
-      <span class="scan-status">
-        <span class="status-dot" style:background={statusColor()}></span>
-        {statusLabel()}
-      </span>
+      <div class="flex items-center gap-1.5">
+        <span class="size-1.5 rounded-full shrink-0" style:background={statusColor()}></span>
+        <span class="text-xs text-muted-foreground">{statusLabel()}</span>
+      </div>
     </div>
   </div>
 
   {#if stats}
-    <div class="scan-stats">
-      <span class="stat">{stats.totalEmails} emails in storage</span>
-      <span class="stat-sep">·</span>
-      <span class="stat">{stats.classified} classified</span>
-      <span class="stat-sep">·</span>
-      <span class="stat">{stats.unclassified} new</span>
+    <div class="flex items-center gap-2 px-4 py-2 border-b border-border/40 text-xs text-muted-foreground/60">
+      <span class="tabular-nums">{stats.totalEmails} in storage</span>
+      <span class="text-muted-foreground/20">·</span>
+      <span class="tabular-nums">{stats.classified} classified</span>
+      <span class="text-muted-foreground/20">·</span>
+      <span class="tabular-nums">{stats.unclassified} new</span>
     </div>
   {/if}
 
-  <div class="scan-controls">
-    <div class="control-group">
-      <label class="control-label" for="scan-count">Emails:</label>
-      <select id="scan-count" class="control-select" bind:value={scanCount} disabled={isScanning}>
+  <!-- Controls -->
+  <div class="flex items-center gap-3 px-4 py-3">
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-muted-foreground">Emails:</span>
+      <select
+        bind:value={scanCount}
+        disabled={isScanning}
+        class="h-7 rounded border border-input bg-background px-2 text-xs text-foreground disabled:opacity-50"
+      >
         {#each COUNT_OPTIONS as opt}
           <option value={opt.value}>{opt.label}</option>
         {/each}
       </select>
     </div>
-    <div class="btn-group">
-      <button
-        class="btn scan-btn primary"
-        onclick={onscan}
-        disabled={!canScan()}
-      >
-        {isVisuallyScanning ? "Scanning..." : (isScanning ? "Finalizing..." : "Scan New")}
-      </button>
-      <button
-        class="btn scan-btn"
-        onclick={onrescan}
-        disabled={!canScan()}
-        title="Rescan all (including already classified)"
-      >
+    <div class="flex items-center gap-1.5 ml-auto">
+      <Button variant="default" size="sm" onclick={onscan} disabled={!canScan()} class="h-7 text-xs">
+        {isVisuallyScanning ? "Scanning…" : (isScanning ? "Finalizing…" : "Scan New")}
+      </Button>
+      <Button variant="outline" size="sm" onclick={onrescan} disabled={!canScan()} class="h-7 text-xs">
         Rescan All
-      </button>
+      </Button>
     </div>
   </div>
 
   {#if engineStatus !== "ready" && engineStatus !== "loading"}
-    <p class="scan-hint">Load a model on the Chat page first, then come back to scan.</p>
+    <p class="px-4 pb-3 -mt-1 text-xs text-muted-foreground/40 italic">
+      Load a model on the Chat page first, then come back to scan.
+    </p>
   {/if}
 
   {#if isScanning || scanProgress?.phase === "done"}
-    <ScanLiveView 
-      progress={scanProgress} 
-      {onstop} 
+    <ScanLiveView
+      progress={scanProgress}
+      {onstop}
       {oninspect}
       onclose={oncloseprogress}
     />
   {/if}
 </div>
-
-<style>
-  .scan-card {
-    padding: 0.75rem 1rem;
-    background: #161616;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-  }
-
-  .scan-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .scan-icon {
-    color: #888;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-  }
-
-  .scan-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-  }
-
-  .scan-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .scan-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #e8e8e8;
-  }
-
-  .inspect-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.15rem 0.45rem;
-    background: none;
-    border: 1px solid #333;
-    border-radius: 5px;
-    color: #666;
-    font-size: 0.65rem;
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-  }
-  .inspect-btn:hover {
-    color: #3b82f6;
-    border-color: #3b82f6;
-  }
-
-  .scan-status {
-    font-size: 0.75rem;
-    color: #888;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .scan-stats {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    margin-top: 0.4rem;
-    padding: 0.3rem 0.5rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    font-size: 0.7rem;
-  }
-
-  .stat { color: #888; }
-  .stat-sep { color: #333; }
-
-  .scan-controls {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    margin-top: 0.6rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid #222;
-  }
-
-  .btn-group {
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .control-label {
-    font-size: 0.75rem;
-    color: #666;
-  }
-
-  .control-select {
-    padding: 0.25rem 0.4rem;
-    border: 1px solid #333;
-    border-radius: 6px;
-    background: #1a1a1a;
-    color: #e8e8e8;
-    font-size: 0.75rem;
-    outline: none;
-    cursor: pointer;
-  }
-  .control-select:focus {
-    border-color: #3b82f6;
-  }
-
-  .scan-btn {
-    padding: 0.3rem 0.8rem;
-    border: 1px solid #3b82f6;
-    border-radius: 8px;
-    background: transparent;
-    color: #3b82f6;
-    font-size: 0.78rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-    white-space: nowrap;
-  }
-  .scan-btn:hover:not(:disabled) {
-    background: #3b82f6;
-    color: #fff;
-  }
-  .scan-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .scan-btn.primary {
-    background: #3b82f6;
-    color: #fff;
-  }
-  .scan-btn.primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-
-  .scan-hint {
-    margin-top: 0.5rem;
-    font-size: 0.72rem;
-    color: #666;
-    font-style: italic;
-  }
-
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border: 2px solid #333;
-    border-top-color: #3b82f6;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    display: inline-block;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-</style>

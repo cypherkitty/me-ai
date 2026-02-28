@@ -6,6 +6,10 @@
   import TaskCard from "./TaskCard.svelte";
   import QuickActions from "./QuickActions.svelte";
   import GpuPanel from "./GpuPanel.svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Textarea } from "$lib/components/ui/textarea/index.js";
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import { cn } from "$lib/utils.js";
   import { mountLog } from "../../lib/debug.js";
 
   onMount(() => mountLog("ChatView"));
@@ -57,51 +61,69 @@
       onsend(question);
     }
   }
+
+  const BACKEND_META = {
+    ollama:    { label: "Ollama",    color: "text-primary border-primary/30 bg-primary/8" },
+    openai:    { label: "OpenAI",    color: "text-success border-success/30 bg-success/8" },
+    anthropic: { label: "Anthropic", color: "text-warning border-warning/30 bg-warning/8" },
+    google:    { label: "Google",    color: "text-info border-info/30 bg-info/8" },
+    xai:       { label: "xAI",       color: "text-foreground border-border bg-muted/30" },
+  };
 </script>
 
-<div class="chat-wrapper">
-  <header>
+<div class="flex flex-col h-full overflow-hidden">
+  <!-- Stats bar -->
+  <div class="flex items-center gap-3 px-6 h-10 border-b border-border shrink-0">
     {#if gpuInfo}
-      <button class="gpu-badge" onclick={() => showGpuPanel = !showGpuPanel}>
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={() => showGpuPanel = !showGpuPanel}
+        class="h-5 px-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-success border-success/30 bg-success/8 hover:bg-success/14"
+      >
         WebGPU {showGpuPanel ? "▲" : "▼"}
-      </button>
-    {:else if backend === "ollama"}
-      <span class="backend-badge ollama">🦙 Ollama</span>
-    {:else if backend === "openai"}
-      <span class="backend-badge openai">⚡ OpenAI</span>
-    {:else if backend === "anthropic"}
-      <span class="backend-badge anthropic">🧠 Anthropic</span>
-    {:else if backend === "google"}
-      <span class="backend-badge google">🔍 Google</span>
-    {:else if backend === "xai"}
-      <span class="backend-badge xai">✖️ xAI</span>
+      </Button>
+    {:else if BACKEND_META[backend]}
+      {@const meta = BACKEND_META[backend]}
+      <Badge variant="outline" class={cn("text-[0.6rem] font-bold uppercase tracking-wider h-5 px-1.5", meta.color)}>
+        {meta.label}
+      </Badge>
     {/if}
+
     {#if tps && !isRunning}
-      <span class="stats">
-        {numTokens} tokens in {(numTokens / tps).toFixed(1)}s
-        ({tps.toFixed(1)} tok/s)
+      <span class="text-xs text-muted-foreground/50 tabular-nums">
+        {numTokens} tok · {(numTokens / tps).toFixed(1)}s · {tps.toFixed(1)} tok/s
       </span>
     {:else if isRunning && generationPhase === "preparing"}
-      <span class="stats preparing">preparing...</span>
+      <span class="text-xs text-muted-foreground/40 italic animate-pulse">preparing…</span>
     {:else if isRunning && generationPhase === "thinking"}
-      <span class="stats preparing">thinking... {tps ? `${tps.toFixed(0)} tok/s` : ""}</span>
+      <span class="text-xs text-muted-foreground/40 italic animate-pulse">
+        thinking… {tps ? `${tps.toFixed(0)} tok/s` : ""}
+      </span>
     {:else if tps && isRunning}
-      <span class="stats">{tps.toFixed(1)} tok/s</span>
+      <span class="text-xs text-muted-foreground/50 tabular-nums">{tps.toFixed(1)} tok/s</span>
     {/if}
-    <span class="spacer"></span>
-    <button class="btn small" onclick={onreset} disabled={isRunning}>Reset</button>
-  </header>
+
+    <span class="flex-1"></span>
+    <Button variant="ghost" size="sm" onclick={onreset} disabled={isRunning} class="h-6 text-xs px-2">
+      Reset
+    </Button>
+  </div>
 
   {#if showGpuPanel && gpuInfo}
     <GpuPanel {gpuInfo} />
   {/if}
 
-  <div class="messages" bind:this={chatContainer}>
+  <!-- Messages -->
+  <div
+    class="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-2"
+    bind:this={chatContainer}
+  >
     {#if messages.length === 0}
-      <div class="empty">
-        <div class="empty-icon">✦</div>
-        <div class="empty-title">Start a conversation</div>
-        <div class="empty-sub">Ask about your emails, events, or anything else.</div>
+      <div class="m-auto flex flex-col items-center gap-2 text-center py-12">
+        <span class="text-2xl text-muted-foreground/20">✦</span>
+        <span class="text-sm font-medium text-muted-foreground/50 tracking-tight">Start a conversation</span>
+        <span class="text-xs text-muted-foreground/30">Ask about your emails, events, or anything else.</span>
       </div>
     {/if}
 
@@ -141,200 +163,20 @@
     {onscan}
   />
 
-  <div class="input-row">
-    <textarea
-      rows="1"
-      placeholder="Type a message..."
+  <!-- Input row -->
+  <div class="flex items-end gap-2 px-6 py-3 pb-4 border-t border-border shrink-0">
+    <Textarea
+      rows={1}
+      placeholder="Type a message…"
       bind:value={input}
       onkeydown={handleKeydown}
       disabled={isRunning}
-    ></textarea>
+      class="flex-1 resize-none min-h-[42px] max-h-[160px] overflow-y-auto leading-relaxed py-2.5"
+    />
     {#if isRunning}
-      <button class="btn" onclick={onstop}>Stop</button>
+      <Button variant="outline" size="sm" onclick={onstop} class="h-[42px] px-4">Stop</Button>
     {:else}
-      <button class="btn primary" onclick={handleSend} disabled={!input.trim()}>Send</button>
+      <Button size="sm" onclick={handleSend} disabled={!input.trim()} class="h-[42px] px-4">Send</Button>
     {/if}
   </div>
 </div>
-
-<style>
-  .chat-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 1.5rem;
-    border-bottom: 1px solid #181818;
-    flex-shrink: 0;
-    min-height: 44px;
-  }
-  .spacer {
-    flex: 1;
-  }
-  .stats {
-    font-size: 0.75rem;
-    color: #888;
-  }
-  .stats.preparing {
-    color: #888;
-    font-style: italic;
-    animation: blink 1.5s ease-in-out infinite;
-  }
-  @keyframes blink {
-    50% { opacity: 0; }
-  }
-
-  /* ── GPU badge ───────────────────────────────────────────────────── */
-  .gpu-badge {
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #4ade80;
-    background: rgba(74, 222, 128, 0.1);
-    border: 1px solid rgba(74, 222, 128, 0.3);
-    padding: 0.2rem 0.55rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .gpu-badge:hover {
-    background: rgba(74, 222, 128, 0.2);
-  }
-
-  .backend-badge {
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 0.2rem 0.55rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .backend-badge.ollama {
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.1);
-    border: 1px solid rgba(167, 139, 250, 0.3);
-  }
-  .backend-badge.openai {
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-  .backend-badge.anthropic {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-  }
-  .backend-badge.google {
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-  }
-  .backend-badge.xai {
-    color: #e8e8e8;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-  }
-
-  /* ── Messages ────────────────────────────────────────────────────── */
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .empty {
-    margin: auto;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 2rem;
-  }
-  .empty-icon {
-    font-size: 1.8rem;
-    color: #333;
-    line-height: 1;
-  }
-  .empty-title {
-    font-size: 1rem;
-    font-weight: 500;
-    color: #555;
-  }
-  .empty-sub {
-    font-size: 0.82rem;
-    color: #404040;
-  }
-
-  /* ── Buttons ─────────────────────────────────────────────────────── */
-  .btn {
-    padding: 0.55rem 1.2rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #1a1a1a;
-    color: #e8e8e8;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn:hover:not(:disabled) {
-    background: #2a2a2a;
-  }
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  .btn.primary {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: #fff;
-  }
-  .btn.primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-  .btn.small {
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
-  }
-
-  /* ── Input row ───────────────────────────────────────────────────── */
-  .input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem 1rem;
-    border-top: 1px solid #181818;
-    flex-shrink: 0;
-  }
-  textarea {
-    flex: 1;
-    resize: none;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    background: #141414;
-    color: #e8e8e8;
-    padding: 0.65rem 1rem;
-    font-size: 0.9rem;
-    font-family: inherit;
-    line-height: 1.5;
-    outline: none;
-    min-height: 42px;
-    max-height: 160px;
-    overflow-y: auto;
-    transition: border-color 0.15s;
-  }
-  textarea:focus {
-    border-color: #3b82f6;
-    background: #171717;
-  }
-  textarea:disabled {
-    opacity: 0.4;
-  }
-</style>

@@ -2,156 +2,62 @@
   import { onMount } from "svelte";
   import { formatBytesPrecise, progressPct } from "../../lib/format.js";
   import { mountLog } from "../../lib/debug.js";
+  import { Progress } from "$lib/components/ui/progress/index.js";
+  import { Card, CardContent } from "$lib/components/ui/card/index.js";
 
   let { message = "", items = [] } = $props();
 
   onMount(() => mountLog("LoadingProgress"));
 </script>
 
-<div class="container center loading-container">
-  <p class="loading-msg">{message}</p>
+<div class="max-w-[520px] mx-auto p-8 flex flex-col items-center text-center gap-3">
+  <p class="text-sm text-muted-foreground tracking-tight">{message}</p>
+
   {#each items as item}
     {@const pct = item.total ? progressPct(item.loaded || 0, item.total) : null}
-    <div class="progress-card">
-      <div class="progress-header">
-        <span class="progress-file" title={item.file}>{item.file}</span>
-        {#if pct !== null}
-          <span class="progress-percent">{pct.toFixed(1)}%</span>
-        {/if}
-      </div>
-      {#if item.total}
-        <div class="progress-bar">
-          <div
-            class="progress-fill"
-            style="width: {Math.max(item.progress ?? 0, 0.5).toFixed(1)}%"
-          ></div>
-        </div>
-        <div class="progress-numbers">
-          <span class="progress-loaded">{formatBytesPrecise(item.loaded || 0)}</span>
-          <span class="progress-sep">/</span>
-          <span class="progress-total">{formatBytesPrecise(item.total)}</span>
-          <span class="progress-raw" title="Exact bytes">({(item.loaded || 0).toLocaleString()} / {item.total.toLocaleString()} B)</span>
-        </div>
-      {:else}
-        <div class="progress-bar">
-          <div class="progress-fill indeterminate"></div>
-        </div>
-        <div class="progress-numbers">
-          {#if item.loaded}
-            <span class="progress-loaded">{formatBytesPrecise(item.loaded)}</span>
-            <span class="progress-raw" title="Exact bytes">({item.loaded.toLocaleString()} B)</span>
-          {:else}
-            <span class="progress-indeterminate">downloading…</span>
+    <Card class="w-full">
+      <CardContent class="pt-4 pb-3 px-4">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <span class="text-xs text-muted-foreground truncate flex-1 min-w-0" title={item.file}>
+            {item.file}
+          </span>
+          {#if pct !== null}
+            <span class="text-sm font-semibold text-primary tabular-nums shrink-0">
+              {pct.toFixed(1)}%
+            </span>
           {/if}
         </div>
-      {/if}
-    </div>
+
+        {#if item.total}
+          <Progress value={pct ?? 0} class="h-1 mb-2" />
+          <div class="flex items-baseline gap-1.5 flex-wrap text-xs text-muted-foreground tabular-nums">
+            <span class="text-foreground font-medium">{formatBytesPrecise(item.loaded || 0)}</span>
+            <span class="opacity-30">/</span>
+            <span class="opacity-60">{formatBytesPrecise(item.total)}</span>
+            <span class="text-[0.62rem] opacity-35 ml-1">({(item.loaded || 0).toLocaleString()} / {item.total.toLocaleString()} B)</span>
+          </div>
+        {:else}
+          <div class="h-1 w-full bg-muted rounded-full overflow-hidden mb-2">
+            <div class="h-full w-[30%] bg-primary rounded-full animate-[slide_1.5s_ease-in-out_infinite]"></div>
+          </div>
+          <div class="text-xs text-muted-foreground tabular-nums">
+            {#if item.loaded}
+              <span class="text-foreground font-medium">{formatBytesPrecise(item.loaded)}</span>
+              <span class="opacity-35 ml-1">({item.loaded.toLocaleString()} B)</span>
+            {:else}
+              <span class="italic opacity-50">downloading…</span>
+            {/if}
+          </div>
+        {/if}
+      </CardContent>
+    </Card>
   {/each}
 </div>
 
 <style>
-  .container {
-    max-width: 520px;
-    margin: auto;
-    padding: 2rem;
-  }
-  .center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    height: 100%;
-    gap: 0.75rem;
-  }
-  .loading-container {
-    max-width: 520px;
-  }
-  .loading-msg {
-    color: #aaa;
-    font-size: 0.9rem;
-    margin-bottom: 0.75rem;
-  }
-  .progress-card {
-    width: 100%;
-    margin-bottom: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: #161616;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-  }
-  .progress-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-  .progress-file {
-    font-size: 0.75rem;
-    color: #888;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-    min-width: 0;
-  }
-  .progress-percent {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #3b82f6;
-    font-variant-numeric: tabular-nums;
-    flex-shrink: 0;
-  }
-  .progress-bar {
-    width: 100%;
-    height: 8px;
-    background: #222;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 0.5rem;
-  }
-  .progress-fill {
-    height: 100%;
-    background: #3b82f6;
-    border-radius: 4px;
-    transition: width 0.2s;
-  }
-  .progress-fill.indeterminate {
-    width: 30%;
-    animation: slide 1.5s ease-in-out infinite;
-  }
   @keyframes slide {
     0% { margin-left: 0%; }
     50% { margin-left: 70%; }
     100% { margin-left: 0%; }
-  }
-  .progress-numbers {
-    display: flex;
-    align-items: baseline;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    font-size: 0.8rem;
-    color: #aaa;
-    font-variant-numeric: tabular-nums;
-  }
-  .progress-loaded {
-    color: #e8e8e8;
-    font-weight: 500;
-  }
-  .progress-sep {
-    color: #666;
-  }
-  .progress-total {
-    color: #888;
-  }
-  .progress-raw {
-    font-size: 0.65rem;
-    color: #555;
-    margin-left: 0.25rem;
-  }
-  .progress-indeterminate {
-    color: #888;
-    font-style: italic;
   }
 </style>

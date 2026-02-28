@@ -344,7 +344,7 @@
   }
 </script>
 
-<div class="dashboard">
+<div class="flex-1 min-h-0 overflow-y-auto">
   {#if needsSetup}
     <SetupGuide bind:clientIdInput onsave={saveClientId} defaultClientId={DEFAULT_CLIENT_ID} />
 
@@ -378,10 +378,3 @@
   {/if}
 </div>
 
-<style>
-  .dashboard {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-</style>

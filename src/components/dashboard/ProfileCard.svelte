@@ -2,81 +2,30 @@
   import { onMount } from "svelte";
   import { initial } from "../../lib/email-utils.js";
   import { mountLog } from "../../lib/debug.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Card, CardContent } from "$lib/components/ui/card/index.js";
 
   let { profile = null, loadingProfile = false, onsignout } = $props();
 
   onMount(() => mountLog("ProfileCard"));
 </script>
 
-<div class="profile-card">
-  <div class="profile-avatar">{profile ? initial(profile.emailAddress) : "?"}</div>
-  <div class="profile-info">
-    {#if loadingProfile}
-      <span class="profile-email">Loading profile...</span>
-    {:else if profile}
-      <span class="profile-email">{profile.emailAddress}</span>
-      <span class="profile-stats">
-        {profile.messagesTotal?.toLocaleString() || "?"} messages
-        · {profile.threadsTotal?.toLocaleString() || "?"} threads
-      </span>
-    {/if}
-  </div>
-  <button class="btn small" onclick={onsignout}>Sign Out</button>
-</div>
-
-<style>
-  .profile-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    background: #161616;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-  }
-  .profile-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: #3b82f6;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    font-weight: 700;
-    flex-shrink: 0;
-  }
-  .profile-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-  .profile-email {
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-  .profile-stats {
-    font-size: 0.8rem;
-    color: #888;
-  }
-  .btn {
-    padding: 0.55rem 1.2rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #1a1a1a;
-    color: #e8e8e8;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn:hover:not(:disabled) {
-    background: #2a2a2a;
-  }
-  .btn.small {
-    padding: 0.3rem 0.8rem;
-    font-size: 0.8rem;
-  }
-</style>
+<Card class="mb-4">
+  <CardContent class="flex items-center gap-4 px-5 py-4">
+    <div class="size-[42px] rounded-full bg-primary flex items-center justify-center text-primary-foreground text-base font-bold shrink-0">
+      {profile ? initial(profile.emailAddress) : "?"}
+    </div>
+    <div class="flex-1 flex flex-col gap-0.5 min-w-0">
+      {#if loadingProfile}
+        <span class="text-sm text-muted-foreground">Loading profile…</span>
+      {:else if profile}
+        <span class="text-sm font-semibold text-foreground truncate">{profile.emailAddress}</span>
+        <span class="text-xs text-muted-foreground/60">
+          {profile.messagesTotal?.toLocaleString() || "?"} messages
+          · {profile.threadsTotal?.toLocaleString() || "?"} threads
+        </span>
+      {/if}
+    </div>
+    <Button variant="outline" size="sm" onclick={onsignout}>Sign Out</Button>
+  </CardContent>
+</Card>
