@@ -18,7 +18,7 @@ const DEFAULT_COUNT = 20;
 
 /** Generation settings used for email classification (exported for transparency UI) */
 export const CLASSIFICATION_CONFIG = {
-  maxTokens: 512,
+  maxTokens: 2048, // reasoning models need room for <think> blocks before the JSON
   enableThinking: false,
   doSample: false,
 };
@@ -253,7 +253,7 @@ export async function scanEmails(
     try {
       const { text: response, tps, numTokens, inputTokens } = await engine.generateFull(
         promptMessages,
-        { maxTokens: 512, enableThinking: false, temperature: 0 },
+        { maxTokens: CLASSIFICATION_CONFIG.maxTokens, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
           onProgress({
             phase:    "generating",
@@ -546,21 +546,18 @@ export function parseClassification(response, knownActionIds) {
 
   let text = response.trim();
 
+  // Strip <think>...</think> blocks produced by reasoning models (GPT-OSS, Qwen3, etc.)
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+
   // Strip markdown code blocks
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
   text = text.trim();
 
-  const firstBrace  = text.indexOf("{");
-  const lastBrace   = text.lastIndexOf("}");
+  const firstBrace = text.indexOf("{");
+  const lastBrace  = text.lastIndexOf("}");
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
     console.warn("Triage: no JSON object found in response");
-    return null;
-  }
-
-  const firstBracket = text.indexOf("[");
-  if (firstBracket !== -1 && firstBracket < firstBrace) {
-    console.warn("Triage: expected JSON object, got array");
     return null;
   }
 
