@@ -7,6 +7,42 @@ alwaysApply: true
 
 **Browser-only AI assistant built on an event-stream model.** No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
 
+## Three-Step User Flow
+
+The app is structured around three explicit steps that the user progresses through in order:
+
+```mermaid
+flowchart LR
+    subgraph step1 [Step 1 — Sources]
+        Gmail
+        Future["Telegram, Slack…"]
+    end
+    subgraph step2 [Step 2 — Scan]
+        LLM["LLM Classifier"]
+        Results["Grouped Results\n(delete / archive / reply…)"]
+    end
+    subgraph step3 [Step 3 — Control Plane]
+        Pipelines
+        Approvals
+        EventStream["Event Stream"]
+        Audit
+    end
+
+    Gmail -->|"raw emails (IndexedDB)"| LLM
+    LLM --> Results
+    Results -->|"NOISE: auto-execute"| Pipelines
+    Results -->|"INFO: user triggers"| Pipelines
+    Results -->|"CRITICAL: awaiting_user"| Approvals
+```
+
+| Step | Route | Purpose |
+|------|-------|---------|
+| **Sources** | `#sources` | Connect accounts (Gmail, future: Telegram…), browse raw data |
+| **Scan** | `#scan` | Run the LLM classifier over synced emails; review grouped results |
+| **Control Plane** | `#pipelines`, `#approvals`, `#stream`, `#audit` | Configure rules/pipelines, review approvals, audit trail |
+
+Scan is the bridge between Sources and the Control Plane — it transforms raw data into typed events that the pipeline system can act on.
+
 ## Core Concept: Dynamically Generated Action Flow (n8n-like Architecture)
 
 **This is the most important architectural principle — the foundation of the entire system.**
@@ -172,9 +208,9 @@ User interaction:
 ```
 src/
   main.js              — mount(App, { target: #app })
-  App.svelte           — Shell: top nav + hash routing (#chat / #dashboard)
+  App.svelte           — Shell: hash routing (#home / #sources / #scan / #pipelines / …)
   Chat.svelte          — Orchestrator: state + worker logic, delegates UI to children
-  Dashboard.svelte     — Orchestrator: state + auth logic, delegates UI to children
+  ControlBoard.svelte  — Scan orchestrator: LLM scan, grouped results, pipeline execution
   worker.js            — Web Worker: model loading, WebGPU check, streaming
                          generation, <think> block detection
   components/
@@ -234,11 +270,21 @@ index.html             — Entry HTML (no external scripts — GIS loads dynamic
 ## Routing
 
 Hash-based in `App.svelte`. No router library.
-- `#chat` (default) → `Chat.svelte`
-- `#dashboard` → `Dashboard.svelte`
 
-**Both components are always mounted** (toggled with `style:display` flex/none).
-This prevents Chat's Web Worker from being destroyed when switching to Dashboard.
+| Hash | Layout | Component |
+|------|--------|-----------|
+| `#home` (default) | Full-screen | `HomeView` (brand header + Chat) |
+| `#sources` | Header + content | `SourcesView` (source list sidebar + detail panel) |
+| `#scan` | Header + content | `ControlBoard` (LLM scan + grouped results) |
+| `#pipelines` | CP sidebar | `PipelinesView` |
+| `#approvals` | CP sidebar | `ApprovalsView` |
+| `#stream` | CP sidebar | `StreamView` |
+| `#audit` | CP sidebar | `AuditView` |
+| `#auth` / `#oauth-redirect` | Full-screen | OAuth flow views |
+
+`#chat` is kept as a redirect alias → `#home` so old links don't 404.
+
+**Control Plane views are always mounted** (toggled with `style:display` flex/none) to prevent state loss when switching between CP pages. Other layouts (Home, Sources, Scan) are conditionally rendered.
 
 ## State Management
 
@@ -318,7 +364,7 @@ In the UI, thinking is shown as a collapsible `<details>` element with word coun
 1. GIS script loaded **dynamically** (not in index.html) by `google-auth.js`
 2. `initGoogleAuth(clientId)` creates token client with `gmail.readonly` scope
 3. `requestAccessToken()` opens Google OAuth popup → returns `{ access_token, expires_in }`
-4. Token lives in **memory only** — not persisted (security)
+4. Token is persisted in **localStorage** (primary, synchronous) and **DuckDB/OPFS** (secondary). On page load `getSavedToken()` reads localStorage first for instant restore without waiting for DuckDB init.
 
 ### Client ID sources (checked in order)
 1. `import.meta.env.VITE_GOOGLE_CLIENT_ID` (from `.env` file)

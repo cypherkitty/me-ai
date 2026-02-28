@@ -3,12 +3,14 @@
   import { getSavedToken, isTokenValid } from "../lib/google-auth.js";
   import { getSetting } from "../lib/store/settings.js";
   import { getEventStats } from "../lib/rules.js";
+  import { getClassificationCounts } from "../lib/triage.js";
   import Chat from "../Chat.svelte";
-  import { GitBranch, CheckCircle2, Circle, Zap, ChevronRight } from "lucide-svelte";
+  import { GitBranch, CheckCircle2, Circle, Zap, ChevronRight, ScanSearch } from "lucide-svelte";
 
   let gmailConnected = $state(false);
   let gmailEmail = $state<string | null>(null);
   let checking = $state(true);
+  let scannedCount = $state(0);
   let pipelineCount = $state(0);
 
   onMount(async () => {
@@ -19,6 +21,11 @@
         gmailEmail = profile?.emailAddress ?? "Gmail";
         gmailConnected = true;
       }
+    } catch {}
+
+    try {
+      const counts = await getClassificationCounts() as { total?: number };
+      scannedCount = counts.total ?? 0;
     } catch {}
 
     try {
@@ -44,9 +51,11 @@
         <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
       </div>
 
-      <!-- Compact status chips (always visible) -->
+      <!-- Three-step status chips -->
       {#if !checking}
         <div class="flex items-center gap-1.5">
+
+          <!-- Step 1: Sources -->
           <a href="#sources"
              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.7rem] font-medium
                     transition-colors no-underline
@@ -58,31 +67,52 @@
               <span class="hidden sm:inline truncate max-w-[120px]">{gmailEmail}</span>
             {:else}
               <Circle class="size-3 shrink-0" />
-              <span>Connect sources</span>
+              <span>Sources</span>
             {/if}
           </a>
 
           <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
 
+          <!-- Step 2: Scan -->
+          <a href="#scan"
+             class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.7rem] font-medium
+                    transition-colors no-underline
+                    {scannedCount > 0
+                      ? 'text-amber-400 border-amber-400/25 bg-amber-400/6 hover:bg-amber-400/10'
+                      : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'}
+                    {!gmailConnected ? 'opacity-40 pointer-events-none' : ''}">
+            <ScanSearch class="size-3 shrink-0" />
+            {#if scannedCount > 0}
+              <span>{scannedCount} scanned</span>
+            {:else}
+              <span>Scan</span>
+            {/if}
+          </a>
+
+          <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
+
+          <!-- Step 3: Control Plane -->
           <a href="#pipelines"
              class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.7rem] font-medium
                     transition-colors no-underline
                     {pipelineCount > 0
                       ? 'text-primary border-primary/25 bg-primary/6 hover:bg-primary/10'
                       : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'}
-                    {!gmailConnected ? 'opacity-40 pointer-events-none' : ''}">
+                    {scannedCount === 0 ? 'opacity-40 pointer-events-none' : ''}">
             <GitBranch class="size-3 shrink-0" />
             {#if pipelineCount > 0}
               <span>{pipelineCount} pipeline{pipelineCount === 1 ? '' : 's'}</span>
             {:else}
-              <span>Rules &amp; actions</span>
+              <span>Control plane</span>
             {/if}
           </a>
+
         </div>
       {:else}
         <!-- skeleton while checking -->
         <div class="flex items-center gap-1.5">
-          <div class="h-6 w-28 rounded-full bg-muted animate-pulse"></div>
+          <div class="h-6 w-20 rounded-full bg-muted animate-pulse"></div>
+          <div class="h-6 w-20 rounded-full bg-muted animate-pulse"></div>
           <div class="h-6 w-24 rounded-full bg-muted animate-pulse"></div>
         </div>
       {/if}

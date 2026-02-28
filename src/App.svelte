@@ -13,15 +13,16 @@
   import { cn }            from "$lib/utils.js";
   import {
     Zap, Activity, GitBranch, CheckSquare,
-    ScanSearch, ClipboardList, ArrowLeft,
+    ClipboardList, ArrowLeft, ScanSearch,
   } from "lucide-svelte";
   import { getEventStats } from "./lib/rules.js";
 
   const OAUTH_PAGES   = ["auth", "oauth-redirect"];
   const SOURCE_PAGES  = ["sources", "plugins"];
-  const CP_PAGES      = ["stream", "pipelines", "approvals", "audit", "scan"];
+  const SCAN_PAGES    = ["scan"];
+  const CP_PAGES      = ["stream", "pipelines", "approvals", "audit"];
   // keep "chat" in ALL_PAGES so old links don't 404 — redirect to home
-  const ALL_PAGES     = [...OAUTH_PAGES, ...SOURCE_PAGES, ...CP_PAGES, "home", "chat"];
+  const ALL_PAGES     = [...OAUTH_PAGES, ...SOURCE_PAGES, ...SCAN_PAGES, ...CP_PAGES, "home", "chat"];
 
   function getPage() {
     const h = location.hash.replace("#", "");
@@ -32,6 +33,7 @@
   let page          = $state(getPage());
   const inOAuth     = $derived(OAUTH_PAGES.includes(page));
   const inSources   = $derived(SOURCE_PAGES.includes(page));
+  const inScan      = $derived(SCAN_PAGES.includes(page));
   const inCP        = $derived(CP_PAGES.includes(page));
   const inHome      = $derived(page === "home");
 
@@ -87,6 +89,26 @@
     <div class="flex-1 overflow-hidden flex flex-col">
       <div style:display={page === "sources" ? "contents" : "none"}><SourcesView /></div>
       <div style:display={page === "plugins" ? "contents" : "none"}><PluginsView /></div>
+    </div>
+  </div>
+
+{:else if inScan}
+  <!-- ── Scan: standalone, same header pattern as Sources ──────── -->
+  <div class="flex flex-col h-dvh w-full overflow-hidden">
+    <header class="flex items-center gap-3 px-5 h-11 border-b border-border bg-sidebar shrink-0">
+      <a href="#home" class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground
+         transition-colors no-underline shrink-0">
+        <ArrowLeft class="size-3.5" />
+        <span class="tracking-tight">Home</span>
+      </a>
+      <div class="w-px h-4 bg-border shrink-0"></div>
+      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
+        <ScanSearch class="size-3.5 text-primary-foreground" />
+      </div>
+      <span class="text-sm font-semibold tracking-tight text-foreground">Scan</span>
+    </header>
+    <div class="flex-1 overflow-hidden flex flex-col">
+      <ControlBoard />
     </div>
   </div>
 
@@ -172,18 +194,6 @@
           <ClipboardList class="size-3.5 shrink-0" />
           <span class="flex-1 tracking-tight">Audit Trail</span>
         </a>
-
-        <a href="#scan"
-          class={cn("relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors no-underline",
-            page === "scan"
-              ? "text-foreground font-medium bg-sidebar-accent"
-              : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
-          )}
-        >
-          {#if page === "scan"}<span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"></span>{/if}
-          <ScanSearch class="size-3.5 shrink-0" />
-          <span class="flex-1 tracking-tight">Scan</span>
-        </a>
       </nav>
 
     </aside>
@@ -194,7 +204,6 @@
       <div class="flex-1 flex flex-col overflow-hidden" style:display={page === "pipelines" ? "flex" : "none"}><PipelinesView  /></div>
       <div class="flex-1 flex flex-col overflow-hidden" style:display={page === "approvals" ? "flex" : "none"}><ApprovalsView  /></div>
       <div class="flex-1 flex flex-col overflow-hidden" style:display={page === "audit"     ? "flex" : "none"}><AuditView     /></div>
-      <div class="flex-1 flex flex-col overflow-hidden" style:display={page === "scan"      ? "flex" : "none"}><ControlBoard  /></div>
     </main>
   </div>
 {/if}
