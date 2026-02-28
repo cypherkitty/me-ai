@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+/* Berlin tech startup — precise, neutral, functional */
+:root {
+  --radius: 0.25rem;  /* 4px — tight, no bubble */
+
+  /* Pure near-black, zero color temperature */
+  --background: oklch(0.063 0 0);
+  --foreground: oklch(0.96 0 0);
+
+  --card: oklch(0.092 0.003 250);
+  --card-foreground: oklch(0.96 0 0);
+
+  --popover: oklch(0.1 0.003 250);
+  --popover-foreground: oklch(0.96 0 0);
+
+  /* Electric blue — sharp, deliberate */
+  --primary: oklch(0.56 0.22 248);
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.13 0 0);
+  --secondary-foreground: oklch(0.68 0 0);
+
+  --muted: oklch(0.12 0 0);
+  --muted-foreground: oklch(0.43 0 0);
+
+  --accent: oklch(0.13 0 0);
+  --accent-foreground: oklch(0.96 0 0);
+
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.56 0.22 248);
+
+  --sidebar: oklch(0.072 0 0);
+  --sidebar-foreground: oklch(0.96 0 0);
+  --sidebar-primary: oklch(0.56 0.22 248);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.115 0 0);
+  --sidebar-accent-foreground: oklch(0.96 0 0);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.56 0.22 248);
+
+  /* Pipeline nodes — technical, muted dark */
+  --trace-bg: oklch(0.08 0 0);
+  --node-trigger: oklch(0.17 0.06 235);
+  --node-action: oklch(0.15 0.04 162);
+  --node-policy: oklch(0.12 0 0);
+  --node-complete: oklch(0.54 0.14 48);
+  --node-foreground: oklch(0.93 0 0);
+
+  --success: oklch(0.56 0.15 142);
+  --warning: oklch(0.70 0.15 70);
+  --info: oklch(0.56 0.22 248);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-trace-bg: var(--trace-bg);
+  --color-node-trigger: var(--node-trigger);
+  --color-node-action: var(--node-action);
+  --color-node-policy: var(--node-policy);
+  --color-node-complete: var(--node-complete);
+  --color-node-foreground: var(--node-foreground);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "cv01", "cv02", "cv03", "cv04";
+    letter-spacing: -0.011em;
+    height: 100dvh;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  #app {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── SvelteFlow canvas overrides ────────────────────────────────────────── */
+  .svelte-flow {
+    background: transparent !important;
+  }
+  .svelte-flow__node {
+    /* remove default white-box shadow */
+    box-shadow: none !important;
+  }
+  .svelte-flow__node.selected .svelte-flow__node-default,
+  .svelte-flow__node:focus {
+    outline: none;
+    box-shadow: none !important;
+  }
+  /* animated edge dashes inherit color */
+  .svelte-flow__edge-path {
+    stroke-linecap: round;
+  }
+}

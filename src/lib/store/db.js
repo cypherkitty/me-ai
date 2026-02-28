@@ -121,6 +121,108 @@ export function getDb() {
 
 async function _createSchema(conn) {
   await conn.query(`
+    -- ── Static lookup tables ──────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS sm_event_types (
+      name     VARCHAR PRIMARY KEY,
+      label    VARCHAR
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_event_categories (
+      name     VARCHAR PRIMARY KEY,
+      label    VARCHAR,
+      priority INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_sources (
+      name     VARCHAR PRIMARY KEY,
+      label    VARCHAR,
+      platform VARCHAR,
+      api      VARCHAR,
+      enabled  BOOLEAN DEFAULT true
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_execution_policies (
+      name        VARCHAR PRIMARY KEY,
+      label       VARCHAR,
+      description VARCHAR
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_actions (
+      name  VARCHAR PRIMARY KEY,
+      label VARCHAR
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_plugins (
+      name    VARCHAR PRIMARY KEY,
+      label   VARCHAR,
+      version VARCHAR,
+      enabled BOOLEAN DEFAULT true
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_plugin_actions (
+      plugin_name VARCHAR,
+      action_name VARCHAR,
+      PRIMARY KEY (plugin_name, action_name)
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_plugin_sources (
+      plugin_name VARCHAR,
+      source_name VARCHAR,
+      PRIMARY KEY (plugin_name, source_name)
+    );
+
+    -- ── Rules ─────────────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS sm_rules (
+      id          VARCHAR PRIMARY KEY,
+      name        VARCHAR,
+      description VARCHAR,
+      enabled     BOOLEAN DEFAULT true,
+      priority    INTEGER DEFAULT 5,
+      created_at  BIGINT
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_rule_triggers (
+      rule_id      VARCHAR,
+      trigger_type VARCHAR,   -- 'event_type' | 'event_category'
+      trigger_name VARCHAR
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_rule_actions (
+      rule_id     VARCHAR,
+      action_name VARCHAR,
+      order_idx   INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_rule_policies (
+      rule_id     VARCHAR PRIMARY KEY,
+      policy_name VARCHAR
+    );
+
+    -- ── Events (immutable, audit trail) ─────────────────────────────
+    CREATE TABLE IF NOT EXISTS sm_events (
+      id             VARCHAR PRIMARY KEY,
+      content        VARCHAR,
+      subject        VARCHAR,
+      sender         VARCHAR,
+      timestamp      BIGINT,
+      status         VARCHAR,   -- completed | awaiting_user | failed | escalated
+      event_type     VARCHAR,
+      event_category VARCHAR,
+      source_name    VARCHAR,
+      rule_id        VARCHAR,   -- rule that processed this
+      actions_taken  VARCHAR,   -- JSON array of action names
+      output         VARCHAR    -- JSON blob (summarize output, etc.)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_sm_events_status    ON sm_events (status);
+    CREATE INDEX IF NOT EXISTS idx_sm_events_type      ON sm_events (event_type);
+    CREATE INDEX IF NOT EXISTS idx_sm_events_source    ON sm_events (source_name);
+    CREATE INDEX IF NOT EXISTS idx_sm_events_timestamp ON sm_events (timestamp);
+  `);
+
+  await _seedSignalMap(conn);
+
+  await conn.query(`
     CREATE TABLE IF NOT EXISTS items (
       id          VARCHAR PRIMARY KEY,
       sourceType  VARCHAR NOT NULL,
@@ -205,6 +307,159 @@ async function _createSchema(conn) {
     CREATE INDEX IF NOT EXISTS idx_audit_emailId    ON auditLog (emailId);
     CREATE INDEX IF NOT EXISTS idx_audit_executedAt ON auditLog (executedAt);
     CREATE INDEX IF NOT EXISTS idx_audit_success    ON auditLog (success);
+  `);
+}
+
+// ── Seed data ─────────────────────────────────────────────────────────
+
+async function _seedSignalMap(conn) {
+  // Only seed if tables are empty (idempotent)
+  const hasTypes = await conn.query(`SELECT COUNT(*) as n FROM sm_event_types`);
+  const count = hasTypes.toArray()[0]?.n ?? hasTypes.toArray()[0]?.toJSON?.()?.n ?? 0;
+  if (Number(count) > 0) return;
+
+  await conn.query(`
+    INSERT INTO sm_execution_policies VALUES
+      ('auto',       'Automatic',  'Agent executes without human input'),
+      ('supervised', 'Supervised', 'Executes then notifies user'),
+      ('manual',     'Manual',     'Waits for explicit user approval');
+
+    INSERT INTO sm_event_types VALUES
+      ('ad',                   'Advertisement'),
+      ('newsletter',           'Newsletter'),
+      ('personal_message',     'Personal Message'),
+      ('work_email',           'Work Email'),
+      ('instagram_post',       'Instagram Post'),
+      ('youtube_video',        'YouTube Video'),
+      ('security_alert',       'Security Alert'),
+      ('invoice',              'Invoice'),
+      ('social_mention',       'Social Mention'),
+      ('startup_notification', 'Startup Notification');
+
+    INSERT INTO sm_event_categories VALUES
+      ('noise',         'Noise',         1),
+      ('informational', 'Informational', 2),
+      ('important',     'Important',     3),
+      ('urgent',        'Urgent',        4);
+
+    INSERT INTO sm_sources VALUES
+      ('gmail',     'Gmail',     'email',     'gmail_api_v1',          true),
+      ('telegram',  'Telegram',  'messenger', 'telegram_bot_api',      false),
+      ('instagram', 'Instagram', 'social',    'instagram_graph_api',   false),
+      ('youtube',   'YouTube',   'video',     'youtube_data_api_v3',   false),
+      ('slack',     'Slack',     'messenger', 'slack_web_api',         false),
+      ('twitter',   'Twitter/X', 'social',    'twitter_api_v2',        false);
+
+    INSERT INTO sm_actions VALUES
+      ('delete',      'Delete'),
+      ('archive',     'Archive'),
+      ('mark_read',   'Mark as Read'),
+      ('reply',       'Reply'),
+      ('forward',     'Forward'),
+      ('summarize',   'Summarize'),
+      ('notify_user', 'Notify User'),
+      ('tag',         'Tag'),
+      ('escalate',    'Escalate'),
+      ('unsubscribe', 'Unsubscribe');
+
+    INSERT INTO sm_plugins VALUES
+      ('gmail_plugin',     'Gmail',          '2.1.0', true),
+      ('telegram_plugin',  'Telegram',       '3.0.1', false),
+      ('instagram_plugin', 'Instagram',      '1.3.0', false),
+      ('ai_summarizer',    'AI Summarizer',  '1.0.0', true),
+      ('notifier',         'Notifier',       '1.1.0', true),
+      ('ai_classifier',    'AI Classifier',  '2.0.0', true);
+
+    INSERT INTO sm_plugin_actions VALUES
+      ('gmail_plugin',    'delete'),
+      ('gmail_plugin',    'archive'),
+      ('gmail_plugin',    'reply'),
+      ('gmail_plugin',    'mark_read'),
+      ('gmail_plugin',    'forward'),
+      ('gmail_plugin',    'unsubscribe'),
+      ('telegram_plugin', 'reply'),
+      ('telegram_plugin', 'forward'),
+      ('telegram_plugin', 'notify_user'),
+      ('instagram_plugin','reply'),
+      ('instagram_plugin','tag'),
+      ('ai_summarizer',   'summarize'),
+      ('notifier',        'notify_user'),
+      ('notifier',        'escalate');
+
+    INSERT INTO sm_plugin_sources VALUES
+      ('gmail_plugin',    'gmail'),
+      ('telegram_plugin', 'telegram'),
+      ('instagram_plugin','instagram');
+
+    INSERT INTO sm_rules VALUES
+      ('rule_01', 'ad:delete:auto',                          'Auto-delete all ads',                                  true, 10,  ${Date.now()}),
+      ('rule_02', 'newsletter:archive:auto',                 'Auto-archive newsletters',                             true,  9,  ${Date.now()}),
+      ('rule_03', 'noise:mark_read:auto',                    'Auto-mark-read noise events',                          true,  5,  ${Date.now()}),
+      ('rule_04', 'personal_important:notify+reply:manual',  'Notify and draft reply for important personal messages',true, 20, ${Date.now()}),
+      ('rule_05', 'security_alert:escalate:supervised',      'Escalate security alerts',                             true, 100,${Date.now()}),
+      ('rule_06', 'youtube:summarize:auto',                  'Auto-summarize YouTube videos',                        true,  7,  ${Date.now()}),
+      ('rule_07', 'invoice:notify+forward:manual',           'Notify and forward invoices for review',               true, 30, ${Date.now()});
+
+    INSERT INTO sm_rule_triggers VALUES
+      ('rule_01', 'event_type',     'ad'),
+      ('rule_02', 'event_type',     'newsletter'),
+      ('rule_03', 'event_category', 'noise'),
+      ('rule_04', 'event_type',     'personal_message'),
+      ('rule_04', 'event_category', 'important'),
+      ('rule_05', 'event_type',     'security_alert'),
+      ('rule_06', 'event_type',     'youtube_video'),
+      ('rule_07', 'event_type',     'invoice');
+
+    INSERT INTO sm_rule_actions VALUES
+      ('rule_01', 'delete',      1),
+      ('rule_02', 'archive',     1),
+      ('rule_03', 'mark_read',   1),
+      ('rule_04', 'notify_user', 1),
+      ('rule_04', 'reply',       2),
+      ('rule_05', 'escalate',    1),
+      ('rule_06', 'summarize',   1),
+      ('rule_07', 'notify_user', 1),
+      ('rule_07', 'forward',     2);
+
+    INSERT INTO sm_rule_policies VALUES
+      ('rule_01', 'auto'),
+      ('rule_02', 'auto'),
+      ('rule_03', 'auto'),
+      ('rule_04', 'manual'),
+      ('rule_05', 'supervised'),
+      ('rule_06', 'auto'),
+      ('rule_07', 'manual');
+
+    INSERT INTO sm_events VALUES
+      ('evt_001', '50% off! Flash sale ends tonight.',
+       'FLASH SALE - 50% Off Everything!', 'promo@shopstore.com',
+       1740556320000, 'completed', 'ad', 'noise', 'gmail', 'rule_01',
+       '["delete"]', NULL),
+      ('evt_002', 'Today: Fed rate hike, OpenAI news.',
+       'Your Morning Brew — Feb 26', 'newsletters@morningbrew.com',
+       1740542400000, 'completed', 'newsletter', 'informational', 'gmail', 'rule_02',
+       '["archive"]', NULL),
+      ('evt_003', 'Hey! Are you coming to the meeting tomorrow at 10am?',
+       '', 'john_doe',
+       1740567000000, 'awaiting_user', 'personal_message', 'important', 'telegram', 'rule_04',
+       '["notify_user"]', NULL),
+      ('evt_004', 'New sign-in from unknown device in Russia.',
+       'Security alert: new sign-in', 'no-reply@accounts.google.com',
+       1740573900000, 'escalated', 'security_alert', 'urgent', 'gmail', 'rule_05',
+       '["escalate"]', NULL),
+      ('evt_005', '3h 12m video. Lex interviews Sam Altman about OpenAI roadmap.',
+       'Sam Altman: GPT-5 and the Path to AGI | Lex Fridman', 'lexfridman',
+       1740578400000, 'completed', 'youtube_video', 'informational', 'youtube', 'rule_06',
+       '["summarize"]',
+       '{"summary":"Sam Altman discusses GPT-5, AGI timeline 3-5 years, and OpenAI restructuring."}'),
+      ('evt_006', 'Invoice #2026-089. Amount: $342.50. Due: March 1, 2026.',
+       'Your AWS Invoice for February 2026', 'billing@aws.amazon.com',
+       1740584400000, 'awaiting_user', 'invoice', 'important', 'gmail', 'rule_07',
+       '["notify_user"]', NULL),
+      ('evt_007', 'Sponsored: Try NordVPN — 73% off today only!',
+       '', 'nordvpn_official',
+       1740586700000, 'completed', 'ad', 'noise', 'instagram', 'rule_01',
+       '["delete"]', NULL);
   `);
 }
 

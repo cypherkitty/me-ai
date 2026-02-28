@@ -4,14 +4,15 @@
   import TaskCard from "./TaskCard.svelte";
   import { stringToHue } from "../../lib/format.js";
   import { executePipeline, executePipelineBatch, isAuthenticated, EVENT_GROUPS } from "../../lib/plugins/execution-service.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import { cn } from "$lib/utils.js";
 
   let { msg, oncommand, onexecuted } = $props();
 
   let expandedGroups = $state({});
   let executionState = $state({});
-  /** Tracks which groups are in pending-approval state: key -> { actions, group } */
   let approvalPending = $state({});
-  /** Task card data per execution key */
   let executionCards = $state({});
 
   function shortSender(from) {
@@ -22,49 +23,30 @@
 
   function shortDate(ts) {
     if (!ts) return "";
-    try {
-      return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    } catch { return ""; }
+    try { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
+    catch { return ""; }
   }
 
-  function handleCommand(event, commandId) {
-    oncommand?.({ event, commandId });
-  }
-
-  /** Build an execution task card step from an action_start/action_complete event */
   function applyProgressToCard(key, progress, title) {
     const card = executionCards[key] ?? {
-      type: "task-card", role: "assistant",
-      title, model: null, status: "running", steps: [],
+      type: "task-card", role: "assistant", title, model: null, status: "running", steps: [],
     };
 
     if (progress.phase === "pipeline_loaded") {
-      card.steps = progress.actions.map(a => ({
-        id: a.id ?? a.commandId,
-        label: a.name ?? a.commandId,
-        status: "pending",
-      }));
+      card.steps = progress.actions.map(a => ({ id: a.id ?? a.commandId, label: a.name ?? a.commandId, status: "pending" }));
     } else if (progress.phase === "action_start") {
       card.steps = card.steps.map(s =>
-        s.id === (progress.actionId ?? progress.commandId)
-          ? { ...s, status: "running", startedAt: Date.now() }
-          : s
+        s.id === (progress.actionId ?? progress.commandId) ? { ...s, status: "running", startedAt: Date.now() } : s
       );
     } else if (progress.phase === "action_complete") {
-      const success = progress.result?.success !== false;
+      const ok = progress.result?.success !== false;
       card.steps = card.steps.map(s =>
         s.id === (progress.actionId ?? progress.commandId)
-          ? {
-              ...s,
-              status: success ? "done" : "error",
-              expandable: !!progress.result?.message,
-              subContent: progress.result?.message ?? "",
-            }
+          ? { ...s, status: ok ? "done" : "error", expandable: !!progress.result?.message, subContent: progress.result?.message ?? "" }
           : s
       );
     } else if (progress.phase === "done") {
-      const allOk = card.steps.every(s => s.status !== "error");
-      card.status = allOk ? "done" : "error";
+      card.status = card.steps.every(s => s.status !== "error") ? "done" : "error";
     } else if (progress.phase === "error") {
       card.status = "error";
       card.steps = [
@@ -72,24 +54,16 @@
         { id: "__err", label: progress.error ?? "Execution failed", status: "error" },
       ];
     }
-
     executionCards = { ...executionCards, [key]: { ...card } };
   }
 
   async function handleExecute(event, emailId, approved = false) {
-    if (!await isAuthenticated()) {
-      alert("Please sign in to Gmail first (Dashboard page)");
-      return;
-    }
-
+    if (!await isAuthenticated()) { alert("Please sign in to Gmail first (Dashboard page)"); return; }
     const stateKey = `single_${emailId}`;
     const subject = event.data?.subject ?? event.type;
     const shortSubj = subject.length > 38 ? subject.slice(0, 36) + "…" : subject;
     executionState[stateKey] = { running: true, progress: null, result: null };
-    executionCards = {
-      ...executionCards,
-      [stateKey]: { type: "task-card", role: "assistant", title: shortSubj, model: null, status: "running", steps: [] },
-    };
+    executionCards = { ...executionCards, [stateKey]: { type: "task-card", role: "assistant", title: shortSubj, model: null, status: "running", steps: [] } };
 
     try {
       const result = await executePipeline(event, (progress) => {
@@ -104,7 +78,6 @@
         approvalPending[stateKey] = { event, emailId, actions: result.actions, group: result.group, isBatch: false };
         return;
       }
-
       executionState[stateKey] = { running: false, progress: null, result };
       if (result.success) onexecuted?.();
     } catch (error) {
@@ -114,18 +87,11 @@
   }
 
   async function handleExecuteGroup(eventType, emails, approved = false) {
-    if (!await isAuthenticated()) {
-      alert("Please sign in to Gmail first (Dashboard page)");
-      return;
-    }
-
+    if (!await isAuthenticated()) { alert("Please sign in to Gmail first (Dashboard page)"); return; }
     const stateKey = `batch_${eventType}`;
     const title = `${formatLabel(eventType)} (${emails.length})`;
     executionState[stateKey] = { running: true, progress: null, result: null };
-    executionCards = {
-      ...executionCards,
-      [stateKey]: { type: "task-card", role: "assistant", title, model: null, status: "running", steps: [] },
-    };
+    executionCards = { ...executionCards, [stateKey]: { type: "task-card", role: "assistant", title, model: null, status: "running", steps: [] } };
 
     try {
       const result = await executePipelineBatch(eventType, emails, (progress) => {
@@ -140,7 +106,6 @@
         approvalPending[stateKey] = { eventType, emails, actions: result.actions, group: result.group, isBatch: true };
         return;
       }
-
       executionState[stateKey] = { running: false, progress: null, result };
       if (result.success) onexecuted?.();
     } catch (error) {
@@ -154,11 +119,8 @@
     if (!pending) return;
     delete approvalPending[stateKey];
     approvalPending = { ...approvalPending };
-    if (pending.isBatch) {
-      await handleExecuteGroup(pending.eventType, pending.emails, true);
-    } else {
-      await handleExecute(pending.event, pending.emailId, true);
-    }
+    if (pending.isBatch) await handleExecuteGroup(pending.eventType, pending.emails, true);
+    else await handleExecute(pending.event, pending.emailId, true);
   }
 
   function handleDismissApproval(stateKey) {
@@ -171,147 +133,168 @@
   }
 
   function formatLabel(str) {
-    return str
-      .split("_")
-      .map(w => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ");
+    return str.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
   }
 
   function eventTypeColor(eventType) {
     return `hsl(${stringToHue(eventType)}, 55%, 55%)`;
   }
 
-  function getExecutionState(key) {
-    return executionState[key];
-  }
+  function getExecutionState(key) { return executionState[key]; }
 </script>
 
-{#if msg.type === "event"}
-  <!-- Single event message -->
-  <div class="event-msg">
-    <div class="event-card">
-      <div class="event-head">
-        <span class="event-type">{msg.event.type}</span>
-        <span class="event-source">{msg.event.source}</span>
-      </div>
-      {#if msg.event.data?.subject}
-        <div class="event-subject">{msg.event.data.subject}</div>
-      {/if}
-      <div class="event-meta">
-        {#if msg.event.data?.from}{shortSender(msg.event.data.from)}{/if}
-        {#if msg.event.data?.date}<span class="sep"> · </span>{shortDate(msg.event.data.date)}{/if}
-      </div>
-      {#if msg.event.metadata?.summary}
-        <div class="event-summary">{msg.event.metadata.summary}</div>
-      {/if}
-      {#if msg.event.metadata?.tags?.length}
-        <div class="event-tags">
-          {#each msg.event.metadata.tags as tag}
-            <span class="tag">{tag}</span>
-          {/each}
-        </div>
-      {/if}
-      {#if msg.event.metadata?.reason}
-        <div class="event-reason">{msg.event.metadata.reason}</div>
+<!-- ── Reusable snippets ───────────────────────────────────────────── -->
+
+{#snippet execBtn(label, isCritical, isRunning, result, onclick_fn)}
+  <Button
+    variant="outline"
+    size="sm"
+    onclick={onclick_fn}
+    disabled={isRunning}
+    class={cn(
+      "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 shrink-0",
+      isCritical
+        ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
+        : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40"
+    )}
+  >
+    {#if isRunning}Running…
+    {:else if result}{result.success ? "Done" : "Failed"}
+    {:else if isCritical}Review
+    {:else}{label}
+    {/if}
+  </Button>
+{/snippet}
+
+{#snippet approvalCard(title, body, actions, stateKey, compact)}
+  <div class={cn(
+    "rounded border border-warning/25 bg-warning/6",
+    compact ? "flex flex-wrap items-center gap-2 px-3 py-2" : "flex flex-col gap-2 px-3 py-2.5"
+  )}>
+    <div class="flex items-center gap-1.5">
+      <span class="text-sm">⚠️</span>
+      <span class="text-xs font-bold text-warning">{title}</span>
+    </div>
+    {#if body}
+      <p class="text-[0.62rem] text-muted-foreground leading-relaxed">{@html body}</p>
+    {/if}
+    {#if actions?.length}
+      <ul class="list-disc pl-4 text-[0.6rem] text-muted-foreground space-y-0.5">
+        {#each actions as action}
+          <li>
+            {#if action.icon}<span>{action.icon}</span>{/if}
+            <strong class="text-foreground/70">{action.name}</strong>
+            {#if action.description}<span class="opacity-60"> — {action.description}</span>{/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    <div class="flex gap-1.5">
+      <Button variant="outline" size="sm" onclick={() => handleApprove(stateKey)}
+        class="h-6 text-[0.6rem] font-bold text-warning border-warning/30 bg-warning/10 hover:bg-warning/20 px-2">
+        ✓ Confirm
+      </Button>
+      <Button variant="ghost" size="sm" onclick={() => handleDismissApproval(stateKey)}
+        class="h-6 text-[0.6rem] opacity-60 hover:opacity-100 px-2">
+        Cancel
+      </Button>
+    </div>
+  </div>
+{/snippet}
+
+{#snippet eventCard(event, compact)}
+  <div class={cn(
+    "rounded border border-border flex flex-col gap-1",
+    compact ? "bg-transparent border-none p-0" : "bg-card px-3 py-2.5"
+  )}>
+    <div class="flex items-center gap-2">
+      <span class="text-[0.55rem] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-success/8 text-success">
+        {event.type}
+      </span>
+      <span class="text-[0.52rem] uppercase tracking-wide text-muted-foreground/40">{event.source}</span>
+      {#if compact && event.data?.subject}
+        <span class="text-[0.66rem] text-muted-foreground truncate flex-1">{event.data.subject}</span>
       {/if}
     </div>
+    {#if !compact && event.data?.subject}
+      <div class="text-[0.76rem] font-medium text-foreground leading-snug">{event.data.subject}</div>
+    {/if}
+    {#if event.data?.from || event.data?.date}
+      <div class="text-[0.58rem] text-muted-foreground/40">
+        {#if event.data?.from}{shortSender(event.data.from)}{/if}
+        {#if event.data?.date}<span class="opacity-70"> · {shortDate(event.data.date)}</span>{/if}
+      </div>
+    {/if}
+    {#if event.metadata?.summary}
+      <div class="text-[0.66rem] text-muted-foreground/70 leading-relaxed">{event.metadata.summary}</div>
+    {/if}
+    {#if event.metadata?.tags?.length}
+      <div class="flex flex-wrap gap-1">
+        {#each event.metadata.tags as tag}
+          <span class="text-[0.52rem] font-semibold text-muted-foreground bg-foreground/4 px-1.5 py-0.5 rounded">{tag}</span>
+        {/each}
+      </div>
+    {/if}
+    {#if event.metadata?.reason}
+      <div class="text-[0.58rem] text-muted-foreground/40 italic">{event.metadata.reason}</div>
+    {/if}
+  </div>
+{/snippet}
+
+<!-- ── Single event ─────────────────────────────────────────────────── -->
+{#if msg.type === "event"}
+  <div class="self-start max-w-[90%] flex flex-col gap-1.5">
+    {@render eventCard(msg.event, false)}
+
     {#if msg.commands?.length}
       {@const execStateKey = `single_${msg.event.data.emailId || Date.now()}`}
       {@const execState = getExecutionState(execStateKey)}
       {@const execApproval = approvalPending[execStateKey]}
       {@const grpDef = msg.event.metadata?.group ? EVENT_GROUPS[msg.event.metadata.group] : null}
-      
-      <div class="pipeline-header" style="margin-top: 0.5rem;">
-        <span class="pipeline-label">Action Pipeline</span>
+
+      <div class="flex items-center justify-between gap-2">
+        <span class="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/35">Action Pipeline</span>
         {#if !execApproval}
-          <button
-            class="execute-btn"
-            class:critical={grpDef?.requiresApproval}
-            onclick={() => handleExecute(msg.event, msg.event.data.emailId)}
-            disabled={execState?.running}
-          >
-            {#if execState?.running}
-              Running…
-            {:else if execState?.result}
-              {execState.result.success ? "Done" : "Failed"}
-            {:else if grpDef?.requiresApproval}
-              Review
-            {:else}
-              Execute
-            {/if}
-          </button>
+          {@render execBtn("Execute", grpDef?.requiresApproval, execState?.running, execState?.result, () => handleExecute(msg.event, msg.event.data.emailId))}
         {/if}
       </div>
 
       {#if execApproval}
-        <div class="approval-card compact">
-          <span class="approval-icon">⚠️</span>
-          <span class="approval-title">Confirm execution?</span>
-          <div class="approval-btns">
-            <button class="approval-confirm" onclick={() => handleApprove(execStateKey)}>Confirm</button>
-            <button class="approval-cancel" onclick={() => handleDismissApproval(execStateKey)}>Cancel</button>
-          </div>
-        </div>
+        {@render approvalCard("Confirm execution?", null, null, execStateKey, true)}
       {/if}
 
-      <!-- n8n-style workflow graph (always shown) -->
-      <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
-        <PipelineGraph 
-          eventType={msg.event.type} 
-          group={msg.event.metadata?.group} 
-          commands={msg.commands} 
-        />
-      </div>
+      <PipelineGraph eventType={msg.event.type} group={msg.event.metadata?.group} commands={msg.commands} />
 
-      <!-- Task card execution progress (shown when running or complete) -->
       {#if executionCards[execStateKey]}
-        <div class="exec-task-card">
+        <div class="mt-1 w-full">
           <TaskCard msg={executionCards[execStateKey]} />
         </div>
       {/if}
     {/if}
   </div>
 
+<!-- ── Batch events ─────────────────────────────────────────────────── -->
 {:else if msg.type === "event-batch"}
-  <!-- Batch: multiple events from a scan -->
-  <div class="event-batch">
-    <div class="batch-head">
-      <span class="batch-title">Processed {msg.items.length} email{msg.items.length === 1 ? "" : "s"}</span>
-    </div>
+  <div class="self-start max-w-[90%] flex flex-col gap-2">
+    <p class="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground/50">
+      Processed {msg.items.length} email{msg.items.length === 1 ? "" : "s"}
+    </p>
     {#each msg.items as item}
-      <div class="event-msg compact">
-        <div class="event-card">
-          <div class="event-head">
-            <span class="event-type">{item.event.type}</span>
-            {#if item.event.data?.subject}
-              <span class="event-subject-inline">{item.event.data.subject}</span>
-            {/if}
-          </div>
-          <div class="event-meta">
-            {#if item.event.data?.from}{shortSender(item.event.data.from)}{/if}
-            {#if item.event.data?.date}<span class="sep"> · </span>{shortDate(item.event.data.date)}{/if}
-          </div>
-          {#if item.event.metadata?.summary}
-            <div class="event-summary">{item.event.metadata.summary}</div>
-          {/if}
-        </div>
-        <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
-          <PipelineGraph 
-            eventType={item.event.type} 
-            group={item.event.metadata?.group} 
-            commands={item.commands} 
-          />
-        </div>
+      <div class="rounded border border-border bg-background px-3 py-2.5 flex flex-col gap-1.5">
+        {@render eventCard(item.event, true)}
+        <PipelineGraph eventType={item.event.type} group={item.event.metadata?.group} commands={item.commands} />
       </div>
     {/each}
   </div>
 
+<!-- ── Grouped events ──────────────────────────────────────────────── -->
 {:else if msg.type === "events-grouped"}
-  <!-- Grouped by event type from /events command -->
-  <div class="events-grouped">
-    <div class="grouped-head">
-      <span class="grouped-title">Events</span>
-      <span class="grouped-stat">{msg.total} email{msg.total === 1 ? "" : "s"} in {msg.groups.length} event type{msg.groups.length === 1 ? "" : "s"}</span>
+  <div class="self-start w-full max-w-[95%] flex flex-col gap-2">
+    <div class="flex items-baseline gap-3 py-1">
+      <span class="text-xs font-bold uppercase tracking-wider text-foreground">Events</span>
+      <span class="text-[0.62rem] text-muted-foreground/40">
+        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.groups.length} event type{msg.groups.length === 1 ? "" : "s"}
+      </span>
     </div>
 
     {#each msg.groups as group}
@@ -320,160 +303,128 @@
       {@const batchState = getExecutionState(batchStateKey)}
       {@const batchApproval = approvalPending[batchStateKey]}
       {@const grpDef = group.group ? EVENT_GROUPS[group.group] : null}
-      <div class="group-block">
-        <div class="group-header-row">
-          <button class="group-header" onclick={() => toggleGroup(group.eventType)}>
-            <span class="group-badge" style:background={eventTypeColor(group.eventType)}>
+
+      <div class="rounded border border-border bg-card overflow-hidden">
+        <!-- Group header row -->
+        <div class="flex items-center gap-2 px-1 py-0.5">
+          <button
+            onclick={() => toggleGroup(group.eventType)}
+            class="flex items-center gap-2 flex-1 px-3 py-2.5 text-left hover:bg-accent transition-colors"
+          >
+            <span
+              class="text-[0.58rem] font-bold tracking-wider px-1.5 py-0.5 rounded text-white shrink-0"
+              style:background={eventTypeColor(group.eventType)}
+            >
               {formatLabel(group.eventType)}
             </span>
             {#if grpDef}
-              <span class="group-tier-chip" style:color={grpDef.color} title={grpDef.description}>
-                {grpDef.label}
-              </span>
+              <span
+                class="text-[0.5rem] font-bold uppercase tracking-wider shrink-0"
+                style:color={grpDef.color}
+                title={grpDef.description}
+              >{grpDef.label}</span>
             {/if}
-            <span class="group-count">{group.emails.length}</span>
-            <span class="spacer"></span>
+            <span class="text-sm font-semibold text-foreground min-w-[18px]">{group.emails.length}</span>
+            <span class="flex-1"></span>
             <svg
-              class="chevron"
-              class:open={isExpanded}
-              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              class={cn("size-3.5 text-muted-foreground/30 transition-transform", isExpanded && "rotate-180")}
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
             >
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </button>
+
           {#if !batchApproval}
-            <button
-              class="execute-all-btn"
-              class:critical={grpDef?.requiresApproval}
+            <Button
+              variant="outline"
+              size="sm"
               onclick={(e) => { e.stopPropagation(); handleExecuteGroup(group.eventType, group.emails); }}
               disabled={batchState?.running}
+              class={cn(
+                "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 mr-2 shrink-0",
+                grpDef?.requiresApproval
+                  ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12"
+                  : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12"
+              )}
             >
-              {#if batchState?.running}
-                Running…
+              {#if batchState?.running}Running…
               {:else if batchState?.result}
-                {batchState.result.success ? `Done (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})` : `Failed`}
-              {:else if grpDef?.requiresApproval}
-                Review & Execute ({group.emails.length})
-              {:else}
-                Execute All ({group.emails.length})
+                {batchState.result.success ? `Done (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})` : "Failed"}
+              {:else if grpDef?.requiresApproval}Review & Execute ({group.emails.length})
+              {:else}Execute All ({group.emails.length})
               {/if}
-            </button>
+            </Button>
           {/if}
         </div>
 
-        <!-- CRITICAL approval dialog -->
+        <!-- Approval dialog -->
         {#if batchApproval}
-          <div class="approval-card">
-            <div class="approval-header">
-              <span class="approval-icon">⚠️</span>
-              <span class="approval-title">Review required — this is a CRITICAL event type</span>
-            </div>
-            <p class="approval-body">
-              The following actions will run on <strong>{group.emails.length} email{group.emails.length === 1 ? "" : "s"}</strong>.
-              This changes email state and cannot be undone easily.
-            </p>
-            {#if batchApproval.actions?.length}
-              <ul class="approval-actions">
-                {#each batchApproval.actions as action}
-                  <li>
-                    {#if action.icon}<span>{action.icon}</span>{/if}
-                    <strong>{action.name}</strong>
-                    {#if action.description}<span class="approval-action-desc"> — {action.description}</span>{/if}
-                  </li>
-                {/each}
-              </ul>
-            {/if}
-            <div class="approval-btns">
-              <button class="approval-confirm" onclick={() => handleApprove(batchStateKey)}>
-                ✓ Confirm & Execute
-              </button>
-              <button class="approval-cancel" onclick={() => handleDismissApproval(batchStateKey)}>
-                Cancel
-              </button>
-            </div>
+          <div class="px-3 pb-3">
+            {@render approvalCard(
+              "Review required — this is a CRITICAL event type",
+              `The following actions will run on <strong>${group.emails.length} email${group.emails.length === 1 ? "" : "s"}</strong>. This changes email state and cannot be undone easily.`,
+              batchApproval.actions,
+              batchStateKey,
+              false
+            )}
           </div>
         {/if}
 
         <!-- Batch execution task card -->
         {#if executionCards[batchStateKey] && !batchApproval}
-          <div class="exec-task-card">
+          <div class="px-3 pb-3">
             <TaskCard msg={executionCards[batchStateKey]} />
           </div>
         {/if}
 
+        <!-- Email list -->
         {#if isExpanded}
-          <div class="group-emails">
+          <div class="border-t border-border flex flex-col">
             {#each group.emails as email}
               {@const execStateKey = `single_${email.emailId}`}
               {@const execState = getExecutionState(execStateKey)}
               {@const execApproval = approvalPending[execStateKey]}
-              <div class="email-item">
-                <div class="email-main">
-                  <div class="email-subject">{email.subject}</div>
-                  <div class="email-meta">
-                    {#if email.from}<span class="email-from">{shortSender(email.from)}</span>{/if}
-                    {#if email.date}<span class="sep"> · </span><span class="email-date">{shortDate(email.date)}</span>{/if}
+              <div class="flex flex-col gap-2 px-3.5 py-2.5 border-b border-border last:border-b-0">
+                <!-- Email info -->
+                <div class="flex flex-col gap-0.5">
+                  <div class="text-[0.73rem] font-medium text-foreground leading-snug">{email.subject}</div>
+                  <div class="text-[0.58rem] text-muted-foreground/40">
+                    {#if email.from}<span class="opacity-70">{shortSender(email.from)}</span>{/if}
+                    {#if email.date}<span class="opacity-50"> · {shortDate(email.date)}</span>{/if}
                   </div>
                   {#if email.summary}
-                    <div class="email-summary">{email.summary}</div>
+                    <div class="text-[0.63rem] text-muted-foreground/60 leading-relaxed mt-0.5">{email.summary}</div>
                   {/if}
                   {#if email.tags?.length}
-                    <div class="email-tags">
+                    <div class="flex flex-wrap gap-1 mt-0.5">
                       {#each email.tags as tag}
-                        <span class="tag">{tag}</span>
+                        <span class="text-[0.52rem] font-semibold text-muted-foreground bg-foreground/4 px-1.5 py-0.5 rounded">{tag}</span>
                       {/each}
                     </div>
                   {/if}
                 </div>
-                <div class="email-pipeline">
-                  <div class="pipeline-header">
-                    <span class="pipeline-label">Action Pipeline</span>
+
+                <!-- Per-email pipeline -->
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/35">Action Pipeline</span>
                     {#if !execApproval}
-                      <button
-                        class="execute-btn"
-                        class:critical={grpDef?.requiresApproval}
-                        onclick={() => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId)}
-                        disabled={execState?.running}
-                      >
-                        {#if execState?.running}
-                          Running…
-                        {:else if execState?.result}
-                          {execState.result.success ? "Done" : "Failed"}
-                        {:else if grpDef?.requiresApproval}
-                          Review
-                        {:else}
-                          Execute
-                        {/if}
-                      </button>
+                      {@render execBtn("Execute", grpDef?.requiresApproval, execState?.running, execState?.result, () => handleExecute({ type: group.eventType, source: "gmail", data: email }, email.emailId))}
                     {/if}
                   </div>
 
-                  <!-- Per-email CRITICAL approval -->
                   {#if execApproval}
-                    <div class="approval-card compact">
-                      <span class="approval-icon">⚠️</span>
-                      <span class="approval-title">Confirm execution?</span>
-                      <div class="approval-btns">
-                        <button class="approval-confirm" onclick={() => handleApprove(execStateKey)}>Confirm</button>
-                        <button class="approval-cancel" onclick={() => handleDismissApproval(execStateKey)}>Cancel</button>
-                      </div>
-                    </div>
+                    {@render approvalCard("Confirm execution?", null, null, execStateKey, true)}
                   {/if}
 
                   {#if group.commands?.length}
-                    <div class="pipeline-steps-wrapper" style="margin-top: 0.3rem;">
-                      <PipelineGraph 
-                        eventType={group.eventType} 
-                        group={group.group} 
-                        commands={group.commands} 
-                      />
-                    </div>
+                    <PipelineGraph eventType={group.eventType} group={group.group} commands={group.commands} />
                   {:else}
-                    <div class="pipeline-empty">No actions defined — configure in Control Board</div>
+                    <p class="text-[0.58rem] text-muted-foreground/35 italic">No actions defined — configure in Control Board</p>
                   {/if}
-                  <!-- Per-email execution task card -->
+
                   {#if executionCards[execStateKey] && !execApproval}
-                    <div class="exec-task-card">
+                    <div class="mt-0.5">
                       <TaskCard msg={executionCards[execStateKey]} />
                     </div>
                   {/if}
@@ -486,439 +437,3 @@
     {/each}
   </div>
 {/if}
-
-<style>
-  .exec-task-card {
-    margin-top: 0.5rem;
-    width: 100%;
-  }
-
-  .event-msg {
-    align-self: flex-start;
-    max-width: 90%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  .event-msg.compact {
-    padding: 0.5rem;
-    background: #111;
-    border: 1px solid #1e1e1e;
-    border-radius: 10px;
-    max-width: 100%;
-  }
-
-  /* Event card */
-  .event-card {
-    padding: 0.5rem 0.65rem;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-  }
-  .compact .event-card {
-    padding: 0.35rem 0.5rem;
-    background: transparent;
-    border: none;
-    border-radius: 0;
-  }
-  .event-head {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.2rem;
-  }
-  .event-type {
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: #34d399;
-    background: rgba(52, 211, 153, 0.1);
-    padding: 0.12rem 0.4rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    flex-shrink: 0;
-  }
-  .event-source {
-    font-size: 0.55rem;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .event-subject {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: #ddd;
-    margin-bottom: 0.1rem;
-    line-height: 1.3;
-  }
-  .event-subject-inline {
-    font-size: 0.68rem;
-    color: #bbb;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex: 1;
-  }
-  .event-meta {
-    font-size: 0.6rem;
-    color: #555;
-    margin-bottom: 0.15rem;
-  }
-  .event-summary {
-    font-size: 0.68rem;
-    color: #999;
-    line-height: 1.4;
-    margin-bottom: 0.1rem;
-  }
-  .event-reason {
-    font-size: 0.6rem;
-    color: #666;
-    font-style: italic;
-    margin-top: 0.1rem;
-  }
-  .event-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.2rem;
-    margin-bottom: 0.1rem;
-  }
-  .tag {
-    font-size: 0.55rem;
-    font-weight: 600;
-    color: #888;
-    background: rgba(255,255,255,0.05);
-    padding: 0.08rem 0.35rem;
-    border-radius: 3px;
-  }
-
-
-  /* Batch container */
-  .event-batch {
-    align-self: flex-start;
-    max-width: 90%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-  .batch-head {
-    padding: 0.3rem 0;
-  }
-  .batch-title {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .sep { color: #333; }
-
-  /* ── Grouped events (/events command) ─────────────────────────────── */
-  .events-grouped {
-    align-self: flex-start;
-    width: 100%;
-    max-width: 95%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  .grouped-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.6rem;
-    padding: 0.2rem 0 0.3rem;
-  }
-  .grouped-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #ccc;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .grouped-stat {
-    font-size: 0.65rem;
-    color: #555;
-  }
-
-  .group-block {
-    background: #131313;
-    border: 1px solid #222;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .group-header-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.4rem 0.3rem 0;
-  }
-  .group-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex: 1;
-    padding: 0.55rem 0.7rem;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    color: #e8e8e8;
-    font-family: inherit;
-    transition: background 0.15s;
-  }
-  .group-header:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-  .execute-all-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.35rem 0.6rem;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 6px;
-    color: #10b981;
-    font-size: 0.62rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.15s;
-    flex-shrink: 0;
-  }
-  .execute-all-btn:hover {
-    background: rgba(16, 185, 129, 0.2);
-    border-color: rgba(16, 185, 129, 0.5);
-  }
-  .execute-all-btn.critical {
-    background: rgba(245, 158, 11, 0.1);
-    border-color: rgba(245, 158, 11, 0.3);
-    color: #f59e0b;
-  }
-  .execute-all-btn.critical:hover {
-    background: rgba(245, 158, 11, 0.18);
-    border-color: rgba(245, 158, 11, 0.5);
-  }
-  .execute-btn.critical {
-    background: rgba(245, 158, 11, 0.1);
-    border-color: rgba(245, 158, 11, 0.3);
-    color: #f59e0b;
-  }
-
-  /* Group tier chip inside header */
-  .group-tier-chip {
-    font-size: 0.52rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    flex-shrink: 0;
-    opacity: 0.9;
-  }
-
-  /* Approval card */
-  .approval-card {
-    margin: 0.4rem 0;
-    padding: 0.6rem 0.7rem;
-    background: rgba(245, 158, 11, 0.07);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 8px;
-  }
-  .approval-card.compact {
-    padding: 0.4rem 0.6rem;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.4rem;
-  }
-  .approval-header {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    margin-bottom: 0.35rem;
-  }
-  .approval-icon { font-size: 0.9rem; }
-  .approval-title { font-size: 0.68rem; font-weight: 700; color: #f59e0b; }
-  .approval-body { font-size: 0.63rem; color: #aaa; margin: 0 0 0.35rem; line-height: 1.5; }
-  .approval-actions {
-    font-size: 0.62rem;
-    color: #bbb;
-    margin: 0 0 0.4rem 1rem;
-    padding: 0;
-    line-height: 1.7;
-  }
-  .approval-action-desc { color: #777; }
-  .approval-btns { display: flex; gap: 0.4rem; }
-  .approval-confirm {
-    padding: 0.25rem 0.6rem;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid rgba(245, 158, 11, 0.5);
-    border-radius: 5px;
-    color: #f59e0b;
-    font-size: 0.62rem;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.12s;
-  }
-  .approval-confirm:hover {
-    background: rgba(245, 158, 11, 0.3);
-  }
-  .approval-cancel {
-    padding: 0.25rem 0.6rem;
-    background: none;
-    border: 1px solid #2a2a2a;
-    border-radius: 5px;
-    color: #666;
-    font-size: 0.62rem;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.12s;
-  }
-  .approval-cancel:hover { color: #aaa; border-color: #444; }
-
-  .group-badge {
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 0.12rem 0.45rem;
-    border-radius: 5px;
-    color: #fff;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  .group-count {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #ccc;
-    min-width: 18px;
-  }
-  .spacer { flex: 1; }
-  .chevron {
-    flex-shrink: 0;
-    color: #555;
-    transition: transform 0.2s ease;
-  }
-  .chevron.open {
-    transform: rotate(180deg);
-  }
-
-  .group-emails {
-    border-top: 1px solid #1e1e1e;
-    display: flex;
-    flex-direction: column;
-  }
-  .email-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.55rem 0.7rem;
-    border-bottom: 1px solid #1a1a1a;
-  }
-  .email-item:last-child {
-    border-bottom: none;
-  }
-  .email-main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-  .email-item .email-subject {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #ddd;
-    line-height: 1.3;
-  }
-  .email-meta {
-    font-size: 0.6rem;
-    color: #555;
-  }
-  .email-from {
-    color: #777;
-  }
-  .email-date {
-    color: #555;
-  }
-  .email-summary {
-    font-size: 0.65rem;
-    color: #888;
-    line-height: 1.4;
-    margin-top: 0.1rem;
-  }
-  .email-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.2rem;
-    margin-top: 0.1rem;
-  }
-  .email-pipeline {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    margin-top: 0.3rem;
-  }
-  .pipeline-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-  }
-  .pipeline-label {
-    font-size: 0.58rem;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .pipeline-empty {
-    font-size: 0.6rem;
-    color: #555;
-    font-style: italic;
-    padding: 0.2rem 0;
-  }
-
-  .execute-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: rgba(59, 130, 246, 0.1);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 5px;
-    color: #3b82f6;
-    font-size: 0.62rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .execute-btn:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.5);
-  }
-  .execute-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  .execute-all-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.3rem 0.6rem;
-    background: rgba(59, 130, 246, 0.12);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 5px;
-    color: #3b82f6;
-    font-size: 0.64rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .execute-all-btn:hover:not(:disabled) {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.5);
-  }
-  .execute-all-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-</style>

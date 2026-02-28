@@ -1,19 +1,25 @@
 <script>
   import { OLLAMA_MODELS, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
   import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels } from "../../lib/ollama-client.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
+  import { Label } from "$lib/components/ui/label/index.js";
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import { Card, CardContent } from "$lib/components/ui/card/index.js";
+  import { Separator } from "$lib/components/ui/separator/index.js";
+  import { cn } from "$lib/utils.js";
 
   let { selectedModel = $bindable(), onload, error = $bindable() } = $props();
 
   const isLocal = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  let ollamaUrl = $state(getOllamaUrl()); // sync default; overwritten from IndexedDB on mount
+  let ollamaUrl = $state(getOllamaUrl());
   let isTestingConnection = $state(false);
-  let connectionStatus = $state(null); // { connected: boolean, version?: string, error?: string }
-  let availableModels = $state([]); // Models installed on the Ollama server
+  let connectionStatus = $state(null);
+  let availableModels = $state([]);
   let isLoadingModels = $state(false);
 
-  // Load saved URL from IndexedDB, then test
   $effect(() => {
     getOllamaUrlAsync().then((url) => {
       ollamaUrl = url;
@@ -24,15 +30,10 @@
   async function testConnection() {
     isTestingConnection = true;
     connectionStatus = null;
-    
     const result = await testOllamaConnection(ollamaUrl);
     connectionStatus = result;
     isTestingConnection = false;
-
-    // Load available models if connected
-    if (result.connected) {
-      loadAvailableModels();
-    }
+    if (result.connected) loadAvailableModels();
   }
 
   async function loadAvailableModels() {
@@ -41,7 +42,6 @@
       const models = await listOllamaModels(ollamaUrl);
       availableModels = models.map(m => m.name);
     } catch (e) {
-      console.error("Failed to load Ollama models:", e);
       availableModels = [];
     }
     isLoadingModels = false;
@@ -53,526 +53,196 @@
   }
 
   function handleLoadModel() {
-    if (!selectedModel) {
-      error = "Please select a model";
-      return;
-    }
+    if (!selectedModel) { error = "Please select a model"; return; }
     onload();
   }
 
-  // Helper to check if model is installed
   function isModelInstalled(modelName) {
-    if (!availableModels.length) return false;
-    // Exact match only - don't match qwen3:4b when checking for qwen3:14b
-    return availableModels.includes(modelName);
+    return availableModels.length > 0 && availableModels.includes(modelName);
   }
 
   const recommendedModels = getRecommendedOllamaModels();
 </script>
 
-<div class="ollama-settings">
-  <!-- Connection settings -->
-  <div class="connection-section">
-    <label for="ollama-url">
-      Ollama Server URL:
-      <span class="env-badge">{isLocal ? "🖥 local" : "☁️ remote"}</span>
-    </label>
-    <div class="url-input-group">
-      <input
-        id="ollama-url"
-        type="text"
-        bind:value={ollamaUrl}
-        onchange={handleUrlChange}
-        placeholder={isLocal ? "http://localhost:11434" : "https://me-ai.metaelon.space"}
-      />
-      <button 
-        class="btn-test" 
-        onclick={testConnection}
-        disabled={isTestingConnection}
-      >
-        {isTestingConnection ? "Testing..." : "Test"}
-      </button>
-    </div>
+<div class="flex flex-col gap-5 w-full max-w-[520px] mx-auto">
+  <!-- Connection -->
+  <Card>
+    <CardContent class="pt-4 pb-4 px-4 flex flex-col gap-3">
+      <div class="flex flex-col gap-1.5">
+        <Label for="ollama-url" class="text-[0.68rem] uppercase tracking-wider opacity-60">
+          Ollama Server URL
+          <Badge variant="outline" class="ml-1.5 text-[0.55rem] h-4 px-1.5 normal-case tracking-normal">
+            {isLocal ? "🖥 local" : "☁️ remote"}
+          </Badge>
+        </Label>
+        <div class="flex gap-2">
+          <Input
+            id="ollama-url"
+            type="text"
+            bind:value={ollamaUrl}
+            onchange={handleUrlChange}
+            placeholder={isLocal ? "http://localhost:11434" : "https://your-server.example.com"}
+            class="font-mono text-xs"
+          />
+          <Button variant="outline" size="sm" onclick={testConnection} disabled={isTestingConnection} class="shrink-0">
+            {isTestingConnection ? "Testing…" : "Test"}
+          </Button>
+        </div>
+      </div>
 
-    {#if connectionStatus}
-      <div class="connection-status" class:connected={connectionStatus.connected}>
-        {#if connectionStatus.connected}
-          <span class="status-dot connected"></span>
-          <span>Connected • v{connectionStatus.version}</span>
-        {:else}
-          <span class="status-dot disconnected"></span>
-          <div class="error-content">
-            <span>Disconnected: {connectionStatus.error}</span>
-            {#if connectionStatus.corsError}
-              <div class="cors-help">
-                <strong>Fix CORS Error:</strong>
-                <ul>
-                  <li>In Cloudflare: Add Transform Rule to set <code>Access-Control-Allow-Origin: {window.location.origin}</code></li>
-                  <li>Or set <code>OLLAMA_ORIGINS={window.location.origin}</code> on your server</li>
-                  <li>For testing: Use <code>http://localhost:5173</code> (no CORS restrictions)</li>
-                </ul>
-              </div>
+      {#if connectionStatus}
+        <div class={cn(
+          "flex items-start gap-2 px-3 py-2 rounded border text-xs",
+          connectionStatus.connected
+            ? "text-success border-success/20 bg-success/8"
+            : "text-destructive border-destructive/20 bg-destructive/8"
+        )}>
+          <span class={cn(
+            "size-1.5 rounded-full shrink-0 mt-0.5",
+            connectionStatus.connected ? "bg-success" : "bg-destructive"
+          )}></span>
+          <div class="flex flex-col gap-1">
+            {#if connectionStatus.connected}
+              <span>Connected · v{connectionStatus.version}</span>
+            {:else}
+              <span>Disconnected: {connectionStatus.error}</span>
+              {#if connectionStatus.corsError}
+                <div class="mt-1 text-[0.65rem] leading-relaxed opacity-80">
+                  <strong class="text-destructive block mb-1">Fix CORS Error:</strong>
+                  <ul class="list-disc pl-4 space-y-0.5">
+                    <li>Cloudflare: Add Transform Rule setting <code class="bg-black/20 px-1 rounded font-mono">Access-Control-Allow-Origin: {window.location.origin}</code></li>
+                    <li>Or set <code class="bg-black/20 px-1 rounded font-mono">OLLAMA_ORIGINS={window.location.origin}</code> on your server</li>
+                    <li>Testing locally: Use <code class="bg-black/20 px-1 rounded font-mono">http://localhost:5173</code></li>
+                  </ul>
+                </div>
+              {/if}
+            {/if}
+          </div>
+        </div>
+      {/if}
+    </CardContent>
+  </Card>
+
+  <!-- Model selector -->
+  <Card>
+    <CardContent class="pt-4 pb-4 px-4 flex flex-col gap-3">
+      <div class="flex flex-col gap-1.5">
+        <Label for="ollama-model" class="text-[0.68rem] uppercase tracking-wider opacity-60">
+          Choose Model
+        </Label>
+        <select
+          id="ollama-model"
+          bind:value={selectedModel}
+          class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          <optgroup label="Recommended (ollama pull MODEL_NAME)">
+            {#each recommendedModels as model}
+              <option value={model.name}>
+                {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
+              </option>
+            {/each}
+          </optgroup>
+          <optgroup label="Other Models">
+            {#each OLLAMA_MODELS.filter(m => !m.recommended) as model}
+              <option value={model.name}>
+                {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
+              </option>
+            {/each}
+          </optgroup>
+        </select>
+      </div>
+
+      {#if selectedModel}
+        {@const modelInfo = OLLAMA_MODELS.find(m => m.name === selectedModel)}
+        {#if modelInfo}
+          <div class="flex flex-col gap-1.5">
+            <p class="text-xs text-muted-foreground">{modelInfo.description}</p>
+            <div class="flex items-center gap-1.5 text-[0.68rem] text-muted-foreground/50">
+              <span class="tabular-nums">{(modelInfo.contextWindow / 1024).toFixed(0)}k ctx</span>
+              <span>·</span>
+              <span>{modelInfo.params}</span>
+              {#if modelInfo.tags?.length}
+                <span>·</span>
+                <span>{modelInfo.tags.slice(0, 2).join(", ")}</span>
+              {/if}
+            </div>
+            {#if !isModelInstalled(selectedModel)}
+              <p class="text-xs text-warning/80 bg-warning/6 border border-warning/15 rounded px-2 py-1.5">
+                Not installed. Run: <code class="font-mono bg-black/20 px-1 rounded">ollama pull {selectedModel}</code>
+              </p>
+            {:else}
+              <p class="text-xs text-success bg-success/6 border border-success/15 rounded px-2 py-1.5">
+                ✓ Model installed and ready
+              </p>
             {/if}
           </div>
         {/if}
-      </div>
-    {/if}
-  </div>
-
-  <!-- Model selector -->
-  <div class="model-section">
-    <label for="ollama-model">Choose Model:</label>
-    <select id="ollama-model" bind:value={selectedModel}>
-      <optgroup label="Recommended (install via: ollama pull MODEL_NAME)">
-        {#each recommendedModels as model}
-          <option value={model.name}>
-            {model.displayName} ({model.params}) - {(model.contextWindow / 1024).toFixed(0)}k context
-            {#if isModelInstalled(model.name)} ✓{/if}
-          </option>
-        {/each}
-      </optgroup>
-      <optgroup label="Other Models">
-        {#each OLLAMA_MODELS.filter(m => !m.recommended) as model}
-          <option value={model.name}>
-            {model.displayName} ({model.params}) - {(model.contextWindow / 1024).toFixed(0)}k context
-            {#if isModelInstalled(model.name)} ✓{/if}
-          </option>
-        {/each}
-      </optgroup>
-    </select>
-
-    {#if selectedModel}
-      {@const modelInfo = OLLAMA_MODELS.find(m => m.name === selectedModel)}
-      {#if modelInfo}
-        <div class="model-info">
-          <p class="model-desc">{modelInfo.description}</p>
-          <div class="model-meta">
-            <span>{(modelInfo.contextWindow / 1024).toFixed(0)}k context</span>
-            <span class="sep">·</span>
-            <span>{modelInfo.params} params</span>
-            {#if modelInfo.tags?.length}
-              <span class="sep">·</span>
-              <span>{modelInfo.tags.join(", ")}</span>
-            {/if}
-          </div>
-          {#if !isModelInstalled(selectedModel)}
-            <div class="install-hint">
-              <strong>Not installed.</strong> Run: <code>ollama pull {selectedModel}</code>
-            </div>
-          {:else}
-            <div class="install-hint installed">
-              ✓ Model installed and ready
-            </div>
-          {/if}
-        </div>
       {/if}
-    {/if}
-  </div>
+    </CardContent>
+  </Card>
 
-  <!-- Model capabilities table -->
-  <details class="model-details">
-    <summary class="model-details-summary">Ollama Model Capabilities</summary>
-    <div class="model-table-wrapper">
-      <table class="model-table">
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Context Window</th>
-            <th>Params</th>
-            <th>Strengths</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each OLLAMA_MODELS as model}
-            <tr class:selected={model.name === selectedModel} class:installed={isModelInstalled(model.name)}>
-              <td class="model-name">
-                {model.displayName}
-                {#if model.name === selectedModel}
-                  <span class="current-badge">Current</span>
-                {/if}
-                {#if isModelInstalled(model.name)}
-                  <span class="installed-badge">✓</span>
-                {/if}
-              </td>
-              <td class="context-col">
-                <strong>{(model.contextWindow / 1024).toFixed(0)}k</strong>
-              </td>
-              <td class="params-col">{model.params}</td>
-              <td class="tags-col">
-                {#if model.recommended}
-                  <span class="rec-badge">✅</span>
-                {/if}
-                {model.tags.slice(0, 2).join(", ")}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-    <p class="model-table-note">
-      ✓ = installed on your Ollama server. To install: <code>ollama pull MODEL_NAME</code>
-    </p>
+  <!-- Capabilities table -->
+  <details class="group">
+    <summary class="flex items-center gap-2 px-3 py-2 rounded border border-border bg-card text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 cursor-pointer hover:bg-accent transition-colors list-none">
+      <svg class="size-3 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      Ollama Model Capabilities
+    </summary>
+    <Card class="mt-1">
+      <CardContent class="pt-0 pb-2 px-0">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse">
+            <thead>
+              <tr>
+                {#each ["Model", "Context", "Params", "Strengths"] as h}
+                  <th class="text-left px-3 py-2 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 border-b border-border">{h}</th>
+                {/each}
+              </tr>
+            </thead>
+            <tbody>
+              {#each OLLAMA_MODELS as model}
+                <tr class={cn(
+                  "transition-colors",
+                  model.name === selectedModel ? "bg-primary/5" : "hover:bg-accent",
+                  !isModelInstalled(model.name) && "opacity-50"
+                )}>
+                  <td class="px-3 py-1.5 font-medium text-foreground border-b border-border/50">
+                    {model.displayName}
+                    {#if model.name === selectedModel}
+                      <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30">current</Badge>
+                    {/if}
+                    {#if isModelInstalled(model.name)}
+                      <span class="ml-1 text-success text-[0.65rem]">✓</span>
+                    {/if}
+                  </td>
+                  <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">
+                    <strong class="text-foreground">{(model.contextWindow / 1024).toFixed(0)}k</strong>
+                  </td>
+                  <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">{model.params}</td>
+                  <td class="px-3 py-1.5 text-muted-foreground/60 border-b border-border/50">
+                    {#if model.recommended}<span class="text-success mr-1">✅</span>{/if}
+                    {model.tags.slice(0, 2).join(", ")}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+        <p class="px-3 pt-2 pb-1 text-[0.62rem] text-muted-foreground/40">
+          ✓ = installed. Install: <code class="font-mono bg-muted px-1 rounded">ollama pull MODEL_NAME</code>
+        </p>
+      </CardContent>
+    </Card>
   </details>
 
   {#if error}
-    <p class="error">{error}</p>
+    <p class="text-sm text-destructive text-center">{error}</p>
   {/if}
 
-  <button class="btn primary" onclick={handleLoadModel} disabled={!connectionStatus?.connected || error}>
+  <Button
+    onclick={handleLoadModel}
+    disabled={!connectionStatus?.connected || !!error}
+    class="w-full"
+  >
     Load Model
-  </button>
+  </Button>
 </div>
-
-<style>
-  .ollama-settings {
-    width: 100%;
-    max-width: 520px;
-    margin: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1.2rem;
-  }
-
-  /* ── Connection section ─────────────────────────────────────────── */
-  .connection-section label {
-    display: block;
-    font-size: 0.8rem;
-    color: #888;
-    margin-bottom: 0.4rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .url-input-group {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .url-input-group input {
-    flex: 1;
-    padding: 0.65rem 0.8rem;
-    font-size: 0.85rem;
-    color: #e8e8e8;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 8px;
-    font-family: monospace;
-  }
-  .url-input-group input:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
-  }
-  .btn-test {
-    padding: 0.65rem 1rem;
-    font-size: 0.8rem;
-    color: #e8e8e8;
-    background: #2a2a2a;
-    border: 1px solid #333;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn-test:hover:not(:disabled) {
-    background: #333;
-  }
-  .btn-test:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .connection-status {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.8rem;
-    font-size: 0.75rem;
-    border-radius: 6px;
-    margin-top: 0.5rem;
-  }
-  .connection-status.connected {
-    background: rgba(52, 211, 153, 0.1);
-    border: 1px solid rgba(52, 211, 153, 0.2);
-    color: #34d399;
-  }
-  .connection-status:not(.connected) {
-    background: rgba(248, 113, 113, 0.1);
-    border: 1px solid rgba(248, 113, 113, 0.2);
-    color: #f87171;
-  }
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-  .status-dot.connected {
-    background: #34d399;
-    box-shadow: 0 0 6px #34d399;
-  }
-  .status-dot.disconnected {
-    background: #f87171;
-  }
-
-  /* ── Model section ──────────────────────────────────────────────── */
-  .model-section label {
-    display: block;
-    font-size: 0.8rem;
-    color: #888;
-    margin-bottom: 0.4rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .model-section select {
-    width: 100%;
-    padding: 0.65rem 0.8rem;
-    font-size: 0.85rem;
-    color: #e8e8e8;
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-  .model-section select:hover {
-    border-color: #4a90e2;
-  }
-  .model-section select:focus {
-    outline: none;
-    border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
-  }
-
-  .model-info {
-    margin-top: 0.6rem;
-    padding: 0.6rem;
-    background: #161616;
-    border: 1px solid #2a2a2a;
-    border-radius: 6px;
-  }
-  .model-desc {
-    font-size: 0.75rem;
-    color: #bbb;
-    margin: 0 0 0.4rem 0;
-  }
-  .model-meta {
-    font-size: 0.7rem;
-    color: #777;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-  }
-  .sep {
-    color: #444;
-  }
-  .install-hint {
-    margin-top: 0.5rem;
-    padding: 0.4rem 0.6rem;
-    font-size: 0.7rem;
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.2);
-    border-radius: 4px;
-    color: #fbbf24;
-  }
-  .install-hint.installed {
-    background: rgba(52, 211, 153, 0.1);
-    border-color: rgba(52, 211, 153, 0.2);
-    color: #34d399;
-  }
-  .install-hint code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-family: monospace;
-    font-size: 0.68rem;
-  }
-
-  /* ── Model capabilities table ───────────────────────────────────── */
-  .model-details {
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    background: #161616;
-  }
-  .model-details-summary {
-    padding: 0.6rem 0.8rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
-  }
-  .model-details-summary:hover {
-    background: #1a1a1a;
-  }
-  .model-details[open] .model-details-summary {
-    border-bottom: 1px solid #2a2a2a;
-  }
-  .model-table-wrapper {
-    overflow-x: auto;
-    padding: 0.8rem;
-  }
-  .model-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.7rem;
-  }
-  .model-table thead th {
-    text-align: left;
-    padding: 0.4rem 0.5rem;
-    font-size: 0.65rem;
-    font-weight: 600;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border-bottom: 1px solid #2a2a2a;
-  }
-  .model-table tbody tr {
-    transition: background 0.1s;
-  }
-  .model-table tbody tr:hover {
-    background: #1a1a1a;
-  }
-  .model-table tbody tr.selected {
-    background: rgba(59, 130, 246, 0.08);
-  }
-  .model-table tbody tr.installed {
-    opacity: 1;
-  }
-  .model-table tbody tr:not(.installed) {
-    opacity: 0.5;
-  }
-  .model-table tbody td {
-    padding: 0.5rem 0.5rem;
-    color: #bbb;
-    border-bottom: 1px solid #1f1f1f;
-  }
-  .model-table tbody tr:last-child td {
-    border-bottom: none;
-  }
-  .model-name {
-    font-weight: 500;
-    color: #e8e8e8;
-  }
-  .current-badge {
-    display: inline-block;
-    margin-left: 0.3rem;
-    padding: 0.1rem 0.35rem;
-    font-size: 0.55rem;
-    font-weight: 700;
-    color: #3b82f6;
-    background: rgba(59, 130, 246, 0.15);
-    border-radius: 4px;
-    text-transform: uppercase;
-  }
-  .installed-badge {
-    margin-left: 0.3rem;
-    color: #34d399;
-    font-size: 0.65rem;
-  }
-  .context-col, .params-col {
-    font-variant-numeric: tabular-nums;
-    color: #999;
-  }
-  .tags-col {
-    font-size: 0.65rem;
-    color: #777;
-  }
-  .rec-badge {
-    font-size: 0.7rem;
-    margin-right: 0.3rem;
-  }
-  .model-table-note {
-    padding: 0.5rem 0.8rem 0.8rem;
-    font-size: 0.65rem;
-    color: #666;
-    line-height: 1.4;
-    margin: 0;
-  }
-  .model-table-note code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-family: monospace;
-    color: #aaa;
-  }
-
-  /* ── Error & buttons ────────────────────────────────────────────── */
-  .error {
-    color: #f87171;
-    font-size: 0.8rem;
-    margin: 0;
-  }
-  .error-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-  }
-  .cors-help {
-    padding: 0.5rem;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 5px;
-    font-size: 0.7rem;
-    line-height: 1.5;
-  }
-  .cors-help strong {
-    display: block;
-    margin-bottom: 0.3rem;
-    color: #ef4444;
-  }
-  .cors-help ul {
-    margin: 0;
-    padding-left: 1.2rem;
-    list-style: disc;
-  }
-  .cors-help li {
-    margin-bottom: 0.2rem;
-    color: #ccc;
-  }
-  .cors-help code {
-    background: rgba(0, 0, 0, 0.3);
-    padding: 0.1rem 0.3rem;
-    border-radius: 3px;
-    font-family: monospace;
-    font-size: 0.65rem;
-    color: #fca5a5;
-  }
-  .env-badge {
-    display: inline-block;
-    margin-left: 0.4rem;
-    padding: 0.1rem 0.4rem;
-    font-size: 0.6rem;
-    font-weight: 600;
-    background: rgba(59, 130, 246, 0.15);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 4px;
-    color: #60a5fa;
-    vertical-align: middle;
-  }
-  .btn {
-    padding: 0.55rem 1.2rem;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #1a1a1a;
-    color: #e8e8e8;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .btn:hover:not(:disabled) {
-    background: #2a2a2a;
-  }
-  .btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-  .btn.primary {
-    background: #3b82f6;
-    border-color: #3b82f6;
-    color: #fff;
-  }
-  .btn.primary:hover:not(:disabled) {
-    background: #2563eb;
-  }
-</style>

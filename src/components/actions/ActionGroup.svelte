@@ -1,5 +1,7 @@
 <script>
   import EmailRow from "./EmailRow.svelte";
+  import { cn } from "$lib/utils.js";
+  import { ChevronDown } from "lucide-svelte";
 
   let {
     action, color = "#888", count = 0, items = [], expanded = false,
@@ -10,7 +12,6 @@
   let actedItems = $derived(items.filter((i) => i.status !== "pending"));
   let showClearConfirm = $state(false);
 
-  /** Format UPPER_SNAKE_CASE to Title Case: DELETE -> Delete, TRACK_DELIVERY -> Track Delivery */
   function formatLabel(str) {
     return str
       .split("_")
@@ -19,27 +20,30 @@
   }
 </script>
 
-<div class="action-group">
-  <button class="group-header" onclick={ontoggle}>
-    <span class="group-badge" style:background={color}>{formatLabel(action)}</span>
-    <span class="group-count">{pendingItems.length}</span>
-    {#if actedItems.length > 0}
-      <span class="group-acted">{actedItems.length} handled</span>
-    {/if}
-    <span class="spacer"></span>
-    <svg
-      class="chevron"
-      class:open={expanded}
-      width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+<div class="rounded border border-border bg-card overflow-hidden">
+  <!-- Group header toggle -->
+  <button
+    onclick={ontoggle}
+    class="flex items-center gap-2.5 w-full px-4 py-2.5 text-left hover:bg-accent/30 transition-colors"
+  >
+    <span
+      class="text-[0.6rem] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded text-white shrink-0"
+      style:background={color}
     >
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
+      {formatLabel(action)}
+    </span>
+    <span class="text-sm font-semibold tabular-nums text-foreground">{pendingItems.length}</span>
+    {#if actedItems.length > 0}
+      <span class="text-xs text-muted-foreground/40">{actedItems.length} handled</span>
+    {/if}
+    <span class="flex-1"></span>
+    <ChevronDown class={cn("size-3.5 text-muted-foreground/40 transition-transform", expanded && "rotate-180")} />
   </button>
 
   {#if expanded}
-    <div class="group-body">
+    <div class="border-t border-border/40">
       {#if pendingItems.length === 0 && actedItems.length === 0}
-        <p class="group-empty">No emails in this category.</p>
+        <p class="text-xs text-muted-foreground/40 text-center py-6">No emails in this category.</p>
       {/if}
 
       {#each pendingItems as item (item.emailId)}
@@ -47,143 +51,35 @@
       {/each}
 
       {#if actedItems.length > 0}
-        <details class="handled-section">
-          <summary class="handled-summary">{actedItems.length} handled</summary>
+        <details class="border-t border-border/40">
+          <summary class="px-4 py-2 text-xs text-muted-foreground/40 cursor-pointer hover:text-muted-foreground select-none transition-colors">
+            {actedItems.length} handled
+          </summary>
           {#each actedItems as item (item.emailId)}
             <EmailRow {item} actionColor={color} {onremove} dimmed />
           {/each}
         </details>
       {/if}
 
-      <div class="group-footer">
+      <div class="flex justify-end px-4 py-2 border-t border-border/40">
         {#if !showClearConfirm}
-          <button class="group-action-btn" onclick={() => showClearConfirm = true}>
+          <button
+            onclick={() => showClearConfirm = true}
+            class="text-xs text-muted-foreground/40 hover:text-muted-foreground underline transition-colors"
+          >
             Clear group
           </button>
         {:else}
-          <span class="confirm-row">
-            Clear {items.length} items?
-            <button class="group-action-btn" onclick={() => showClearConfirm = false}>Cancel</button>
-            <button class="group-action-btn danger" onclick={() => { oncleargroup(); showClearConfirm = false; }}>Delete</button>
-          </span>
+          <div class="flex items-center gap-2 text-xs text-muted-foreground/60">
+            <span>Clear {items.length} items?</span>
+            <button onclick={() => showClearConfirm = false} class="hover:text-foreground transition-colors">Cancel</button>
+            <button
+              onclick={() => { oncleargroup(); showClearConfirm = false; }}
+              class="text-destructive hover:text-destructive/80 transition-colors"
+            >Delete</button>
+          </div>
         {/if}
       </div>
     </div>
   {/if}
 </div>
-
-<style>
-  .action-group {
-    background: #161616;
-    border: 1px solid #2a2a2a;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .group-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.6rem 0.8rem;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    color: #e8e8e8;
-    transition: background 0.15s;
-  }
-  .group-header:hover {
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .group-badge {
-    font-size: 0.65rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    padding: 0.15rem 0.5rem;
-    border-radius: 5px;
-    color: #fff;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .group-count {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #e8e8e8;
-    min-width: 20px;
-  }
-
-  .group-acted {
-    font-size: 0.68rem;
-    color: #555;
-  }
-
-  .spacer { flex: 1; }
-
-  .chevron {
-    flex-shrink: 0;
-    color: #555;
-    transition: transform 0.2s ease;
-  }
-  .chevron.open {
-    transform: rotate(180deg);
-  }
-
-  .group-body {
-    border-top: 1px solid #222;
-    padding: 0.3rem 0;
-  }
-
-  .group-empty {
-    padding: 0.75rem 1rem;
-    color: #555;
-    font-size: 0.78rem;
-    text-align: center;
-  }
-
-  .handled-section {
-    border-top: 1px solid #1e1e1e;
-    margin-top: 0.2rem;
-  }
-
-  .handled-summary {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.7rem;
-    color: #555;
-    cursor: pointer;
-    user-select: none;
-  }
-  .handled-summary:hover {
-    color: #888;
-  }
-
-  .group-footer {
-    display: flex;
-    justify-content: flex-end;
-    padding: 0.35rem 0.8rem;
-    border-top: 1px solid #1e1e1e;
-  }
-
-  .group-action-btn {
-    background: none;
-    border: none;
-    color: #555;
-    font-size: 0.68rem;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-  }
-  .group-action-btn:hover { color: #999; }
-  .group-action-btn.danger { color: #f87171; }
-  .group-action-btn.danger:hover { color: #fca5a5; }
-
-  .confirm-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.68rem;
-    color: #888;
-  }
-</style>

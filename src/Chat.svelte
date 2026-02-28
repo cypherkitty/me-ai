@@ -474,7 +474,7 @@
 </script>
 
 {#if status === null}
-  <div class="container center">
+  <div class="max-w-[520px] mx-auto px-8 flex flex-col items-center justify-center text-center h-full gap-3">
     <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
     {#if backend === "webgpu"}
@@ -529,19 +529,3 @@
   />
 {/if}
 
-<style>
-  .container {
-    max-width: 520px;
-    margin: auto;
-    padding: 2rem;
-  }
-  .center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    height: 100%;
-    gap: 0.75rem;
-  }
-</style>

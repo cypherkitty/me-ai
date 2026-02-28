@@ -2,6 +2,8 @@
   import { actionColor } from "../../lib/triage.js";
   import { getActionsForEvent, getGroupForEventType } from "../../lib/events.js";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { cn } from "$lib/utils.js";
 
   let {
     pendingData = null,
@@ -17,7 +19,6 @@
   let activePipeline = $state([]);
   let activeTier = $state(null);
 
-  /** Expand/collapse a group; exposed so external controls can call it */
   export function toggleGroup(action) {
     activeGroup = activeGroup === action ? null : action;
     confirmClear = null;
@@ -34,14 +35,13 @@
   });
 
   function fmt(str) {
-    return str.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+    return str.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
   }
 
   function shortDate(ts) {
     if (!ts) return "";
-    try {
-      return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    } catch { return ""; }
+    try { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+    catch { return ""; }
   }
 
   function shortSender(from) {
@@ -52,314 +52,118 @@
 </script>
 
 {#if pendingData && pendingData.total > 0}
-  <div class="widget">
-    <!-- ── Summary line ──────────────────────────────── -->
-    <div class="summary">
+  <div class="max-w-[420px] w-full rounded border border-border bg-card px-2.5 py-2 self-start">
+    <!-- Summary -->
+    <p class="text-xs text-muted-foreground/60 font-medium mb-2 tracking-tight">
       {pendingData.total} item{pendingData.total !== 1 ? "s" : ""} need attention
-    </div>
+    </p>
 
-    <!-- ── Group chips ───────────────────────────────── -->
-    <div class="chips">
+    <!-- Group chips -->
+    <div class="flex flex-wrap gap-1">
       {#each pendingData.order as action (action)}
         {@const items = pendingData.groups[action]}
         {@const color = actionColor(action)}
         {@const isActive = activeGroup === action}
         <button
-          class="chip" class:active={isActive}
-          style:--c={color}
           onclick={() => toggleGroup(action)}
+          class={cn(
+            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[0.64rem] font-medium transition-all whitespace-nowrap",
+            isActive
+              ? "border-transparent text-foreground"
+              : "bg-transparent border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+          style={isActive
+            ? `background: color-mix(in srgb, ${color} 10%, transparent); border-color: color-mix(in srgb, ${color} 40%, transparent); color: ${color}`
+            : ""}
         >
-          <span class="dot" style:background={color}></span>
+          <span class="size-1.5 rounded-full shrink-0" style:background={color}></span>
           {fmt(action)}
-          <span class="cnt">{items.length}</span>
+          <span class={cn("text-[0.58rem] font-bold min-w-[14px] text-center", isActive ? "opacity-70" : "opacity-50")}>
+            {items.length}
+          </span>
         </button>
       {/each}
     </div>
 
-    <!-- ── Drilled-in group ──────────────────────────── -->
+    <!-- Drilled-in group detail -->
     {#if activeGroup && pendingData.groups[activeGroup]}
       {@const items = pendingData.groups[activeGroup]}
       {@const color = actionColor(activeGroup)}
-      <div class="detail">
-        <div class="detail-head" style:border-color={color}>
-          <button class="back-btn" onclick={() => { activeGroup = null; confirmClear = null; }}>
+      <div class="mt-2 pt-2 border-t border-border">
+        <!-- Group header -->
+        <div class="flex items-center gap-1.5 pb-2 mb-2 border-b-2" style:border-color={color}>
+          <button
+            onclick={() => { activeGroup = null; confirmClear = null; }}
+            class="text-xs text-muted-foreground/50 hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-accent"
+          >
             ←
           </button>
-          <span class="detail-title">{fmt(activeGroup)}</span>
-          <span class="detail-cnt">{items.length}</span>
+          <span class="text-xs font-semibold text-foreground tracking-tight flex-1">{fmt(activeGroup)}</span>
+          <span class="text-[0.6rem] text-muted-foreground/40">{items.length}</span>
         </div>
 
-        <div class="pipeline-preview" style="margin-bottom: 0.5rem; background: #111; padding: 0.2rem 0.5rem; border-radius: 8px; border: 1px solid #1a1a1a;">
-          <PipelineGraph 
-            eventType={activeGroup} 
-            group={activeTier} 
-            commands={activePipeline} 
-          />
+        <!-- Pipeline preview -->
+        <div class="mb-2 bg-background p-1 px-2 rounded border border-border">
+          <PipelineGraph eventType={activeGroup} group={activeTier} commands={activePipeline} />
         </div>
 
-        <div class="emails">
+        <!-- Email rows -->
+        <div class="flex flex-col">
           {#each items as item (item.emailId)}
-            <div class="erow">
+            <div class="flex items-center gap-1.5 py-1 border-b border-border last:border-b-0 group/row">
               <button
-                class="einfo"
                 onclick={() => onaskai?.(`Tell me about the email "${item.subject}" from ${item.from}`)}
+                class="flex-1 min-w-0 flex flex-col gap-px text-left"
                 title="Ask AI about this email"
               >
-                <span class="esubj">{item.subject}</span>
-                <span class="emeta">{shortSender(item.from)}{#if item.date}<span class="edate">{shortDate(item.date)}</span>{/if}</span>
+                <span class="text-[0.7rem] font-medium text-foreground/80 truncate group-hover/row:text-foreground transition-colors tracking-tight">
+                  {item.subject}
+                </span>
+                <span class="flex gap-1.5 text-[0.58rem] text-muted-foreground/35">
+                  <span>{shortSender(item.from)}</span>
+                  {#if item.date}<span class="opacity-70">{shortDate(item.date)}</span>{/if}
+                </span>
               </button>
-              <div class="ebtns">
-                <button class="abtn ok" title="Handled" onclick={() => onmarkacted?.(item.emailId)}>✓</button>
-                <button class="abtn no" title="Dismiss" onclick={() => ondismiss?.(item.emailId)}>✕</button>
+              <div class="flex gap-0.5 opacity-30 group-hover/row:opacity-100 transition-opacity">
+                <button
+                  onclick={() => onmarkacted?.(item.emailId)}
+                  title="Handled"
+                  class="size-5 flex items-center justify-center text-[0.64rem] font-bold rounded transition-all hover:bg-success/12 hover:text-success text-muted-foreground"
+                >✓</button>
+                <button
+                  onclick={() => ondismiss?.(item.emailId)}
+                  title="Dismiss"
+                  class="size-5 flex items-center justify-center text-[0.64rem] font-bold rounded transition-all hover:bg-destructive/12 hover:text-destructive text-muted-foreground"
+                >✕</button>
               </div>
             </div>
           {/each}
         </div>
 
-        <div class="batch">
+        <!-- Batch actions -->
+        <div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-border">
           {#if confirmClear !== activeGroup}
-            <button class="bbtn" onclick={() => items.forEach((i) => onmarkacted?.(i.emailId))}>All handled</button>
-            <button class="bbtn muted" onclick={() => confirmClear = activeGroup}>Clear group</button>
+            <button
+              onclick={() => items.forEach(i => onmarkacted?.(i.emailId))}
+              class="text-[0.6rem] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
+            >All handled</button>
+            <button
+              onclick={() => confirmClear = activeGroup}
+              class="text-[0.6rem] font-medium text-muted-foreground/40 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
+            >Clear group</button>
           {:else}
-            <span class="bconf">Remove {items.length}?</span>
-            <button class="bbtn" onclick={() => confirmClear = null}>Cancel</button>
-            <button class="bbtn danger" onclick={() => { oncleargroup?.(activeGroup); confirmClear = null; activeGroup = null; }}>Delete</button>
+            <span class="text-[0.6rem] text-muted-foreground/40 mr-auto">Remove {items.length}?</span>
+            <button
+              onclick={() => confirmClear = null}
+              class="text-[0.6rem] text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
+            >Cancel</button>
+            <button
+              onclick={() => { oncleargroup?.(activeGroup); confirmClear = null; activeGroup = null; }}
+              class="text-[0.6rem] text-destructive/70 hover:text-destructive hover:bg-destructive/8 px-1.5 py-0.5 rounded transition-all"
+            >Delete</button>
           {/if}
         </div>
       </div>
     {/if}
   </div>
 {/if}
-
-<style>
-  /* ── Widget container ────────────────────────────── */
-  .widget {
-    background: #141414;
-    border: 1px solid #232323;
-    border-radius: 12px;
-    padding: 0.55rem 0.65rem;
-    max-width: 420px;
-    align-self: flex-start;
-  }
-
-  /* ── Summary ─────────────────────────────────────── */
-  .summary {
-    font-size: 0.74rem;
-    font-weight: 500;
-    color: #999;
-    margin-bottom: 0.4rem;
-  }
-
-  /* ── Chips ───────────────────────────────────────── */
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.18rem 0.45rem;
-    background: transparent;
-    border: 1px solid #282828;
-    border-radius: 14px;
-    color: #999;
-    font-size: 0.66rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.12s;
-    font-family: inherit;
-    white-space: nowrap;
-  }
-  .chip:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: #3a3a3a;
-    color: #ccc;
-  }
-  .chip.active {
-    background: color-mix(in srgb, var(--c) 10%, transparent);
-    border-color: color-mix(in srgb, var(--c) 40%, transparent);
-    color: var(--c);
-  }
-
-  .dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  .cnt {
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: #666;
-    min-width: 14px;
-    text-align: center;
-  }
-  .chip.active .cnt {
-    color: inherit;
-    opacity: 0.7;
-  }
-
-  /* ── Drilled-in detail ───────────────────────────── */
-  .detail {
-    margin-top: 0.45rem;
-    border-top: 1px solid #1e1e1e;
-    padding-top: 0.4rem;
-  }
-
-  .detail-head {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 2px solid;
-    margin-bottom: 0.3rem;
-  }
-
-  .back-btn {
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 0.8rem;
-    cursor: pointer;
-    padding: 0.1rem 0.3rem;
-    border-radius: 4px;
-    transition: color 0.12s;
-    line-height: 1;
-  }
-  .back-btn:hover { color: #ccc; }
-
-  .detail-title {
-    font-size: 0.74rem;
-    font-weight: 600;
-    color: #ccc;
-    flex: 1;
-  }
-
-  .detail-cnt {
-    font-size: 0.62rem;
-    color: #666;
-  }
-
-  /* ── Email rows ──────────────────────────────────── */
-  .emails {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .erow {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.28rem 0.15rem;
-    border-bottom: 1px solid #1a1a1a;
-  }
-  .erow:last-child {
-    border-bottom: none;
-  }
-
-  .einfo {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.05rem;
-    background: none;
-    border: none;
-    cursor: pointer;
-    text-align: left;
-    color: inherit;
-    padding: 0;
-    font-family: inherit;
-  }
-  .einfo:hover .esubj { color: #fff; }
-
-  .esubj {
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #ccc;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.12s;
-  }
-
-  .emeta {
-    font-size: 0.6rem;
-    color: #555;
-    display: flex;
-    gap: 0.35rem;
-  }
-
-  .edate {
-    color: #444;
-    flex-shrink: 0;
-  }
-
-  /* ── Action buttons ──────────────────────────────── */
-  .ebtns {
-    display: flex;
-    gap: 0.1rem;
-    flex-shrink: 0;
-    opacity: 0.4;
-    transition: opacity 0.12s;
-  }
-  .erow:hover .ebtns { opacity: 1; }
-
-  .abtn {
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    cursor: pointer;
-    font-size: 0.68rem;
-    font-weight: 600;
-    transition: all 0.12s;
-  }
-  .abtn.ok { color: #555; }
-  .abtn.ok:hover { background: rgba(52, 211, 153, 0.12); color: #34d399; }
-  .abtn.no { color: #555; }
-  .abtn.no:hover { background: rgba(248, 113, 113, 0.12); color: #f87171; }
-
-  /* ── Batch row ───────────────────────────────────── */
-  .batch {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.35rem;
-    padding-top: 0.3rem;
-    margin-top: 0.15rem;
-    border-top: 1px solid #1a1a1a;
-  }
-
-  .bbtn {
-    font-size: 0.62rem;
-    font-weight: 500;
-    color: #777;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.15rem 0.35rem;
-    border-radius: 4px;
-    transition: all 0.12s;
-    font-family: inherit;
-  }
-  .bbtn:hover { color: #aaa; background: rgba(255, 255, 255, 0.04); }
-  .bbtn.muted { color: #555; }
-  .bbtn.muted:hover { color: #888; }
-  .bbtn.danger { color: #888; }
-  .bbtn.danger:hover { color: #f87171; background: rgba(248, 113, 113, 0.08); }
-
-  .bconf {
-    font-size: 0.62rem;
-    color: #888;
-    margin-right: auto;
-  }
-</style>

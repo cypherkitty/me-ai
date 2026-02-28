@@ -2,6 +2,8 @@
   import { query, exec, getDb } from "../../lib/store/db.js";
   import { clearGmailData } from "../../lib/store/gmail-sync.js";
   import { clearClassifications, clearClassificationsByAction } from "../../lib/triage.js";
+  import { cn } from "$lib/utils.js";
+  import { Database, ChevronDown } from "lucide-svelte";
 
   let { onrefresh, groupOrder = [] } = $props();
 
@@ -74,8 +76,6 @@
 
   async function nukeEverything() {
     await execAction(async () => {
-      // Drop and recreate all tables by wiping every table's data.
-      // The DuckDB OPFS file persists but is now empty.
       await Promise.all([
         exec(`DELETE FROM items`),
         exec(`DELETE FROM emailClassifications`),
@@ -96,49 +96,53 @@
   }
 </script>
 
-<div class="dm">
-  <button class="dm-toggle" onclick={toggle}>
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </svg>
-    Data Management
-    <svg class="chev" class:open={showPanel} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <polyline points="6 9 12 15 18 9"/>
-    </svg>
+<div class="mt-3">
+  <!-- Toggle -->
+  <button
+    onclick={toggle}
+    class="flex items-center gap-2 w-full px-3.5 py-2 rounded border border-border bg-card text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+  >
+    <Database class="size-3.5 shrink-0" />
+    <span class="flex-1 text-left tracking-tight">Data Management</span>
+    <ChevronDown class={cn("size-3 text-muted-foreground/40 transition-transform", showPanel && "rotate-180")} />
   </button>
 
   {#if showPanel}
-    <div class="dm-panel">
-      <!-- ── Storage summary ─────────────── -->
+    <div class="mt-1 rounded border border-border bg-card px-3.5 py-3 flex flex-col gap-3 relative">
+
+      <!-- Storage summary -->
       {#if storageSummary}
-        <div class="summary-row">
-          <span class="s-item">{storageSummary.emailCount} emails</span>
-          <span class="sep">·</span>
-          <span class="s-item">{storageSummary.classCount} classifications</span>
-          <span class="sep">·</span>
-          <span class="s-item">{storageSummary.contactCount} contacts</span>
+        <div class="flex flex-wrap items-center gap-1.5 text-[0.65rem] text-muted-foreground/50 pb-2.5 border-b border-border/40">
+          <span class="tabular-nums">{storageSummary.emailCount} emails</span>
+          <span class="text-muted-foreground/20">·</span>
+          <span class="tabular-nums">{storageSummary.classCount} classifications</span>
+          <span class="text-muted-foreground/20">·</span>
+          <span class="tabular-nums">{storageSummary.contactCount} contacts</span>
           {#if storageSummary.totalBytes}
-            <span class="sep">·</span>
-            <span class="s-item">{fmtBytes(storageSummary.totalBytes)} used</span>
+            <span class="text-muted-foreground/20">·</span>
+            <span>{fmtBytes(storageSummary.totalBytes)} used</span>
           {/if}
         </div>
       {/if}
 
-      <!-- ── Per-group clear ─────────────── -->
+      <!-- Per-group clear -->
       {#if groupOrder.length > 0}
-        <div class="section">
-          <div class="section-title">Clear by action group</div>
-          <div class="group-chips">
+        <div class="flex flex-col gap-1.5">
+          <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40">Clear by group</span>
+          <div class="flex flex-wrap gap-1">
             {#each groupOrder as action}
               {#if confirm === `group:${action}`}
-                <span class="confirm-inline">
+                <span class="inline-flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/60">
                   Delete {formatLabel(action)}?
-                  <button class="link-btn" onclick={() => confirm = null}>No</button>
-                  <button class="link-btn danger" onclick={() => clearGroupAction(action)} disabled={busy}>Yes</button>
+                  <button onclick={() => confirm = null} class="hover:text-foreground underline transition-colors">No</button>
+                  <button onclick={() => clearGroupAction(action)} disabled={busy} class="text-destructive hover:text-destructive/80 underline disabled:opacity-40 transition-colors">Yes</button>
                 </span>
               {:else}
-                <button class="chip" onclick={() => confirm = `group:${action}`} disabled={busy}>
+                <button
+                  onclick={() => confirm = `group:${action}`}
+                  disabled={busy}
+                  class="text-[0.65rem] px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground/50 bg-muted/20 hover:text-destructive hover:border-destructive/30 disabled:opacity-40 transition-colors"
+                >
                   {formatLabel(action)} ✕
                 </button>
               {/if}
@@ -147,271 +151,59 @@
         </div>
       {/if}
 
-      <!-- ── Bulk actions ────────────────── -->
-      <div class="section">
-        <div class="section-title">Bulk actions</div>
-        <div class="btn-list">
-          <!-- Clear all classifications -->
-          {#if confirm === "classifications"}
-            <div class="confirm-row">
-              <span>Clear all classifications?</span>
-              <button class="link-btn" onclick={() => confirm = null}>Cancel</button>
-              <button class="link-btn danger" onclick={clearClassificationsAction} disabled={busy}>Delete</button>
-            </div>
-          {:else}
-            <button class="action-row" onclick={() => confirm = "classifications"} disabled={busy}>
-              <span class="action-label">Clear all classifications</span>
-              <span class="action-desc">Remove all LLM scan results. Emails stay.</span>
-            </button>
-          {/if}
+      <!-- Bulk actions -->
+      <div class="flex flex-col gap-0.5">
+        <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 mb-1">Bulk actions</span>
 
-          <!-- Clear emails + classifications -->
-          {#if confirm === "emails"}
-            <div class="confirm-row">
-              <span>Delete all synced emails &amp; classifications?</span>
-              <button class="link-btn" onclick={() => confirm = null}>Cancel</button>
-              <button class="link-btn danger" onclick={clearEmailsAction} disabled={busy}>Delete</button>
+        {#each [
+          { key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: clearClassificationsAction },
+          { key: "emails", label: "Clear emails & classifications", desc: "Remove all synced Gmail data and scan results.", action: clearEmailsAction },
+          { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: clearContactsAction },
+        ] as item}
+          {#if confirm === item.key}
+            <div class="flex items-center flex-wrap gap-1.5 px-2 py-2 rounded border border-destructive/15 bg-destructive/5 text-[0.65rem] text-muted-foreground/60">
+              <span>Delete {item.label.toLowerCase()}?</span>
+              <button onclick={() => confirm = null} class="hover:text-foreground underline transition-colors">Cancel</button>
+              <button onclick={item.action} disabled={busy} class="text-destructive hover:text-destructive/80 underline disabled:opacity-40 transition-colors">Delete</button>
             </div>
           {:else}
-            <button class="action-row" onclick={() => confirm = "emails"} disabled={busy}>
-              <span class="action-label">Clear emails &amp; classifications</span>
-              <span class="action-desc">Remove all synced Gmail data and scan results.</span>
+            <button
+              onclick={() => confirm = item.key}
+              disabled={busy}
+              class="flex flex-col items-start gap-px px-2 py-1.5 rounded border border-transparent hover:bg-muted/20 hover:border-border/40 disabled:opacity-40 transition-colors w-full text-left"
+            >
+              <span class="text-xs text-foreground/70">{item.label}</span>
+              <span class="text-[0.6rem] text-muted-foreground/40">{item.desc}</span>
             </button>
           {/if}
-
-          <!-- Clear contacts -->
-          {#if confirm === "contacts"}
-            <div class="confirm-row">
-              <span>Delete all contacts?</span>
-              <button class="link-btn" onclick={() => confirm = null}>Cancel</button>
-              <button class="link-btn danger" onclick={clearContactsAction} disabled={busy}>Delete</button>
-            </div>
-          {:else}
-            <button class="action-row" onclick={() => confirm = "contacts"} disabled={busy}>
-              <span class="action-label">Clear contacts</span>
-              <span class="action-desc">Remove extracted contacts from the database.</span>
-            </button>
-          {/if}
-        </div>
+        {/each}
       </div>
 
-      <!-- ── Nuclear option ──────────────── -->
-      <div class="section danger-section">
+      <!-- Nuclear option -->
+      <div class="pt-2.5 border-t border-border/40">
         {#if confirm === "nuke"}
-          <div class="confirm-row nuke">
-            <span>This will delete the entire database and reload the page. Are you sure?</span>
-            <button class="link-btn" onclick={() => confirm = null}>Cancel</button>
-            <button class="link-btn danger" onclick={nukeEverything} disabled={busy}>Wipe Everything</button>
+          <div class="flex items-center flex-wrap gap-1.5 px-2 py-2 rounded border border-destructive/30 bg-destructive/8 text-[0.65rem] text-muted-foreground/60">
+            <span>This will delete the entire database and reload. Are you sure?</span>
+            <button onclick={() => confirm = null} class="hover:text-foreground underline transition-colors">Cancel</button>
+            <button onclick={nukeEverything} disabled={busy} class="text-destructive hover:text-destructive/80 underline font-semibold disabled:opacity-40 transition-colors">Wipe Everything</button>
           </div>
         {:else}
-          <button class="action-row nuke-btn" onclick={() => confirm = "nuke"} disabled={busy}>
-            <span class="action-label">Wipe entire local storage</span>
-            <span class="action-desc">Delete the IndexedDB database and reload. All data will be lost.</span>
+          <button
+            onclick={() => confirm = "nuke"}
+            disabled={busy}
+            class="flex flex-col items-start gap-px px-2 py-1.5 rounded border border-transparent hover:bg-destructive/5 hover:border-destructive/20 disabled:opacity-40 transition-colors w-full text-left"
+          >
+            <span class="text-xs text-destructive/70">Wipe entire local storage</span>
+            <span class="text-[0.6rem] text-muted-foreground/40">Delete the IndexedDB database and reload. All data will be lost.</span>
           </button>
         {/if}
       </div>
 
       {#if busy}
-        <div class="busy-overlay">Working...</div>
+        <div class="absolute inset-0 rounded bg-card/70 flex items-center justify-center backdrop-blur-sm">
+          <span class="text-xs text-muted-foreground">Working…</span>
+        </div>
       {/if}
     </div>
   {/if}
 </div>
-
-<style>
-  .dm {
-    margin-top: 0.75rem;
-  }
-
-  .dm-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    width: 100%;
-    padding: 0.5rem 0.65rem;
-    background: #111;
-    border: 1px solid #222;
-    border-radius: 8px;
-    color: #666;
-    font-size: 0.72rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: color 0.12s, border-color 0.12s;
-    font-family: inherit;
-  }
-  .dm-toggle:hover {
-    color: #999;
-    border-color: #333;
-  }
-
-  .chev {
-    margin-left: auto;
-    transition: transform 0.2s ease;
-    color: #444;
-  }
-  .chev.open { transform: rotate(180deg); }
-
-  .dm-panel {
-    margin-top: 0.35rem;
-    padding: 0.55rem 0.65rem;
-    background: #111;
-    border: 1px solid #222;
-    border-radius: 8px;
-    position: relative;
-  }
-
-  /* ── Summary ──────────────────── */
-  .summary-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-    font-size: 0.66rem;
-    color: #666;
-    padding-bottom: 0.45rem;
-    border-bottom: 1px solid #1e1e1e;
-    margin-bottom: 0.45rem;
-  }
-  .sep { color: #333; }
-
-  /* ── Sections ─────────────────── */
-  .section {
-    margin-bottom: 0.5rem;
-  }
-  .section-title {
-    font-size: 0.62rem;
-    font-weight: 600;
-    color: #555;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.3rem;
-  }
-
-  /* ── Group chips ──────────────── */
-  .group-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-  }
-  .chip {
-    font-size: 0.64rem;
-    font-weight: 500;
-    color: #888;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid #2a2a2a;
-    border-radius: 5px;
-    padding: 0.15rem 0.45rem;
-    cursor: pointer;
-    transition: all 0.12s;
-    font-family: inherit;
-  }
-  .chip:hover:not(:disabled) {
-    color: #f87171;
-    border-color: rgba(248, 113, 113, 0.3);
-    background: rgba(248, 113, 113, 0.05);
-  }
-  .chip:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .confirm-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.64rem;
-    color: #888;
-  }
-
-  /* ── Button list ──────────────── */
-  .btn-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-  .action-row {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.05rem;
-    padding: 0.35rem 0.5rem;
-    background: none;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.12s;
-    text-align: left;
-    font-family: inherit;
-    width: 100%;
-  }
-  .action-row:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.02);
-    border-color: #2a2a2a;
-  }
-  .action-row:disabled { opacity: 0.4; cursor: not-allowed; }
-  .action-label {
-    font-size: 0.72rem;
-    font-weight: 500;
-    color: #ccc;
-  }
-  .action-desc {
-    font-size: 0.6rem;
-    color: #555;
-  }
-
-  /* ── Confirm rows ─────────────── */
-  .confirm-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    font-size: 0.68rem;
-    color: #888;
-    padding: 0.35rem 0.5rem;
-    background: rgba(248, 113, 113, 0.03);
-    border: 1px solid rgba(248, 113, 113, 0.12);
-    border-radius: 6px;
-  }
-  .confirm-row.nuke {
-    background: rgba(248, 113, 113, 0.06);
-    border-color: rgba(248, 113, 113, 0.25);
-  }
-
-  .link-btn {
-    background: none;
-    border: none;
-    color: #888;
-    font-size: 0.66rem;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: underline;
-    padding: 0;
-    font-family: inherit;
-  }
-  .link-btn:hover { color: #ccc; }
-  .link-btn.danger { color: #f87171; }
-  .link-btn.danger:hover { color: #fca5a5; }
-  .link-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* ── Danger section ───────────── */
-  .danger-section {
-    padding-top: 0.45rem;
-    border-top: 1px solid #1e1e1e;
-    margin-bottom: 0;
-  }
-  .nuke-btn .action-label { color: #f87171; }
-  .nuke-btn:hover:not(:disabled) {
-    background: rgba(248, 113, 113, 0.04);
-    border-color: rgba(248, 113, 113, 0.15);
-  }
-
-  /* ── Busy overlay ─────────────── */
-  .busy-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(17, 17, 17, 0.7);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.72rem;
-    color: #888;
-    border-radius: 8px;
-    backdrop-filter: blur(1px);
-  }
-</style>
