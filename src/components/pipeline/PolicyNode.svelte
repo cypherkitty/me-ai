@@ -4,11 +4,7 @@
   let { data } = $props();
 </script>
 
-<Handle
-  type="target"
-  position={Position.Left}
-  style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.08); width:8px; height:8px; left:-4px;"
-/>
+<Handle type="target" position={Position.Left} />
 
 <div
   class="flex items-center gap-2.5 bg-node-policy rounded px-3 py-2 w-[155px] cursor-pointer hover:brightness-125 transition-all border border-white/8"
