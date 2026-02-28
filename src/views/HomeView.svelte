@@ -4,9 +4,7 @@
   import { getSetting } from "../lib/store/settings.js";
   import { getEventStats } from "../lib/rules.js";
   import Chat from "../Chat.svelte";
-  import {
-    Mail, GitBranch, ArrowRight, CheckCircle2, Circle, Zap,
-  } from "lucide-svelte";
+  import { GitBranch, CheckCircle2, Circle, Zap, ChevronRight } from "lucide-svelte";
 
   let gmailConnected = $state(false);
   let gmailEmail = $state<string | null>(null);
@@ -32,107 +30,67 @@
   });
 </script>
 
-<div class="flex h-full overflow-hidden">
+<div class="flex flex-col h-full overflow-hidden">
 
-  <!-- ── Left panel: brand + setup steps ──────────────────────── -->
-  <div class="w-72 shrink-0 flex flex-col border-r border-border bg-sidebar overflow-y-auto">
-    <!-- Brand -->
-    <div class="flex items-center gap-2.5 px-5 h-12 border-b border-border shrink-0">
-      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <Zap class="size-3.5 text-primary-foreground" />
+  <!-- ── Top bar: brand + setup steps ─────────────────────────── -->
+  <div class="shrink-0 border-b border-border bg-sidebar">
+
+    <!-- Brand row -->
+    <div class="flex items-center justify-between px-4 h-11">
+      <div class="flex items-center gap-2">
+        <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
+          <Zap class="size-3.5 text-primary-foreground" />
+        </div>
+        <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
       </div>
-      <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
-    </div>
 
-    <div class="px-5 pt-6 pb-6">
-      <p class="text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-4">Get started</p>
-
-      <!-- Step 1: Sources -->
-      <a
-        href="#sources"
-        class="group flex flex-col rounded-lg border bg-card p-4 no-underline mb-3
-               transition-all hover:border-primary/40
-               {gmailConnected ? 'border-success/30' : 'border-border'}"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/60">Step 1</span>
-          {#if !checking}
+      <!-- Compact status chips (always visible) -->
+      {#if !checking}
+        <div class="flex items-center gap-1.5">
+          <a href="#sources"
+             class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.7rem] font-medium
+                    transition-colors no-underline
+                    {gmailConnected
+                      ? 'text-success border-success/25 bg-success/6 hover:bg-success/10'
+                      : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'}">
             {#if gmailConnected}
-              <span class="inline-flex items-center gap-1 text-[0.6rem] font-medium text-success">
-                <CheckCircle2 class="size-2.5" />Connected
-              </span>
+              <CheckCircle2 class="size-3 shrink-0" />
+              <span class="hidden sm:inline truncate max-w-[120px]">{gmailEmail}</span>
             {:else}
-              <span class="inline-flex items-center gap-1 text-[0.6rem] font-medium text-warning">
-                <Circle class="size-2.5" />Not set up
-              </span>
+              <Circle class="size-3 shrink-0" />
+              <span>Connect sources</span>
             {/if}
-          {/if}
+          </a>
+
+          <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
+
+          <a href="#pipelines"
+             class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[0.7rem] font-medium
+                    transition-colors no-underline
+                    {pipelineCount > 0
+                      ? 'text-primary border-primary/25 bg-primary/6 hover:bg-primary/10'
+                      : 'text-muted-foreground border-border hover:text-foreground hover:border-border/80'}
+                    {!gmailConnected ? 'opacity-40 pointer-events-none' : ''}">
+            <GitBranch class="size-3 shrink-0" />
+            {#if pipelineCount > 0}
+              <span>{pipelineCount} pipeline{pipelineCount === 1 ? '' : 's'}</span>
+            {:else}
+              <span>Rules &amp; actions</span>
+            {/if}
+          </a>
         </div>
-
-        <div class="flex items-center gap-2.5 mb-2">
-          <div class="size-8 rounded-md bg-muted flex items-center justify-center shrink-0
-                      group-hover:bg-primary/10 transition-colors">
-            <Mail class="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-          <div>
-            <p class="text-sm font-semibold text-foreground tracking-tight">Connect Sources</p>
-            <p class="text-[0.65rem] text-muted-foreground">Gmail &amp; more</p>
-          </div>
+      {:else}
+        <!-- skeleton while checking -->
+        <div class="flex items-center gap-1.5">
+          <div class="h-6 w-28 rounded-full bg-muted animate-pulse"></div>
+          <div class="h-6 w-24 rounded-full bg-muted animate-pulse"></div>
         </div>
-
-        <p class="text-[0.7rem] text-muted-foreground leading-relaxed mb-3">
-          Connect email accounts so me-ai can monitor and route incoming messages.
-        </p>
-
-        {#if gmailConnected && gmailEmail}
-          <div class="flex items-center gap-1.5 text-[0.7rem] text-success">
-            <span class="size-1.5 rounded-full bg-success shrink-0"></span>
-            {gmailEmail}
-          </div>
-        {:else}
-          <div class="flex items-center gap-1 text-[0.7rem] text-primary font-medium">
-            Set up now <ArrowRight class="size-3 transition-transform group-hover:translate-x-0.5" />
-          </div>
-        {/if}
-      </a>
-
-      <!-- Step 2: Control Plane -->
-      <a
-        href="#pipelines"
-        class="group flex flex-col rounded-lg border bg-card p-4 no-underline
-               transition-all hover:border-primary/40 border-border
-               {!gmailConnected && !checking ? 'opacity-50 pointer-events-none' : ''}"
-      >
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/60">Step 2</span>
-          {#if pipelineCount > 0}
-            <span class="text-[0.6rem] font-medium text-primary">{pipelineCount} active</span>
-          {/if}
-        </div>
-
-        <div class="flex items-center gap-2.5 mb-2">
-          <div class="size-8 rounded-md bg-muted flex items-center justify-center shrink-0
-                      group-hover:bg-primary/10 transition-colors">
-            <GitBranch class="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          </div>
-          <div>
-            <p class="text-sm font-semibold text-foreground tracking-tight">Rules &amp; Actions</p>
-            <p class="text-[0.65rem] text-muted-foreground">Control plane</p>
-          </div>
-        </div>
-
-        <p class="text-[0.7rem] text-muted-foreground leading-relaxed mb-3">
-          Define pipelines, classify emails, trigger actions, and review approvals.
-        </p>
-
-        <div class="flex items-center gap-1 text-[0.7rem] text-primary font-medium">
-          Open dashboard <ArrowRight class="size-3 transition-transform group-hover:translate-x-0.5" />
-        </div>
-      </a>
+      {/if}
     </div>
+
   </div>
 
-  <!-- ── Right panel: AI Chat ───────────────────────────────────── -->
+  <!-- ── Chat: full remaining height ──────────────────────────── -->
   <div class="flex-1 overflow-hidden flex flex-col">
     <Chat />
   </div>
