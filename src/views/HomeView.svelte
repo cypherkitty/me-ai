@@ -5,7 +5,7 @@
   import { getEventStats } from "../lib/rules.js";
   import Chat from "../Chat.svelte";
   import {
-    Mail, GitBranch, ArrowRight, CheckCircle2, Circle,
+    Mail, GitBranch, ArrowRight, CheckCircle2, Circle, Zap,
   } from "lucide-svelte";
 
   let gmailConnected = $state(false);
@@ -34,9 +34,17 @@
 
 <div class="flex h-full overflow-hidden">
 
-  <!-- ── Left panel: setup steps ───────────────────────────────── -->
+  <!-- ── Left panel: brand + setup steps ──────────────────────── -->
   <div class="w-72 shrink-0 flex flex-col border-r border-border bg-sidebar overflow-y-auto">
-    <div class="px-5 pt-8 pb-6">
+    <!-- Brand -->
+    <div class="flex items-center gap-2.5 px-5 h-12 border-b border-border shrink-0">
+      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
+        <Zap class="size-3.5 text-primary-foreground" />
+      </div>
+      <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
+    </div>
+
+    <div class="px-5 pt-6 pb-6">
       <p class="text-[0.65rem] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-4">Get started</p>
 
       <!-- Step 1: Sources -->
