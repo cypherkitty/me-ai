@@ -1,0 +1,82 @@
+---
+description: TypeScript migration strategy — all new code in TS, existing JS rewritten when touched
+alwaysApply: true
+---
+
+# TypeScript Migration
+
+This project is **gradually migrating from JavaScript to TypeScript**.
+
+## Rules
+
+- **All new files** must be `.ts` or `.svelte` with `<script lang="ts">`
+- **When editing an existing `.js` file**, convert it to `.ts` in the same PR/commit
+- **When editing a `.svelte` file** that uses plain `<script>`, add `lang="ts"` and add types
+- **Never use `@ts-ignore`** — fix the type error instead
+- **Never use `any`** unless it's a genuine escape hatch with a comment explaining why
+
+## Svelte components
+
+```svelte
+<!-- ❌ OLD -->
+<script>
+  let { value, onchange } = $props();
+</script>
+
+<!-- ✅ NEW -->
+<script lang="ts">
+  interface Props {
+    value: string;
+    onchange: (v: string) => void;
+  }
+  let { value, onchange }: Props = $props();
+</script>
+```
+
+## Typing $props()
+
+Always destructure with an explicit interface:
+
+```ts
+interface Props {
+  label: string;
+  count?: number;
+  onclick?: () => void;
+}
+let { label, count = 0, onclick }: Props = $props();
+```
+
+## Typing $state / $derived
+
+```ts
+let items = $state<string[]>([]);
+let count = $derived<number>(items.length);
+```
+
+## Module files
+
+```ts
+// ❌ OLD — utils.js with JSDoc
+/** @param {string} id */
+export function getById(id) { ... }
+
+// ✅ NEW — utils.ts
+export function getById(id: string): Item | undefined { ... }
+```
+
+## Imports
+
+Use `import type` for type-only imports:
+
+```ts
+import type { Pipeline } from '$lib/types';
+import { createPipeline } from '$lib/pipeline';
+```
+
+## Shared types
+
+Put shared interfaces/types in `src/lib/types.ts` (create if it doesn't exist).
+
+## jsconfig.json
+
+The `jsconfig.json` is kept for legacy JS files still being migrated. Do not delete it until all JS is converted.
