@@ -1,31 +1,51 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
-  import { getEvents, getEventStats } from "../lib/rules.js";
+  import { getEvents, getEventStats, clearAllEvents } from "../lib/rules.js";
   import { Button }    from "$lib/components/ui/button/index.js";
   import { Badge }     from "$lib/components/ui/badge/index.js";
   import * as Table    from "$lib/components/ui/table/index.js";
+  import * as Dialog   from "$lib/components/ui/dialog/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { cn }        from "$lib/utils.js";
-  import { RefreshCw, Clock } from "lucide-svelte";
+  import { RefreshCw, Clock, Trash2 } from "lucide-svelte";
 
-  let events  = $state([]);
-  let stats   = $state({ total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 });
-  let loading = $state(true);
-  let selected = $state(null);
+  interface EventRow {
+    id: string;
+    content?: string;
+    subject?: string;
+    sender?: string;
+    timestamp?: number | bigint;
+    status?: string;
+    event_type?: string;
+    event_category?: string;
+    source_name?: string;
+    rule_id?: string;
+    rule_name?: string;
+    rule_priority?: number;
+    actions_taken?: string[];
+    output?: unknown;
+  }
 
-  const SOURCE_COLORS = {
+  let events   = $state<EventRow[]>([]);
+  let stats    = $state({ total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 });
+  let loading  = $state(true);
+  let selected = $state<EventRow | null>(null);
+  let confirmClear = $state(false);
+
+  const SOURCE_COLORS: Record<string, string> = {
     gmail: "#ea4335", telegram: "#26a5e4", instagram: "#e1306c",
     youtube: "#ff0000", slack: "#611f69", twitter: "#1da1f2",
   };
 
-  const STATUS_ITEMS = [
+  type StatKey = "completed" | "awaiting_user" | "escalated" | "failed";
+  const STATUS_ITEMS: { key: StatKey; label: string }[] = [
     { key: "completed",     label: "Completed" },
     { key: "awaiting_user", label: "Awaiting" },
     { key: "escalated",     label: "Escalated" },
     { key: "failed",        label: "Failed" },
   ];
 
-  const STATUS_VARIANT = {
+  const STATUS_VARIANT: Record<string, string> = {
     completed:     "secondary",
     awaiting_user: "secondary",
     escalated:     "destructive",
@@ -36,8 +56,8 @@
     loading = true;
     try {
       [events, stats] = await Promise.all([
-        getEvents({ limit: 500 }),
-        getEventStats(),
+        getEvents({ limit: 500 }) as Promise<EventRow[]>,
+        getEventStats() as Promise<typeof stats>,
       ]);
     } catch (e) {
       console.error("AuditView load error:", e);
@@ -45,9 +65,23 @@
     loading = false;
   }
 
+  async function handleClearAll() {
+    confirmClear = false;
+    loading = true;
+    try {
+      await clearAllEvents();
+      events = [];
+      stats = { total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 };
+      selected = null;
+    } catch (e) {
+      console.error("AuditView clear error:", e);
+    }
+    loading = false;
+  }
+
   onMount(load);
 
-  function formatTs(ts) {
+  function formatTs(ts: number | bigint | undefined): string {
     if (!ts) return "—";
     return new Date(Number(ts)).toLocaleString("en-US", {
       month: "short", day: "numeric",
@@ -55,7 +89,7 @@
     });
   }
 
-  function etLabel(et) { return et?.replace(/_/g, " ") ?? "—"; }
+  function etLabel(et: string | undefined): string { return et?.replace(/_/g, " ") ?? "—"; }
 </script>
 
 <div class="flex flex-col h-full overflow-hidden">
@@ -68,9 +102,19 @@
       </div>
       <p class="text-xs text-muted-foreground">{stats.total} events logged across all pipelines.</p>
     </div>
-    <Button variant="ghost" size="icon-sm" onclick={load} title="Refresh" class={cn(loading && "[&_svg]:animate-spin")}>
-      <RefreshCw class="size-3.5" />
-    </Button>
+    <div class="flex items-center gap-1">
+      <Button variant="ghost" size="icon-sm" onclick={load} title="Refresh" class={cn(loading && "[&_svg]:animate-spin")}>
+        <RefreshCw class="size-3.5" />
+      </Button>
+      {#if events.length > 0}
+        <Button variant="ghost" size="icon-sm" title="Clear all events"
+          class="hover:bg-destructive/10 hover:text-destructive"
+          onclick={() => (confirmClear = true)}
+        >
+          <Trash2 class="size-3.5" />
+        </Button>
+      {/if}
+    </div>
   </div>
 
   <!-- Summary stats -->
@@ -125,7 +169,7 @@
                 <div class="flex items-center gap-1.5">
                   <span
                     class="size-2 rounded-full shrink-0"
-                    style="background:{SOURCE_COLORS[evt.source_name] ?? 'var(--muted-foreground)'}"
+                    style="background:{SOURCE_COLORS[evt.source_name ?? ''] ?? 'var(--muted-foreground)'}"
                   ></span>
                   <span class="text-muted-foreground">{evt.source_name ?? "—"}</span>
                 </div>
@@ -164,7 +208,7 @@
                 {:else}<span class="text-muted-foreground/40">—</span>{/if}
               </Table.Cell>
               <Table.Cell>
-                <Badge variant={STATUS_VARIANT[evt.status] ?? "outline"} class="text-xs px-1.5 h-4">
+                <Badge variant={STATUS_VARIANT[evt.status ?? ''] ?? "outline"} class="text-xs px-1.5 h-4">
                   {evt.status === "awaiting_user" ? "Awaiting" : (evt.status ?? "—")}
                 </Badge>
               </Table.Cell>
@@ -210,3 +254,18 @@
     {/if}
   </ScrollArea>
 </div>
+
+<Dialog.Root bind:open={confirmClear}>
+  <Dialog.Content class="max-w-sm">
+    <Dialog.Header>
+      <Dialog.Title>Clear Audit Trail</Dialog.Title>
+      <Dialog.Description>
+        This will permanently delete all {stats.total} logged events. This cannot be undone.
+      </Dialog.Description>
+    </Dialog.Header>
+    <Dialog.Footer>
+      <Button variant="outline" onclick={() => (confirmClear = false)}>Cancel</Button>
+      <Button variant="destructive" onclick={handleClearAll}>Clear All</Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>

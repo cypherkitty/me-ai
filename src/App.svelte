@@ -129,7 +129,7 @@
       </div>
       <span class="text-sm font-semibold tracking-tight text-foreground">Admin</span>
     </header>
-    <div class="flex-1 min-h-0 overflow-hidden">
+    <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
       <AdminView />
     </div>
   </div>

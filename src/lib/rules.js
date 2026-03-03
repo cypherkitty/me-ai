@@ -333,6 +333,13 @@ export async function updateEventStatus(id, status) {
 }
 
 /**
+ * Delete all events from the audit trail.
+ */
+export async function clearAllEvents() {
+  await exec(`DELETE FROM sm_events`);
+}
+
+/**
  * Get event statistics (counts by status).
  * @returns {Promise<Object>}
  */

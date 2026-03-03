@@ -32,6 +32,9 @@
   let status = $state(null);       // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
+  // Track whether the user has explicitly initiated a load in this session.
+  // Prevents stale worker errors from a previous session showing on page load.
+  let loadInitiated = false;
   let progressItems = $state([]);
 
   let messages = $state([]);
@@ -155,7 +158,9 @@
           break;
 
         case "error":
-          error = msg.data;
+          if (loadInitiated) {
+            error = msg.data;
+          }
           if (status === "loading") {
             // Error during model loading - go back to model selector
             status = null;
@@ -391,6 +396,8 @@
 
   async function loadModel() {
     status = "loading";
+    error = null;
+    loadInitiated = true;
     await setSetting("selectedModel", selectedModel);
     await setSetting("aiBackend", backend);
     // Clear gpuInfo when not using WebGPU
@@ -398,6 +405,13 @@
       gpuInfo = null;
     }
     engine.loadModel(selectedModel);
+  }
+
+  async function clearCacheAndRetry() {
+    error = null;
+    status = "loading";
+    await engine.clearCache(selectedModel);
+    await loadModel();
   }
 
   // Watch backend changes and update default model
@@ -484,6 +498,8 @@
           {gpuInfo}
           {error}
           onload={loadModel}
+          onclearerror={() => { error = null; }}
+          onclearcache={clearCacheAndRetry}
         />
       {:else if backend === "ollama"}
         <OllamaSettings

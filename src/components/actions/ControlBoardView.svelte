@@ -2,11 +2,9 @@
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
-  import DataManager from "./DataManager.svelte";
   import { actionColor } from "../../lib/triage.js";
-  import { Button } from "$lib/components/ui/button/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import { Plus, ShieldCheck, Database } from "lucide-svelte";
+  import { ShieldCheck } from "lucide-svelte";
 
   let {
     engineStatus,
@@ -32,7 +30,6 @@
     ondismisserror,
     ondismisssuccess,
     onstop,
-    onrefresh,
     oncloseprogress,
   } = $props();
 
@@ -173,6 +170,5 @@
       </div>
     {/if}
 
-    <DataManager {groupOrder} {onrefresh} />
   </ScrollArea>
 </div>

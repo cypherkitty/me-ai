@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { MODELS } from "../../lib/models.js";
   import { formatBytes } from "../../lib/format.js";
@@ -6,10 +6,18 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
-  import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card/index.js";
+  import { Card, CardContent } from "$lib/components/ui/card/index.js";
   import { cn } from "$lib/utils.js";
 
-  let { selectedModel = $bindable(), gpuInfo = null, error = null, onload } = $props();
+  interface Props {
+    selectedModel: string;
+    gpuInfo?: { vendor?: string; architecture?: string; limits?: { maxBufferSize?: number } } | null;
+    error?: string | null;
+    onload: () => void;
+    onclearerror?: () => void;
+    onclearcache?: () => void;
+  }
+  let { selectedModel = $bindable(), gpuInfo = null, error = null, onload, onclearerror, onclearcache }: Props = $props();
 
   onMount(() => mountLog("ModelSelector"));
 </script>
@@ -23,10 +31,11 @@
       <select
         id="model-select"
         bind:value={selectedModel}
+        onchange={() => onclearerror?.()}
         class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       >
         {#each MODELS as model}
-          <option value={model.id}>{model.name} — {model.size}</option>
+          <option value={model.id}>{model.isNew ? "✨ " : ""}{model.name} — {model.size}</option>
         {/each}
       </select>
       {#if selectedModel}
@@ -62,6 +71,9 @@
                   )}>
                     <td class="px-3 py-2 font-medium text-foreground border-b border-border/50">
                       {model.name}
+                      {#if model.isNew}
+                        <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-info border-info/30">new</Badge>
+                      {/if}
                       {#if model.id === selectedModel}
                         <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30">current</Badge>
                       {/if}
@@ -115,6 +127,9 @@
 
     {#if error}
       <p class="text-sm text-destructive">{error}</p>
+      <Button variant="outline" onclick={onclearcache} class="w-full text-xs">
+        Clear cache & retry
+      </Button>
     {/if}
 
     <Button onclick={onload} disabled={!!error} class="w-full">

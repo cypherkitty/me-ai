@@ -1,17 +1,21 @@
 <script lang="ts">
-  import AuditView    from "./AuditView.svelte";
-  import { cn }       from "$lib/utils.js";
-  import { ClipboardList } from "lucide-svelte";
+  import AuditView   from "./AuditView.svelte";
+  import ModelsView  from "./ModelsView.svelte";
+  import DataManager from "../components/actions/DataManager.svelte";
+  import { cn }      from "$lib/utils.js";
+  import { ClipboardList, Database, BrainCircuit } from "lucide-svelte";
 
-  type Section = "audit";
+  type Section = "audit" | "models" | "data";
   let activeSection = $state<Section>("audit");
 
   const NAV_ITEMS: { id: Section; label: string; icon: typeof ClipboardList }[] = [
-    { id: "audit", label: "Audit Trail", icon: ClipboardList },
+    { id: "audit",  label: "Audit Trail",     icon: ClipboardList },
+    { id: "models", label: "Local Models",    icon: BrainCircuit  },
+    { id: "data",   label: "Data Management", icon: Database      },
   ];
 </script>
 
-<div class="flex h-full overflow-hidden">
+<div class="flex flex-1 min-h-0 overflow-hidden">
 
   <!-- ── Left sidebar ────────────────────────────────────────────── -->
   <aside class="w-48 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border overflow-hidden">
@@ -46,6 +50,10 @@
   <main class="flex-1 min-h-0 overflow-hidden flex flex-col bg-background">
     {#if activeSection === "audit"}
       <AuditView />
+    {:else if activeSection === "models"}
+      <ModelsView />
+    {:else if activeSection === "data"}
+      <DataManager />
     {/if}
   </main>
 

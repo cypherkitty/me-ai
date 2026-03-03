@@ -103,6 +103,19 @@ export function getUnifiedEngine() {
       return _currentEngine.generateFull(messages, options, onToken);
     },
 
+    /**
+     * Clear the transformers-cache for a specific model (or all if null).
+     * Only meaningful for the WebGPU backend.
+     * @param {string|null} modelId
+     * @returns {Promise<void>}
+     */
+    clearCache(modelId) {
+      if (_currentBackend === "webgpu" && _currentEngine?.clearCache) {
+        return _currentEngine.clearCache(modelId);
+      }
+      return Promise.resolve();
+    },
+
     /** Interrupt generation */
     interrupt() {
       _currentEngine?.interrupt();

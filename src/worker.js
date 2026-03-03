@@ -1,43 +1,49 @@
 import {
+  env,
   AutoTokenizer,
   AutoModelForCausalLM,
+  AutoModelForImageTextToText,
   TextStreamer,
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
 
-/**
- * Singleton pipeline: lazy-loads the tokenizer + model once,
- * then reuses them for every generation call.
- * When switching models, we only swap the in-memory reference but
- * Transformers.js keeps the downloaded files cached in IndexedDB.
- */
+// HuggingFace recently migrated to XetHub CDN which doesn't support Range
+// requests properly — it returns a full 200 body instead of 206 Partial.
+// The uncancelled body corrupts concurrent HTTP/2 streams, causing
+// JSON.parse("{") errors. Wrapping fetch with `cache: 'no-store'` prevents
+// the browser from serving stale/corrupted responses from its HTTP cache.
+// The transformers-cache (Cache API) still handles persistent caching.
+const _fetch = env.fetch;
+env.fetch = (url, options = {}) => _fetch(url, { ...options, cache: "no-store" });
+
+function isImageTextToTextModel(model_id) {
+  return /Qwen3\.5/i.test(model_id);
+}
+
 class TextGenerationPipeline {
-  static model_id = null;  // Currently loaded model ID
+  static model_id = null;
   static tokenizer = null;
   static model = null;
 
   static async getInstance(model_id, progress_callback = null) {
-    // If model changed, release GPU memory but DON'T clear browser cache
     if (this.model_id && this.model_id !== model_id) {
-      // Dispose WebGPU resources for the old model
       if (this.model?.dispose) {
-        try {
-          await this.model.dispose();
-        } catch (e) {
-          console.warn("Model dispose failed:", e);
-        }
+        try { await this.model.dispose(); } catch {}
       }
       this.tokenizer = null;
       this.model = null;
     }
     this.model_id = model_id;
 
-    // from_pretrained uses browser cache (IndexedDB) automatically
     this.tokenizer ??= AutoTokenizer.from_pretrained(model_id, {
       progress_callback,
     });
 
-    this.model ??= AutoModelForCausalLM.from_pretrained(model_id, {
+    const ModelClass = isImageTextToTextModel(model_id)
+      ? AutoModelForImageTextToText
+      : AutoModelForCausalLM;
+
+    this.model ??= ModelClass.from_pretrained(model_id, {
       dtype: "q4f16",
       device: "webgpu",
       progress_callback,
@@ -49,74 +55,35 @@ class TextGenerationPipeline {
 
 const stopping_criteria = new InterruptableStoppingCriteria();
 
-// ── Harmony format detection ────────────────────────────────────────
-// GPT-OSS uses a Harmony channel format. After Transformers.js decodes
-// with skip_special_tokens=true (the default), all <|token|> markers are
-// stripped, leaving plain channel-name boundaries:
-//   analysis[thinking text]assistant[role]final[response text]
-// We parse this post-hoc once generation is complete.
+// ── Harmony format detection (GPT-OSS) ─────────────────────────────
 function isHarmonyModel(model_id) {
   return model_id.includes("gpt-oss");
 }
 
-/**
- * Parse the complete GPT-OSS Harmony output (after all tokens are decoded).
- *
- * The decoded stream looks like:
- *   "analysis<thinking>assistant<role>final<response>"
- * where the channel names are literal word boundaries left after special
- * token stripping. We split on them to extract thinking and response.
- *
- * Returns { thinking: string|null, response: string }
- */
 function parseHarmonyOutput(raw) {
-  // Locate the "final" boundary — everything after it is the response
   const finalIdx = raw.indexOf("final");
-  if (finalIdx === -1) {
-    // No "final" channel found — return everything as the response
-    return { thinking: null, response: raw.trim() };
-  }
+  if (finalIdx === -1) return { thinking: null, response: raw.trim() };
 
   const response = raw.slice(finalIdx + "final".length).trim();
-
-  // Locate the "analysis" channel for thinking content
   const analysisIdx = raw.indexOf("analysis");
   let thinking = null;
   if (analysisIdx !== -1) {
-    // Thinking is between "analysis" and the next channel marker
-    // The next marker is typically "assistant" or "final"
     const afterAnalysis = raw.slice(analysisIdx + "analysis".length);
-    // Find where thinking ends: at "assistant" or "final"
     const endMatch = afterAnalysis.search(/assistant|final/);
-    if (endMatch !== -1) {
-      thinking = afterAnalysis.slice(0, endMatch).trim();
-    } else {
-      thinking = afterAnalysis.trim();
-    }
+    thinking = (endMatch !== -1 ? afterAnalysis.slice(0, endMatch) : afterAnalysis).trim() || null;
   }
-
-  return { thinking: thinking || null, response };
+  return { thinking, response };
 }
 
-// ── Check WebGPU availability and report adapter info ──────────────
+// ── Check WebGPU ────────────────────────────────────────────────────
 async function check() {
   try {
-    if (!navigator.gpu) {
-      throw new Error("WebGPU API is not available in this browser");
-    }
-
+    if (!navigator.gpu) throw new Error("WebGPU API is not available in this browser");
     const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      throw new Error("WebGPU is not supported (no adapter found)");
-    }
+    if (!adapter) throw new Error("WebGPU is not supported (no adapter found)");
 
-    // Gather rich GPU adapter info
     const info = adapter.info || {};
     const limits = adapter.limits || {};
-    const features = adapter.features
-      ? [...adapter.features].sort()
-      : [];
-
     self.postMessage({
       status: "webgpu-info",
       data: {
@@ -124,7 +91,7 @@ async function check() {
         architecture: info.architecture || "unknown",
         device: info.device || "unknown",
         description: info.description || "unknown",
-        features,
+        features: adapter.features ? [...adapter.features].sort() : [],
         limits: {
           maxBufferSize: limits.maxBufferSize,
           maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
@@ -141,25 +108,18 @@ async function check() {
   }
 }
 
-// ── Download model + compile shaders ───────────────────────────────
+// ── Load model ──────────────────────────────────────────────────────
 async function load(model_id) {
   self.postMessage({ status: "loading", data: "Loading model..." });
 
   try {
     const [tokenizer, model] = await TextGenerationPipeline.getInstance(
       model_id,
-      (x) => {
-        self.postMessage(x);
-      },
+      (x) => self.postMessage(x),
     );
 
-    self.postMessage({
-      status: "loading",
-      data: "Compiling shaders and warming up model...",
-    });
+    self.postMessage({ status: "loading", data: "Compiling shaders and warming up model..." });
 
-    // Warm-up: use apply_chat_template so the full generation path
-    // (including KV cache allocation and graph capture) is exercised.
     const warmupInputs = tokenizer.apply_chat_template(
       [{ role: "user", content: "hi" }],
       { add_generation_prompt: true, return_dict: true },
@@ -168,28 +128,20 @@ async function load(model_id) {
 
     self.postMessage({ status: "ready" });
   } catch (e) {
-    console.error("Load error:", e);
+    console.error("[worker] Load error:", e);
     self.postMessage({ status: "error", data: e.toString() });
   }
 }
 
-// ── Streaming generation ───────────────────────────────────────────
+// ── Streaming generation ────────────────────────────────────────────
 async function generate(messages, { maxTokens = 4096, enableThinking = true } = {}) {
   try {
     const modelId = TextGenerationPipeline.model_id;
     const useHarmony = isHarmonyModel(modelId);
-
     const [tokenizer, model] = await TextGenerationPipeline.getInstance(modelId);
 
-    const templateOpts = {
-      add_generation_prompt: true,
-      return_dict: true,
-    };
-    // enable_thinking is a Qwen3-specific option; skip for Harmony models
-    if (!enableThinking && !useHarmony) {
-      templateOpts.enable_thinking = false;
-    }
-
+    const templateOpts = { add_generation_prompt: true, return_dict: true };
+    if (!enableThinking && !useHarmony) templateOpts.enable_thinking = false;
     const inputs = tokenizer.apply_chat_template(messages, templateOpts);
 
     let startTime;
@@ -198,25 +150,17 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
 
     const token_callback_function = () => {
       startTime ??= performance.now();
-      if (numTokens++ > 0) {
-        tps = (numTokens / (performance.now() - startTime)) * 1000;
-      }
+      if (numTokens++ > 0) tps = (numTokens / (performance.now() - startTime)) * 1000;
     };
 
-    // ── Harmony path (GPT-OSS) ─────────────────────────────────────
-    // Collect the full output, then parse it once generation is done.
-    // Streaming per-token parsing is unreliable because Transformers.js
-    // strips all <|token|> markers, leaving only plain channel names as
-    // word boundaries — impossible to detect mid-stream reliably.
+    // Harmony path — collect all tokens, parse once at end
     let harmonyRawBuffer = "";
-
     const harmony_callback = (output) => {
       harmonyRawBuffer += output;
-      // Keep the phase indicator alive while generating
       self.postMessage({ status: "phase", phase: "generating" });
     };
 
-    // ── <think> path (Qwen3, DeepSeek R1, etc.) ───────────────────
+    // <think> path — Qwen3, DeepSeek R1, etc.
     let fullOutput = "";
     let isThinking = false;
     let thinkingDone = false;
@@ -245,12 +189,8 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
             self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
           }
           const afterClose = fullOutput.slice(closeIdx + "</think>".length).trimStart();
-          if (afterClose) {
-            self.postMessage({ status: "phase", phase: "generating" });
-            self.postMessage({ status: "update", output: afterClose, tps, numTokens });
-          } else {
-            self.postMessage({ status: "phase", phase: "generating" });
-          }
+          self.postMessage({ status: "phase", phase: "generating" });
+          if (afterClose) self.postMessage({ status: "update", output: afterClose, tps, numTokens });
           return;
         }
 
@@ -266,7 +206,6 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
           self.postMessage({ status: "update", output: fullOutput, tps, numTokens });
           return;
         }
-
         return;
       }
 
@@ -286,13 +225,12 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     await model.generate({
       ...inputs,
       do_sample: false,
-      num_beams: 1,       // greedy, no beam search overhead
+      num_beams: 1,
       max_new_tokens: maxTokens,
       streamer,
       stopping_criteria,
     });
 
-    // Parse and emit Harmony output after generation completes
     if (useHarmony && harmonyRawBuffer) {
       const { thinking, response } = parseHarmonyOutput(harmonyRawBuffer);
       if (thinking) {
@@ -303,14 +241,12 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       self.postMessage({ status: "update", output: response || harmonyRawBuffer.trim(), tps, numTokens });
     }
 
-    // Safety: <think> path — model used all tokens without closing </think>
     if (!useHarmony && !thinkingDone && isThinking && thinkBuffer.length > 0) {
       self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
       self.postMessage({
         status: "update",
         output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
-        tps,
-        numTokens,
+        tps, numTokens,
       });
     }
   } catch (e) {
@@ -321,7 +257,7 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
   self.postMessage({ status: "complete" });
 }
 
-// ── Message router ─────────────────────────────────────────────────
+// ── Message router ──────────────────────────────────────────────────
 self.addEventListener("message", async (e) => {
   const { type, data, modelId, options } = e.data;
 
@@ -341,6 +277,22 @@ self.addEventListener("message", async (e) => {
       break;
     case "reset":
       stopping_criteria.reset();
+      break;
+    case "clearCache":
+      try {
+        if ("caches" in self) {
+          const cache = await caches.open("transformers-cache");
+          const requests = await cache.keys();
+          const toDelete = modelId
+            ? requests.filter((r) => r.url.includes(modelId))
+            : requests;
+          await Promise.all(toDelete.map((r) => cache.delete(r)));
+        }
+      } catch {}
+      TextGenerationPipeline.tokenizer = null;
+      TextGenerationPipeline.model = null;
+      TextGenerationPipeline.model_id = null;
+      self.postMessage({ status: "cacheCleared", modelId: modelId ?? null });
       break;
   }
 });
