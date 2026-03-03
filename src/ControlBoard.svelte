@@ -215,7 +215,6 @@
     ondismisserror={() => error = null}
     ondismisssuccess={() => successMsg = null}
     onstop={stopScan}
-    onrefresh={loadData}
     oncloseprogress={async () => { scanProgress = null; await removeSetting(SCAN_HISTORY_KEY); }}
     bind:scanCount
   />

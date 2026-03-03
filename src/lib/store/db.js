@@ -584,6 +584,160 @@ export async function execBatch(statements) {
   await checkpoint();
 }
 
+// ── OPFS helpers ──────────────────────────────────────────────────────
+
+/**
+ * Return stats about the OPFS DuckDB file and key table row counts.
+ * @returns {Promise<{supported: boolean, fileBytes: number, tables: Record<string, number>}>}
+ */
+export async function getOpfsStats() {
+  const supported = typeof navigator !== "undefined" &&
+    typeof navigator.storage?.getDirectory === "function";
+
+  let fileBytes = 0;
+  if (supported) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle("me-ai.db", { create: false });
+      const file = await fh.getFile();
+      fileBytes = file.size;
+    } catch { /* file may not exist yet */ }
+  }
+
+  await getDb();
+  const tables = {};
+  for (const tbl of [
+    "sm_rules", "sm_rule_triggers", "sm_rule_commands",
+    "sm_events", "items", "emailClassifications", "contacts", "settings",
+  ]) {
+    try {
+      const rows = await query(`SELECT COUNT(*) AS n FROM ${tbl}`);
+      tables[tbl] = Number(rows[0]?.n ?? 0);
+    } catch { tables[tbl] = 0; }
+  }
+
+  return { supported, fileBytes, tables };
+}
+
+/**
+ * Clear all user-data tables in DuckDB (keeps lookup/seed tables).
+ * Resets pipelines, events, emails, classifications, contacts, settings.
+ */
+export async function clearAllDuckDbData() {
+  const conn = await _getConn();
+  await conn.query("BEGIN");
+  try {
+    for (const sql of [
+      "DELETE FROM sm_events",
+      "DELETE FROM sm_rule_commands",
+      "DELETE FROM sm_rule_triggers",
+      "DELETE FROM sm_rule_policies",
+      "DELETE FROM sm_rules",
+      "DELETE FROM items",
+      "DELETE FROM emailClassifications",
+      "DELETE FROM contacts",
+      "DELETE FROM syncState",
+      "DELETE FROM settings",
+      "DELETE FROM auditLog",
+    ]) {
+      await conn.query(sql);
+    }
+    await conn.query("COMMIT");
+  } catch (e) {
+    await conn.query("ROLLBACK").catch(() => {});
+    throw e;
+  }
+  await checkpoint();
+}
+
+/**
+ * Close the DuckDB connection, delete the OPFS file, then reload the page.
+ * This is a destructive operation — all DuckDB data will be lost.
+ */
+export async function deleteOpfsFileAndReload() {
+  // Flush any pending writes first
+  try { await checkpoint(); } catch {}
+
+  // Close connection and DB
+  try { await _conn?.close(); } catch {}
+  try { await _db?.terminate(); } catch {}
+  _conn = null;
+  _db = null;
+  _initPromise = null;
+
+  // Delete the OPFS file
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry("me-ai.db");
+  } catch (e) {
+    console.warn("[db] Could not delete OPFS file:", e?.message);
+  }
+
+  window.location.reload();
+}
+
+/**
+ * Wipe ALL local data for this origin and reload:
+ *  1. DuckDB connection + all OPFS files (me-ai.db, me-ai.db.wal, …)
+ *  2. All IndexedDB databases
+ *  3. All Cache API caches (model weights via transformers-cache, etc.)
+ *  4. localStorage + sessionStorage
+ *
+ * The page reloads automatically when done.
+ */
+export async function nukeAllLocalData() {
+  // 1. Close DuckDB gracefully
+  try { await checkpoint(); } catch {}
+  try { await _conn?.close(); } catch {}
+  try { await _db?.terminate(); } catch {}
+  _conn = null;
+  _db = null;
+  _initPromise = null;
+
+  // 2. Delete all OPFS files
+  try {
+    const root = await navigator.storage.getDirectory();
+    const entries = [];
+    for await (const [name] of root.entries()) entries.push(name);
+    await Promise.allSettled(entries.map((name) => root.removeEntry(name, { recursive: true })));
+  } catch (e) {
+    console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
+  }
+
+  // 3. Delete all IndexedDB databases
+  try {
+    const dbs = await indexedDB.databases?.() ?? [];
+    await Promise.allSettled(
+      dbs.map(
+        ({ name }) =>
+          new Promise((res, rej) => {
+            const r = indexedDB.deleteDatabase(name);
+            r.onsuccess = res;
+            r.onerror   = () => rej(r.error);
+          })
+      )
+    );
+  } catch (e) {
+    console.warn("[db] nukeAllLocalData: IndexedDB sweep failed:", e?.message);
+  }
+
+  // 4. Delete all Cache API caches (model weights, etc.)
+  try {
+    if ("caches" in window) {
+      const names = await caches.keys();
+      await Promise.allSettled(names.map((n) => caches.delete(n)));
+    }
+  } catch (e) {
+    console.warn("[db] nukeAllLocalData: Cache API sweep failed:", e?.message);
+  }
+
+  // 5. Clear Web Storage
+  try { localStorage.clear(); }   catch {}
+  try { sessionStorage.clear(); } catch {}
+
+  window.location.reload();
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────
 
 /**

@@ -129,6 +129,25 @@ export function getEngine() {
       });
     },
 
+    /**
+     * Clear the transformers-cache for a specific model (or all models if modelId is null).
+     * Resolves when the worker confirms the cache was cleared.
+     * @param {string|null} modelId
+     * @returns {Promise<void>}
+     */
+    clearCache(modelId) {
+      return new Promise((resolve) => {
+        const handler = (msg) => {
+          if (msg.status === "cacheCleared") {
+            _listeners.delete(handler);
+            resolve();
+          }
+        };
+        _listeners.add(handler);
+        ensureWorker().postMessage({ type: "clearCache", modelId });
+      });
+    },
+
     /** Interrupt current generation. */
     interrupt() {
       _worker?.postMessage({ type: "interrupt" });
