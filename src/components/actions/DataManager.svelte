@@ -417,18 +417,22 @@
                   >Cancel</button
                 >
                 <button
-                  onclick={() =>
-                    run(async () => {
-                      try {
-                        await nukeAllLocalData();
-                      } catch (e) {
-                        console.error(e);
-                        alert(
-                          "Error wiping data: " +
-                            (e instanceof Error ? e.message : String(e)),
-                        );
-                      }
-                    })}
+                  onclick={async () => {
+                    busy = true;
+                    confirm = null;
+                    try {
+                      await nukeAllLocalData();
+                      // nukeAllLocalData calls window.location.reload() — execution
+                      // never reaches here, so no load() is needed.
+                    } catch (e) {
+                      busy = false;
+                      console.error(e);
+                      alert(
+                        "Error wiping data: " +
+                          (e instanceof Error ? e.message : String(e)),
+                      );
+                    }
+                  }}
                   disabled={busy}
                   class="text-destructive hover:text-destructive/80 underline font-semibold disabled:opacity-40 transition-colors"
                   >Wipe everything</button
