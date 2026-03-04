@@ -27,72 +27,51 @@ export const CLASSIFICATION_CONFIG = {
 
 /**
  * Build the system prompt dynamically from the currently registered plugins.
- * This ensures the LLM always knows about the real, available actions — no
- * hardcoded action IDs in the prompt.
+ * The LLM's job is to classify messages into an event_type and a category.
+ * Categories carry their own default pipelines — the LLM does NOT suggest actions.
  *
  * @param {{ pluginId: string, pluginName: string, actions: import('./plugins/base-plugin.js').ActionHandler[] }[]} plugins
  * @returns {string}
  */
 export function buildSystemPrompt(plugins) {
-  const actionLines = [];
-  const allActionIds = [];
+  // We still list plugins so the LLM knows the platform context,
+  // but it no longer needs to suggest specific action IDs.
+  const pluginNames = plugins
+    .filter(p => p.actions.length)
+    .map(p => p.pluginName)
+    .join(", ");
 
-  for (const plugin of plugins) {
-    if (!plugin.actions.length) continue;
-    actionLines.push(`${plugin.pluginName} plugin:`);
-    for (const a of plugin.actions) {
-      actionLines.push(`  ${a.actionId.padEnd(22)} — ${a.name}: ${a.description}`);
-      allActionIds.push(a.actionId);
-    }
-  }
-
-  const actionsSection = actionLines.length
-    ? actionLines.join("\n")
-    : "  (no actions available)";
-
-  const allIdsInline = allActionIds.join(", ");
-
-  return `You are an email classifier. Analyze this email and produce a classification with suggested actions.
+  return `You are a message classifier. Analyze this message and produce a classification.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 Format:
 {
-  "action": "SHORT_ACTION_NAME",
-  "group": "NOISE",
-  "suggestedActions": ["trash"],
+  "action": "EVENT_TYPE_NAME",
+  "category": "noise",
   "reason": "One sentence explaining why",
-  "summary": "2-3 sentence summary of the email content",
+  "summary": "2-3 sentence summary of the message content",
   "tags": ["tag1", "tag2", "tag3"]
 }
 
 Guidelines for "action" (Event Type):
-- Condense the email's core purpose into a distinct, high-level event type.
-- This MUST be a flexible, dynamically generated string categorizing the *nature* of the email.
-- Examples: RECEIPT, SHIPPING_UPDATE, NEWSLETTER, SECURITY_ALERT, ACCOUNT_NOTICE, PROMOTION
+- Condense the message's core purpose into a distinct, high-level event type.
+- This MUST be a flexible, dynamically generated string categorizing the *nature* of the message.
+- Examples: RECEIPT, SHIPPING_UPDATE, NEWSLETTER, SECURITY_ALERT, ACCOUNT_NOTICE, PROMOTION, BILLING_REMINDER, JOB_ALERT, SOCIAL_MENTION
 - Do not use verbs. Use noun phrases that describe the event type.
+- Reuse existing event types when the message fits — avoid creating very similar types.
 
-Guidelines for "group" (Event Category):
-- Classify the email into one of two urgency tiers:
-  - "IMPORTANT" — The default tier for almost everything (receipts, account notifications, financial transactions, purchases, security alerts, personal mail, work mail, or ANY ambiguous email). User must approve before acting.
-  - "NOISE"     — Use ONLY if you are absolutely certain the email is completely unimportant (pure promotions, mass marketing, spam, social media digests). If there is even a 1% chance it is important, use "IMPORTANT". Actions in this group run automatically without human oversight, so be extremely conservative.
-- When in doubt, ALWAYS use IMPORTANT.
-
-Available actions (from installed plugins):
-${actionsSection}
-
-Guidelines for "suggestedActions":
-- Suggest 1-3 actions from the list above, in execution order
-- Use ONLY the exact action IDs listed above (${allIdsInline})
-- Match actions to the email's group and purpose:
-    NOISE     → prefer: trash, mark_spam, archive (auto-cleanup)
-    IMPORTANT → prefer: mark_read, star, mark_important, archive (quiet filing or review)
-- Choose the most specific and least destructive actions that serve the event type
-- These seed the default pipeline for this event type (the user can edit later)
-- If genuinely no action is needed, use []
+Guidelines for "category" (Event Category):
+- Classify the message into one of four tiers:
+  - "noise"         — Pure spam, mass marketing, social media digests, promotional blasts. Will be automatically deleted. Use ONLY when you are certain.
+  - "informational" — Useful but not urgent: newsletters, shipping updates, social notifications, automated confirmations. Will be silently archived.
+  - "important"     — Requires attention: personal messages, work emails, invoices, account changes, financial transactions. User must review.
+  - "urgent"        — Needs immediate action: security alerts, payment failures, time-sensitive deadlines. User must act now.
+- When in doubt, always use "important" — it is safer.
+- "noise" auto-deletes, so be extremely conservative with it.
 
 Guidelines for "tags":
-- 2-5 short lowercase tags describing the email's nature
+- 2-5 short lowercase tags describing the message's nature
 - Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, finance, travel
 - Be descriptive and specific
 
@@ -101,11 +80,12 @@ Guidelines for "summary":
 - Include specific details: amounts, dates, names, tracking numbers, deadlines
 - Write from the perspective of what matters to the recipient
 
+Active integrations: ${pluginNames || "(none)"}
+
 Rules:
 - Output ONLY the JSON object, nothing else
 - "action" must be UPPER_SNAKE_CASE
-- "group" must be exactly "NOISE" or "IMPORTANT"
-- "suggestedActions" must be an array of valid action IDs from the list above
+- "category" must be exactly one of: "noise", "informational", "important", "urgent"
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
 }
@@ -303,10 +283,10 @@ export async function scanEmails(
           ]
         );
 
-        // Auto-seed pipeline for this event type if it's new
+        // Auto-seed event type with its category (category pipeline applies automatically)
         await seedEventTypeFromLLM(
           classification.action,
-          classification.group,
+          classification.category,
           classification.suggestedActions,
         );
 
@@ -527,15 +507,14 @@ export function formatEmailPrompt(email) {
 // ── Response parsing ─────────────────────────────────────────────────
 
 /**
- * Parse the LLM's JSON response for a single email classification.
- * Expects: {"action": "...", "reason": "...", "summary": "...", "tags": [...]}
+ * Parse the LLM's JSON response for a single message classification.
+ * Expects: {"action": "...", "category": "...", "reason": "...", "summary": "...", "tags": [...]}
  *
  * Action types are freeform — any UPPER_SNAKE_CASE string is accepted.
- * suggestedActions are validated against the provided set of known action IDs.
+ * Category must be one of: noise, informational, important, urgent.
  *
  * @param {string} response - Raw LLM output
- * @param {Set<string>} [knownActionIds] - Valid action IDs from the plugin registry.
- *   When omitted, any non-empty string is accepted (loose mode for tests/preview).
+ * @param {Set<string>} [knownActionIds] - Unused (kept for API compat)
  * @returns {object|null} Parsed classification or null
  */
 export function parseClassification(response, knownActionIds) {
@@ -570,23 +549,24 @@ export function parseClassification(response, knownActionIds) {
       return null;
     }
 
-    const VALID_GROUPS = ["NOISE", "IMPORTANT"];
-    const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "IMPORTANT";
+    // Parse category (new 4-tier model) — also accept legacy "group" field
+    const VALID_CATEGORIES = ["noise", "informational", "important", "urgent"];
+    const rawCategory = (parsed.category || parsed.group || "").toLowerCase().trim();
+    // Map legacy 2-tier values to new 4-tier
+    let category;
+    if (VALID_CATEGORIES.includes(rawCategory)) {
+      category = rawCategory;
+    } else if (rawCategory === "noise" || parsed.group === "NOISE") {
+      category = "noise";
+    } else {
+      category = "important"; // safe default
+    }
 
-    let suggestedActions = [];
-    if (Array.isArray(parsed.suggestedActions)) {
-      suggestedActions = parsed.suggestedActions
-        .filter(a => {
-          if (typeof a !== "string" || !a.trim()) return false;
-          if (knownActionIds) return knownActionIds.has(a.trim());
-          return true;
-        })
-        .map(a => a.trim())
-        .slice(0, 5);
-    }
-    if (suggestedActions.length === 0 && Array.isArray(parsed.suggestedActions) && parsed.suggestedActions.length > 0) {
-      console.warn("Triage: suggestedActions contained unknown IDs — all filtered out:", parsed.suggestedActions);
-    }
+    // Backward compat: derive legacy group from category
+    const group = category === "noise" ? "NOISE" : "IMPORTANT";
+
+    // suggestedActions removed — categories carry their own pipelines
+    const suggestedActions = [];
 
     let tags = [];
     if (Array.isArray(parsed.tags)) {
@@ -598,8 +578,9 @@ export function parseClassification(response, knownActionIds) {
 
     return {
       action,
-      group,
-      suggestedActions,
+      category,
+      group,           // backward compat
+      suggestedActions, // always empty, kept for API compat
       reason: String(parsed.reason || "").slice(0, 300),
       summary: String(parsed.summary || "").slice(0, 500),
       tags,

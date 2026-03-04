@@ -218,14 +218,17 @@ async function _createSchema(conn) {
   await conn.query(`
     -- ── Static lookup tables ──────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS sm_event_types (
-      name     VARCHAR PRIMARY KEY,
-      label    VARCHAR
+      name          VARCHAR PRIMARY KEY,
+      label         VARCHAR,
+      category_name VARCHAR DEFAULT 'important',
+      auto_created  BOOLEAN DEFAULT false
     );
 
     CREATE TABLE IF NOT EXISTS sm_event_categories (
       name     VARCHAR PRIMARY KEY,
       label    VARCHAR,
-      priority INTEGER
+      priority INTEGER,
+      policy   VARCHAR DEFAULT 'manual'
     );
 
     CREATE TABLE IF NOT EXISTS sm_sources (
@@ -264,6 +267,23 @@ async function _createSchema(conn) {
       plugin_name VARCHAR,
       source_name VARCHAR,
       PRIMARY KEY (plugin_name, source_name)
+    );
+
+    -- ── Category-based pipelines (RBAC model) ────────────────────────
+    CREATE TABLE IF NOT EXISTS sm_category_pipeline (
+      category_name VARCHAR,
+      action_idx    INTEGER,
+      plugin_id     VARCHAR,
+      command_id    VARCHAR,
+      PRIMARY KEY (category_name, action_idx)
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_type_pipeline (
+      type_name  VARCHAR,
+      action_idx INTEGER,
+      plugin_id  VARCHAR,
+      command_id VARCHAR,
+      PRIMARY KEY (type_name, action_idx)
     );
 
     -- ── Rules ─────────────────────────────────────────────────────────
@@ -431,27 +451,27 @@ async function _seedSignalMap(conn) {
       ('supervised', 'Supervised', 'Executes then notifies user'),
       ('manual',     'Manual',     'Waits for explicit user approval');
 
-    INSERT INTO sm_event_types VALUES
-      ('ad',                   'Advertisement'),
-      ('newsletter',           'Newsletter'),
-      ('personal_message',     'Personal Message'),
-      ('work_email',           'Work Email'),
-      ('instagram_post',       'Instagram Post'),
-      ('youtube_video',        'YouTube Video'),
-      ('security_alert',       'Security Alert'),
-      ('invoice',              'Invoice'),
-      ('social_mention',       'Social Mention'),
-      ('startup_notification', 'Startup Notification'),
-      ('tweet',                'Tweet'),
-      ('retweet',              'Retweet'),
-      ('twitter_mention',      'Twitter Mention'),
-      ('twitter_thread',       'Twitter Thread');
+    INSERT INTO sm_event_types (name, label, category_name, auto_created) VALUES
+      ('ad',                   'Advertisement',         'noise',         false),
+      ('newsletter',           'Newsletter',            'noise',         false),
+      ('personal_message',     'Personal Message',      'important',     false),
+      ('work_email',           'Work Email',            'important',     false),
+      ('instagram_post',       'Instagram Post',        'informational', false),
+      ('youtube_video',        'YouTube Video',         'informational', false),
+      ('security_alert',       'Security Alert',        'urgent',        false),
+      ('invoice',              'Invoice',               'important',     false),
+      ('social_mention',       'Social Mention',        'informational', false),
+      ('startup_notification', 'Startup Notification',  'informational', false),
+      ('tweet',                'Tweet',                 'informational', false),
+      ('retweet',              'Retweet',               'noise',         false),
+      ('twitter_mention',      'Twitter Mention',       'informational', false),
+      ('twitter_thread',       'Twitter Thread',        'informational', false);
 
     INSERT INTO sm_event_categories VALUES
-      ('noise',         'Noise',         1),
-      ('informational', 'Informational', 2),
-      ('important',     'Important',     3),
-      ('urgent',        'Urgent',        4);
+      ('noise',         'Noise',         1, 'auto'),
+      ('informational', 'Informational', 2, 'supervised'),
+      ('important',     'Important',     3, 'manual'),
+      ('urgent',        'Urgent',        4, 'manual');
 
     INSERT INTO sm_sources VALUES
       ('gmail',     'Gmail',     'email',     'gmail_api_v1',          true),
@@ -503,6 +523,13 @@ async function _seedSignalMap(conn) {
       ('twitter_plugin',  'twitter'),
       ('telegram_plugin', 'telegram'),
       ('instagram_plugin','instagram');
+
+    -- ── Default category pipelines ─────────────────────────────────
+    INSERT INTO sm_category_pipeline VALUES
+      ('noise',         0, 'gmail', 'gmail:trash'),
+      ('informational', 0, 'gmail', 'gmail:mark_read'),
+      ('informational', 1, 'gmail', 'gmail:archive');
+    -- important and urgent have no default pipeline (user must act)
   `);
 }
 

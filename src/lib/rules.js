@@ -366,6 +366,141 @@ export async function findMatchingRules(eventType, eventCategory) {
     .sort((a, b) => b.priority - a.priority);
 }
 
+// ── Category-based pipeline resolution ─────────────────────────────────
+
+/**
+ * Get the pipeline for an event type using the category-based model.
+ *
+ * Resolution order:
+ * 1. Check sm_type_pipeline for a per-type override
+ * 2. Look up the event type's category from sm_event_types
+ * 3. Use sm_category_pipeline for the category's default pipeline
+ *
+ * @param {string} eventType — UPPER_SNAKE_CASE event type name
+ * @returns {Promise<{ actions: Array<{pluginId: string, commandId: string, order: number}>, policy: string, category: string }>}
+ */
+export async function getPipelineForEvent(eventType) {
+  const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
+
+  // 1. Check for per-type override
+  const typeOverride = await query(`
+    SELECT plugin_id, command_id, action_idx
+    FROM sm_type_pipeline
+    WHERE type_name = ?
+    ORDER BY action_idx
+  `, [normalized]);
+
+  // 2. Look up the event type's category
+  const typeRow = await query(`
+    SELECT category_name FROM sm_event_types WHERE UPPER(name) = ?
+  `, [normalized]);
+  const category = typeRow?.[0]?.category_name || "important";
+
+  // 3. Get category policy
+  const catRow = await query(`
+    SELECT policy FROM sm_event_categories WHERE name = ?
+  `, [category]);
+  const policy = catRow?.[0]?.policy || "manual";
+
+  if (typeOverride?.length > 0) {
+    return {
+      actions: typeOverride.map(r => ({
+        pluginId: r.plugin_id,
+        commandId: r.command_id,
+        order: r.action_idx,
+      })),
+      policy,
+      category,
+      isOverride: true,
+    };
+  }
+
+  // 4. Fall back to category default pipeline
+  const catPipeline = await query(`
+    SELECT plugin_id, command_id, action_idx
+    FROM sm_category_pipeline
+    WHERE category_name = ?
+    ORDER BY action_idx
+  `, [category]);
+
+  return {
+    actions: (catPipeline || []).map(r => ({
+      pluginId: r.plugin_id,
+      commandId: r.command_id,
+      order: r.action_idx,
+    })),
+    policy,
+    category,
+    isOverride: false,
+  };
+}
+
+/**
+ * Get all category pipelines for display in the UI.
+ * @returns {Promise<Array<{category: string, label: string, priority: number, policy: string, actions: Array}>>}
+ */
+export async function getCategoryPipelines() {
+  const categories = await query(`
+    SELECT name, label, priority, policy FROM sm_event_categories ORDER BY priority
+  `);
+
+  const pipelines = await query(`
+    SELECT category_name, plugin_id, command_id, action_idx
+    FROM sm_category_pipeline
+    ORDER BY category_name, action_idx
+  `);
+
+  const types = await query(`
+    SELECT name, label, category_name, auto_created FROM sm_event_types ORDER BY name
+  `);
+
+  return (categories || []).map(cat => ({
+    category: cat.name,
+    label: cat.label,
+    priority: cat.priority,
+    policy: cat.policy,
+    actions: (pipelines || [])
+      .filter(p => p.category_name === cat.name)
+      .map(p => ({ pluginId: p.plugin_id, commandId: p.command_id, order: p.action_idx })),
+    eventTypes: (types || [])
+      .filter(t => t.category_name === cat.name)
+      .map(t => ({ name: t.name, label: t.label, autoCreated: t.auto_created })),
+  }));
+}
+
+/**
+ * Update a category's default pipeline (replaces all actions).
+ * @param {string} categoryName
+ * @param {Array<{pluginId: string, commandId: string}>} actions — ordered
+ */
+export async function updateCategoryPipeline(categoryName, actions) {
+  await query(`DELETE FROM sm_category_pipeline WHERE category_name = ?`, [categoryName]);
+  for (let i = 0; i < actions.length; i++) {
+    await query(`
+      INSERT INTO sm_category_pipeline (category_name, action_idx, plugin_id, command_id)
+      VALUES (?, ?, ?, ?)
+    `, [categoryName, i, actions[i].pluginId, actions[i].commandId]);
+  }
+}
+
+/**
+ * Update a category's execution policy.
+ * @param {string} categoryName
+ * @param {string} policy — auto | supervised | manual
+ */
+export async function updateCategoryPolicy(categoryName, policy) {
+  await query(`UPDATE sm_event_categories SET policy = ? WHERE name = ?`, [policy, categoryName]);
+}
+
+/**
+ * Move an event type to a different category.
+ * @param {string} eventTypeName
+ * @param {string} newCategory
+ */
+export async function moveEventTypeToCategory(eventTypeName, newCategory) {
+  await query(`UPDATE sm_event_types SET category_name = ? WHERE name = ?`, [newCategory, eventTypeName]);
+}
+
 // ── Source management ──────────────────────────────────────────────────
 
 /**

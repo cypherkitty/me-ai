@@ -1,121 +1,139 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    getRules,
-    createRule,
-    deleteRule,
-    setRuleEnabled,
+    getCategoryPipelines,
+    updateCategoryPipeline,
+    updateCategoryPolicy,
+    moveEventTypeToCategory,
+    getActions,
+    getPlugins,
   } from "../lib/rules.js";
+  import { EVENT_CATEGORIES, EXECUTION_POLICIES } from "../lib/events.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
-  import { Switch } from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { cn } from "$lib/utils.js";
-  import { getGroupForEventType, groupToPolicy } from "../lib/events.js";
   import {
+    ChevronDown,
+    ChevronRight,
+    GripVertical,
     Plus,
     Trash2,
-    RefreshCw,
-    Puzzle,
-    Edit2,
-    GitBranch,
-    Zap,
+    X,
+    Layers,
+    Shield,
   } from "lucide-svelte";
-  import "@xyflow/svelte/dist/style.css";
-  import PipelineEditor from "../components/actions/PipelineEditor.svelte";
-  import PluginRegistry from "../components/actions/PluginRegistry.svelte";
 
-  // ── data ──────────────────────────────────────────────────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let rules = $state<any[]>([]);
+  interface CatPipeline {
+    category: string;
+    label: string;
+    priority: number;
+    policy: string;
+    actions: Array<{ pluginId: string; commandId: string; order: number }>;
+    eventTypes: Array<{
+      name: string;
+      label: string;
+      autoCreated: boolean;
+    }>;
+  }
+
+  let categories = $state<CatPipeline[]>([]);
   let loading = $state(true);
-  let deleteOpen = $state(false);
-  let deleteId = $state(null);
+  let expanded = $state<Record<string, boolean>>({});
+  let editingCategory = $state<string | null>(null);
 
-  let showPipelineEditor = $state(false);
-  let editingRule = $state(null);
+  // Available actions from plugins for the action picker
+  let availableActions = $state<
+    Array<{ pluginId: string; commandId: string; label: string }>
+  >([]);
 
-  let showPluginRegistry = $state(false);
+  const catColors: Record<string, string> = {
+    noise: "#6b7280",
+    informational: "#3b82f6",
+    important: "#d97706",
+    urgent: "#ef4444",
+  };
 
-  // ── helpers ───────────────────────────────────────────────────────────────
-  function clone(obj: unknown) {
-    return JSON.parse(
-      JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v)),
-    );
-  }
+  const catIcons: Record<string, string> = {
+    noise: "🗑",
+    informational: "📋",
+    important: "⭐",
+    urgent: "🚨",
+  };
 
-  // Pre-load groups to synchronously render policy badging
-  let groupCache: Record<string, string> = {};
-
-  async function resolveRulePolicy(rule: any): Promise<string> {
-    const types = (rule.triggers ?? []).filter(
-      (t: any) => t.type === "event_type",
-    );
-    if (types.length === 0) return "manual"; // Safe default if no trigger selected
-    const etName = types[0].name;
-
-    // Check if we already cached the group
-    if (!groupCache[etName]) {
-      groupCache[etName] = await getGroupForEventType(etName);
-    }
-    return groupToPolicy(groupCache[etName]);
-  }
-  function groupedTriggers(rule: any) {
-    const types = (rule.triggers ?? []).filter(
-      (t: any) => t.type === "event_type",
-    );
-    const cats = (rule.triggers ?? []).filter(
-      (t: any) => t.type === "event_category",
-    );
-    return { types, cats };
-  }
-
-  // ── load ─────────────────────────────────────────────────────────────────
-  async function load() {
-    loading = true;
-    try {
-      const fetchedRules = await getRules();
-      for (const r of fetchedRules) {
-        (r as any).uiPolicy = await resolveRulePolicy(r);
-      }
-      rules = fetchedRules;
-    } catch (e) {
-      console.error("PipelinesView:", e);
-    }
-    loading = false;
-  }
+  const policyLabels: Record<string, string> = {
+    auto: "Auto-execute",
+    supervised: "Execute & notify",
+    manual: "User approval",
+  };
 
   onMount(load);
 
-  // ── new rule ──────────────────────────────────────────────────────────────
-  async function createNew() {
-    const id = await createRule({
-      name: "New Pipeline",
-      description: "",
-      enabled: true,
-      priority: 5,
-      triggers: [],
-      actions: [],
-    });
-    await load();
-    // createRule returns the new ID string — find the full rule object after reload
-    editingRule = clone(rules.find((r) => r.id === id) ?? null);
-    showPipelineEditor = true;
+  async function load() {
+    loading = true;
+    try {
+      categories = (await getCategoryPipelines()) as CatPipeline[];
+
+      // Build available actions list from plugins
+      const plugins = (await getPlugins()) as any[];
+      const allActions: Array<{
+        pluginId: string;
+        commandId: string;
+        label: string;
+      }> = [];
+      for (const p of plugins) {
+        if (!p.enabled) continue;
+        for (const a of p.actions || []) {
+          allActions.push({
+            pluginId: p.name,
+            commandId: `${p.name.replace("_plugin", "")}:${a}`,
+            label: `${p.label}: ${a}`,
+          });
+        }
+      }
+      availableActions = allActions;
+    } catch (e) {
+      console.error("Failed to load category pipelines:", e);
+    } finally {
+      loading = false;
+    }
   }
 
-  // ── delete ────────────────────────────────────────────────────────────────
-  async function doDelete() {
-    if (!deleteId) return;
-    await deleteRule(deleteId);
-    deleteId = null;
-    deleteOpen = false;
+  function toggleExpand(cat: string) {
+    expanded = { ...expanded, [cat]: !expanded[cat] };
+  }
+
+  async function handlePolicyChange(cat: string, newPolicy: string) {
+    await updateCategoryPolicy(cat, newPolicy);
     await load();
   }
 
-  async function toggleEnabled(rule: any) {
-    await setRuleEnabled(rule.id, !rule.enabled);
-    rule.enabled = !rule.enabled;
+  async function removeAction(cat: string, idx: number) {
+    const c = categories.find((c) => c.category === cat);
+    if (!c) return;
+    const updated = c.actions.filter((_, i) => i !== idx);
+    await updateCategoryPipeline(
+      cat,
+      updated.map((a) => ({ pluginId: a.pluginId, commandId: a.commandId })),
+    );
+    await load();
+  }
+
+  async function addAction(cat: string, action: (typeof availableActions)[0]) {
+    const c = categories.find((c) => c.category === cat);
+    if (!c) return;
+    const updated = [
+      ...c.actions,
+      { pluginId: action.pluginId, commandId: action.commandId },
+    ];
+    await updateCategoryPipeline(cat, updated);
+    await load();
+    editingCategory = null;
+  }
+
+  async function handleMoveType(typeName: string, newCat: string) {
+    await moveEventTypeToCategory(typeName, newCat);
+    await load();
   }
 </script>
 
@@ -126,187 +144,207 @@
   >
     <div>
       <div class="flex items-center gap-2 mb-0.5">
-        <h1 class="text-sm font-semibold tracking-tight text-foreground">
-          Routing Pipelines
-        </h1>
-        <span
-          class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
-          >/ rules</span
-        >
+        <Shield class="size-5 text-primary/60" />
+        <h2 class="text-xl font-bold tracking-tight text-foreground">
+          Category Pipelines
+        </h2>
       </div>
-      <p class="text-xs text-muted-foreground">
-        Visual pipelines routing events to actions by type and category.
+      <p class="text-sm text-muted-foreground/60">
+        Categories carry default action pipelines. AI assigns event types to
+        categories.
       </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onclick={() => (showPluginRegistry = true)}
-        class="gap-1.5 h-8 px-2.5 text-xs w-auto"
-      >
-        <Puzzle class="size-3.5" />Plugins
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onclick={load}
-        class={cn(loading && "[&_svg]:animate-spin")}
-      >
-        <RefreshCw class="size-4" />
-      </Button>
-      <Button onclick={createNew} class="gap-2 shrink-0">
-        <Plus class="size-4" />
-        New Pipeline
-      </Button>
     </div>
   </div>
 
-  <PipelineEditor
-    bind:open={showPipelineEditor}
-    bind:rule={editingRule}
-    onSave={load}
-  />
-  <PluginRegistry bind:open={showPluginRegistry} />
-
-  <!-- Pipeline cards -->
+  <!-- Category cards -->
   <ScrollArea class="flex-1 min-h-0 px-8 py-6">
     {#if loading}
       <div
         class="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground"
       >
         <div
-          class="size-6 rounded-full border-2 border-border border-t-primary animate-spin"
+          class="size-6 border-2 border-border border-t-primary rounded-full animate-spin"
         ></div>
-        <span class="text-sm">Loading pipelines…</span>
-      </div>
-    {:else if rules.length === 0}
-      <div
-        class="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground"
-      >
-        <GitBranch class="size-14 opacity-20" />
-        <span class="text-sm">No pipelines yet.</span>
-        <Button variant="outline" onclick={createNew} class="gap-2">
-          <Plus class="size-4" />Create Pipeline
-        </Button>
+        Loading…
       </div>
     {:else}
-      <div class="flex flex-col gap-3 max-w-4xl">
-        {#each rules as rule (rule.id)}
-          {@const { types } = groupedTriggers(rule)}
+      <div class="flex flex-col gap-4 max-w-4xl">
+        {#each categories as cat (cat.category)}
+          {@const color = catColors[cat.category] || "#888"}
+          {@const icon = catIcons[cat.category] || "📦"}
           <div
-            class={cn(
-              "rounded-xl border bg-[#0a0f18] transition-all",
-              rule.enabled
-                ? "border-border hover:border-primary/40"
-                : "border-border/50 opacity-50",
-            )}
+            class="rounded-xl border bg-[#0a0f18] border-border hover:border-primary/30 transition-all"
           >
-            <!-- Row: name + controls -->
-            <div
-              class="flex items-center gap-3 px-6 py-5 border-b border-border/60"
-            >
-              <div class="flex-1 min-w-0 flex flex-col gap-1.5 justify-center">
-                <button
-                  class="text-lg font-bold tracking-tight text-foreground hover:text-primary transition-colors text-left flex items-center gap-2"
-                  onclick={() => {
-                    editingRule = clone(rule);
-                    showPipelineEditor = true;
-                  }}
-                >
-                  <Zap class="size-5 text-blue-500" />
-                  {#if types.length > 0}
-                    <span class="capitalize"
-                      >{types[0].name.replace(/_/g, " ")}</span
-                    >
-                  {:else}
-                    <span class="italic text-muted-foreground/80"
-                      >Any Event Type</span
-                    >
-                  {/if}
-                </button>
-                <div
-                  class="flex items-center gap-2 text-xs text-muted-foreground"
-                >
-                  <span>AI Category:</span>
-                  {#if groupCache[types[0]?.name] === "NOISE" || (!types[0] && rule.uiPolicy === "auto")}
-                    <Badge
-                      variant="outline"
-                      class="bg-slate-500/10 text-slate-400 border-slate-500/20 text-[0.65rem] h-5"
-                      >Noise</Badge
-                    >
-                    <span class="text-muted-foreground/50">→</span>
-                    <span class="italic text-green-400/80">Auto Execution</span>
-                  {:else}
-                    <Badge
-                      variant="outline"
-                      class="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[0.65rem] h-5"
-                      >Important</Badge
-                    >
-                    <span class="text-muted-foreground/50">→</span>
-                    <span class="italic text-red-400/80">Manual Execution</span>
-                  {/if}
+            <!-- Category header -->
+            <div class="flex items-center gap-3 px-6 py-4">
+              <div
+                class="size-10 rounded-lg flex items-center justify-center text-lg shrink-0"
+                style="background: {color}18; color: {color}"
+              >
+                {icon}
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-base font-bold text-foreground">
+                    {cat.label}
+                  </h3>
+                  <Badge
+                    variant="outline"
+                    class="text-[0.6rem] px-1.5 py-0"
+                    style="color: {color}; border-color: {color}40"
+                  >
+                    {cat.eventTypes.length} type{cat.eventTypes.length !== 1
+                      ? "s"
+                      : ""}
+                  </Badge>
+                </div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-xs text-muted-foreground/50">Policy:</span>
+                  <select
+                    value={cat.policy}
+                    onchange={(e) =>
+                      handlePolicyChange(
+                        cat.category,
+                        (e.target as HTMLSelectElement).value,
+                      )}
+                    class="h-6 px-1.5 text-xs rounded border border-input bg-background text-foreground"
+                  >
+                    <option value="auto">Auto-execute</option>
+                    <option value="supervised">Execute & notify</option>
+                    <option value="manual">User approval</option>
+                  </select>
                 </div>
               </div>
-              <div class="flex items-start gap-2 shrink-0">
-                <Switch
-                  checked={rule.enabled}
-                  onCheckedChange={() => toggleEnabled(rule)}
-                  aria-label="Toggle pipeline"
-                  class="mt-1"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="text-muted-foreground hover:text-foreground h-8 w-8"
-                  onclick={() => {
-                    editingRule = clone(rule);
-                    showPipelineEditor = true;
-                  }}
-                  title="Edit pipeline"><Edit2 class="size-4" /></Button
+
+              <button
+                onclick={() => toggleExpand(cat.category)}
+                class="p-2 text-muted-foreground/40 hover:text-foreground transition-colors"
+              >
+                {#if expanded[cat.category]}
+                  <ChevronDown class="size-4" />
+                {:else}
+                  <ChevronRight class="size-4" />
+                {/if}
+              </button>
+            </div>
+
+            <!-- Pipeline actions -->
+            <div class="px-6 pb-4 border-t border-border/40 pt-3">
+              <span
+                class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
+                >Default Pipeline</span
+              >
+              {#if cat.actions.length === 0}
+                <div
+                  class="flex items-center gap-2 mt-2 text-xs text-muted-foreground/30 italic"
                 >
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  class="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive h-8 w-8"
-                  onclick={() => {
-                    deleteId = rule.id;
-                    deleteOpen = true;
-                  }}
-                  title="Delete pipeline"><Trash2 class="size-4" /></Button
-                >
+                  No default actions — user must act manually
+                </div>
+              {:else}
+                <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                  {#each cat.actions as action, i}
+                    <div
+                      class="flex items-center gap-1 px-2 py-1 rounded-md border border-border/60 bg-card/50 text-xs text-foreground"
+                    >
+                      <span class="opacity-60">{action.commandId}</span>
+                      <button
+                        onclick={() => removeAction(cat.category, i)}
+                        class="ml-0.5 text-muted-foreground/30 hover:text-destructive transition-colors"
+                      >
+                        <X class="size-3" />
+                      </button>
+                    </div>
+                    {#if i < cat.actions.length - 1}
+                      <span class="text-muted-foreground/20 text-xs">→</span>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+
+              <!-- Add action -->
+              <div class="mt-2">
+                {#if editingCategory === cat.category}
+                  <div
+                    class="flex flex-wrap gap-1 mt-1 p-2 rounded border border-border/40 bg-background/50"
+                  >
+                    {#each availableActions as action}
+                      <button
+                        onclick={() => addAction(cat.category, action)}
+                        class="px-2 py-0.5 rounded text-xs border border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                      >
+                        {action.label}
+                      </button>
+                    {/each}
+                    <button
+                      onclick={() => (editingCategory = null)}
+                      class="px-2 py-0.5 rounded text-xs text-muted-foreground/40 hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                {:else}
+                  <button
+                    onclick={() => (editingCategory = cat.category)}
+                    class="flex items-center gap-1 text-xs text-primary/60 hover:text-primary transition-colors mt-1"
+                  >
+                    <Plus class="size-3" /> Add action
+                  </button>
+                {/if}
               </div>
             </div>
+
+            <!-- Event types (expandable) -->
+            {#if expanded[cat.category]}
+              <div class="px-6 pb-4 border-t border-border/40 pt-3">
+                <span
+                  class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
+                  >Event Types in this Category</span
+                >
+                {#if cat.eventTypes.length === 0}
+                  <p class="text-xs text-muted-foreground/30 mt-2 italic">
+                    No event types assigned yet
+                  </p>
+                {:else}
+                  <div class="flex flex-col gap-1 mt-2">
+                    {#each cat.eventTypes as et}
+                      <div
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-card/30 border border-border/30"
+                      >
+                        <span class="text-xs font-mono text-foreground/80"
+                          >{et.name}</span
+                        >
+                        {#if et.autoCreated}
+                          <Badge
+                            variant="outline"
+                            class="text-[0.55rem] px-1 py-0 text-muted-foreground/40 border-border/30"
+                            >AI</Badge
+                          >
+                        {/if}
+                        <div class="ml-auto">
+                          <select
+                            value={cat.category}
+                            onchange={(e) =>
+                              handleMoveType(
+                                et.name,
+                                (e.target as HTMLSelectElement).value,
+                              )}
+                            class="h-5 px-1 text-[0.6rem] rounded border border-input bg-background text-muted-foreground"
+                          >
+                            {#each categories as c}
+                              <option value={c.category}>{c.label}</option>
+                            {/each}
+                          </select>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
     {/if}
   </ScrollArea>
 </div>
-
-<!-- Delete confirm dialog -->
-<Dialog.Root
-  bind:open={deleteOpen}
-  onOpenChange={(o: boolean) => {
-    if (!o) deleteId = null;
-  }}
->
-  <Dialog.Content class="max-w-sm">
-    <Dialog.Header>
-      <Dialog.Title>Delete Pipeline</Dialog.Title>
-      <Dialog.Description
-        >This will permanently remove the pipeline. This cannot be undone.</Dialog.Description
-      >
-    </Dialog.Header>
-    <Dialog.Footer>
-      <Button
-        variant="outline"
-        onclick={() => {
-          deleteOpen = false;
-          deleteId = null;
-        }}>Cancel</Button
-      >
-      <Button variant="destructive" onclick={doDelete}>Delete</Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
