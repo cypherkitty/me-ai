@@ -42,6 +42,14 @@ function openIdb() {
   return Promise.race([idbPromise, timeout]);
 }
 
+/** Close the cached IDB connection so deleteDatabase is not blocked. */
+export function closeIdb() {
+  if (_idb) {
+    try { _idb.close(); } catch { }
+    _idb = null;
+  }
+}
+
 function tx(storeName, mode, fn) {
   return openIdb().then(db => new Promise((resolve, reject) => {
     const t = db.transaction(storeName, mode);
