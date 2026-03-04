@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { updateRule, getEventCategories } from "../../lib/rules.js";
+    import { updateRule } from "../../lib/rules.js";
     import { getAllEventTypes } from "../../lib/events.js";
     import { getAvailableActions } from "../../lib/plugins/execution-service.js";
     import { onMount, untrack } from "svelte";
@@ -82,10 +82,6 @@
 
     onMount(async () => {
         eventTypes = (await getAllEventTypes()) as string[];
-        eventCats = (await getEventCategories()) as {
-            name: string;
-            label: string;
-        }[];
     });
 
     $effect(() => {

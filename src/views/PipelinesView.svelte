@@ -4,7 +4,6 @@
     getCategoryPipelines,
     updateCategoryPipeline,
     updateCategoryPolicy,
-    moveEventTypeToCategory,
     deleteEventType,
   } from "../lib/rules.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
@@ -105,11 +104,6 @@
     }));
 
     await updateCategoryPipeline(catName, newActions);
-    await load();
-  }
-
-  async function handleMoveType(typeName: string, newCat: string) {
-    await moveEventTypeToCategory(typeName, newCat);
     await load();
   }
 
@@ -277,19 +271,6 @@
                           >
                         {/if}
                         <div class="ml-auto flex items-center gap-1.5">
-                          <select
-                            value={cat.category}
-                            onchange={(e) =>
-                              handleMoveType(
-                                et.name,
-                                (e.target as HTMLSelectElement).value,
-                              )}
-                            class="h-5 py-0 px-1 text-[0.6rem] rounded border border-input bg-background text-muted-foreground"
-                          >
-                            {#each categories as c}
-                              <option value={c.category}>{c.label}</option>
-                            {/each}
-                          </select>
                           <button
                             onclick={() => handleDeleteType(et.name)}
                             class="text-muted-foreground/40 hover:text-destructive transition-colors px-1 h-5"
