@@ -167,6 +167,11 @@ The **chat is the control interface** on top of the event stream. Chat messages 
    - A **pipeline** of actions associated with the event type
    - Visual components rendered inline in the chat (approval cards for CRITICAL)
 
+**Invisible LLM Interceptors (Control Tags):**
+The LLM can trigger actions in the UI by appending hidden text tags to its responses:
+- `[EXECUTE:GROUP:{EventType}]` — The UI strips this tag and automatically executes the pipeline batch for the specified pending event type.
+- `[SHOW:DASHBOARD]` — The UI strips this tag and automatically renders the interactive `events-grouped` visual dashboard inline within the chat.
+
 CRITICAL event types show an amber **approval card** in the chat instead of a direct execute button. The card displays all pipeline steps before execution.
 
 ### Data Flow
