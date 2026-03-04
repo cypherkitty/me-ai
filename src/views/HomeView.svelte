@@ -4,6 +4,7 @@
   import { getEventStats } from "../lib/rules.js";
   import { getClassificationCounts } from "../lib/triage.js";
   import { getGmailSyncStatus } from "../lib/store/gmail-sync.js";
+  import { getUnifiedEngine } from "../lib/unified-engine.js";
   import Chat from "../Chat.svelte";
   import {
     GitBranch,
@@ -26,6 +27,16 @@
   let scannedCount = $state(0);
   let pipelineCount = $state(0);
   let checking = $state(true);
+
+  // Reactively track engine readiness
+  const engine = getUnifiedEngine();
+  let engineReady = $state(engine.isReady);
+  $effect(() => {
+    const unsub = engine.onMessage((msg: { status: string }) => {
+      if (msg.status === "ready") engineReady = true;
+    });
+    return unsub;
+  });
 
   onMount(async () => {
     try {
@@ -57,9 +68,15 @@
   const s1 = $derived(
     gmailConnected ? (emailCount > 0 ? "done" : "active") : "idle",
   );
+  // Scan requires emails AND AI backend to be loaded
   const s2 = $derived(
-    emailCount > 0 ? (scannedCount > 0 ? "done" : "active") : "idle",
+    emailCount > 0 && engineReady
+      ? scannedCount > 0
+        ? "done"
+        : "active"
+      : "idle",
   );
+  const s2Blocked = $derived(emailCount > 0 && !engineReady); // has emails but no AI
   const s3 = $derived(
     scannedCount > 0 ? (pipelineCount > 0 ? "done" : "active") : "idle",
   );
@@ -198,6 +215,10 @@
                 {:else if s2 === "active"}<span
                     class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >Ready to run</span
+                  >
+                {:else if s2Blocked}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none text-amber-400/80"
+                    >Load AI first</span
                   >
                 {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
                     >Pending sources</span
