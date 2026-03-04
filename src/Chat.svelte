@@ -204,24 +204,21 @@
           // --- BEGIN INTERCEPTOR ---
           const lastMsg = messages[messages.length - 1];
           if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
-            const regex = /\[EXECUTE:GROUP:([A-Z_]+)\]/g;
+            let newContent = lastMsg.content;
+            let didIntercept = false;
+
+            // 1. Intercept Execution Commands
+            const execRegex = /\[EXECUTE:GROUP:([A-Z_]+)\]/g;
             let match;
             const executedGroups = [];
-            while ((match = regex.exec(lastMsg.content)) !== null) {
+            while ((match = execRegex.exec(newContent)) !== null) {
               executedGroups.push(match[1]);
             }
             if (executedGroups.length > 0) {
-              const newContent = lastMsg.content
+              newContent = newContent
                 .replace(/\[EXECUTE:GROUP:[A-Z_]+\]/g, "")
                 .trim();
-              messages = [
-                ...messages.slice(0, -1),
-                {
-                  ...lastMsg,
-                  content:
-                    newContent === "" ? "Executing pipeline..." : newContent,
-                },
-              ];
+              didIntercept = true;
               for (const group of executedGroups) {
                 if (
                   pendingData &&
@@ -231,6 +228,43 @@
                   runAutomatedExecution(group, pendingData.groups[group]);
                 }
               }
+            }
+
+            // 2. Intercept Dashboard Command
+            if (newContent.includes("[SHOW:DASHBOARD]")) {
+              newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
+              didIntercept = true;
+
+              // Asynchronously fetch and inject the dashboard
+              getClassificationsGrouped()
+                .then((grouped) => {
+                  if (grouped.order.length > 0) {
+                    buildGroupedEventsMessage(grouped).then((eventsMsg) => {
+                      messages = [...messages, eventsMsg];
+                      scrollToBottom();
+                    });
+                  }
+                })
+                .catch((err) => {
+                  messages = [
+                    ...messages,
+                    {
+                      role: "assistant",
+                      content: `Failed to load events dashboard: ${err.message}`,
+                    },
+                  ];
+                });
+            }
+
+            if (didIntercept) {
+              messages = [
+                ...messages.slice(0, -1),
+                {
+                  ...lastMsg,
+                  content:
+                    newContent === "" ? "Okay, here you go:" : newContent,
+                },
+              ];
             }
           }
           // --- END INTERCEPTOR ---
