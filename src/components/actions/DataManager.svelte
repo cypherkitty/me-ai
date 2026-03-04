@@ -423,7 +423,10 @@
                         await nukeAllLocalData();
                       } catch (e) {
                         console.error(e);
-                        alert("Error wiping data: " + e.message);
+                        alert(
+                          "Error wiping data: " +
+                            (e instanceof Error ? e.message : String(e)),
+                        );
                       }
                     })}
                   disabled={busy}
