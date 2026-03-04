@@ -5,7 +5,7 @@
     eventType,
     group,
     commands = [],
-    onExecute,
+    onExecute = undefined,
     executionState = null,
     policy = "auto",
   } = $props();

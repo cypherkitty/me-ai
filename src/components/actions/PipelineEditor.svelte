@@ -29,7 +29,7 @@
     interface Props {
         open?: boolean;
         rule?: PipelineRule | null;
-        onSave?: () => void;
+        onSave?: (actions?: any[]) => void | Promise<void>;
     }
     interface ActionHandler {
         actionId: string;
@@ -50,10 +50,10 @@
         open = $bindable(false),
         rule = $bindable(null),
         onSave,
-    }: Props = $props();
+        customSave = false, // Add this here
+    }: Props & { customSave?: boolean } = $props();
 
     let eventTypes = $state<string[]>([]);
-    let eventCats = $state<{ name: string; label: string }[]>([]);
     let commands = $state<RuleAction[]>([]);
     let triggers = $state<RuleTrigger[]>([]);
 
@@ -159,20 +159,26 @@
         editingCmd = null;
     }
 
+    // ... (rest omitted to not override variables, wait, I can just replace `savePipeline()`)
+
     async function savePipeline() {
         try {
             if (rule) {
                 rule.actions = commands;
                 rule.triggers = triggers.filter((t) => t.name !== "");
 
-                await updateRule(rule.id, {
-                    actions: rule.actions,
-                    triggers: rule.triggers,
-                    name: rule.name,
-                    description: rule.description,
-                    priority: rule.priority,
-                });
-                onSave?.();
+                if (customSave) {
+                    onSave?.(rule.actions);
+                } else {
+                    await updateRule(rule.id, {
+                        actions: rule.actions,
+                        triggers: rule.triggers,
+                        name: rule.name,
+                        description: rule.description,
+                        priority: rule.priority,
+                    });
+                    onSave?.();
+                }
             }
         } catch (e) {
             console.error("[PipelineEditor] save failed:", e);

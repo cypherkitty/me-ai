@@ -501,6 +501,15 @@ export async function moveEventTypeToCategory(eventTypeName, newCategory) {
   await query(`UPDATE sm_event_types SET category_name = ? WHERE name = ?`, [newCategory, eventTypeName]);
 }
 
+/**
+ * Delete an event type completely from the system.
+ * @param {string} eventTypeName
+ */
+export async function deleteEventType(eventTypeName) {
+  await query(`DELETE FROM sm_type_pipeline WHERE type_name = ?`, [eventTypeName]);
+  await query(`DELETE FROM sm_event_types WHERE name = ?`, [eventTypeName]);
+}
+
 // ── Source management ──────────────────────────────────────────────────
 
 /**
