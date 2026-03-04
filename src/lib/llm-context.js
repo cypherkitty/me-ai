@@ -38,7 +38,8 @@ export async function buildLLMContext() {
     const groupLines = Object.keys(pending.groups).map(g => `${g} (${pending.groups[g].length})`).join(", ");
     parts.push(
       `Pending emails awaiting manual execution: ${groupLines}.`,
-      "If the user asks you to execute or handle a pending group, you MUST append [EXECUTE:GROUP:EVENT_TYPE] to the end of your response (e.g. [EXECUTE:GROUP:SECURITY_ALERT])."
+      "If the user asks you to execute or handle a pending group, append [EXECUTE:GROUP:EVENT_TYPE] to the end of your response.",
+      "If the user asks to SEE or MANAGE their events/emails/noise, append [SHOW:DASHBOARD] to the end of your response to spawn a visual dashboard for them."
     );
   }
 
@@ -65,9 +66,10 @@ export async function buildEmailContext(userQuery) {
       "The user has the following emails awaiting manual execution:",
       ...groupLines,
       "",
+      "## AI Control Actions",
       "If the user asks you to execute, process, or handle a group of pending emails, you MUST output a special command tag at the very end of your response: [EXECUTE:GROUP:EVENT_TYPE]",
-      "For example: [EXECUTE:GROUP:SECURITY_ALERT]",
-      "Only output this tag if the user explicitly requests or confirms the execution."
+      "If the user asks to SEE, MANAGE, or REVIEW their events/noise/emails visually, output this tag at the very end of your response: [SHOW:DASHBOARD]",
+      "Only output these tags if the user explicitly requests or confirms the action."
     );
   }
 
