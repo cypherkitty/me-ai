@@ -95,7 +95,11 @@
     showEditor = true;
   }
 
-  async function handleEditorSave(actions?: any[], typesToMove?: string[]) {
+  async function handleEditorSave(
+    actions?: any[],
+    typesToMove?: string[],
+    typesToDelete?: string[],
+  ) {
     if (!editingRule || !editingRule.id.startsWith("cat:") || !actions) return;
     const catName = editingRule.id.split(":")[1];
 
@@ -111,6 +115,13 @@
     if (typesToMove && typesToMove.length > 0) {
       for (const t of typesToMove) {
         await moveEventTypeToCategory(t, catName);
+      }
+    }
+
+    // Delete any event types marked for deletion
+    if (typesToDelete && typesToDelete.length > 0) {
+      for (const t of typesToDelete) {
+        await deleteEventType(t);
       }
     }
 

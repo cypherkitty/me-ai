@@ -33,6 +33,7 @@
         onSave?: (
             actions?: any[],
             typesToMove?: string[],
+            typesToDelete?: string[],
         ) => void | Promise<void>;
     }
     interface ActionHandler {
@@ -61,6 +62,7 @@
     let commands = $state<RuleAction[]>([]);
     let triggers = $state<RuleTrigger[]>([]);
     let typesToMove = $state<string[]>([]);
+    let typesToDelete = $state<string[]>([]);
 
     let editingCmd = $state<EditingCmd | null>(null);
     let showActionPicker = $state(false);
@@ -95,13 +97,39 @@
         const currentRule = rule;
         untrack(() => {
             if (isOpen && currentRule) {
-                commands = (currentRule.actions || []).map((c) => ({ ...c }));
+                const ACTION_ICONS_MAP = ACTION_ICONS as Record<string, string>;
+
+                commands = (currentRule.actions || []).map((c) => {
+                    const cloned = { ...c };
+                    if (!cloned.name || !cloned.description) {
+                        const pluginGroup = PLUGIN_ACTIONS.find(
+                            (p) => p.pluginId === cloned.pluginId,
+                        );
+                        const handler = pluginGroup?.actions.find(
+                            (a) => a.actionId === cloned.commandId,
+                        );
+                        if (handler) {
+                            cloned.name = handler.name;
+                            cloned.description = handler.description;
+                            cloned.icon = ACTION_ICONS_MAP[handler.actionId];
+                        }
+                    }
+                    if (!cloned.id) {
+                        cloned.id =
+                            cloned.commandId +
+                            "_" +
+                            Math.random().toString(36).substring(7);
+                    }
+                    return cloned;
+                });
                 triggers = (currentRule.triggers || []).map((t) => ({ ...t }));
                 typesToMove = [];
+                typesToDelete = [];
             } else {
                 commands = [];
                 triggers = [];
                 typesToMove = [];
+                typesToDelete = [];
             }
         });
     });
@@ -171,7 +199,7 @@
                 rule.triggers = triggers.filter((t) => t.name !== "");
 
                 if (customSave) {
-                    onSave?.(rule.actions, typesToMove);
+                    onSave?.(rule.actions, typesToMove, typesToDelete);
                 } else {
                     await updateRule(rule.id, {
                         actions: rule.actions,
@@ -305,11 +333,22 @@
                                             <div
                                                 class="flex flex-wrap gap-1.5 mb-4"
                                             >
-                                                {#each rule?._eventTypes || [] as et}
+                                                {#each (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)) as et}
                                                     <div
                                                         class="px-2 py-1 bg-secondary/80 border border-border rounded text-xs text-muted-foreground flex items-center gap-1.5 font-medium transition-colors hover:bg-secondary"
                                                     >
                                                         {et.name}
+                                                        <button
+                                                            class="text-muted-foreground/50 hover:text-destructive transition-colors ml-0.5"
+                                                            onclick={() =>
+                                                                (typesToDelete =
+                                                                    [
+                                                                        ...typesToDelete,
+                                                                        et.name,
+                                                                    ])}
+                                                            aria-label="Delete event type"
+                                                            >✕</button
+                                                        >
                                                     </div>
                                                 {/each}
                                                 {#each typesToMove as et}
