@@ -1,20 +1,18 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import {
     getRules,
-    getEventCategories,
-    getExecutionPolicies,
     createRule,
     deleteRule,
     setRuleEnabled,
   } from "../lib/rules.js";
-  import { getAllEventTypes } from "../lib/events.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Switch } from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import * as Dialog from "$lib/components/ui/dialog/index.js";
   import { cn } from "$lib/utils.js";
+  import { getGroupForEventType, groupToPolicy } from "../lib/events.js";
   import {
     Plus,
     Trash2,
@@ -22,13 +20,15 @@
     Puzzle,
     Edit2,
     GitBranch,
+    Zap,
   } from "lucide-svelte";
   import "@xyflow/svelte/dist/style.css";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
   import PluginRegistry from "../components/actions/PluginRegistry.svelte";
 
   // ── data ──────────────────────────────────────────────────────────────────
-  let rules = $state([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let rules = $state<any[]>([]);
   let loading = $state(true);
   let deleteOpen = $state(false);
   let deleteId = $state(null);
@@ -39,34 +39,47 @@
   let showPluginRegistry = $state(false);
 
   // ── helpers ───────────────────────────────────────────────────────────────
-  function clone(obj) {
+  function clone(obj: unknown) {
     return JSON.parse(
       JSON.stringify(obj, (_, v) => (typeof v === "bigint" ? Number(v) : v)),
     );
   }
 
-  // ── lookup helpers for UI rendering ───────────────────────────────────────
-  function triggerText(rule) {
-    if (!rule.triggers || rule.triggers.length === 0) return "Any Event";
-    return (
-      rule.triggers.length +
-      " trigger" +
-      (rule.triggers.length === 1 ? "" : "s")
-    );
-  }
+  // Pre-load groups to synchronously render policy badging
+  let groupCache: Record<string, string> = {};
 
-  function actionText(rule) {
-    if (!rule.actions || rule.actions.length === 0) return "No actions";
-    return (
-      rule.actions.length + " action" + (rule.actions.length === 1 ? "" : "s")
+  async function resolveRulePolicy(rule: any): Promise<string> {
+    const types = (rule.triggers ?? []).filter(
+      (t: any) => t.type === "event_type",
     );
+    if (types.length === 0) return "manual"; // Safe default if no trigger selected
+    const etName = types[0].name;
+
+    // Check if we already cached the group
+    if (!groupCache[etName]) {
+      groupCache[etName] = await getGroupForEventType(etName);
+    }
+    return groupToPolicy(groupCache[etName]);
+  }
+  function groupedTriggers(rule: any) {
+    const types = (rule.triggers ?? []).filter(
+      (t: any) => t.type === "event_type",
+    );
+    const cats = (rule.triggers ?? []).filter(
+      (t: any) => t.type === "event_category",
+    );
+    return { types, cats };
   }
 
   // ── load ─────────────────────────────────────────────────────────────────
   async function load() {
     loading = true;
     try {
-      rules = await getRules();
+      const fetchedRules = await getRules();
+      for (const r of fetchedRules) {
+        (r as any).uiPolicy = await resolveRulePolicy(r);
+      }
+      rules = fetchedRules;
     } catch (e) {
       console.error("PipelinesView:", e);
     }
@@ -84,7 +97,6 @@
       priority: 5,
       triggers: [],
       actions: [],
-      policy: "auto",
     });
     await load();
     // createRule returns the new ID string — find the full rule object after reload
@@ -101,7 +113,7 @@
     await load();
   }
 
-  async function toggleEnabled(rule) {
+  async function toggleEnabled(rule: any) {
     await setRuleEnabled(rule.id, !rule.enabled);
     rule.enabled = !rule.enabled;
   }
@@ -179,88 +191,91 @@
         </Button>
       </div>
     {:else}
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 max-w-7xl">
+      <div class="flex flex-col gap-3 max-w-4xl">
         {#each rules as rule (rule.id)}
+          {@const { types } = groupedTriggers(rule)}
           <div
             class={cn(
-              "rounded-xl border bg-card p-4 transition-colors hover:border-primary/50 flex flex-col gap-3",
-              rule.enabled ? "border-border" : "border-border opacity-60",
+              "rounded-xl border bg-[#0a0f18] transition-all",
+              rule.enabled
+                ? "border-border hover:border-primary/40"
+                : "border-border/50 opacity-50",
             )}
           >
-            <!-- Card header -->
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <div
-                  class="flex items-center gap-2 mb-1 cursor-pointer"
+            <!-- Row: name + controls -->
+            <div
+              class="flex items-center gap-3 px-6 py-5 border-b border-border/60"
+            >
+              <div class="flex-1 min-w-0 flex flex-col gap-1.5 justify-center">
+                <button
+                  class="text-lg font-bold tracking-tight text-foreground hover:text-primary transition-colors text-left flex items-center gap-2"
                   onclick={() => {
                     editingRule = clone(rule);
                     showPipelineEditor = true;
                   }}
                 >
-                  <span
-                    class="text-base font-semibold tracking-tight text-primary hover:underline hover:underline-offset-2"
-                    >{rule.name}</span
-                  >
-                  <Badge
-                    variant="outline"
-                    class="text-[0.6rem] font-mono h-4 px-1.5 tracking-wide"
-                    >{rule.policy ?? "auto"}</Badge
-                  >
+                  <Zap class="size-5 text-blue-500" />
+                  {#if types.length > 0}
+                    <span class="capitalize"
+                      >{types[0].name.replace(/_/g, " ")}</span
+                    >
+                  {:else}
+                    <span class="italic text-muted-foreground/80"
+                      >Any Event Type</span
+                    >
+                  {/if}
+                </button>
+                <div
+                  class="flex items-center gap-2 text-xs text-muted-foreground"
+                >
+                  <span>AI Category:</span>
+                  {#if groupCache[types[0]?.name] === "NOISE" || (!types[0] && rule.uiPolicy === "auto")}
+                    <Badge
+                      variant="outline"
+                      class="bg-slate-500/10 text-slate-400 border-slate-500/20 text-[0.65rem] h-5"
+                      >Noise</Badge
+                    >
+                    <span class="text-muted-foreground/50">→</span>
+                    <span class="italic text-green-400/80">Auto Execution</span>
+                  {:else}
+                    <Badge
+                      variant="outline"
+                      class="bg-amber-500/10 text-amber-500 border-amber-500/20 text-[0.65rem] h-5"
+                      >Important</Badge
+                    >
+                    <span class="text-muted-foreground/50">→</span>
+                    <span class="italic text-red-400/80">Manual Execution</span>
+                  {/if}
                 </div>
-                {#if rule.description}
-                  <p class="text-xs text-muted-foreground">
-                    {rule.description}
-                  </p>
-                {/if}
               </div>
-              <div class="flex items-center gap-2 shrink-0">
+              <div class="flex items-start gap-2 shrink-0">
                 <Switch
                   checked={rule.enabled}
                   onCheckedChange={() => toggleEnabled(rule)}
                   aria-label="Toggle pipeline"
+                  class="mt-1"
                 />
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  class="ml-2 hover:bg-destructive/10 hover:text-destructive"
+                  class="text-muted-foreground hover:text-foreground h-8 w-8"
+                  onclick={() => {
+                    editingRule = clone(rule);
+                    showPipelineEditor = true;
+                  }}
+                  title="Edit pipeline"><Edit2 class="size-4" /></Button
+                >
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  class="text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive h-8 w-8"
                   onclick={() => {
                     deleteId = rule.id;
                     deleteOpen = true;
                   }}
-                  title="Delete pipeline"
+                  title="Delete pipeline"><Trash2 class="size-4" /></Button
                 >
-                  <Trash2 class="size-3.5" />
-                </Button>
               </div>
-            </div>
-
-            <!-- Pipeline Summary Vis -->
-            <div
-              class="flex items-center gap-2 mt-auto pt-2 text-xs font-mono text-muted-foreground"
-            >
-              <div
-                class="bg-secondary/50 px-2 py-1 flex items-center gap-1 rounded border border-border"
-              >
-                ⚡ {triggerText(rule)}
-              </div>
-              <div class="text-border">→</div>
-              <div
-                class="bg-secondary/50 px-2 py-1 rounded border border-border text-foreground font-semibold flex items-center gap-1"
-              >
-                {actionText(rule)}
-              </div>
-              <div class="flex-1"></div>
-              <Button
-                variant="secondary"
-                size="sm"
-                class="h-7 text-xs gap-1.5"
-                onclick={() => {
-                  editingRule = clone(rule);
-                  showPipelineEditor = true;
-                }}
-              >
-                <Edit2 class="size-3" /> Edit Canvas
-              </Button>
             </div>
           </div>
         {/each}
@@ -272,7 +287,7 @@
 <!-- Delete confirm dialog -->
 <Dialog.Root
   bind:open={deleteOpen}
-  onOpenChange={(o) => {
+  onOpenChange={(o: boolean) => {
     if (!o) deleteId = null;
   }}
 >

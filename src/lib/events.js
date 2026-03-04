@@ -50,17 +50,9 @@ export const EVENT_GROUPS = {
     requiresApproval: false,
     color: "#6b7280",  // gray
   },
-  INFO: {
-    id: "INFO",
-    label: "Info",
-    description: "Informational emails to review. Actions run on user request.",
-    autoExecute: false,
-    requiresApproval: false,
-    color: "#3b82f6",  // blue
-  },
   CRITICAL: {
     id: "CRITICAL",
-    label: "Critical",
+    label: "Important",
     description: "High-stakes emails that change state. User must approve before any action runs.",
     autoExecute: false,
     requiresApproval: true,
@@ -68,7 +60,7 @@ export const EVENT_GROUPS = {
   },
 };
 
-export const DEFAULT_GROUP = "INFO";
+export const DEFAULT_GROUP = "CRITICAL";
 
 // ── EventCategory ─────────────────────────────────────────────────────
 
@@ -77,19 +69,16 @@ export const DEFAULT_GROUP = "INFO";
  * Maps to the sm_event_categories table.
  */
 export const EVENT_CATEGORIES = {
-  noise:         { name: "noise",         label: "Noise",         priority: 1, color: "#4b5563" },
-  informational: { name: "informational", label: "Informational", priority: 2, color: "#3b82f6" },
-  important:     { name: "important",     label: "Important",     priority: 3, color: "#d97706" },
-  urgent:        { name: "urgent",        label: "Urgent",        priority: 4, color: "#dc2626" },
+  noise: { name: "noise", label: "Noise", priority: 1, color: "#4b5563" },
+  important: { name: "important", label: "Important", priority: 3, color: "#d97706" },
 };
 
 /**
  * Execution policies.
  */
 export const EXECUTION_POLICIES = {
-  auto:       { name: "auto",       label: "Auto",       description: "Executes without user input",    color: "#10b981" },
-  supervised: { name: "supervised", label: "Supervised", description: "Executes then notifies user",   color: "#f59e0b" },
-  manual:     { name: "manual",     label: "Manual",     description: "Waits for user approval",        color: "#6366f1" },
+  auto: { name: "auto", label: "Auto", description: "Executes without user input", color: "#10b981" },
+  manual: { name: "manual", label: "Manual", description: "Waits for user approval", color: "#6366f1" },
 };
 
 /**
@@ -98,9 +87,8 @@ export const EXECUTION_POLICIES = {
  * @returns {string} policy name
  */
 export function groupToPolicy(group) {
-  if (group === "NOISE")    return "auto";
-  if (group === "CRITICAL") return "manual";
-  return "supervised"; // INFO
+  if (group === "NOISE") return "auto";
+  return "manual";
 }
 
 /**
@@ -109,9 +97,8 @@ export function groupToPolicy(group) {
  * @returns {string} group
  */
 export function policyToGroup(policy) {
-  if (policy === "auto")   return "NOISE";
-  if (policy === "manual") return "CRITICAL";
-  return "INFO";
+  if (policy === "auto") return "NOISE";
+  return "CRITICAL";
 }
 
 /**
@@ -120,9 +107,8 @@ export function policyToGroup(policy) {
  * @returns {string} category name
  */
 export function groupToCategory(group) {
-  if (group === "NOISE")    return "noise";
-  if (group === "CRITICAL") return "important";
-  return "informational";
+  if (group === "NOISE") return "noise";
+  return "important";
 }
 
 const STORAGE_KEY = "me-ai-events";
@@ -159,7 +145,7 @@ async function saveGroupsMap(map) {
 async function getEventTypesFromDB() {
   try {
     const { query } = await import("./store/db.js");
-    const rows  = await query(`SELECT DISTINCT action FROM emailClassifications WHERE action IS NOT NULL`);
+    const rows = await query(`SELECT DISTINCT action FROM emailClassifications WHERE action IS NOT NULL`);
     return rows.map(r => r.action).filter(Boolean).sort();
   } catch {
     return [];

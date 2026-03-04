@@ -66,19 +66,17 @@ Format:
   "tags": ["tag1", "tag2", "tag3"]
 }
 
-Guidelines for "action":
-- Use a short UPPER_SNAKE_CASE label that describes what the user should do
-- Examples: DELETE, REPLY, REVIEW, READ_LATER, ARCHIVE, PAY_BILL, TRACK_DELIVERY, SCHEDULE_MEETING, UNSUBSCRIBE, SAVE_RECEIPT, FOLLOW_UP, ACKNOWLEDGE, IGNORE
-- Be specific: prefer "TRACK_DELIVERY" over "NOTIFY", prefer "PAY_BILL" over "REVIEW"
-- If genuinely nothing to do, use "NO_ACTION"
+Guidelines for "action" (Event Type):
+- Condense the email's core purpose into a distinct, high-level event type.
+- This MUST be a flexible, dynamically generated string categorizing the *nature* of the email.
+- Examples: RECEIPT, SHIPPING_UPDATE, NEWSLETTER, SECURITY_ALERT, ACCOUNT_NOTICE, PROMOTION
+- Do not use verbs. Use noun phrases that describe the event type.
 
-Guidelines for "group":
-- Classify the email into one of three urgency tiers:
-  - "NOISE"    — unimportant (promotions, newsletters, notifications with no action needed). Actions run automatically.
-  - "INFO"     — informational, worth reading (receipts, shipping updates, account notifications). User decides when to act.
-  - "CRITICAL" — requires careful human review before acting (financial transactions, purchases, security alerts, legal notices, anything that changes state or commits money/data).
-- When in doubt between NOISE and INFO, use INFO
-- When in doubt between INFO and CRITICAL, use CRITICAL
+Guidelines for "group" (Event Category):
+- Classify the email into one of two urgency tiers:
+  - "IMPORTANT" — The default tier for almost everything (receipts, account notifications, financial transactions, purchases, security alerts, personal mail, work mail, or ANY ambiguous email). User must approve before acting.
+  - "NOISE"     — Use ONLY if you are absolutely certain the email is completely unimportant (pure promotions, mass marketing, spam, social media digests). If there is even a 1% chance it is important, use "IMPORTANT". Actions in this group run automatically without human oversight, so be extremely conservative.
+- When in doubt, ALWAYS use IMPORTANT.
 
 Available actions (from installed plugins):
 ${actionsSection}
@@ -87,9 +85,8 @@ Guidelines for "suggestedActions":
 - Suggest 1-3 actions from the list above, in execution order
 - Use ONLY the exact action IDs listed above (${allIdsInline})
 - Match actions to the email's group and purpose:
-    NOISE    → prefer: trash, mark_spam, archive (auto-cleanup)
-    INFO     → prefer: mark_read, archive, star (quiet filing)
-    CRITICAL → prefer: star, mark_important (never trash/delete CRITICAL emails)
+    NOISE     → prefer: trash, mark_spam, archive (auto-cleanup)
+    IMPORTANT → prefer: mark_read, star, mark_important, archive (quiet filing or review)
 - Choose the most specific and least destructive actions that serve the event type
 - These seed the default pipeline for this event type (the user can edit later)
 - If genuinely no action is needed, use []
@@ -107,7 +104,7 @@ Guidelines for "summary":
 Rules:
 - Output ONLY the JSON object, nothing else
 - "action" must be UPPER_SNAKE_CASE
-- "group" must be exactly "NOISE", "INFO", or "CRITICAL"
+- "group" must be exactly "NOISE" or "IMPORTANT"
 - "suggestedActions" must be an array of valid action IDs from the list above
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
@@ -119,9 +116,9 @@ Rules:
  */
 function getPluginsForPrompt() {
   return pluginRegistry.getAllPlugins().map(plugin => ({
-    pluginId:   plugin.pluginId,
+    pluginId: plugin.pluginId,
     pluginName: plugin.serviceName,
-    actions:    plugin.getHandlers(),
+    actions: plugin.getHandlers(),
   }));
 }
 
@@ -148,7 +145,7 @@ export const SYSTEM_PROMPT = buildSystemPrompt(getPluginsForPrompt());
  */
 export async function scanEmails(
   engine,
-  { count = DEFAULT_COUNT, force = false, onProgress = () => {}, signal } = {}
+  { count = DEFAULT_COUNT, force = false, onProgress = () => { }, signal } = {}
 ) {
   if (!engine.isReady) {
     throw new Error("Model not loaded. Please load a model first.");
@@ -190,28 +187,28 @@ export async function scanEmails(
     return { scanned: 0, classified: 0, skipped, errors: 0 };
   }
 
-  const scannedAt  = Date.now();
-  const scanStart  = performance.now();
-  let classified   = 0;
-  let errors       = 0;
+  const scannedAt = Date.now();
+  const scanStart = performance.now();
+  let classified = 0;
+  let errors = 0;
   let totalOutputTokens = 0;
-  let totalInputTokens  = 0;
-  const results    = [];
+  let totalInputTokens = 0;
+  const results = [];
 
-  const plugins       = getPluginsForPrompt();
-  const systemPrompt  = buildSystemPrompt(plugins);
+  const plugins = getPluginsForPrompt();
+  const systemPrompt = buildSystemPrompt(plugins);
   const validActionIds = new Set(plugins.flatMap(p => p.actions.map(a => a.actionId)));
 
   const currentModel = engine.modelId;
-  const modelInfo    = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
+  const modelInfo = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
 
   if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
-    const { MODELS }         = await import("./models.js");
-    const { OLLAMA_MODELS }  = await import("./ollama-models.js");
-    const recommendedModels  = [
+    const { MODELS } = await import("./models.js");
+    const { OLLAMA_MODELS } = await import("./ollama-models.js");
+    const recommendedModels = [
       ...MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.name),
       ...OLLAMA_MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.displayName),
     ];
@@ -226,26 +223,26 @@ export async function scanEmails(
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
-    const email        = toProcess[i];
-    const emailPrompt  = formatEmailPrompt(email);
+    const email = toProcess[i];
+    const emailPrompt = formatEmailPrompt(email);
     const promptMessages = [
       { role: "system", content: systemPrompt },
-      { role: "user",   content: emailPrompt  },
+      { role: "user", content: emailPrompt },
     ];
 
     onProgress({
-      phase:    "scanning",
-      current:  i + 1,
-      total:    toProcess.length,
+      phase: "scanning",
+      current: i + 1,
+      total: toProcess.length,
       classified,
       errors,
       results,
-      email:    { subject: email.subject, from: email.from, date: email.date },
-      prompt:   { system: SYSTEM_PROMPT, user: emailPrompt },
+      email: { subject: email.subject, from: email.from, date: email.date },
+      prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
-      live:     null,
+      live: null,
       lastResult: null,
-      totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+      totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
     });
 
     const emailStart = performance.now();
@@ -256,25 +253,25 @@ export async function scanEmails(
         { maxTokens: CLASSIFICATION_CONFIG.maxTokens, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
           onProgress({
-            phase:    "generating",
-            current:  i + 1,
-            total:    toProcess.length,
+            phase: "generating",
+            current: i + 1,
+            total: toProcess.length,
             classified,
             errors,
             results,
-            email:    { subject: email.subject, from: email.from, date: email.date },
-            live:     { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
+            email: { subject: email.subject, from: email.from, date: email.date },
+            live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
             streamingText: tokenInfo.text || "",
-            totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+            totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
           });
         }
       );
 
       totalOutputTokens += numTokens;
-      totalInputTokens  += inputTokens;
+      totalInputTokens += inputTokens;
 
       const classification = parseClassification(response, validActionIds);
-      const emailElapsed   = performance.now() - emailStart;
+      const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
         await exec(
@@ -316,44 +313,44 @@ export async function scanEmails(
         classified++;
 
         const emailResult = {
-          success:     true,
-          email:       { subject: email.subject, from: email.from, date: email.date },
+          success: true,
+          email: { subject: email.subject, from: email.from, date: email.date },
           classification,
           rawResponse: response,
-          stats:       { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          promptSize:  emailPrompt.length,
+          stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
+          promptSize: emailPrompt.length,
         };
         results.push(emailResult);
 
         onProgress({
-          phase:    "classified",
-          current:  i + 1,
-          total:    toProcess.length,
+          phase: "classified",
+          current: i + 1,
+          total: toProcess.length,
           classified,
           errors,
           results,
-          email:    { subject: email.subject, from: email.from, date: email.date },
-          result:   classification,
+          email: { subject: email.subject, from: email.from, date: email.date },
+          result: classification,
           rawResponse: response,
           emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+          totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
         });
       }
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
-      const errMsg       = e.message || String(e);
+      const errMsg = e.message || String(e);
       const truncatedError = errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg;
       results.push({
-        success:    false,
-        email:      { subject: email.subject, from: email.from, date: email.date },
-        error:      truncatedError,
+        success: false,
+        email: { subject: email.subject, from: email.from, date: email.date },
+        error: truncatedError,
         promptSize: emailPrompt.length,
       });
     }
   }
 
-  const totalElapsed  = performance.now() - scanStart;
+  const totalElapsed = performance.now() - scanStart;
   const avgPromptSize = results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.promptSize, 0) / results.length)
     : 0;
@@ -362,20 +359,20 @@ export async function scanEmails(
     : null;
 
   onProgress({
-    phase:    "done",
-    current:  toProcess.length,
-    total:    toProcess.length,
+    phase: "done",
+    current: toProcess.length,
+    total: toProcess.length,
     classified,
     errors,
     results,
     summary: {
       avgPromptSize,
       avgTps,
-      systemPromptSize:    systemPrompt.length,
-      processed:           toProcess.length,
+      systemPromptSize: systemPrompt.length,
+      processed: toProcess.length,
       skipped,
-      modelName:           modelInfo.displayName || modelInfo.name,
-      modelContextWindow:  modelInfo.contextWindow,
+      modelName: modelInfo.displayName || modelInfo.name,
+      modelContextWindow: modelInfo.contextWindow,
       modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
@@ -423,7 +420,7 @@ export async function getClassificationCounts() {
  * Get all unique tags with their counts.
  */
 export async function getTagCounts() {
-  const rows   = await query(`SELECT tags FROM emailClassifications`);
+  const rows = await query(`SELECT tags FROM emailClassifications`);
   const tagMap = {};
   for (const r of rows) {
     const tags = fromJson(r.tags, []);
@@ -476,7 +473,7 @@ export async function getScanStats() {
   );
   const [classRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
   const totalEmails = Number(emailRow?.cnt ?? 0);
-  const classified  = Number(classRow?.cnt ?? 0);
+  const classified = Number(classRow?.cnt ?? 0);
   return {
     totalEmails,
     classified,
@@ -489,19 +486,19 @@ export async function getScanStats() {
 function normaliseItemRow(row) {
   return {
     ...row,
-    date:     row.date     != null ? Number(row.date)     : null,
+    date: row.date != null ? Number(row.date) : null,
     syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
-    labels:   fromJson(row.labels, []),
-    raw:      fromJson(row.raw, null),
+    labels: fromJson(row.labels, []),
+    raw: fromJson(row.raw, null),
   };
 }
 
 function normaliseClassificationRow(row) {
   return {
     ...row,
-    date:      row.date      != null ? Number(row.date)      : null,
+    date: row.date != null ? Number(row.date) : null,
     scannedAt: row.scannedAt != null ? Number(row.scannedAt) : null,
-    tags:      fromJson(row.tags, []),
+    tags: fromJson(row.tags, []),
   };
 }
 
@@ -510,8 +507,8 @@ function normaliseClassificationRow(row) {
 export function formatEmailPrompt(email) {
   const date = email.date
     ? new Date(email.date).toLocaleDateString("en-US", {
-        weekday: "short", year: "numeric", month: "short", day: "numeric",
-      })
+      weekday: "short", year: "numeric", month: "short", day: "numeric",
+    })
     : "Unknown date";
   const body = email.body || email.snippet || "";
 
@@ -554,7 +551,7 @@ export function parseClassification(response, knownActionIds) {
   text = text.trim();
 
   const firstBrace = text.indexOf("{");
-  const lastBrace  = text.lastIndexOf("}");
+  const lastBrace = text.lastIndexOf("}");
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
     console.warn("Triage: no JSON object found in response");
@@ -573,8 +570,8 @@ export function parseClassification(response, knownActionIds) {
       return null;
     }
 
-    const VALID_GROUPS = ["NOISE", "INFO", "CRITICAL"];
-    const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "INFO";
+    const VALID_GROUPS = ["NOISE", "IMPORTANT"];
+    const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "IMPORTANT";
 
     let suggestedActions = [];
     if (Array.isArray(parsed.suggestedActions)) {
@@ -603,7 +600,7 @@ export function parseClassification(response, knownActionIds) {
       action,
       group,
       suggestedActions,
-      reason:  String(parsed.reason  || "").slice(0, 300),
+      reason: String(parsed.reason || "").slice(0, 300),
       summary: String(parsed.summary || "").slice(0, 500),
       tags,
     };
