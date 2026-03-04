@@ -6,6 +6,7 @@
     updateCategoryPolicy,
     deleteEventType,
     moveEventTypeToCategory,
+    unassignEventTypeFromCategory,
   } from "../lib/rules.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
   import PipelineGraph from "../components/actions/PipelineGraph.svelte";
@@ -118,10 +119,10 @@
       }
     }
 
-    // Delete any event types marked for deletion
+    // Unassign any event types marked for removal
     if (typesToDelete && typesToDelete.length > 0) {
       for (const t of typesToDelete) {
-        await deleteEventType(t);
+        await unassignEventTypeFromCategory(t);
       }
     }
 
