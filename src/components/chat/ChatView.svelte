@@ -199,7 +199,7 @@
   </div>
 
   <!-- Main Chat Area -->
-  <div class="flex flex-col h-full flex-1 min-w-0">
+  <div class="flex flex-col h-full flex-1 min-w-0 min-h-0">
     <!-- Stats bar + Generation panel -->
     <div class="flex flex-col border-b border-border shrink-0">
       <div class="flex items-center gap-3 px-6 h-10">
@@ -356,7 +356,7 @@
 
     <!-- Messages -->
     <div
-      class="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-2"
+      class="flex-1 min-h-0 overflow-y-auto px-6 py-5 flex flex-col gap-2"
       bind:this={chatContainer}
     >
       {#if messages.length === 0}
