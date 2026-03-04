@@ -25,11 +25,15 @@
         triggers: RuleTrigger[];
         actions: RuleAction[];
         policy: string;
+        _eventTypes?: { name: string; label: string; autoCreated: boolean }[];
     }
     interface Props {
         open?: boolean;
         rule?: PipelineRule | null;
-        onSave?: (actions?: any[]) => void | Promise<void>;
+        onSave?: (
+            actions?: any[],
+            typesToMove?: string[],
+        ) => void | Promise<void>;
     }
     interface ActionHandler {
         actionId: string;
@@ -56,6 +60,7 @@
     let eventTypes = $state<string[]>([]);
     let commands = $state<RuleAction[]>([]);
     let triggers = $state<RuleTrigger[]>([]);
+    let typesToMove = $state<string[]>([]);
 
     let editingCmd = $state<EditingCmd | null>(null);
     let showActionPicker = $state(false);
@@ -92,9 +97,11 @@
             if (isOpen && currentRule) {
                 commands = (currentRule.actions || []).map((c) => ({ ...c }));
                 triggers = (currentRule.triggers || []).map((t) => ({ ...t }));
+                typesToMove = [];
             } else {
                 commands = [];
                 triggers = [];
+                typesToMove = [];
             }
         });
     });
@@ -164,7 +171,7 @@
                 rule.triggers = triggers.filter((t) => t.name !== "");
 
                 if (customSave) {
-                    onSave?.(rule.actions);
+                    onSave?.(rule.actions, typesToMove);
                 } else {
                     await updateRule(rule.id, {
                         actions: rule.actions,
@@ -286,36 +293,116 @@
                                     class="p-5 bg-background border-t border-border/50"
                                 >
                                     <div class="mb-3">
-                                        <p
-                                            class="text-xs text-muted-foreground leading-relaxed"
-                                        >
-                                            Trigger this pipeline when the AI
-                                            engine identifies the email's core
-                                            purpose as this Event Type:
-                                        </p>
-                                    </div>
-                                    {#if triggers.length > 0}
-                                        <select
-                                            bind:value={triggers[0].name}
-                                            class="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-colors"
-                                        >
-                                            <option value="" disabled
-                                                >Select Event Type...</option
+                                        {#if triggers.length > 0 && triggers[0].type === "event_category"}
+                                            <p
+                                                class="text-xs text-muted-foreground leading-relaxed mb-4"
                                             >
-                                            {#each eventTypes as et}
-                                                <option value={et}
-                                                    >{et
-                                                        .toLowerCase()
-                                                        .replace(/_/g, " ")
-                                                        .replace(
-                                                            /\b([a-z])/g,
-                                                            (c) =>
-                                                                c.toUpperCase(),
-                                                        )}</option
+                                                Event types assigned to this
+                                                category will trigger this
+                                                pipeline.
+                                            </p>
+
+                                            <div
+                                                class="flex flex-wrap gap-1.5 mb-4"
+                                            >
+                                                {#each rule?._eventTypes || [] as et}
+                                                    <div
+                                                        class="px-2 py-1 bg-secondary/80 border border-border rounded text-xs text-muted-foreground flex items-center gap-1.5 font-medium transition-colors hover:bg-secondary"
+                                                    >
+                                                        {et.name}
+                                                    </div>
+                                                {/each}
+                                                {#each typesToMove as et}
+                                                    <div
+                                                        class="px-2 py-1 bg-primary/20 border border-primary/40 text-primary-foreground rounded text-xs flex items-center gap-1.5 font-medium transition-colors"
+                                                    >
+                                                        {et}
+                                                        <button
+                                                            class="text-primary-foreground/50 hover:text-primary-foreground transition-colors ml-0.5"
+                                                            onclick={() =>
+                                                                (typesToMove =
+                                                                    typesToMove.filter(
+                                                                        (t) =>
+                                                                            t !==
+                                                                            et,
+                                                                    ))}
+                                                            aria-label="Remove pending event type"
+                                                            >✕</button
+                                                        >
+                                                    </div>
+                                                {/each}
+                                            </div>
+
+                                            <select
+                                                value=""
+                                                onchange={(e) => {
+                                                    const val = (
+                                                        e.currentTarget as HTMLSelectElement
+                                                    ).value;
+                                                    if (val)
+                                                        typesToMove = [
+                                                            ...typesToMove,
+                                                            val,
+                                                        ];
+                                                    requestAnimationFrame(
+                                                        () => {
+                                                            (
+                                                                e.target as HTMLSelectElement
+                                                            ).value = "";
+                                                        },
+                                                    );
+                                                }}
+                                                class="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-colors"
+                                            >
+                                                <option
+                                                    value=""
+                                                    disabled
+                                                    selected
+                                                    >+ Add Event Type...</option
                                                 >
-                                            {/each}
-                                        </select>
-                                    {/if}
+                                                {#each eventTypes.filter((et) => !(rule?._eventTypes || []).find((t) => t.name === et) && !typesToMove.includes(et)) as et}
+                                                    <option value={et}
+                                                        >{et
+                                                            .toLowerCase()
+                                                            .replace(/_/g, " ")
+                                                            .replace(
+                                                                /\b([a-z])/g,
+                                                                (c) =>
+                                                                    c.toUpperCase(),
+                                                            )}</option
+                                                    >
+                                                {/each}
+                                            </select>
+                                        {:else if triggers.length > 0}
+                                            <p
+                                                class="text-xs text-muted-foreground leading-relaxed mb-3"
+                                            >
+                                                Trigger this pipeline when the
+                                                AI engine identifies the email's
+                                                core purpose as this Event Type:
+                                            </p>
+                                            <select
+                                                bind:value={triggers[0].name}
+                                                class="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-colors"
+                                            >
+                                                <option value="" disabled
+                                                    >Select Event Type...</option
+                                                >
+                                                {#each eventTypes as et}
+                                                    <option value={et}
+                                                        >{et
+                                                            .toLowerCase()
+                                                            .replace(/_/g, " ")
+                                                            .replace(
+                                                                /\b([a-z])/g,
+                                                                (c) =>
+                                                                    c.toUpperCase(),
+                                                            )}</option
+                                                    >
+                                                {/each}
+                                            </select>
+                                        {/if}
+                                    </div>
                                 </div>
                             </div>
                         </div>
