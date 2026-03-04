@@ -11,6 +11,7 @@ import {
   getDetailedSummary,
   getRecentEmails,
   searchData,
+  getPendingActions,
 } from "./store/query-layer.js";
 
 // ── LLM context building ────────────────────────────────────────────
@@ -26,11 +27,22 @@ export async function buildLLMContext() {
   const summary = await getDataSummary();
   if (!summary) return null;
 
-  return [
+  const parts = [
     "You have access to the user's locally stored data.",
     summary,
-    'The user can ask you about their emails. If they do, you can see recent emails and search results that will be provided.',
-  ].join(" ");
+    "The user can ask you about their emails. If they do, you can see recent emails and search results that will be provided."
+  ];
+
+  const pending = await getPendingActions();
+  if (pending && pending.total > 0) {
+    const groupLines = Object.keys(pending.groups).map(g => `${g} (${pending.groups[g].length})`).join(", ");
+    parts.push(
+      `Pending emails awaiting manual execution: ${groupLines}.`,
+      "If the user asks you to execute or handle a pending group, you MUST append [EXECUTE:GROUP:EVENT_TYPE] to the end of your response (e.g. [EXECUTE:GROUP:SECURITY_ALERT])."
+    );
+  }
+
+  return parts.join(" ");
 }
 
 /**
@@ -43,6 +55,21 @@ export async function buildEmailContext(userQuery) {
 
   const summary = await getDetailedSummary();
   parts.push(summary);
+
+  const pending = await getPendingActions();
+  if (pending && pending.total > 0) {
+    const groupLines = Object.keys(pending.groups).map(g => `- ${g}: ${pending.groups[g].length} emails`);
+    parts.push(
+      "",
+      "## Pending Actions (Triage)",
+      "The user has the following emails awaiting manual execution:",
+      ...groupLines,
+      "",
+      "If the user asks you to execute, process, or handle a group of pending emails, you MUST output a special command tag at the very end of your response: [EXECUTE:GROUP:EVENT_TYPE]",
+      "For example: [EXECUTE:GROUP:SECURITY_ALERT]",
+      "Only output this tag if the user explicitly requests or confirms the execution."
+    );
+  }
 
   if (userQuery) {
     const results = await searchData(userQuery, 5);
