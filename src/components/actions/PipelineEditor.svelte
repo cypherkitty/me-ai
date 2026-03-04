@@ -340,12 +340,19 @@
                                                         {et.name}
                                                         <button
                                                             class="text-muted-foreground/50 hover:text-destructive transition-colors ml-0.5"
-                                                            onclick={() =>
-                                                                (typesToDelete =
+                                                            onclick={() => {
+                                                                typesToDelete =
                                                                     [
                                                                         ...typesToDelete,
                                                                         et.name,
-                                                                    ])}
+                                                                    ];
+                                                                typesToMove =
+                                                                    typesToMove.filter(
+                                                                        (t) =>
+                                                                            t !==
+                                                                            et.name,
+                                                                    );
+                                                            }}
                                                             aria-label="Delete event type"
                                                             >✕</button
                                                         >
@@ -378,11 +385,17 @@
                                                     const val = (
                                                         e.currentTarget as HTMLSelectElement
                                                     ).value;
-                                                    if (val)
+                                                    if (val) {
                                                         typesToMove = [
                                                             ...typesToMove,
                                                             val,
                                                         ];
+                                                        typesToDelete =
+                                                            typesToDelete.filter(
+                                                                (t) =>
+                                                                    t !== val,
+                                                            );
+                                                    }
                                                     requestAnimationFrame(
                                                         () => {
                                                             (
@@ -399,7 +412,11 @@
                                                     selected
                                                     >+ Add Event Type...</option
                                                 >
-                                                {#each eventTypes.filter((et) => !(rule?._eventTypes || []).find((t) => t.name === et) && !typesToMove.includes(et)) as et}
+                                                {#each eventTypes.filter( (et) => {
+                                                        const isAssigned = (rule?._eventTypes || []).some((t) => t.name === et);
+                                                        const isPendingDelete = typesToDelete.includes(et);
+                                                        return (!isAssigned || isPendingDelete) && !typesToMove.includes(et);
+                                                    }, ) as et}
                                                     <option value={et}
                                                         >{et
                                                             .toLowerCase()
