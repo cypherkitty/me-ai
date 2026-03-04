@@ -9,6 +9,9 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { Textarea } from "$lib/components/ui/textarea/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import { Switch } from "$lib/components/ui/switch/index.js";
+  import { Label } from "$lib/components/ui/label/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
   import { cn } from "$lib/utils.js";
   import { mountLog } from "../../lib/debug.js";
 
@@ -25,6 +28,11 @@
     numTokens = null,
     generationPhase = null,
     gpuInfo = null,
+    enableThinking = $bindable(false),
+    maxTokens = $bindable(4096),
+    doSample = $bindable(false),
+    temperature = $bindable(0.7),
+    repetitionPenalty = $bindable(1.1),
     backend = "webgpu",
     chatContainer = $bindable(),
     onsend,
@@ -41,6 +49,7 @@
 
   let input = $state("");
   let showGpuPanel = $state(false);
+  let showGenerationPanel = $state(false);
 
   function handleKeydown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -72,8 +81,9 @@
 </script>
 
 <div class="flex flex-col h-full overflow-hidden">
-  <!-- Stats bar -->
-  <div class="flex items-center gap-3 px-6 h-10 border-b border-border shrink-0">
+  <!-- Stats bar + Generation panel -->
+  <div class="flex flex-col border-b border-border shrink-0">
+  <div class="flex items-center gap-3 px-6 h-10">
     {#if gpuInfo}
       <Button
         variant="outline"
@@ -105,9 +115,51 @@
     {/if}
 
     <span class="flex-1"></span>
+    {#if gpuInfo}
+      <div class="flex items-center gap-2">
+        <Label for="thinking-switch" class="text-xs text-muted-foreground/60 cursor-pointer">
+          Thinking
+        </Label>
+        <Switch id="thinking-switch" bind:checked={enableThinking} disabled={isRunning} class="scale-90" />
+      </div>
+    {/if}
+    <Button
+      variant="ghost"
+      size="sm"
+      onclick={() => showGenerationPanel = !showGenerationPanel}
+      class={cn(
+        "h-6 text-[0.6rem] font-semibold uppercase tracking-wider px-2",
+        showGenerationPanel ? "bg-accent/50 text-foreground" : "text-muted-foreground/50 hover:bg-accent/50"
+      )}
+    >
+      Generation {showGenerationPanel ? "▲" : "▼"}
+    </Button>
     <Button variant="ghost" size="sm" onclick={onreset} disabled={isRunning} class="h-6 text-xs px-2">
       Reset
     </Button>
+  </div>
+  {#if showGenerationPanel}
+    <div class="px-6 py-3 border-t border-border bg-muted/20 flex flex-wrap gap-4">
+      <div class="flex flex-col gap-1 min-w-[70px]">
+        <Label for="max-tokens" class="text-[0.6rem] opacity-60">Max tokens</Label>
+        <Input id="max-tokens" type="number" bind:value={maxTokens} min={256} max={32768} step={256} disabled={isRunning} class="h-7 text-xs" />
+      </div>
+      <div class="flex items-center gap-2 pt-5">
+        <Label for="do-sample" class="text-[0.6rem] opacity-60">Sample</Label>
+        <Switch id="do-sample" bind:checked={doSample} disabled={isRunning} class="scale-90" />
+      </div>
+      {#if doSample}
+        <div class="flex flex-col gap-1 min-w-[70px]">
+          <Label for="temperature" class="text-[0.6rem] opacity-60">Temperature</Label>
+          <Input id="temperature" type="number" bind:value={temperature} min={0} max={2} step={0.1} disabled={isRunning} class="h-7 text-xs" />
+        </div>
+      {/if}
+      <div class="flex flex-col gap-1 min-w-[70px]">
+        <Label for="repetition-penalty" class="text-[0.6rem] opacity-60">Rep. penalty</Label>
+        <Input id="repetition-penalty" type="number" bind:value={repetitionPenalty} min={1} max={2} step={0.05} disabled={isRunning} class="h-7 text-xs" />
+      </div>
+    </div>
+  {/if}
   </div>
 
   {#if showGpuPanel && gpuInfo}

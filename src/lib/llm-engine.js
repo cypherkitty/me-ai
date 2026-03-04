@@ -56,11 +56,17 @@ export function getEngine() {
       ensureWorker().postMessage({ type: "check" });
     },
 
-    /** Load a model by ID. Progress arrives via onMessage. */
-    loadModel(modelId) {
+    /**
+     * Load a model by ID. Progress arrives via onMessage.
+     * @param {string} modelId
+     * @param {object} [options] - Load options (WebGPU only)
+     * @param {string} [options.dtype="q4f16"] - Quantization: q4f16, q4, fp16
+     * @param {string} [options.device="webgpu"] - Device: webgpu, wasm
+     */
+    loadModel(modelId, options = {}) {
       _modelId = modelId;
       _status = "loading";
-      ensureWorker().postMessage({ type: "load", modelId });
+      ensureWorker().postMessage({ type: "load", modelId, options });
     },
 
     /**

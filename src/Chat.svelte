@@ -41,6 +41,13 @@
   let isRunning = $state(false);
   let tps = $state(null);
   let numTokens = $state(null);
+  let enableThinking = $state(false);
+  let loadDtype = $state("q4f16");
+  let loadDevice = $state("webgpu");
+  let maxTokens = $state(4096);
+  let doSample = $state(false);
+  let temperature = $state(0.7);
+  let repetitionPenalty = $state(1.1);
 
   let chatContainer = $state(null);
   let gpuInfo = $state(null);
@@ -54,13 +61,30 @@
 
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(async () => {
-    // Restore saved backend and model from IndexedDB
-    const [savedBackend, savedModel] = await Promise.all([
+    // Restore saved backend, model, and options from IndexedDB
+    const [
+      savedBackend, savedModel, savedEnableThinking, savedLoadDtype, savedLoadDevice,
+      savedMaxTokens, savedDoSample, savedTemperature, savedRepetitionPenalty,
+    ] = await Promise.all([
       getSetting("aiBackend"),
       getSetting("selectedModel"),
+      getSetting("enableThinking"),
+      getSetting("loadDtype"),
+      getSetting("loadDevice"),
+      getSetting("maxTokens"),
+      getSetting("doSample"),
+      getSetting("temperature"),
+      getSetting("repetitionPenalty"),
     ]);
     if (savedBackend) backend = savedBackend;
     if (savedModel) selectedModel = savedModel;
+    if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking;
+    if (savedLoadDtype) loadDtype = savedLoadDtype;
+    if (savedLoadDevice) loadDevice = savedLoadDevice;
+    if (savedMaxTokens != null) maxTokens = savedMaxTokens;
+    if (savedDoSample !== undefined) doSample = savedDoSample;
+    if (savedTemperature != null) temperature = savedTemperature;
+    if (savedRepetitionPenalty != null) repetitionPenalty = savedRepetitionPenalty;
 
     engine.check();
 
@@ -118,7 +142,7 @@
             ...messages.slice(0, -1),
             { ...last, thinking: (last.thinking || "") + msg.content },
           ];
-          scrollToBottom();
+          scrollToBottom(false);
           break;
         }
 
@@ -143,7 +167,7 @@
             ...messages.slice(0, -1),
             { ...last, content: last.content + msg.output },
           ];
-          scrollToBottom();
+          scrollToBottom(false);
           break;
         }
 
@@ -386,9 +410,13 @@
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
-  function scrollToBottom() {
+  /** @param {boolean} [force] - If false, only scroll when user is near bottom (avoids fighting scroll during streaming) */
+  function scrollToBottom(force = true) {
     tick().then(() => {
-      if (chatContainer) {
+      if (!chatContainer) return;
+      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 80;
+      if (force || nearBottom) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
       }
     });
@@ -400,11 +428,14 @@
     loadInitiated = true;
     await setSetting("selectedModel", selectedModel);
     await setSetting("aiBackend", backend);
+    await setSetting("loadDtype", loadDtype);
+    await setSetting("loadDevice", loadDevice);
     // Clear gpuInfo when not using WebGPU
     if (backend !== "webgpu") {
       gpuInfo = null;
     }
-    engine.loadModel(selectedModel);
+    const loadOptions = backend === "webgpu" ? { dtype: loadDtype, device: loadDevice } : {};
+    engine.loadModel(selectedModel, loadOptions);
   }
 
   async function clearCacheAndRetry() {
@@ -423,6 +454,15 @@
     } else if (backend === "cloud" && !API_MODELS.find(m => m.id === selectedModel)) {
       selectedModel = API_MODELS[0].id;
     }
+  });
+
+  // Persist chat options when they change
+  $effect(() => {
+    setSetting("enableThinking", enableThinking);
+    setSetting("maxTokens", maxTokens);
+    setSetting("doSample", doSample);
+    setSetting("temperature", temperature);
+    setSetting("repetitionPenalty", repetitionPenalty);
   });
 
   async function send(text) {
@@ -469,7 +509,15 @@
     const plain = messages
       .filter((m) => m.type !== "dashboard" && m.type !== "events-grouped" && m.type !== "event-batch" && m.type !== "event")
       .map((m) => ({ role: m.role, content: m.content }));
-    engine.generate([...systemMessages, ...plain]);
+    engine.generate([...systemMessages, ...plain], {
+      enableThinking,
+      maxTokens,
+      do_sample: doSample,
+      temperature,
+      top_p: 0.95,
+      top_k: 50,
+      repetition_penalty: repetitionPenalty,
+    });
     scrollToBottom();
   }
 
@@ -485,6 +533,7 @@
     greetingShown = false;
     showDashboardIfNeeded();
   }
+
 </script>
 
 {#if status === null}
@@ -495,6 +544,8 @@
       {#if backend === "webgpu"}
         <ModelSelector
           bind:selectedModel
+          bind:loadDtype
+          bind:loadDevice
           {gpuInfo}
           {error}
           onload={loadModel}
@@ -532,6 +583,11 @@
     {numTokens}
     {generationPhase}
     {gpuInfo}
+    bind:enableThinking
+    bind:maxTokens
+    bind:doSample
+    bind:temperature
+    bind:repetitionPenalty
     backend={backend === "cloud" ? API_MODELS.find(m => m.id === selectedModel)?.provider || "cloud" : backend}
     bind:chatContainer
     onsend={send}

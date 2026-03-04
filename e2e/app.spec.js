@@ -113,6 +113,44 @@ test.describe("Chat page", () => {
     await expect(page.locator("#model-select")).not.toBeVisible();
     await expect(page.locator("#ollama-model")).toBeVisible();
   });
+
+  test("thinking is collapsed by default, expands on click", async ({ page }) => {
+    test.setTimeout(180_000); // Model load can take 1–2 min
+    await page.goto("/");
+
+    // Load WebGPU model
+    await page.getByRole("button", { name: "Load Model" }).click();
+
+    // Wait for chat input (model ready)
+    const input = page.getByPlaceholder(/Type a message|message/i);
+    await expect(input).toBeVisible({ timeout: 120_000 });
+
+    // Enable Thinking
+    const thinkingSwitch = page.getByRole("switch", { name: /Thinking/i });
+    if (await thinkingSwitch.isVisible()) {
+      if (await thinkingSwitch.getAttribute("aria-checked") !== "true") {
+        await thinkingSwitch.click();
+      }
+    }
+
+    // Send message
+    await input.fill("hi");
+    await input.press("Enter");
+
+    // Wait for "Internal reasoning" to appear (thinking completed)
+    const reasoningTrigger = page.getByText("Internal reasoning");
+    await expect(reasoningTrigger).toBeVisible({ timeout: 60_000 });
+
+    // Thinking content (pre) should be hidden when collapsed - check it's not visible
+    const preContent = page.locator("pre").filter({ hasText: /Analyze|Request|Thinking/i });
+    await expect(preContent).toBeHidden();
+
+    // Click to expand
+    await reasoningTrigger.click();
+
+    // Now thinking content should be visible
+    await expect(preContent).toBeVisible({ timeout: 5_000 });
+  });
 });
 
 // ────────────────────────────────────────────────────────────

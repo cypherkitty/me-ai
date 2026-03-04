@@ -5,6 +5,8 @@
   import { mountLog } from "../../lib/debug.js";
   import { getModelInfo } from "../../lib/models.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
+  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
+  import { ChevronRight } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
 
   let {
@@ -53,6 +55,7 @@
   });
 
   let isStreaming = $derived(isRunning && isLast);
+  let showThinking = $state(false);
 </script>
 
 {#if msg.role === "user"}
@@ -98,18 +101,23 @@
       {/if}
     </div>
 
-    <!-- Thinking disclosure -->
+    <!-- Thinking (collapsed by default, click to expand) -->
     {#if msg.thinking}
-      <details class="group mt-0.5">
-        <summary class="inline-flex items-center gap-1.5 cursor-pointer text-[0.72rem] text-primary/60 hover:text-primary/90 px-2 py-1 rounded border border-primary/15 bg-primary/5 transition-colors list-none select-none">
-          <svg class="size-3 transition-transform group-open:rotate-90 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="9 18 15 12 9 6"/>
-          </svg>
+      <Collapsible.Root bind:open={showThinking} class="mt-0.5">
+        <Collapsible.Trigger
+          class={cn(
+            "inline-flex items-center gap-1.5 cursor-pointer text-[0.72rem] text-primary/60 hover:text-primary/90 px-2 py-1 rounded border border-primary/15 bg-primary/5 transition-colors select-none w-full text-left",
+            showThinking && "rounded-b-none"
+          )}
+        >
+          <ChevronRight class={cn("size-3 shrink-0 transition-transform", showThinking && "rotate-90")} />
           Internal reasoning
           <span class="text-[0.58rem] opacity-50 ml-0.5">{msg.thinking.split(/\s+/).filter(Boolean).length} words</span>
-        </summary>
-        <pre class="mt-1 text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded bg-primary/[0.03] border-l-2 border-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
-      </details>
+        </Collapsible.Trigger>
+        <Collapsible.Content>
+          <pre class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
+        </Collapsible.Content>
+      </Collapsible.Root>
     {/if}
 
     <!-- Content -->
