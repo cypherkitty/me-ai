@@ -706,16 +706,28 @@ export async function nukeAllLocalData() {
     console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
   }
 
+  // 2b. Close the IndexedDB connection from idb.js so deleteDatabase is not blocked
+  try {
+    const { closeIdb } = await import("./idb.js");
+    closeIdb();
+  } catch { }
+
   // 3. Delete all IndexedDB databases
   try {
     const dbs = await indexedDB.databases?.() ?? [];
     await Promise.allSettled(
       dbs.map(
         ({ name }) =>
-          new Promise((res, rej) => {
+          new Promise((res) => {
             const r = indexedDB.deleteDatabase(name);
             r.onsuccess = res;
-            r.onerror = () => rej(r.error);
+            r.onerror = res;           // don't block on errors
+            r.onblocked = () => {
+              console.warn(`[db] deleteDatabase("${name}") blocked — force-proceeding`);
+              res();                      // force-proceed even if blocked
+            };
+            // Absolute safety: resolve after 3 s no matter what
+            setTimeout(res, 3000);
           })
       )
     );
