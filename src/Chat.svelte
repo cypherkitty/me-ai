@@ -7,7 +7,10 @@
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
-  import { buildBatchEventMessage, buildGroupedEventsMessage } from "./lib/events.js";
+  import {
+    buildBatchEventMessage,
+    buildGroupedEventsMessage,
+  } from "./lib/events.js";
   import { getClassificationsGrouped } from "./lib/triage.js";
   import {
     updateClassificationStatus,
@@ -16,6 +19,7 @@
     scanEmails,
     getScanStats,
   } from "./lib/triage.js";
+  import { executePipelineBatch } from "./lib/plugins/execution-service.js";
   import BackendSelector from "./components/chat/BackendSelector.svelte";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
   import OllamaSettings from "./components/chat/OllamaSettings.svelte";
@@ -29,7 +33,7 @@
   const engine = getUnifiedEngine();
   let backend = $state("webgpu");
   let selectedModel = $state(MODELS[0].id);
-  let status = $state(null);       // null | "loading" | "ready"
+  let status = $state(null); // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
   // Track whether the user has explicitly initiated a load in this session.
@@ -63,8 +67,15 @@
   onMount(async () => {
     // Restore saved backend, model, and options from IndexedDB
     const [
-      savedBackend, savedModel, savedEnableThinking, savedLoadDtype, savedLoadDevice,
-      savedMaxTokens, savedDoSample, savedTemperature, savedRepetitionPenalty,
+      savedBackend,
+      savedModel,
+      savedEnableThinking,
+      savedLoadDtype,
+      savedLoadDevice,
+      savedMaxTokens,
+      savedDoSample,
+      savedTemperature,
+      savedRepetitionPenalty,
     ] = await Promise.all([
       getSetting("aiBackend"),
       getSetting("selectedModel"),
@@ -84,7 +95,8 @@
     if (savedMaxTokens != null) maxTokens = savedMaxTokens;
     if (savedDoSample !== undefined) doSample = savedDoSample;
     if (savedTemperature != null) temperature = savedTemperature;
-    if (savedRepetitionPenalty != null) repetitionPenalty = savedRepetitionPenalty;
+    if (savedRepetitionPenalty != null)
+      repetitionPenalty = savedRepetitionPenalty;
 
     engine.check();
 
@@ -109,12 +121,14 @@
 
         case "progress":
           progressItems = progressItems.map((item) =>
-            item.file === msg.file ? { ...item, ...msg } : item
+            item.file === msg.file ? { ...item, ...msg } : item,
           );
           break;
 
         case "done":
-          progressItems = progressItems.filter((item) => item.file !== msg.file);
+          progressItems = progressItems.filter(
+            (item) => item.file !== msg.file,
+          );
           break;
 
         case "ready":
@@ -125,7 +139,15 @@
         case "start":
           if (!isRunning) break;
           generationPhase = msg.phase || "preparing";
-          messages = [...messages, { role: "assistant", content: "", thinking: "", model: selectedModel }];
+          messages = [
+            ...messages,
+            {
+              role: "assistant",
+              content: "",
+              thinking: "",
+              model: selectedModel,
+            },
+          ];
           break;
 
         case "phase":
@@ -178,6 +200,41 @@
           if (msg.numTokens !== undefined) numTokens = msg.numTokens;
           isRunning = false;
           generationPhase = null;
+
+          // --- BEGIN INTERCEPTOR ---
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
+            const regex = /\[EXECUTE:GROUP:([A-Z_]+)\]/g;
+            let match;
+            const executedGroups = [];
+            while ((match = regex.exec(lastMsg.content)) !== null) {
+              executedGroups.push(match[1]);
+            }
+            if (executedGroups.length > 0) {
+              const newContent = lastMsg.content
+                .replace(/\[EXECUTE:GROUP:[A-Z_]+\]/g, "")
+                .trim();
+              messages = [
+                ...messages.slice(0, -1),
+                {
+                  ...lastMsg,
+                  content:
+                    newContent === "" ? "Executing pipeline..." : newContent,
+                },
+              ];
+              for (const group of executedGroups) {
+                if (
+                  pendingData &&
+                  pendingData.groups &&
+                  pendingData.groups[group]
+                ) {
+                  runAutomatedExecution(group, pendingData.groups[group]);
+                }
+              }
+            }
+          }
+          // --- END INTERCEPTOR ---
+
           refreshPendingData();
           break;
 
@@ -208,7 +265,9 @@
       pendingData = pending;
       if (pending) {
         greetingShown = true;
-        messages = [{ role: "assistant", type: "dashboard", pendingData: pending }];
+        messages = [
+          { role: "assistant", type: "dashboard", pendingData: pending },
+        ];
         scrollToBottom();
       }
       // Check if user has any scan data at all
@@ -229,7 +288,7 @@
       if (dashIdx !== -1) {
         if (pending && pending.total > 0) {
           messages = messages.map((m, i) =>
-            i === dashIdx ? { ...m, pendingData: pending } : m
+            i === dashIdx ? { ...m, pendingData: pending } : m,
           );
         } else {
           // Remove the dashboard if no more pending items
@@ -245,6 +304,108 @@
   }
 
   // ── Action handlers (cockpit controls) ────────────────────────────
+
+  async function runAutomatedExecution(eventType, emails) {
+    if (!engine.isReady) return;
+    const taskIdx = messages.length;
+    const title = `${eventType
+      .split("_")
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .join(" ")} (${emails.length})`;
+
+    messages = [
+      ...messages,
+      {
+        role: "assistant",
+        type: "task-card",
+        title: `Executing ${title}`,
+        status: "running",
+        steps: [],
+      },
+    ];
+    scrollToBottom();
+
+    const updateTask = (patch) => Object.assign(messages[taskIdx], patch);
+
+    try {
+      const result = await executePipelineBatch(
+        eventType,
+        emails,
+        (progress) => {
+          const s = messages[taskIdx].steps || [];
+          if (progress.phase === "pipeline_loaded") {
+            updateTask({
+              steps: progress.actions.map((a) => ({
+                id: a.id ?? a.commandId,
+                label: a.name ?? a.commandId,
+                status: "pending",
+              })),
+            });
+          } else if (progress.phase === "action_start") {
+            updateTask({
+              steps: s.map((step) =>
+                step.id === (progress.actionId ?? progress.commandId)
+                  ? { ...step, status: "running", startedAt: Date.now() }
+                  : step,
+              ),
+            });
+          } else if (progress.phase === "action_complete") {
+            const ok = progress.result?.success !== false;
+            updateTask({
+              steps: s.map((step) =>
+                step.id === (progress.actionId ?? progress.commandId)
+                  ? {
+                      ...step,
+                      status: ok ? "done" : "error",
+                      expandable: !!progress.result?.message,
+                      subContent: progress.result?.message ?? "",
+                    }
+                  : step,
+              ),
+            });
+          } else if (progress.phase === "done") {
+            updateTask({
+              status: (messages[taskIdx].steps || []).every(
+                (step) => step.status !== "error",
+              )
+                ? "done"
+                : "error",
+            });
+          } else if (progress.phase === "error") {
+            updateTask({
+              status: "error",
+              steps: [
+                ...s.filter((step) => step.status !== "running"),
+                {
+                  id: "__err",
+                  label: progress.error ?? "Execution failed",
+                  status: "error",
+                },
+              ],
+            });
+          }
+        },
+        true, // Auto-approve since user initiated it via chat
+      );
+
+      if (result.success) await refreshPendingData();
+    } catch (e) {
+      updateTask({
+        status: "error",
+        steps: [
+          ...(messages[taskIdx].steps ?? []).filter(
+            (step) => step.status !== "running",
+          ),
+          {
+            id: "error",
+            label: `Execution failed: ${e.message}`,
+            status: "error",
+          },
+        ],
+      });
+    }
+  }
+
   async function markActed(emailId) {
     await updateClassificationStatus(emailId, "acted");
     await refreshPendingData();
@@ -270,9 +431,10 @@
     isScanning = true;
 
     // Determine current model label for the task card badge
-    const activeBackend = backend === "cloud"
-      ? (API_MODELS.find(m => m.id === selectedModel)?.provider || "cloud")
-      : backend;
+    const activeBackend =
+      backend === "cloud"
+        ? API_MODELS.find((m) => m.id === selectedModel)?.provider || "cloud"
+        : backend;
 
     // Push a live task card into the chat.
     // Capture the index so we can mutate through the $state proxy later.
@@ -286,7 +448,12 @@
         model: activeBackend,
         status: "running",
         steps: [
-          { id: "fetch", label: "Fetching recent emails…", status: "running", startedAt: Date.now() },
+          {
+            id: "fetch",
+            label: "Fetching recent emails…",
+            status: "running",
+            startedAt: Date.now(),
+          },
         ],
       },
     ];
@@ -310,22 +477,40 @@
         onProgress: (progress) => {
           if (progress.phase === "loading") {
             messages[taskIdx].steps = [
-              { id: "fetch", label: "Loading recent emails…", status: "running", startedAt: Date.now() },
+              {
+                id: "fetch",
+                label: "Loading recent emails…",
+                status: "running",
+                startedAt: Date.now(),
+              },
             ];
           } else if (progress.phase === "scanning") {
             totalEmails = progress.total ?? 0;
             if (!classifyStartedAt) classifyStartedAt = Date.now();
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj =
+              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             // Show completed steps + a running step for current email
             messages[taskIdx].steps = [
-              { id: "fetch", label: `Found ${totalEmails} emails to scan`, status: "done", detail: `${totalEmails} messages` },
+              {
+                id: "fetch",
+                label: `Found ${totalEmails} emails to scan`,
+                status: "done",
+                detail: `${totalEmails} messages`,
+              },
               ...completedSteps,
-              { id: `email-${progress.current}`, label: shortSubj, status: "running", startedAt: classifyStartedAt, detail: `${progress.current}/${progress.total}` },
+              {
+                id: `email-${progress.current}`,
+                label: shortSubj,
+                status: "running",
+                startedAt: classifyStartedAt,
+                detail: `${progress.current}/${progress.total}`,
+              },
             ];
           } else if (progress.phase === "classified") {
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj =
+              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             const cls = progress.result;
             const group = cls?.group ?? "";
             const action = cls?.action ?? "";
@@ -350,7 +535,12 @@
 
             // Continue showing current completed steps + next running slot
             messages[taskIdx].steps = [
-              { id: "fetch", label: `Found ${totalEmails} emails to scan`, status: "done", detail: `${totalEmails} messages` },
+              {
+                id: "fetch",
+                label: `Found ${totalEmails} emails to scan`,
+                status: "done",
+                detail: `${totalEmails} messages`,
+              },
               ...completedSteps,
             ];
           } else if (progress.phase === "done") {
@@ -365,12 +555,18 @@
       // Final state: fetch step + all individual email steps (already in completedSteps)
       const classified = completedSteps.length;
       messages[taskIdx].steps = [
-        { id: "fetch", label: `Fetched ${emailCount} emails`, status: "done", detail: `${emailCount} messages` },
+        {
+          id: "fetch",
+          label: `Fetched ${emailCount} emails`,
+          status: "done",
+          detail: `${emailCount} messages`,
+        },
         ...completedSteps,
       ];
-      messages[taskIdx].description = classified > 0
-        ? `Classified ${classified} email${classified !== 1 ? "s" : ""} into event types. Expand any row to see classification details.`
-        : "No new emails to classify.";
+      messages[taskIdx].description =
+        classified > 0
+          ? `Classified ${classified} email${classified !== 1 ? "s" : ""} into event types. Expand any row to see classification details.`
+          : "No new emails to classify.";
       updateTask({ status: "done", title: `Scanned ${emailCount} Emails` });
 
       await refreshPendingData();
@@ -394,7 +590,9 @@
       console.error("Scan failed:", e);
       messages[taskIdx].status = "error";
       messages[taskIdx].steps = [
-        ...(messages[taskIdx].steps ?? []).filter(s => s.status !== "running"),
+        ...(messages[taskIdx].steps ?? []).filter(
+          (s) => s.status !== "running",
+        ),
         { id: "error", label: `Scan failed: ${e.message}`, status: "error" },
       ];
     } finally {
@@ -405,7 +603,13 @@
   function handleCommand({ event, commandId }) {
     // For now, describe the command execution in chat
     const desc = `Execute "${commandId}" on ${event.type} event: "${event.data?.subject || "unknown"}"`;
-    messages = [...messages, { role: "assistant", content: `Command: ${commandId}\n\nThis command is not yet implemented. In the future, "${commandId}" will be executed on the ${event.source} event "${event.data?.subject || ""}".` }];
+    messages = [
+      ...messages,
+      {
+        role: "assistant",
+        content: `Command: ${commandId}\n\nThis command is not yet implemented. In the future, "${commandId}" will be executed on the ${event.source} event "${event.data?.subject || ""}".`,
+      },
+    ];
     scrollToBottom();
   }
 
@@ -434,7 +638,8 @@
     if (backend !== "webgpu") {
       gpuInfo = null;
     }
-    const loadOptions = backend === "webgpu" ? { dtype: loadDtype, device: loadDevice } : {};
+    const loadOptions =
+      backend === "webgpu" ? { dtype: loadDtype, device: loadDevice } : {};
     engine.loadModel(selectedModel, loadOptions);
   }
 
@@ -447,11 +652,17 @@
 
   // Watch backend changes and update default model
   $effect(() => {
-    if (backend === "webgpu" && !MODELS.find(m => m.id === selectedModel)) {
+    if (backend === "webgpu" && !MODELS.find((m) => m.id === selectedModel)) {
       selectedModel = MODELS[0].id;
-    } else if (backend === "ollama" && !OLLAMA_MODELS.find(m => m.name === selectedModel)) {
+    } else if (
+      backend === "ollama" &&
+      !OLLAMA_MODELS.find((m) => m.name === selectedModel)
+    ) {
       selectedModel = OLLAMA_MODELS[0].name;
-    } else if (backend === "cloud" && !API_MODELS.find(m => m.id === selectedModel)) {
+    } else if (
+      backend === "cloud" &&
+      !API_MODELS.find((m) => m.id === selectedModel)
+    ) {
       selectedModel = API_MODELS[0].id;
     }
   });
@@ -474,13 +685,26 @@
       try {
         const grouped = await getClassificationsGrouped();
         if (!grouped.order.length) {
-          messages = [...messages, { role: "assistant", content: "No classified emails yet. Run a scan first from the Actions page." }];
+          messages = [
+            ...messages,
+            {
+              role: "assistant",
+              content:
+                "No classified emails yet. Run a scan first from the Actions page.",
+            },
+          ];
         } else {
           const eventsMsg = await buildGroupedEventsMessage(grouped);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {
-        messages = [...messages, { role: "assistant", content: `Failed to load events: ${err.message}` }];
+        messages = [
+          ...messages,
+          {
+            role: "assistant",
+            content: `Failed to load events: ${err.message}`,
+          },
+        ];
       }
       scrollToBottom();
       return;
@@ -493,7 +717,8 @@
     // Build system context — only load heavy email data when the user asks about emails
     let systemMessages = [];
     try {
-      const emailKeywords = /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
+      const emailKeywords =
+        /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       const context = emailKeywords.test(text)
         ? await buildEmailContext(text)
         : await buildLLMContext();
@@ -507,7 +732,13 @@
 
     // Only include text messages for the LLM (skip dashboard messages)
     const plain = messages
-      .filter((m) => m.type !== "dashboard" && m.type !== "events-grouped" && m.type !== "event-batch" && m.type !== "event")
+      .filter(
+        (m) =>
+          m.type !== "dashboard" &&
+          m.type !== "events-grouped" &&
+          m.type !== "event-batch" &&
+          m.type !== "event",
+      )
       .map((m) => ({ role: m.role, content: m.content }));
     engine.generate([...systemMessages, ...plain], {
       enableThinking,
@@ -533,7 +764,6 @@
     greetingShown = false;
     showDashboardIfNeeded();
   }
-
 </script>
 
 {#if status === null}
@@ -549,28 +779,20 @@
           {gpuInfo}
           {error}
           onload={loadModel}
-          onclearerror={() => { error = null; }}
+          onclearerror={() => {
+            error = null;
+          }}
           onclearcache={clearCacheAndRetry}
         />
       {:else if backend === "ollama"}
-        <OllamaSettings
-          bind:selectedModel
-          bind:error
-          onload={loadModel}
-        />
+        <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
       {:else if backend === "cloud"}
-        <CloudApiSettings
-          bind:selectedModel
-          bind:error
-          onload={loadModel}
-        />
+        <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
       {/if}
     </div>
   </div>
-
 {:else if status === "loading"}
   <LoadingProgress message={loadingMessage} items={progressItems} />
-
 {:else}
   <ChatView
     {messages}
@@ -588,7 +810,9 @@
     bind:doSample
     bind:temperature
     bind:repetitionPenalty
-    backend={backend === "cloud" ? API_MODELS.find(m => m.id === selectedModel)?.provider || "cloud" : backend}
+    backend={backend === "cloud"
+      ? API_MODELS.find((m) => m.id === selectedModel)?.provider || "cloud"
+      : backend}
     bind:chatContainer
     onsend={send}
     onstop={stop}
@@ -602,4 +826,3 @@
     onexecuted={refreshPendingData}
   />
 {/if}
-
