@@ -644,7 +644,7 @@ export async function clearAllDuckDbData() {
     }
     await conn.query("COMMIT");
   } catch (e) {
-    await conn.query("ROLLBACK").catch(() => {});
+    await conn.query("ROLLBACK").catch(() => { });
     throw e;
   }
   await checkpoint();
@@ -656,11 +656,11 @@ export async function clearAllDuckDbData() {
  */
 export async function deleteOpfsFileAndReload() {
   // Flush any pending writes first
-  try { await checkpoint(); } catch {}
+  try { await checkpoint(); } catch { }
 
   // Close connection and DB
-  try { await _conn?.close(); } catch {}
-  try { await _db?.terminate(); } catch {}
+  try { await _conn?.close(); } catch { }
+  try { await _db?.terminate(); } catch { }
   _conn = null;
   _db = null;
   _initPromise = null;
@@ -687,9 +687,9 @@ export async function deleteOpfsFileAndReload() {
  */
 export async function nukeAllLocalData() {
   // 1. Close DuckDB gracefully
-  try { await checkpoint(); } catch {}
-  try { await _conn?.close(); } catch {}
-  try { await _db?.terminate(); } catch {}
+  try { await checkpoint(); } catch { }
+  try { await _conn?.close(); } catch { }
+  try { await _db?.terminate(); } catch { }
   _conn = null;
   _db = null;
   _initPromise = null;
@@ -698,7 +698,9 @@ export async function nukeAllLocalData() {
   try {
     const root = await navigator.storage.getDirectory();
     const entries = [];
-    for await (const [name] of root.entries()) entries.push(name);
+    for await (const [name] of root.entries()) {
+      entries.push(name);
+    }
     await Promise.allSettled(entries.map((name) => root.removeEntry(name, { recursive: true })));
   } catch (e) {
     console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
@@ -713,7 +715,7 @@ export async function nukeAllLocalData() {
           new Promise((res, rej) => {
             const r = indexedDB.deleteDatabase(name);
             r.onsuccess = res;
-            r.onerror   = () => rej(r.error);
+            r.onerror = () => rej(r.error);
           })
       )
     );
@@ -732,8 +734,8 @@ export async function nukeAllLocalData() {
   }
 
   // 5. Clear Web Storage
-  try { localStorage.clear(); }   catch {}
-  try { sessionStorage.clear(); } catch {}
+  try { localStorage.clear(); } catch { }
+  try { sessionStorage.clear(); } catch { }
 
   window.location.reload();
 }

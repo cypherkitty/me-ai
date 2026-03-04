@@ -5,8 +5,8 @@
  * Each rule connects a trigger condition (EventType and/or EventCategory)
  * to an ordered list of Actions and an ExecutionPolicy.
  *
- * Triple notation: event_type : action(s) : execution_policy
- *   e.g. "ad:delete:auto" or "invoice:notify+forward:manual"
+ * Triple notation: event_type : action(s)
+ *   e.g. "ad:delete" or "invoice:notify+forward"
  */
 
 import { query, exec, toJson, fromJson } from "./store/db.js";
@@ -33,7 +33,6 @@ import { query, exec, toJson, fromJson } from "./store/db.js";
  * @property {number}   created_at  — unix ms
  * @property {Trigger[]} triggers
  * @property {Action[]} actions     — ordered plugin-bound action objects
- * @property {string}   policy      — 'auto' | 'supervised' | 'manual'
  */
 
 /**
@@ -61,7 +60,8 @@ export async function getSources() {
 
 export async function getExecutionPolicies() {
   await import("./store/db.js").then(m => m.getDb());
-  return query(`SELECT name, label, description FROM sm_execution_policies`);
+  /* DEPRECATED: execution policies are hardcoded to NOISE/CRITICAL groups */
+  return [];
 }
 
 export async function getActions() {
@@ -113,15 +113,11 @@ export async function getRules() {
        FROM sm_rule_commands
        WHERE rule_id = '${r.id}' ORDER BY order_idx`
     );
-    const policyRow = await query(
-      `SELECT policy_name FROM sm_rule_policies WHERE rule_id = '${r.id}'`
-    );
     return {
       ...r,
       enabled: Boolean(r.enabled),
       triggers,
       actions: actions,
-      policy: policyRow[0]?.policy_name ?? "auto",
     };
   }));
 }
@@ -152,15 +148,11 @@ export async function getRule(id) {
      FROM sm_rule_commands
      WHERE rule_id = '${id}' ORDER BY order_idx`
   );
-  const policyRow = await query(
-    `SELECT policy_name FROM sm_rule_policies WHERE rule_id = '${id}'`
-  );
   return {
     ...r,
     enabled: Boolean(r.enabled),
     triggers,
     actions: actions,
-    policy: policyRow[0]?.policy_name ?? "auto",
   };
 }
 
@@ -169,7 +161,7 @@ export async function getRule(id) {
  * @param {Omit<Rule, 'id'|'created_at'>} rule
  * @returns {Promise<string>} new rule ID
  */
-export async function createRule({ name, description, enabled, priority, triggers, actions, policy }) {
+export async function createRule({ name, description, enabled, priority, triggers, actions }) {
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = Date.now();
 
@@ -192,11 +184,6 @@ export async function createRule({ name, description, enabled, priority, trigger
       [id, a.id, a.pluginId, a.commandId, a.name, a.description, a.icon, i + 1]
     );
   }
-
-  await exec(
-    `INSERT INTO sm_rule_policies VALUES (?, ?)`,
-    [id, policy ?? "auto"]
-  );
 
   return id;
 }
@@ -236,11 +223,6 @@ export async function updateRule(id, updates) {
       );
     }
   }
-
-  if (updates.policy !== undefined) {
-    await exec(`DELETE FROM sm_rule_policies WHERE rule_id = ?`, [id]);
-    await exec(`INSERT INTO sm_rule_policies VALUES (?, ?)`, [id, updates.policy]);
-  }
 }
 
 /**
@@ -260,7 +242,6 @@ export async function deleteRule(id) {
   await exec(`DELETE FROM sm_rules WHERE id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_triggers WHERE rule_id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
-  await exec(`DELETE FROM sm_rule_policies WHERE rule_id = ?`, [id]);
 }
 
 // ── Event queries ──────────────────────────────────────────────────────
@@ -442,7 +423,6 @@ export async function seedRuleForEventType(eventType, policy, actions) {
       name: a.name || a.commandId || "",
       description: a.description || "",
       icon: a.icon,
-    })),
-    policy: policy || "supervised",
+    }))
   });
 }
