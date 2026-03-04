@@ -39,9 +39,11 @@ function detectBackend(modelId) {
 export function getUnifiedEngine() {
   return {
     /**
-     * Load a model and automatically switch backend if needed
+     * Load a model and automatically switch backend if needed.
+     * @param {string} modelId
+     * @param {object} [options] - Load options (WebGPU: dtype, device)
      */
-    loadModel(modelId) {
+    loadModel(modelId, options = {}) {
       const backend = detectBackend(modelId);
       
       // Switch backend if needed
@@ -67,8 +69,8 @@ export function getUnifiedEngine() {
         }
       }
       
-      // Load model on current engine
-      _currentEngine.loadModel(modelId);
+      // Load model on current engine (options only apply to WebGPU)
+      _currentEngine.loadModel(modelId, options);
     },
 
     /**

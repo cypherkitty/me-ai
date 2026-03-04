@@ -22,11 +22,19 @@ function isImageTextToTextModel(model_id) {
 
 class TextGenerationPipeline {
   static model_id = null;
+  static load_options = null;
   static tokenizer = null;
   static model = null;
 
-  static async getInstance(model_id, progress_callback = null) {
-    if (this.model_id && this.model_id !== model_id) {
+  static async getInstance(model_id, progress_callback = null, load_options = {}) {
+    const dtype = load_options.dtype ?? "q4f16";
+    const device = load_options.device ?? "webgpu";
+    const optsKey = `${dtype}:${device}`;
+
+    if (
+      this.model_id !== model_id ||
+      (this.load_options && `${this.load_options.dtype ?? "q4f16"}:${this.load_options.device ?? "webgpu"}` !== optsKey)
+    ) {
       if (this.model?.dispose) {
         try { await this.model.dispose(); } catch {}
       }
@@ -34,6 +42,7 @@ class TextGenerationPipeline {
       this.model = null;
     }
     this.model_id = model_id;
+    this.load_options = { dtype, device };
 
     this.tokenizer ??= AutoTokenizer.from_pretrained(model_id, {
       progress_callback,
@@ -44,8 +53,8 @@ class TextGenerationPipeline {
       : AutoModelForCausalLM;
 
     this.model ??= ModelClass.from_pretrained(model_id, {
-      dtype: "q4f16",
-      device: "webgpu",
+      dtype,
+      device,
       progress_callback,
     });
 
@@ -109,13 +118,14 @@ async function check() {
 }
 
 // ── Load model ──────────────────────────────────────────────────────
-async function load(model_id) {
+async function load(model_id, load_options = {}) {
   self.postMessage({ status: "loading", data: "Loading model..." });
 
   try {
     const [tokenizer, model] = await TextGenerationPipeline.getInstance(
       model_id,
       (x) => self.postMessage(x),
+      load_options,
     );
 
     self.postMessage({ status: "loading", data: "Compiling shaders and warming up model..." });
@@ -134,14 +144,22 @@ async function load(model_id) {
 }
 
 // ── Streaming generation ────────────────────────────────────────────
-async function generate(messages, { maxTokens = 4096, enableThinking = true } = {}) {
+async function generate(messages, {
+  maxTokens = 4096,
+  enableThinking = true,
+  do_sample = false,
+  temperature = 0.7,
+  top_p = 0.95,
+  top_k = 50,
+  repetition_penalty = 1.1,
+} = {}) {
   try {
     const modelId = TextGenerationPipeline.model_id;
     const useHarmony = isHarmonyModel(modelId);
     const [tokenizer, model] = await TextGenerationPipeline.getInstance(modelId);
 
     const templateOpts = { add_generation_prompt: true, return_dict: true };
-    if (!enableThinking && !useHarmony) templateOpts.enable_thinking = false;
+    if (!useHarmony) templateOpts.enable_thinking = !!enableThinking;
     const inputs = tokenizer.apply_chat_template(messages, templateOpts);
 
     let startTime;
@@ -161,54 +179,41 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
     };
 
     // <think> path — Qwen3, DeepSeek R1, etc.
+    // When enableThinking=true: prompt ends with "<think>\n", model generates thinking then emits
+    // "</think>" as a regular text token, then the response. Everything before </think> is thinking.
+    // When enableThinking=false: prompt already contains "<think>\n\n</think>\n\n", model goes
+    // straight to the response — no </think> will appear in the output.
     let fullOutput = "";
-    let isThinking = false;
-    let thinkingDone = false;
+    let thinkingDone = !enableThinking; // if thinking disabled, skip straight to response mode
     let thinkBuffer = "";
 
     const think_callback = (output) => {
       fullOutput += output;
 
       if (!thinkingDone) {
-        if (!isThinking && fullOutput.includes("<think>")) {
-          isThinking = true;
-          self.postMessage({ status: "phase", phase: "thinking" });
-          const afterOpen = fullOutput.split("<think>")[1] || "";
-          if (afterOpen && !afterOpen.includes("</think>")) {
-            thinkBuffer = afterOpen;
-            self.postMessage({ status: "thinking", content: thinkBuffer, tps, numTokens });
-          }
-        }
-
         const closeIdx = fullOutput.indexOf("</think>");
         if (closeIdx !== -1) {
           thinkingDone = true;
-          const openIdx = fullOutput.indexOf("<think>");
-          if (openIdx !== -1) {
-            thinkBuffer = fullOutput.slice(openIdx + "<think>".length, closeIdx).trim();
-            self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
-          }
+          thinkBuffer = fullOutput.slice(0, closeIdx).trim();
+          self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
           const afterClose = fullOutput.slice(closeIdx + "</think>".length).trimStart();
           self.postMessage({ status: "phase", phase: "generating" });
           if (afterClose) self.postMessage({ status: "update", output: afterClose, tps, numTokens });
           return;
         }
 
-        if (isThinking) {
-          thinkBuffer += output;
-          self.postMessage({ status: "thinking", content: output, tps, numTokens });
-          return;
-        }
-
-        if (numTokens > 3 && !fullOutput.includes("<think>")) {
-          thinkingDone = true;
-          self.postMessage({ status: "phase", phase: "generating" });
-          self.postMessage({ status: "update", output: fullOutput, tps, numTokens });
-          return;
-        }
+        // Still inside think block — stream to thinking
+        thinkBuffer = fullOutput;
+        self.postMessage({ status: "phase", phase: "thinking" });
+        self.postMessage({ status: "thinking", content: output, tps, numTokens });
         return;
       }
 
+      // Response mode
+      if (fullOutput === output) {
+        // First response chunk — signal generating phase
+        self.postMessage({ status: "phase", phase: "generating" });
+      }
       self.postMessage({ status: "update", output, tps, numTokens });
     };
 
@@ -224,9 +229,13 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
 
     await model.generate({
       ...inputs,
-      do_sample: false,
+      do_sample,
       num_beams: 1,
       max_new_tokens: maxTokens,
+      temperature: do_sample ? temperature : undefined,
+      top_p: do_sample ? top_p : undefined,
+      top_k: do_sample ? top_k : undefined,
+      repetition_penalty,
       streamer,
       stopping_criteria,
     });
@@ -241,8 +250,10 @@ async function generate(messages, { maxTokens = 4096, enableThinking = true } = 
       self.postMessage({ status: "update", output: response || harmonyRawBuffer.trim(), tps, numTokens });
     }
 
-    if (!useHarmony && !thinkingDone && isThinking && thinkBuffer.length > 0) {
+    if (!useHarmony && !thinkingDone && thinkBuffer.length > 0) {
+      // Generation ended without </think> — all tokens were thinking
       self.postMessage({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
+      self.postMessage({ status: "phase", phase: "generating" });
       self.postMessage({
         status: "update",
         output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
@@ -266,7 +277,7 @@ self.addEventListener("message", async (e) => {
       check();
       break;
     case "load":
-      load(modelId || "onnx-community/gpt-oss-20b-ONNX");
+      load(modelId || "onnx-community/gpt-oss-20b-ONNX", e.data.options ?? {});
       break;
     case "generate":
       stopping_criteria.reset();
@@ -292,6 +303,7 @@ self.addEventListener("message", async (e) => {
       TextGenerationPipeline.tokenizer = null;
       TextGenerationPipeline.model = null;
       TextGenerationPipeline.model_id = null;
+      TextGenerationPipeline.load_options = null;
       self.postMessage({ status: "cacheCleared", modelId: modelId ?? null });
       break;
   }

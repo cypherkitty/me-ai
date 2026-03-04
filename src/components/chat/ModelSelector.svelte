@@ -9,15 +9,27 @@
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
   import { cn } from "$lib/utils.js";
 
+  const DTYPE_OPTIONS = [
+    { value: "q4f16", label: "q4f16 (recommended)" },
+    { value: "q4", label: "q4 (smaller)" },
+    { value: "fp16", label: "fp16 (best quality)" },
+  ] as const;
+  const DEVICE_OPTIONS = [
+    { value: "webgpu", label: "WebGPU" },
+    { value: "wasm", label: "WASM" },
+  ] as const;
+
   interface Props {
     selectedModel: string;
+    loadDtype?: string;
+    loadDevice?: string;
     gpuInfo?: { vendor?: string; architecture?: string; limits?: { maxBufferSize?: number } } | null;
     error?: string | null;
     onload: () => void;
     onclearerror?: () => void;
     onclearcache?: () => void;
   }
-  let { selectedModel = $bindable(), gpuInfo = null, error = null, onload, onclearerror, onclearcache }: Props = $props();
+  let { selectedModel = $bindable(), loadDtype = $bindable("q4f16"), loadDevice = $bindable("webgpu"), gpuInfo = null, error = null, onload, onclearerror, onclearcache }: Props = $props();
 
   const selectedInfo = $derived(MODELS.find(m => m.id === selectedModel));
 
@@ -46,6 +58,33 @@
       {#if selectedInfo}
         <p class="text-xs text-muted-foreground/60 italic">{selectedInfo.description}</p>
       {/if}
+    </div>
+
+    <div class="w-full grid grid-cols-2 gap-3 text-left">
+      <div class="flex flex-col gap-1">
+        <Label for="dtype-select" class="text-[0.68rem] uppercase tracking-wider opacity-60">Dtype</Label>
+        <select
+          id="dtype-select"
+          bind:value={loadDtype}
+          class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {#each DTYPE_OPTIONS as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="flex flex-col gap-1">
+        <Label for="device-select" class="text-[0.68rem] uppercase tracking-wider opacity-60">Device</Label>
+        <select
+          id="device-select"
+          bind:value={loadDevice}
+          class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {#each DEVICE_OPTIONS as opt}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
 
     <details class="w-full group">
