@@ -441,7 +441,11 @@ async function _seedSignalMap(conn) {
       ('security_alert',       'Security Alert'),
       ('invoice',              'Invoice'),
       ('social_mention',       'Social Mention'),
-      ('startup_notification', 'Startup Notification');
+      ('startup_notification', 'Startup Notification'),
+      ('tweet',                'Tweet'),
+      ('retweet',              'Retweet'),
+      ('twitter_mention',      'Twitter Mention'),
+      ('twitter_thread',       'Twitter Thread');
 
     INSERT INTO sm_event_categories VALUES
       ('noise',         'Noise',         1),
@@ -455,7 +459,7 @@ async function _seedSignalMap(conn) {
       ('instagram', 'Instagram', 'social',    'instagram_graph_api',   false),
       ('youtube',   'YouTube',   'video',     'youtube_data_api_v3',   false),
       ('slack',     'Slack',     'messenger', 'slack_web_api',         false),
-      ('twitter',   'Twitter/X', 'social',    'twitter_api_v2',        false);
+      ('twitter',   'Twitter/X', 'social',    'twitter_api_v2',        true);
 
     INSERT INTO sm_actions VALUES
       ('delete',      'Delete'),
@@ -471,6 +475,7 @@ async function _seedSignalMap(conn) {
 
     INSERT INTO sm_plugins VALUES
       ('gmail_plugin',     'Gmail',          '2.1.0', true),
+      ('twitter_plugin',   'Twitter/X',      '1.0.0', true),
       ('telegram_plugin',  'Telegram',       '3.0.1', false),
       ('instagram_plugin', 'Instagram',      '1.3.0', false),
       ('ai_summarizer',    'AI Summarizer',  '1.0.0', true),
@@ -495,6 +500,7 @@ async function _seedSignalMap(conn) {
 
     INSERT INTO sm_plugin_sources VALUES
       ('gmail_plugin',    'gmail'),
+      ('twitter_plugin',  'twitter'),
       ('telegram_plugin', 'telegram'),
       ('instagram_plugin','instagram');
   `);

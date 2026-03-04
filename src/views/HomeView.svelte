@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getSavedToken, isTokenValid } from "../lib/google-auth.js";
+  import { getSavedTwitterToken } from "../lib/twitter-auth.js";
   import { getEventStats } from "../lib/rules.js";
   import { getClassificationCounts } from "../lib/triage.js";
   import { getGmailSyncStatus } from "../lib/store/gmail-sync.js";
+  import { getTwitterSyncStatus } from "../lib/store/twitter-sync.js";
   import { getUnifiedEngine } from "../lib/unified-engine.js";
   import Chat from "../Chat.svelte";
   import {
@@ -49,6 +51,18 @@
     try {
       const status = (await getGmailSyncStatus()) as SyncStatus;
       emailCount = status.totalItems ?? 0;
+    } catch {}
+
+    // Also count Twitter items
+    try {
+      const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
+      emailCount += twStatus.totalItems ?? 0;
+    } catch {}
+
+    // Check if Twitter is connected
+    try {
+      const twToken = await getSavedTwitterToken();
+      if (twToken) gmailConnected = true; // reuse flag — means "any source connected"
     } catch {}
 
     try {

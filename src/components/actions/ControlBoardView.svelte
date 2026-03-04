@@ -76,7 +76,7 @@
 
   <PromptInspector bind:open={showInspector} {sampleEmail} />
 
-  <ScrollArea class="flex-1 px-8 py-5">
+  <ScrollArea class="flex-1 min-h-0 px-8 py-5">
     <!-- Error / success banners -->
     {#if error}
       <div
@@ -169,6 +169,5 @@
         </p>
       </div>
     {/if}
-
   </ScrollArea>
 </div>

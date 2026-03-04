@@ -23,6 +23,23 @@
     clearGmailData,
   } from "../lib/store/gmail-sync.js";
   import { getStoredEmails } from "../lib/store/query-layer.js";
+  import {
+    initTwitterAuth,
+    requestTwitterAccessToken,
+    getSavedTwitterToken,
+    isTwitterTokenValid,
+    refreshTwitterToken,
+    revokeTwitterToken,
+    handleTwitterCallback,
+  } from "../lib/twitter-auth.js";
+  import { getMe as getTwitterMe } from "../lib/twitter-api.js";
+  import {
+    syncTwitter,
+    syncTwitterMore,
+    getTwitterSyncStatus,
+    clearTwitterData,
+  } from "../lib/store/twitter-sync.js";
+  import { query } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -74,7 +91,7 @@
       icon: "X",
       label: "Twitter/X",
       platform: "Social",
-      live: false,
+      live: true,
     },
   };
 
@@ -378,6 +395,220 @@
   function progressPct() {
     if (!syncProgress?.total || !syncProgress?.current) return 0;
     return Math.round((syncProgress.current / syncProgress.total) * 100);
+  }
+
+  // ── Twitter/X state ─────────────────────────────────────────────────
+  const TW_LOCAL_PAGE_SIZE = 50;
+
+  let twClientId = $state("");
+  let twClientIdInput = $state("");
+  let twShowClientIdEdit = $state(false);
+  let twAccessToken = $state(null);
+  let twProfile = $state(null);
+  let twError = $state(null);
+  let twLoadingAuth = $state(false);
+
+  let twMessages = $state([]);
+  let twTotalMessages = $state(0);
+  let twLocalOffset = $state(0);
+  let twLoadingMessages = $state(false);
+  let twSearchQuery = $state("");
+
+  let twSyncStatus = $state(null);
+  let twSyncProgress = $state(null);
+  let twSyncing = $state(false);
+  let twSyncLimit = $state(50);
+  let twShowClearConfirm = $state(false);
+
+  const twSignedIn = $derived(!!twAccessToken);
+
+  // Init on mount
+  onMount(async () => {
+    // Restore saved client ID
+    const savedTwId = await getSetting("twitterClientId");
+    twClientId = savedTwId || "";
+    twClientIdInput = savedTwId || "";
+
+    if (twClientId) {
+      initTwitterAuth(twClientId);
+    }
+
+    // Check for OAuth callback
+    const hash = window.location.hash;
+    if (hash.includes("oauth-twitter")) {
+      const url = new URL(window.location.href.replace("/#", "/?"));
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      if (code && state) {
+        try {
+          const result = await handleTwitterCallback(code, state);
+          twAccessToken = result.access_token;
+          await twFetchProfile();
+          // Clean up URL
+          window.location.hash = "#sources";
+        } catch (e) {
+          twError = `Auth failed: ${e.message}`;
+        }
+      }
+    }
+
+    // Restore saved token
+    if (!twAccessToken) {
+      try {
+        const saved = await getSavedTwitterToken();
+        if (saved) {
+          twAccessToken = saved.access_token;
+          await twFetchProfile();
+        }
+      } catch {}
+    }
+  });
+
+  async function twSaveClientId() {
+    const t = twClientIdInput.trim();
+    if (!t) return;
+    await setSetting("twitterClientId", t);
+    twClientId = t;
+    initTwitterAuth(t);
+    twShowClientIdEdit = false;
+  }
+
+  async function twSignIn() {
+    twError = null;
+    twLoadingAuth = true;
+    try {
+      if (!twClientId) {
+        twError = "Set your Twitter Client ID first";
+        twLoadingAuth = false;
+        return;
+      }
+      initTwitterAuth(twClientId);
+      await requestTwitterAccessToken(); // redirects to Twitter
+    } catch (e) {
+      twError = e.message;
+      twLoadingAuth = false;
+    }
+  }
+
+  async function twSignOut() {
+    try {
+      await revokeTwitterToken();
+    } catch {}
+    twAccessToken = null;
+    twProfile = null;
+    twMessages = [];
+    twTotalMessages = 0;
+    twError = null;
+    await removeSetting("twitter-profile");
+  }
+
+  async function twFetchProfile() {
+    try {
+      const r = await getTwitterMe(twAccessToken);
+      twProfile = r.data;
+      await setSetting("twitter-profile", r.data);
+      await twRefreshSyncStatus();
+      await twLoadLocalMessages(false);
+    } catch (e) {
+      twError = `Profile fetch failed: ${e.message}`;
+    }
+  }
+
+  async function twLoadLocalMessages(append = false) {
+    twLoadingMessages = true;
+    try {
+      const offset = append ? twLocalOffset : 0;
+      const rows = await query(
+        `SELECT * FROM items WHERE sourceType = 'twitter'
+         ${twSearchQuery ? `AND (subject ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR body ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR "from" ILIKE '%${twSearchQuery.replace(/'/g, "''")}%')` : ""}
+         ORDER BY date DESC LIMIT ${TW_LOCAL_PAGE_SIZE} OFFSET ${offset}`,
+      );
+      const countRows = await query(
+        `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'twitter'
+         ${twSearchQuery ? `AND (subject ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR body ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR "from" ILIKE '%${twSearchQuery.replace(/'/g, "''")}%')` : ""}`,
+      );
+      twMessages = append ? [...twMessages, ...rows] : rows;
+      twTotalMessages = Number(countRows[0]?.cnt ?? 0);
+      twLocalOffset = twMessages.length;
+    } catch (e) {
+      twError = `Failed to load tweets: ${e.message}`;
+    } finally {
+      twLoadingMessages = false;
+    }
+  }
+
+  function twSearchLocal() {
+    twLocalOffset = 0;
+    twLoadLocalMessages(false);
+  }
+  function twLoadMoreLocal() {
+    twLoadLocalMessages(true);
+  }
+
+  async function twRefreshSyncStatus() {
+    try {
+      twSyncStatus = await getTwitterSyncStatus();
+    } catch {}
+  }
+
+  async function twStartSync(limit) {
+    if (twSyncing || !twAccessToken) return;
+    twError = null;
+    twSyncing = true;
+    twSyncProgress = null;
+    try {
+      await syncTwitter(twAccessToken, {
+        limit,
+        onProgress: (p) => {
+          twSyncProgress = { ...p };
+        },
+      });
+      await twRefreshSyncStatus();
+      await twLoadLocalMessages(false);
+    } catch (e) {
+      if (e.name !== "AbortError") twError = `Sync failed: ${e.message}`;
+    } finally {
+      twSyncing = false;
+    }
+  }
+
+  async function twStartSyncMore(limit) {
+    if (twSyncing || !twAccessToken) return;
+    twError = null;
+    twSyncing = true;
+    twSyncProgress = null;
+    try {
+      await syncTwitterMore(twAccessToken, {
+        limit,
+        onProgress: (p) => {
+          twSyncProgress = { ...p };
+        },
+      });
+      await twRefreshSyncStatus();
+      await twLoadLocalMessages(false);
+    } catch (e) {
+      if (e.name !== "AbortError") twError = `Sync more failed: ${e.message}`;
+    } finally {
+      twSyncing = false;
+    }
+  }
+
+  async function twHandleClearData() {
+    try {
+      await clearTwitterData();
+      await twRefreshSyncStatus();
+      twMessages = [];
+      twTotalMessages = 0;
+      twLocalOffset = 0;
+      twShowClearConfirm = false;
+    } catch (e) {
+      twError = `Failed to clear data: ${e.message}`;
+    }
+  }
+
+  function twProgressPct() {
+    if (!twSyncProgress?.total || !twSyncProgress?.current) return 0;
+    return Math.round((twSyncProgress.current / twSyncProgress.total) * 100);
   }
 </script>
 
@@ -780,6 +1011,305 @@
                     variant="outline"
                     size="sm"
                     onclick={() => (showClientIdEdit = false)}
+                    class="flex-1 h-7 text-xs">Cancel</Button
+                  >
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/if}
+    {:else if selectedSource === "twitter"}
+      <!-- ── Twitter panel ──────────────────────────────────── -->
+
+      {#if twSignedIn}
+        <!-- Top bar: account info + sync controls -->
+        <div
+          class="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0 bg-sidebar/40"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <div
+              class="size-7 rounded-full bg-[#1da1f2]/15 flex items-center justify-center text-xs font-bold text-[#1da1f2] shrink-0"
+            >
+              X
+            </div>
+            <span
+              class="text-sm font-medium text-foreground truncate max-w-[180px]"
+            >
+              @{twProfile?.username ?? "Twitter"}
+            </span>
+            <span class="size-1.5 rounded-full bg-success shrink-0"></span>
+          </div>
+
+          <div class="flex items-center gap-2 ml-auto shrink-0">
+            {#if twSyncing && twSyncProgress}
+              <span class="text-xs text-muted-foreground/60"
+                >{twSyncProgress.message || "Syncing…"}</span
+              >
+            {:else if twSyncStatus?.synced}
+              <span class="text-xs text-muted-foreground/40"
+                >{twSyncStatus.totalItems.toLocaleString()} tweets · {formatTimeAgo(
+                  twSyncStatus.lastSyncAt,
+                )}</span
+              >
+            {/if}
+
+            <select
+              bind:value={twSyncLimit}
+              disabled={twSyncing}
+              class="h-7 px-1.5 text-xs rounded border border-input bg-background text-foreground"
+            >
+              {#each LIMIT_OPTIONS as opt}<option value={opt}>{opt}</option
+                >{/each}
+            </select>
+
+            <Button
+              size="sm"
+              onclick={() => twStartSync(twSyncLimit)}
+              disabled={twSyncing}
+              class="h-7 gap-1.5 text-xs"
+            >
+              <RefreshCw class={cn("size-3", twSyncing && "animate-spin")} />
+              {twSyncing
+                ? "Syncing…"
+                : twSyncStatus?.synced
+                  ? "Sync New"
+                  : "Download"}
+            </Button>
+
+            {#if twSyncStatus?.synced && twSyncStatus.hasMore}
+              <Button
+                variant="outline"
+                size="sm"
+                onclick={() => twStartSyncMore(twSyncLimit)}
+                disabled={twSyncing}
+                class="h-7 text-xs">More</Button
+              >
+            {/if}
+
+            <button
+              onclick={twSignOut}
+              class="text-muted-foreground/30 hover:text-destructive transition-colors p-1 rounded"
+              title="Sign out"
+            >
+              <LogOut class="size-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {#if twSyncing && twSyncProgress?.total}
+          <Progress value={twProgressPct()} class="h-0.5 rounded-none" />
+        {/if}
+
+        {#if twError}
+          <div
+            class="mx-4 mt-2 px-3 py-2 rounded border border-destructive/30 bg-destructive/8 text-xs text-destructive flex items-center justify-between shrink-0"
+          >
+            <span>{twError}</span>
+            <button
+              onclick={() => (twError = null)}
+              class="ml-2 opacity-60 hover:opacity-100">✕</button
+            >
+          </div>
+        {/if}
+
+        <!-- Search bar -->
+        <div
+          class="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0"
+        >
+          <div class="relative flex-1">
+            <Search
+              class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40 pointer-events-none"
+            />
+            <Input
+              type="text"
+              placeholder="Search tweets…"
+              bind:value={twSearchQuery}
+              onkeydown={(e) => e.key === "Enter" && twSearchLocal()}
+              class="pl-9 h-8 text-sm"
+            />
+          </div>
+          <Button
+            onclick={twSearchLocal}
+            disabled={twLoadingMessages}
+            variant="outline"
+            size="sm"
+            class="shrink-0 h-8"
+          >
+            {twLoadingMessages ? "…" : "Search"}
+          </Button>
+          {#if twTotalMessages > 0}
+            <span
+              class="text-xs text-muted-foreground/40 shrink-0 whitespace-nowrap"
+              >{twMessages.length} of {twTotalMessages.toLocaleString()}</span
+            >
+          {/if}
+        </div>
+
+        <!-- Tweet list -->
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <div class="p-3">
+            {#if twMessages.length > 0}
+              <MessageList
+                messages={twMessages}
+                onselect={(msg) => (selectedMessage = msg)}
+              />
+              {#if twMessages.length < twTotalMessages}
+                <div class="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    onclick={twLoadMoreLocal}
+                    disabled={twLoadingMessages}
+                  >
+                    {twLoadingMessages ? "Loading…" : "Load More"}
+                  </Button>
+                </div>
+              {/if}
+            {:else if twLoadingMessages}
+              <div
+                class="flex items-center justify-center gap-2.5 py-16 text-sm text-muted-foreground/50"
+              >
+                <div
+                  class="size-4 border-2 border-border border-t-primary rounded-full animate-spin shrink-0"
+                ></div>
+                Loading tweets…
+              </div>
+            {:else}
+              <div
+                class="flex flex-col items-center justify-center gap-3 py-20 text-center"
+              >
+                <Database class="size-8 text-muted-foreground/15" />
+                <p class="text-sm text-muted-foreground/40">
+                  {twSearchQuery
+                    ? `No tweets match "${twSearchQuery}"`
+                    : "No tweets synced yet — click Download above"}
+                </p>
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        {#if twSyncStatus?.synced}
+          <div
+            class="px-4 py-2 border-t border-border shrink-0 flex items-center justify-end"
+          >
+            {#if twShowClearConfirm}
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-muted-foreground/50"
+                  >Delete all local tweets?</span
+                >
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onclick={twHandleClearData}
+                  class="h-6 text-xs px-2">Delete</Button
+                >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onclick={() => (twShowClearConfirm = false)}
+                  class="h-6 text-xs px-2">Cancel</Button
+                >
+              </div>
+            {:else}
+              <button
+                onclick={() => (twShowClearConfirm = true)}
+                class="flex items-center gap-1 text-[0.65rem] text-muted-foreground/25 hover:text-destructive transition-colors"
+              >
+                <Trash2 class="size-3" />Clear local data
+              </button>
+            {/if}
+          </div>
+        {/if}
+      {:else}
+        <!-- Not signed in — sign-in panel -->
+        <div
+          class="flex flex-col items-center justify-center h-full gap-5 px-8"
+        >
+          <div
+            class="size-14 rounded-2xl flex items-center justify-center text-2xl font-black"
+            style="background:#1da1f218; color:#1da1f2;"
+          >
+            X
+          </div>
+          <div class="text-center">
+            <p class="text-base font-semibold text-foreground mb-1">
+              Connect Twitter/X
+            </p>
+            <p
+              class="text-sm text-muted-foreground/60 max-w-xs leading-relaxed"
+            >
+              Sign in with Twitter to sync and browse your tweets.
+            </p>
+          </div>
+
+          {#if twError}
+            <p class="text-sm text-destructive text-center max-w-xs">
+              {twError}
+            </p>
+          {/if}
+
+          <div class="flex flex-col items-center gap-2 w-full max-w-[260px]">
+            <button
+              onclick={twSignIn}
+              disabled={twLoadingAuth}
+              class="flex items-center justify-center gap-2.5 w-full h-10 px-4 rounded-lg border border-border bg-black text-white text-sm font-medium hover:bg-zinc-900 disabled:opacity-50 transition-colors shadow-sm"
+            >
+              {#if twLoadingAuth}
+                <div
+                  class="size-4 border-2 border-zinc-600 border-t-white rounded-full animate-spin shrink-0"
+                ></div>
+                Signing in…
+              {:else}
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="currentColor"
+                  class="shrink-0"
+                >
+                  <path
+                    d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+                  />
+                </svg>
+                Sign in with X
+              {/if}
+            </button>
+          </div>
+
+          <!-- Client ID -->
+          <div class="w-full max-w-[260px]">
+            {#if !twShowClientIdEdit}
+              <div
+                class="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/30"
+              >
+                <span
+                  >Client ID: {twClientId
+                    ? twClientId.slice(0, 16) + "…"
+                    : "not set"}</span
+                >
+                <button
+                  onclick={() => (twShowClientIdEdit = true)}
+                  class="text-primary hover:underline ml-auto">Change</button
+                >
+              </div>
+            {:else}
+              <div class="flex flex-col gap-1.5">
+                <Input
+                  bind:value={twClientIdInput}
+                  placeholder="Paste your Twitter Client ID…"
+                  class="h-8 text-xs font-mono"
+                />
+                <div class="flex gap-1.5">
+                  <Button
+                    size="sm"
+                    onclick={twSaveClientId}
+                    class="flex-1 h-7 text-xs">Save</Button
+                  >
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => (twShowClientIdEdit = false)}
                     class="flex-1 h-7 text-xs">Cancel</Button
                   >
                 </div>
