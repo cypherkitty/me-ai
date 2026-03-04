@@ -1241,6 +1241,26 @@
             >
               Sign in with Twitter to sync and browse your tweets.
             </p>
+            <p
+              class="text-xs text-muted-foreground/40 max-w-xs leading-relaxed mt-1"
+            >
+              Get your Client ID from the
+              <a
+                href="https://developer.x.com/en/portal/dashboard"
+                target="_blank"
+                rel="noopener"
+                class="text-[#1da1f2] hover:underline">X Developer Portal</a
+              >. Create a project → App → enable OAuth 2.0 as
+              <a
+                href="https://developer.x.com/en/docs/authentication/oauth-2-0/authorization-code"
+                target="_blank"
+                rel="noopener"
+                class="text-[#1da1f2] hover:underline">Public Client</a
+              >, and set the redirect URI to
+              <code class="text-[0.65rem] bg-muted/30 px-1 py-0.5 rounded"
+                >{window.location.origin}/#oauth-twitter</code
+              >
+            </p>
           </div>
 
           {#if twError}
