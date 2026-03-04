@@ -713,7 +713,48 @@
   async function send(text) {
     if (!text || isRunning) return;
 
-    // Handle /events command
+    // 1. Instant Interceptor: Dashboard
+    if (text.trim() === "[SHOW:DASHBOARD]") {
+      try {
+        const grouped = await getClassificationsGrouped();
+        if (!grouped.order.length) {
+          messages = [
+            ...messages,
+            {
+              role: "assistant",
+              content:
+                "No classified emails yet. Run a scan first from the Actions page.",
+            },
+          ];
+        } else {
+          const eventsMsg = await buildGroupedEventsMessage(grouped);
+          messages = [...messages, eventsMsg];
+        }
+      } catch (err) {
+        messages = [
+          ...messages,
+          {
+            role: "assistant",
+            content: `Failed to load events dashboard: ${err.message}`,
+          },
+        ];
+      }
+      scrollToBottom();
+      return;
+    }
+
+    // 2. Instant Interceptor: Execution
+    const execRegex = /^\[EXECUTE:GROUP:([A-Z_]+)\]$/;
+    const match = execRegex.exec(text.trim());
+    if (match) {
+      const group = match[1];
+      if (pendingData && pendingData.groups && pendingData.groups[group]) {
+        runAutomatedExecution(group, pendingData.groups[group]);
+      }
+      return;
+    }
+
+    // Handle legacy /events command
     if (text.trim().toLowerCase() === "/events") {
       messages = [...messages, { role: "user", content: text }];
       try {
