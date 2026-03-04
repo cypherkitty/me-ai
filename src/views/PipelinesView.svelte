@@ -5,22 +5,18 @@
     updateCategoryPipeline,
     updateCategoryPolicy,
     moveEventTypeToCategory,
-    getActions,
-    getPlugins,
+    deleteEventType,
   } from "../lib/rules.js";
-  import { EVENT_CATEGORIES, EXECUTION_POLICIES } from "../lib/events.js";
+  import PipelineEditor from "../components/actions/PipelineEditor.svelte";
+  import PipelineGraph from "../components/actions/PipelineGraph.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import { cn } from "$lib/utils.js";
   import {
     ChevronDown,
     ChevronRight,
-    GripVertical,
     Plus,
     Trash2,
-    X,
-    Layers,
     Shield,
   } from "lucide-svelte";
 
@@ -40,12 +36,10 @@
   let categories = $state<CatPipeline[]>([]);
   let loading = $state(true);
   let expanded = $state<Record<string, boolean>>({});
-  let editingCategory = $state<string | null>(null);
 
-  // Available actions from plugins for the action picker
-  let availableActions = $state<
-    Array<{ pluginId: string; commandId: string; label: string }>
-  >([]);
+  // Editor state
+  let showEditor = $state(false);
+  let editingRule = $state<any>(null);
 
   const catColors: Record<string, string> = {
     noise: "#6b7280",
@@ -61,37 +55,12 @@
     urgent: "🚨",
   };
 
-  const policyLabels: Record<string, string> = {
-    auto: "Auto-execute",
-    supervised: "Execute & notify",
-    manual: "User approval",
-  };
-
   onMount(load);
 
   async function load() {
     loading = true;
     try {
       categories = (await getCategoryPipelines()) as CatPipeline[];
-
-      // Build available actions list from plugins
-      const plugins = (await getPlugins()) as any[];
-      const allActions: Array<{
-        pluginId: string;
-        commandId: string;
-        label: string;
-      }> = [];
-      for (const p of plugins) {
-        if (!p.enabled) continue;
-        for (const a of p.actions || []) {
-          allActions.push({
-            pluginId: p.name,
-            commandId: `${p.name.replace("_plugin", "")}:${a}`,
-            label: `${p.label}: ${a}`,
-          });
-        }
-      }
-      availableActions = allActions;
     } catch (e) {
       console.error("Failed to load category pipelines:", e);
     } finally {
@@ -108,32 +77,47 @@
     await load();
   }
 
-  async function removeAction(cat: string, idx: number) {
-    const c = categories.find((c) => c.category === cat);
-    if (!c) return;
-    const updated = c.actions.filter((_, i) => i !== idx);
-    await updateCategoryPipeline(
-      cat,
-      updated.map((a) => ({ pluginId: a.pluginId, commandId: a.commandId })),
-    );
-    await load();
+  function editCategoryPipeline(catName: string) {
+    const cat = categories.find((c) => c.category === catName);
+    if (!cat) return;
+
+    // Create a mock rule for the editor
+    editingRule = {
+      id: `cat:${cat.category}`,
+      name: `Category: ${cat.label}`,
+      description: "",
+      triggers: [{ type: "event_category", name: cat.category }],
+      actions: JSON.parse(JSON.stringify(cat.actions)),
+      enabled: true,
+      priority: cat.priority,
+    };
+    showEditor = true;
   }
 
-  async function addAction(cat: string, action: (typeof availableActions)[0]) {
-    const c = categories.find((c) => c.category === cat);
-    if (!c) return;
-    const updated = [
-      ...c.actions,
-      { pluginId: action.pluginId, commandId: action.commandId },
-    ];
-    await updateCategoryPipeline(cat, updated);
+  async function handleEditorSave(actions?: any[]) {
+    if (!editingRule || !editingRule.id.startsWith("cat:") || !actions) return;
+    const catName = editingRule.id.split(":")[1];
+
+    const newActions = actions.map((a, i) => ({
+      pluginId: a.pluginId,
+      commandId: a.commandId,
+      order: i,
+    }));
+
+    await updateCategoryPipeline(catName, newActions);
     await load();
-    editingCategory = null;
   }
 
   async function handleMoveType(typeName: string, newCat: string) {
     await moveEventTypeToCategory(typeName, newCat);
     await load();
+  }
+
+  async function handleDeleteType(typeName: string) {
+    if (confirm(`Are you sure you want to delete event type '${typeName}'?`)) {
+      await deleteEventType(typeName);
+      await load();
+    }
   }
 </script>
 
@@ -230,11 +214,25 @@
             </div>
 
             <!-- Pipeline actions -->
-            <div class="px-6 pb-4 border-t border-border/40 pt-3">
-              <span
-                class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
-                >Default Pipeline</span
-              >
+            <div
+              class="px-6 pb-4 border-t border-border/40 pt-3 flex flex-col items-start gap-1"
+            >
+              <div class="flex items-center justify-between w-full">
+                <span
+                  class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
+                >
+                  Default Pipeline
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="gap-2 h-7 text-xs"
+                  onclick={() => editCategoryPipeline(cat.category)}
+                >
+                  <Plus class="size-3" /> Edit Actions
+                </Button>
+              </div>
+
               {#if cat.actions.length === 0}
                 <div
                   class="flex items-center gap-2 mt-2 text-xs text-muted-foreground/30 italic"
@@ -242,56 +240,13 @@
                   No default actions — user must act manually
                 </div>
               {:else}
-                <div class="flex flex-wrap items-center gap-1.5 mt-2">
-                  {#each cat.actions as action, i}
-                    <div
-                      class="flex items-center gap-1 px-2 py-1 rounded-md border border-border/60 bg-card/50 text-xs text-foreground"
-                    >
-                      <span class="opacity-60">{action.commandId}</span>
-                      <button
-                        onclick={() => removeAction(cat.category, i)}
-                        class="ml-0.5 text-muted-foreground/30 hover:text-destructive transition-colors"
-                      >
-                        <X class="size-3" />
-                      </button>
-                    </div>
-                    {#if i < cat.actions.length - 1}
-                      <span class="text-muted-foreground/20 text-xs">→</span>
-                    {/if}
-                  {/each}
-                </div>
+                <PipelineGraph
+                  commands={cat.actions}
+                  eventType={`Any ${cat.label} event`}
+                  group={cat.category.toUpperCase()}
+                  policy={cat.policy}
+                />
               {/if}
-
-              <!-- Add action -->
-              <div class="mt-2">
-                {#if editingCategory === cat.category}
-                  <div
-                    class="flex flex-wrap gap-1 mt-1 p-2 rounded border border-border/40 bg-background/50"
-                  >
-                    {#each availableActions as action}
-                      <button
-                        onclick={() => addAction(cat.category, action)}
-                        class="px-2 py-0.5 rounded text-xs border border-border/40 text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-                      >
-                        {action.label}
-                      </button>
-                    {/each}
-                    <button
-                      onclick={() => (editingCategory = null)}
-                      class="px-2 py-0.5 rounded text-xs text-muted-foreground/40 hover:text-foreground"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                {:else}
-                  <button
-                    onclick={() => (editingCategory = cat.category)}
-                    class="flex items-center gap-1 text-xs text-primary/60 hover:text-primary transition-colors mt-1"
-                  >
-                    <Plus class="size-3" /> Add action
-                  </button>
-                {/if}
-              </div>
             </div>
 
             <!-- Event types (expandable) -->
@@ -321,7 +276,7 @@
                             >AI</Badge
                           >
                         {/if}
-                        <div class="ml-auto">
+                        <div class="ml-auto flex items-center gap-1.5">
                           <select
                             value={cat.category}
                             onchange={(e) =>
@@ -329,12 +284,19 @@
                                 et.name,
                                 (e.target as HTMLSelectElement).value,
                               )}
-                            class="h-5 px-1 text-[0.6rem] rounded border border-input bg-background text-muted-foreground"
+                            class="h-5 py-0 px-1 text-[0.6rem] rounded border border-input bg-background text-muted-foreground"
                           >
                             {#each categories as c}
                               <option value={c.category}>{c.label}</option>
                             {/each}
                           </select>
+                          <button
+                            onclick={() => handleDeleteType(et.name)}
+                            class="text-muted-foreground/40 hover:text-destructive transition-colors px-1 h-5"
+                            title="Delete Event Type"
+                          >
+                            <Trash2 class="size-3.5" />
+                          </button>
                         </div>
                       </div>
                     {/each}
@@ -347,4 +309,11 @@
       </div>
     {/if}
   </ScrollArea>
+
+  <PipelineEditor
+    bind:open={showEditor}
+    bind:rule={editingRule}
+    customSave={true}
+    onSave={handleEditorSave}
+  />
 </div>
