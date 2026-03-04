@@ -502,6 +502,14 @@ export async function moveEventTypeToCategory(eventTypeName, newCategory) {
 }
 
 /**
+ * Remove an event type's category assignment (set to NULL).
+ * @param {string} eventTypeName
+ */
+export async function unassignEventTypeFromCategory(eventTypeName) {
+  await query(`UPDATE sm_event_types SET category_name = NULL WHERE name = ?`, [eventTypeName]);
+}
+
+/**
  * Delete an event type completely from the system.
  * @param {string} eventTypeName
  */
