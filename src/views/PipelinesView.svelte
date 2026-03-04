@@ -5,6 +5,7 @@
     updateCategoryPipeline,
     updateCategoryPolicy,
     deleteEventType,
+    moveEventTypeToCategory,
   } from "../lib/rules.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
   import PipelineGraph from "../components/actions/PipelineGraph.svelte";
@@ -89,11 +90,12 @@
       actions: JSON.parse(JSON.stringify(cat.actions)),
       enabled: true,
       priority: cat.priority,
+      _eventTypes: cat.eventTypes || [],
     };
     showEditor = true;
   }
 
-  async function handleEditorSave(actions?: any[]) {
+  async function handleEditorSave(actions?: any[], typesToMove?: string[]) {
     if (!editingRule || !editingRule.id.startsWith("cat:") || !actions) return;
     const catName = editingRule.id.split(":")[1];
 
@@ -104,6 +106,14 @@
     }));
 
     await updateCategoryPipeline(catName, newActions);
+
+    // Assign any added event types to this category mapping
+    if (typesToMove && typesToMove.length > 0) {
+      for (const t of typesToMove) {
+        await moveEventTypeToCategory(t, catName);
+      }
+    }
+
     await load();
   }
 
