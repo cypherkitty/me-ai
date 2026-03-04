@@ -32,3 +32,4 @@ If the user asks to add a new supported action (e.g., "Add an action to reply to
 - `src/lib/triage.js`: The LLM prompt generation and extraction logic (the "Trigger").
 - `src/lib/plugins/plugin-registry.js`: Routes the dynamic action to the actual executable code.
 - `src/components/actions/ActionEditor.svelte`: The visual n8n-like workflow editor.
+- `src/Chat.svelte`: The conversational control plane interface. intercepts LLM tags (`[EXECUTE:GROUP:XXX]` and `[SHOW:DASHBOARD]`) to autonomously execute pipelines or spawn the event dashboard.

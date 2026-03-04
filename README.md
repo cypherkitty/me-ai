@@ -6,7 +6,9 @@ A private AI chat and Gmail dashboard that runs **entirely in your browser** —
 
 ## Architecture
 
-The system is built on an **event-stream model**: all data (emails, messages, etc.) flows through as events, each classified into a type. Each event type maps to a list of **commands** — actions that can be taken. The chat serves as the **control interface** on top of this event stream, rendering not just text but interactive command cards.
+The system is built on an **event-stream model**: all data (emails, messages, etc.) flows through as events, each classified into a type. Each event type maps to a list of **commands** — actions that can be taken. 
+
+The chat serves as the **control interface** on top of this event stream, rendering not just text but interactive command cards. The AI acts as a transparent control plane by outputting invisible tags (e.g., `[EXECUTE:GROUP:EVENT]` or `[SHOW:DASHBOARD]`) that the Svelte UI intercepts and runs automatically.
 
 ```
 Data Sources → Events → EventType → Commands → Chat UI
