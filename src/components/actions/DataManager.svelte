@@ -5,10 +5,9 @@
     exec,
     getOpfsStats,
     clearAllDuckDbData,
-    deleteOpfsFileAndReload,
     nukeAllLocalData,
+    wipeAllData,
   } from "../../lib/store/db.js";
-  import { clearGmailData } from "../../lib/store/gmail-sync.js";
   import {
     clearClassifications,
     clearClassificationsByAction,
@@ -222,46 +221,6 @@
                   </button>
                 {/if}
               {/each}
-
-              <!-- Delete OPFS file -->
-              {#if opfs.supported}
-                {#if confirm === "delete-opfs"}
-                  <div
-                    class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/30 bg-destructive/8 text-[0.7rem] text-muted-foreground/60"
-                  >
-                    <span
-                      >Delete the <code class="font-mono text-destructive/80"
-                        >me-ai.db</code
-                      > OPFS file and reload? All DuckDB data will be lost.</span
-                    >
-                    <button
-                      onclick={() => (confirm = null)}
-                      class="hover:text-foreground underline transition-colors"
-                      >Cancel</button
-                    >
-                    <button
-                      onclick={() => run(() => deleteOpfsFileAndReload())}
-                      disabled={busy}
-                      class="text-destructive hover:text-destructive/80 underline font-semibold disabled:opacity-40 transition-colors"
-                      >Delete file</button
-                    >
-                  </div>
-                {:else}
-                  <button
-                    onclick={() => (confirm = "delete-opfs")}
-                    disabled={busy}
-                    class="flex flex-col items-start gap-0.5 px-3 py-2 rounded border border-transparent hover:bg-destructive/5 hover:border-destructive/20 disabled:opacity-40 transition-colors w-full text-left"
-                  >
-                    <span class="text-xs text-destructive/70 font-medium"
-                      >Delete OPFS file</span
-                    >
-                    <span class="text-[0.65rem] text-muted-foreground/40"
-                      >Remove <code class="font-mono">me-ai.db</code> from the browser's
-                      Origin Private File System and reload.</span
-                    >
-                  </button>
-                {/if}
-              {/if}
             </div>
           {/if}
         </section>
@@ -348,10 +307,11 @@
 
           <!-- Bulk actions -->
           <div class="flex flex-col gap-1">
-            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear emails & classifications", desc: "Remove all synced Gmail data and scan results.", action: () => run( async () => {
-                        await clearGmailData();
-                        await clearClassifications();
-                      }, ) }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( () => exec(`DELETE FROM contacts`), ) }] as item}
+            {#each [
+              { key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run(() => clearClassifications()) },
+              { key: "emails", label: "Clear all email data", desc: "Wipes emails from OPFS (DuckDB) and IndexedDB, then reloads.", action: () => { confirm = null; busy = true; wipeAllData(); } },
+              { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run(() => exec(`DELETE FROM contacts`)) }
+            ] as item}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
