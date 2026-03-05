@@ -39,7 +39,7 @@
     getTwitterSyncStatus,
     clearTwitterData,
   } from "../lib/store/twitter-sync.js";
-  import { query } from "../lib/store/db.js";
+  import { query, wipeAllData } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -370,7 +370,7 @@
 
   async function handleClearData() {
     try {
-      await clearGmailData();
+      await wipeAllData();
       await refreshSyncStatus();
       emailMessages = [];
       totalLocalMessages = 0;
