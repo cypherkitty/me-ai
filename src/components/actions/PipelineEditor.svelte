@@ -63,6 +63,7 @@
     let triggers = $state<RuleTrigger[]>([]);
     let typesToMove = $state<string[]>([]);
     let typesToDelete = $state<string[]>([]);
+    let addEventTypeValue = $state(""); // controlled value for "+ Add Event Type" select
 
     let editingCmd = $state<EditingCmd | null>(null);
     let showActionPicker = $state(false);
@@ -101,6 +102,14 @@
 
                 commands = (currentRule.actions || []).map((c) => {
                     const cloned = { ...c };
+                    // Always ensure there's an id
+                    if (!cloned.id) {
+                        cloned.id =
+                            (cloned.commandId || "cmd") +
+                            "_" +
+                            Math.random().toString(36).substring(7);
+                    }
+                    // Try to enrich name/description from PLUGIN_ACTIONS registry
                     if (!cloned.name || !cloned.description) {
                         const pluginGroup = PLUGIN_ACTIONS.find(
                             (p) => p.pluginId === cloned.pluginId,
@@ -109,22 +118,31 @@
                             (a) => a.actionId === cloned.commandId,
                         );
                         if (handler) {
-                            cloned.name = handler.name;
-                            cloned.description = handler.description;
-                            cloned.icon = ACTION_ICONS_MAP[handler.actionId];
+                            cloned.name = cloned.name || handler.name;
+                            cloned.description =
+                                cloned.description || handler.description;
+                            cloned.icon =
+                                cloned.icon ||
+                                ACTION_ICONS_MAP[handler.actionId];
+                        } else {
+                            // Fallback: at minimum show the commandId so the card isn't blank
+                            cloned.name =
+                                cloned.name ||
+                                cloned.commandId ||
+                                "Unknown action";
+                            cloned.description =
+                                cloned.description ||
+                                (cloned.pluginId
+                                    ? `${cloned.pluginId} · ${cloned.commandId}`
+                                    : "");
                         }
-                    }
-                    if (!cloned.id) {
-                        cloned.id =
-                            cloned.commandId +
-                            "_" +
-                            Math.random().toString(36).substring(7);
                     }
                     return cloned;
                 });
                 triggers = (currentRule.triggers || []).map((t) => ({ ...t }));
                 typesToMove = [];
                 typesToDelete = [];
+                addEventTypeValue = "";
             } else {
                 commands = [];
                 triggers = [];
@@ -380,12 +398,16 @@
                                             </div>
 
                                             <select
-                                                value=""
-                                                onchange={(e) => {
-                                                    const val = (
-                                                        e.currentTarget as HTMLSelectElement
-                                                    ).value;
-                                                    if (val) {
+                                                bind:value={addEventTypeValue}
+                                                onchange={() => {
+                                                    const val =
+                                                        addEventTypeValue;
+                                                    if (
+                                                        val &&
+                                                        !typesToMove.includes(
+                                                            val,
+                                                        )
+                                                    ) {
                                                         typesToMove = [
                                                             ...typesToMove,
                                                             val,
@@ -396,13 +418,7 @@
                                                                     t !== val,
                                                             );
                                                     }
-                                                    requestAnimationFrame(
-                                                        () => {
-                                                            (
-                                                                e.target as HTMLSelectElement
-                                                            ).value = "";
-                                                        },
-                                                    );
+                                                    addEventTypeValue = "";
                                                 }}
                                                 class="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-colors"
                                             >
