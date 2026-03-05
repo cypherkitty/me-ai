@@ -307,11 +307,11 @@
 
           <!-- Bulk actions -->
           <div class="flex flex-col gap-1">
-            {#each [
-              { key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run(() => clearClassifications()) },
-              { key: "emails", label: "Clear all email data", desc: "Wipes emails from OPFS (DuckDB) and IndexedDB, then reloads.", action: () => { confirm = null; busy = true; wipeAllData(); } },
-              { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run(() => exec(`DELETE FROM contacts`)) }
-            ] as item}
+            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from OPFS (DuckDB) and IndexedDB, then reloads.", action: () => {
+                    confirm = null;
+                    busy = true;
+                    wipeAllData();
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( () => exec(`DELETE FROM contacts`), ) }] as item}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -410,54 +410,6 @@
               >
               <span class="text-[0.65rem] text-muted-foreground/40"
                 >OPFS · IndexedDB · model cache · localStorage — full reset.</span
-              >
-            </button>
-          {/if}
-
-          <!-- Wipe IndexedDB only -->
-          {#if confirm === "nuke"}
-            <div
-              class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/30 bg-destructive/8 text-[0.7rem] text-muted-foreground/60"
-            >
-              <span
-                >This will wipe all IndexedDB tables and reload. DuckDB/OPFS
-                data is kept.</span
-              >
-              <button
-                onclick={() => (confirm = null)}
-                class="hover:text-foreground underline transition-colors"
-                >Cancel</button
-              >
-              <button
-                onclick={() =>
-                  run(async () => {
-                    await Promise.all([
-                      exec(`DELETE FROM items`),
-                      exec(`DELETE FROM emailClassifications`),
-                      exec(`DELETE FROM contacts`),
-                      exec(`DELETE FROM syncState`),
-                      exec(`DELETE FROM settings`),
-                      exec(`DELETE FROM auditLog`),
-                    ]);
-                    window.location.reload();
-                  })}
-                disabled={busy}
-                class="text-destructive hover:text-destructive/80 underline font-semibold disabled:opacity-40 transition-colors"
-                >Wipe IndexedDB</button
-              >
-            </div>
-          {:else}
-            <button
-              onclick={() => (confirm = "nuke")}
-              disabled={busy}
-              class="flex flex-col items-start gap-0.5 px-3 py-2 rounded border border-transparent hover:bg-destructive/5 hover:border-destructive/20 disabled:opacity-40 transition-colors w-full text-left"
-            >
-              <span class="text-xs text-destructive/70 font-medium"
-                >Wipe IndexedDB only</span
-              >
-              <span class="text-[0.65rem] text-muted-foreground/40"
-                >Delete all IndexedDB tables and reload. Emails,
-                classifications, contacts and settings will be lost.</span
               >
             </button>
           {/if}
