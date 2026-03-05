@@ -259,6 +259,7 @@
                 <PipelineGraph
                   commands={cat.actions}
                   eventType={`Any ${cat.label} event`}
+                  eventTypes={cat.eventTypes.map((t) => t.name)}
                   group={cat.category.toUpperCase()}
                   policy={cat.policy}
                 />
