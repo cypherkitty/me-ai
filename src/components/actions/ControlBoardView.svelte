@@ -3,6 +3,7 @@
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
   import { actionColor } from "../../lib/triage.js";
+  import { EVENT_CATEGORIES } from "../../lib/events.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { ShieldCheck } from "lucide-svelte";
 
@@ -11,6 +12,7 @@
     modelName,
     groups = {},
     groupOrder = [],
+    eventTypeToCategory = {},
     counts = {},
     stats = null,
     expandedGroup = null,
@@ -42,6 +44,42 @@
       if (items?.length > 0) return items[0];
     }
     return null;
+  });
+
+  const CATEGORY_ORDER = ["urgent", "important", "informational", "noise"];
+
+  // Group the event types by category
+  let categoriesWithGroups = $derived.by(() => {
+    const res = [];
+    for (const catName of CATEGORY_ORDER) {
+      const actionIds = groupOrder.filter(
+        (id) => eventTypeToCategory[id] === catName,
+      );
+      if (actionIds.length > 0) {
+        res.push({
+          name: catName,
+          category: EVENT_CATEGORIES[catName],
+          actionIds,
+        });
+      }
+    }
+    // Also catch any unknown/unmapped event types just in case
+    const unknownIds = groupOrder.filter(
+      (id) => !CATEGORY_ORDER.includes(eventTypeToCategory[id]),
+    );
+    if (unknownIds.length > 0) {
+      res.push({
+        name: "unknown",
+        category: {
+          name: "unknown",
+          label: "Other",
+          color: "#888",
+          policy: "manual",
+        },
+        actionIds: unknownIds,
+      });
+    }
+    return res;
   });
 </script>
 
@@ -118,21 +156,53 @@
     />
 
     {#if counts.total > 0}
-      <div class="flex flex-col gap-2">
-        {#each groupOrder as actionId (actionId)}
-          <ActionGroup
-            action={actionId}
-            color={actionColor(actionId)}
-            count={groups[actionId]?.length || 0}
-            items={groups[actionId] || []}
-            expanded={expandedGroup === actionId}
-            ontoggle={() => ontogglegroup(actionId)}
-            onexecute={(email) => onexecute(actionId, email)}
-            {onmarkacted}
-            {ondismiss}
-            {onremove}
-            oncleargroup={() => oncleargroup(actionId)}
-          />
+      <div class="flex flex-col gap-6">
+        {#each categoriesWithGroups as catBlock (catBlock.name)}
+          <div class="flex flex-col gap-2">
+            <!-- Category Header -->
+            <div class="flex items-center gap-2 mb-1 pl-1">
+              <span
+                class="size-2 rounded-full"
+                style:background={catBlock.category.color}
+              ></span>
+              <h3
+                class="text-xs font-bold uppercase tracking-widest text-muted-foreground/70"
+                style:color={catBlock.category.color}
+              >
+                {catBlock.category.label}
+              </h3>
+              {#if catBlock.category.policy === "auto"}
+                <span
+                  class="ml-auto text-[10px] font-bold uppercase text-emerald-500/80 bg-emerald-500/10 px-1.5 py-0.5 rounded"
+                  >Auto</span
+                >
+              {:else}
+                <span
+                  class="ml-auto text-[10px] uppercase text-muted-foreground/40 font-medium"
+                  >{catBlock.category.policy}</span
+                >
+              {/if}
+            </div>
+
+            <!-- Event types within category -->
+            <div class="flex flex-col gap-2">
+              {#each catBlock.actionIds as actionId (actionId)}
+                <ActionGroup
+                  action={actionId}
+                  color={actionColor(actionId)}
+                  count={groups[actionId]?.length || 0}
+                  items={groups[actionId] || []}
+                  expanded={expandedGroup === actionId}
+                  ontoggle={() => ontogglegroup(actionId)}
+                  onexecute={(email) => onexecute(actionId, email)}
+                  {onmarkacted}
+                  {ondismiss}
+                  {onremove}
+                  oncleargroup={() => oncleargroup(actionId)}
+                />
+              {/each}
+            </div>
+          </div>
         {/each}
       </div>
       <div class="pt-3 mt-1 border-t border-border">
