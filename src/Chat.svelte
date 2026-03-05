@@ -32,7 +32,7 @@
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
   let backend = $state("webgpu");
-  let selectedModel = $state(MODELS[0].id);
+  let selectedModel = $state("onnx-community/gpt-oss-20b-ONNX");
   let status = $state(null); // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
