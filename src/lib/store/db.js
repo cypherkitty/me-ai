@@ -259,6 +259,113 @@ export async function wipeAllData() {
   window.location.reload();
 }
 
+/**
+ * Get OPFS file size and per-table row counts for the DataManager UI.
+ */
+export async function getOpfsStats() {
+  const supported = typeof navigator !== "undefined" &&
+    typeof navigator.storage?.getDirectory === "function";
+
+  let fileBytes = 0;
+  if (supported) {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle("me-ai.db");
+      const f = await fh.getFile();
+      fileBytes = f.size;
+    } catch { /* file might not exist yet */ }
+  }
+
+  const tables = {};
+  try {
+    await getDb(); // ensure init
+    for (const t of ["sm_rules", "sm_events", "items", "contacts", "emailClassifications", "syncState"]) {
+      try {
+        const rows = await query(`SELECT COUNT(*) AS cnt FROM ${t}`);
+        tables[t] = Number(rows[0]?.cnt ?? 0);
+      } catch { tables[t] = 0; }
+    }
+  } catch { /* ignore if db not ready */ }
+
+  return { supported, fileBytes, tables };
+}
+
+/**
+ * Clear all DuckDB user-data tables (pipelines/rules/events/emails/classifications).
+ */
+export async function clearAllDuckDbData() {
+  await getDb();
+  const toClear = ["items", "syncState", "contacts", "emailClassifications",
+    "sm_events", "sm_rules", "sm_rule_triggers", "sm_rule_commands",
+    "sm_category_pipeline", "sm_type_pipeline"];
+  for (const t of toClear) {
+    try { await exec(`DELETE FROM ${t}`); } catch { }
+  }
+  if (_usingOpfs && _conn) {
+    try { await _conn.query("CHECKPOINT"); } catch { }
+  }
+}
+
+/**
+ * Delete the OPFS file (me-ai.db + WAL) and reload the page.
+ */
+export async function deleteOpfsFileAndReload() {
+  // Close connection first so OPFS file is not locked
+  if (_conn) { try { await _conn.close(); } catch { } _conn = null; }
+  if (_db) { try { await _db.terminate(); } catch { } _db = null; }
+  _initPromise = null;
+  _usingOpfs = false;
+
+  try {
+    const opfsRoot = await navigator.storage.getDirectory();
+    for (const name of ["me-ai.db", "me-ai.db.wal"]) {
+      try { await opfsRoot.removeEntry(name); } catch { }
+    }
+  } catch { }
+
+  window.location.reload();
+}
+
+/**
+ * Nuclear option — wipes OPFS, all IndexedDB databases, Cache API, localStorage, then reloads.
+ */
+export async function nukeAllLocalData() {
+  // 1. Close DuckDB
+  if (_conn) { try { await _conn.close(); } catch { } _conn = null; }
+  if (_db) { try { await _db.terminate(); } catch { } _db = null; }
+  _initPromise = null;
+  _usingOpfs = false;
+
+  // 2. Delete OPFS files
+  try {
+    const root = await navigator.storage.getDirectory();
+    for (const name of ["me-ai.db", "me-ai.db.wal"]) {
+      try { await root.removeEntry(name); } catch { }
+    }
+  } catch { }
+
+  // 3. Wipe all IndexedDB databases
+  try {
+    const dbs = await indexedDB.databases();
+    await Promise.all(dbs.map(db => new Promise((res, rej) => {
+      const req = indexedDB.deleteDatabase(db.name);
+      req.onsuccess = res;
+      req.onerror = () => rej(req.error);
+    })));
+  } catch { }
+
+  // 4. Wipe all Cache API caches
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map(k => caches.delete(k)));
+  } catch { }
+
+  // 5. Clear localStorage
+  try { localStorage.clear(); } catch { }
+
+  window.location.reload();
+}
+
 // ── Schema ───────────────────────────────────────────────────────────
 
 async function _createSchema(conn) {
