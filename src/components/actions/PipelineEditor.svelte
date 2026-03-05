@@ -109,6 +109,17 @@
                             "_" +
                             Math.random().toString(36).substring(7);
                     }
+                    // Normalize commandId: strip 'pluginId:' prefix if present
+                    // (seed data stores e.g. 'gmail:trash', but handlers use 'trash')
+                    if (
+                        cloned.commandId &&
+                        cloned.pluginId &&
+                        cloned.commandId.startsWith(cloned.pluginId + ":")
+                    ) {
+                        cloned.commandId = cloned.commandId.slice(
+                            cloned.pluginId.length + 1,
+                        );
+                    }
                     // Try to enrich name/description from PLUGIN_ACTIONS registry
                     if (!cloned.name || !cloned.description) {
                         const pluginGroup = PLUGIN_ACTIONS.find(
@@ -341,67 +352,94 @@
                                     <div class="mb-3">
                                         {#if triggers.length > 0 && triggers[0].type === "event_category"}
                                             <p
-                                                class="text-xs text-muted-foreground leading-relaxed mb-4"
+                                                class="text-[11px] text-muted-foreground/60 leading-relaxed mb-3"
                                             >
-                                                Event types assigned to this
-                                                category will trigger this
-                                                pipeline.
+                                                Event types linked to this
+                                                category. AI-classified emails
+                                                matching these types will
+                                                trigger the pipeline.
                                             </p>
 
-                                            <div
-                                                class="flex flex-wrap gap-1.5 mb-4"
-                                            >
-                                                {#each (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)) as et}
-                                                    <div
-                                                        class="px-2 py-1 bg-secondary/80 border border-border rounded text-xs text-muted-foreground flex items-center gap-1.5 font-medium transition-colors hover:bg-secondary"
-                                                    >
-                                                        {et.name}
-                                                        <button
-                                                            class="text-muted-foreground/50 hover:text-destructive transition-colors ml-0.5"
-                                                            onclick={() => {
-                                                                typesToDelete =
-                                                                    [
-                                                                        ...typesToDelete,
-                                                                        et.name,
-                                                                    ];
-                                                                typesToMove =
-                                                                    typesToMove.filter(
-                                                                        (t) =>
-                                                                            t !==
+                                            <!-- Event type chips -->
+                                            {#if (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)).length > 0 || typesToMove.length > 0}
+                                                <div
+                                                    class="flex flex-wrap gap-1.5 mb-3"
+                                                >
+                                                    {#each (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)) as et}
+                                                        <div
+                                                            class="group/chip inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/8 border border-blue-500/20 rounded-md text-xs text-blue-400 font-medium transition-all hover:border-blue-500/40"
+                                                        >
+                                                            <span
+                                                                class="size-1.5 rounded-full bg-blue-500/60 shrink-0"
+                                                            ></span>
+                                                            {et.name}
+                                                            <button
+                                                                class="ml-0.5 text-blue-500/30 hover:text-red-400 transition-colors text-[10px] font-bold"
+                                                                onclick={() => {
+                                                                    typesToDelete =
+                                                                        [
+                                                                            ...typesToDelete,
                                                                             et.name,
-                                                                    );
-                                                            }}
-                                                            aria-label="Delete event type"
-                                                            >✕</button
+                                                                        ];
+                                                                    typesToMove =
+                                                                        typesToMove.filter(
+                                                                            (
+                                                                                t,
+                                                                            ) =>
+                                                                                t !==
+                                                                                et.name,
+                                                                        );
+                                                                }}
+                                                                aria-label="Remove {et.name} from category"
+                                                                >✕</button
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                    {#each typesToMove as et}
+                                                        <div
+                                                            class="group/chip inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-md text-xs text-emerald-400 font-medium transition-all hover:border-emerald-500/50"
                                                         >
-                                                    </div>
-                                                {/each}
-                                                {#each typesToMove as et}
-                                                    <div
-                                                        class="px-2 py-1 bg-primary/20 border border-primary/40 text-primary-foreground rounded text-xs flex items-center gap-1.5 font-medium transition-colors"
-                                                    >
-                                                        {et}
-                                                        <button
-                                                            class="text-primary-foreground/50 hover:text-primary-foreground transition-colors ml-0.5"
-                                                            onclick={() =>
-                                                                (typesToMove =
-                                                                    typesToMove.filter(
-                                                                        (t) =>
-                                                                            t !==
-                                                                            et,
-                                                                    ))}
-                                                            aria-label="Remove pending event type"
-                                                            >✕</button
-                                                        >
-                                                    </div>
-                                                {/each}
-                                            </div>
+                                                            <span
+                                                                class="size-1.5 rounded-full bg-emerald-500/60 shrink-0"
+                                                            ></span>
+                                                            {et}
+                                                            <span
+                                                                class="text-[9px] text-emerald-500/50 uppercase font-bold"
+                                                                >new</span
+                                                            >
+                                                            <button
+                                                                class="ml-0.5 text-emerald-500/30 hover:text-red-400 transition-colors text-[10px] font-bold"
+                                                                onclick={() =>
+                                                                    (typesToMove =
+                                                                        typesToMove.filter(
+                                                                            (
+                                                                                t,
+                                                                            ) =>
+                                                                                t !==
+                                                                                et,
+                                                                        ))}
+                                                                aria-label="Undo adding {et}"
+                                                                >✕</button
+                                                            >
+                                                        </div>
+                                                    {/each}
+                                                </div>
+                                            {:else}
+                                                <div
+                                                    class="mb-3 py-3 text-center text-xs text-muted-foreground/40 border border-dashed border-border/40 rounded-lg"
+                                                >
+                                                    No event types linked yet
+                                                </div>
+                                            {/if}
 
+                                            <!-- Add event type select -->
                                             <select
-                                                bind:value={addEventTypeValue}
-                                                onchange={() => {
-                                                    const val =
-                                                        addEventTypeValue;
+                                                onchange={(e) => {
+                                                    const sel =
+                                                        /** @type {HTMLSelectElement} */ (
+                                                            e.currentTarget
+                                                        );
+                                                    const val = sel.value;
                                                     if (
                                                         val &&
                                                         !typesToMove.includes(
@@ -418,15 +456,15 @@
                                                                     t !== val,
                                                             );
                                                     }
-                                                    addEventTypeValue = "";
+                                                    sel.selectedIndex = 0;
                                                 }}
-                                                class="w-full bg-secondary border border-border rounded-lg px-4 py-3 text-sm focus:border-blue-500 outline-none transition-colors"
+                                                class="w-full bg-secondary/50 border border-border hover:border-blue-500/30 rounded-lg px-3 py-2.5 text-xs focus:border-blue-500/50 outline-none transition-colors cursor-pointer"
                                             >
                                                 <option
                                                     value=""
                                                     disabled
                                                     selected
-                                                    >+ Add Event Type...</option
+                                                    >+ Add event type…</option
                                                 >
                                                 {#each eventTypes.filter( (et) => {
                                                         const isAssigned = (rule?._eventTypes || []).some((t) => t.name === et);
