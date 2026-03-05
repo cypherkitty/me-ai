@@ -212,6 +212,25 @@ export function getDb() {
   return _initPromise;
 }
 
+/**
+ * Nuke all user data — items, syncState, contacts — from both DuckDB and IndexedDB.
+ * Does NOT touch schema tables (event categories, pipelines, etc.).
+ */
+export async function wipeAllData() {
+  const { idbWipeAll } = await import("./idb.js");
+  // Clear DuckDB in-memory tables
+  if (_conn) {
+    await _conn.query(`DELETE FROM items`);
+    await _conn.query(`DELETE FROM syncState`);
+    await _conn.query(`DELETE FROM contacts`);
+    if (_usingOpfs) {
+      try { await _conn.query("CHECKPOINT"); } catch { }
+    }
+  }
+  // Clear IndexedDB — the durable persistence layer
+  await idbWipeAll();
+}
+
 // ── Schema ───────────────────────────────────────────────────────────
 
 async function _createSchema(conn) {

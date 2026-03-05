@@ -139,3 +139,26 @@ export async function idbPutContacts(contacts) {
 export function idbGetAllContacts() {
   return tx("contacts", "readonly", s => s.getAll());
 }
+
+/** Delete all contacts. */
+export function idbClearAllContacts() {
+  return tx("contacts", "readwrite", s => s.clear());
+}
+
+/**
+ * Wipe every store — items, syncState, contacts.
+ * Called when the user resets all local data.
+ */
+export async function idbWipeAll() {
+  const db = await openIdb();
+  await new Promise((resolve, reject) => {
+    const t = db.transaction(["items", "syncState", "contacts"], "readwrite");
+    t.objectStore("items").clear();
+    t.objectStore("syncState").clear();
+    t.objectStore("contacts").clear();
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+
