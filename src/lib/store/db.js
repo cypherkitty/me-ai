@@ -230,17 +230,33 @@ export function getDb() {
  */
 export async function wipeAllData() {
   const { idbWipeAll } = await import("./idb.js");
-  // Clear DuckDB in-memory tables
+
+  // 1. Clear DuckDB in-memory tables
   if (_conn) {
-    await _conn.query(`DELETE FROM items`);
-    await _conn.query(`DELETE FROM syncState`);
-    await _conn.query(`DELETE FROM contacts`);
-    if (_usingOpfs) {
-      try { await _conn.query("CHECKPOINT"); } catch { }
-    }
+    try { await _conn.query(`DELETE FROM items`); } catch { }
+    try { await _conn.query(`DELETE FROM syncState`); } catch { }
+    try { await _conn.query(`DELETE FROM contacts`); } catch { }
   }
-  // Clear IndexedDB — the durable persistence layer
+
+  // 2. Close DuckDB connection so OPFS file is not locked
+  if (_conn) { try { await _conn.close(); } catch { } _conn = null; }
+  if (_db) { try { await _db.terminate(); } catch { } _db = null; }
+  _initPromise = null;
+  _usingOpfs = false;
+
+  // 3. Delete OPFS files (me-ai.db + WAL)
+  try {
+    const opfsRoot = await navigator.storage.getDirectory();
+    for (const name of ["me-ai.db", "me-ai.db.wal"]) {
+      try { await opfsRoot.removeEntry(name); } catch { /* already gone */ }
+    }
+  } catch { /* OPFS not supported or already gone */ }
+
+  // 4. Clear IndexedDB — the durable persistence layer
   await idbWipeAll();
+
+  // 5. Reload so the app starts fresh
+  window.location.reload();
 }
 
 // ── Schema ───────────────────────────────────────────────────────────
