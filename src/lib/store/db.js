@@ -124,9 +124,21 @@ async function _init() {
 
   await _createSchema(_conn);
 
-  // Rehydrate email data from IndexedDB into DuckDB (in-memory fallback path).
-  // This runs regardless of OPFS status — IndexedDB is the reliable source of
-  // truth for emails; DuckDB is the query engine.
+  // If OPFS is in use but the DB file was freshly created (empty), it means
+  // the user deliberately deleted the OPFS file via DevTools. Wipe IndexedDB
+  // too so that rehydration loads nothing — giving a truly clean slate.
+  if (_usingOpfs) {
+    try {
+      const res = await _conn.query(`SELECT COUNT(*) AS cnt FROM items`);
+      const count = Number(res.toArray()[0]?.cnt ?? 0);
+      if (count === 0) {
+        const { idbWipeAll } = await import("./idb.js");
+        await idbWipeAll();
+        console.info("[db] Fresh OPFS detected — wiped IndexedDB to stay in sync");
+      }
+    } catch { /* ignore */ }
+  }
+
   await _rehydrateFromIdb(_conn);
 
   return _db;
