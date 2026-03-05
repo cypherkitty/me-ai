@@ -1,8 +1,10 @@
 <script>
   import { EVENT_GROUPS, DEFAULT_GROUP } from "../../lib/events.js";
+  import { getAvailableActions } from "../../lib/plugins/execution-service.js";
 
   let {
     eventType,
+    eventTypes = null,
     group,
     commands = [],
     onExecute = undefined,
@@ -15,6 +17,51 @@
       ? EVENT_GROUPS[group] || EVENT_GROUPS[DEFAULT_GROUP]
       : EVENT_GROUPS[DEFAULT_GROUP],
   );
+
+  const PLUGIN_ACTIONS = (() => {
+    const gmail = getAvailableActions("gmail");
+    return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
+  })();
+
+  const ACTION_ICONS = {
+    mark_read: "✓",
+    mark_unread: "○",
+    star: "★",
+    unstar: "☆",
+    trash: "🗑",
+    delete: "✕",
+    mark_spam: "⚠",
+    archive: "↓",
+    apply_label: "🏷",
+    remove_label: "🏷",
+    mark_important: "!",
+    mark_not_important: "–",
+  };
+
+  let enrichedCommands = $derived.by(() => {
+    return commands.map((c) => {
+      const clone = { ...c };
+      if (
+        clone.commandId &&
+        clone.pluginId &&
+        clone.commandId.startsWith(clone.pluginId + ":")
+      ) {
+        clone.commandId = clone.commandId.slice(clone.pluginId.length + 1);
+      }
+      const group = PLUGIN_ACTIONS.find((p) => p.pluginId === clone.pluginId);
+      const handler = group?.actions.find(
+        (a) => a.actionId === clone.commandId,
+      );
+      if (handler) {
+        clone.name = clone.name || handler.name;
+        clone.description = clone.description || handler.description;
+        clone.icon = clone.icon || ACTION_ICONS[handler.actionId];
+      } else {
+        clone.name = clone.name || clone.commandId || "Unknown action";
+      }
+      return clone;
+    });
+  });
 </script>
 
 <div class="flex items-center overflow-x-auto py-3 gap-6">
@@ -49,7 +96,7 @@
     </div>
 
     <div
-      class="p-3 pt-2 flex flex-col gap-1 relative bg-background rounded-b-xl"
+      class="p-3 pt-2 flex flex-col gap-1.5 relative bg-background rounded-b-xl"
     >
       <div
         class="font-semibold text-xs text-foreground flex items-baseline gap-1.5"
@@ -57,6 +104,18 @@
         <span class="text-muted-foreground text-[10px] font-mono">1.</span>
         <span class="truncate" title={eventType}>{eventType}</span>
       </div>
+
+      {#if eventTypes && eventTypes.length > 0}
+        <div class="flex flex-wrap gap-1 mt-1 pl-4">
+          {#each eventTypes as et}
+            <span
+              class="text-[9px] px-1.5 py-0.5 rounded bg-secondary/60 text-muted-foreground border border-border/50 uppercase truncate max-w-full"
+            >
+              {et}
+            </span>
+          {/each}
+        </div>
+      {/if}
     </div>
   </div>
 
@@ -68,7 +127,7 @@
     </div>
   {/if}
 
-  {#each commands as cmd, i}
+  {#each enrichedCommands as cmd, i}
     <!-- Action Node -->
     <div
       class="shrink-0 bg-card border border-border rounded-xl w-[260px] text-foreground flex flex-col shadow-sm relative group"
