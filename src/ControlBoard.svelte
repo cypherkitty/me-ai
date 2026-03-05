@@ -12,8 +12,13 @@
     deleteClassification,
     getScanStats,
   } from "./lib/triage.js";
+  import { getGroupForEventType, groupToCategory } from "./lib/events.js";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
-  import { getSetting, setSetting, removeSetting } from "./lib/store/settings.js";
+  import {
+    getSetting,
+    setSetting,
+    removeSetting,
+  } from "./lib/store/settings.js";
 
   const engine = getUnifiedEngine();
 
@@ -22,6 +27,7 @@
   let modelName = $state("");
   let groups = $state({});
   let groupOrder = $state([]);
+  let eventTypeToCategory = $state({});
   let counts = $state({ total: 0 });
   let stats = $state(null);
   let expandedGroup = $state(null);
@@ -58,7 +64,9 @@
       if (msg.status === "ready") {
         engineStatus = "ready";
         const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
-        const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
+        const ollamaModel = OLLAMA_MODELS.find(
+          (m) => m.name === engine.modelId,
+        );
         const model = webgpuModel || ollamaModel;
         modelName = model?.name || model?.displayName || engine.modelId || "";
       }
@@ -87,18 +95,32 @@
   async function loadData() {
     try {
       const result = await getClassificationsGrouped();
+      const fetchedCounts = await getClassificationCounts();
+      const fetchedStats = await getScanStats();
+
+      const map = {};
+      for (const et of result.order) {
+        const group = await getGroupForEventType(et);
+        map[et] = groupToCategory(group);
+      }
+
       groups = result.groups;
       groupOrder = result.order;
-      counts = await getClassificationCounts();
-      stats = await getScanStats();
+      counts = fetchedCounts;
+      stats = fetchedStats;
+      eventTypeToCategory = map;
     } catch (e) {
       error = `Failed to load data: ${e.message}`;
     }
   }
 
   // ── Scan emails (skip already classified) ──────────────────────────
-  async function startScan() { await doScan(false); }
-  async function rescan() { await doScan(true); }
+  async function startScan() {
+    await doScan(false);
+  }
+  async function rescan() {
+    await doScan(true);
+  }
 
   async function doScan(force) {
     if (isScanning || !engine.isReady) return;
@@ -140,9 +162,11 @@
   }
 
   async function executeEmail(eventType, email) {
-    const { executePipeline, isAuthenticated } = await import("./lib/plugins/execution-service.js");
-    
-    if (!await isAuthenticated()) {
+    const { executePipeline, isAuthenticated } = await import(
+      "./lib/plugins/execution-service.js"
+    );
+
+    if (!(await isAuthenticated())) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
     }
@@ -150,11 +174,15 @@
     try {
       // Find the email's full data from the group to pass to the pipeline
       const eventData = { type: eventType, source: "gmail", data: email };
-      
-      const result = await executePipeline(eventData, (progress) => {
-        // Could update UI progress here if needed
-        console.log("Pipeline progress:", progress);
-      }, true); // Pass true for approved if we bypass the CRITICAL UI check here for simplicity, or we can handle it properly
+
+      const result = await executePipeline(
+        eventData,
+        (progress) => {
+          // Could update UI progress here if needed
+          console.log("Pipeline progress:", progress);
+        },
+        true,
+      ); // Pass true for approved if we bypass the CRITICAL UI check here for simplicity, or we can handle it properly
 
       if (result.success) {
         successMsg = result.message;
@@ -197,6 +225,7 @@
     {modelName}
     {groups}
     {groupOrder}
+    {eventTypeToCategory}
     {counts}
     {stats}
     {expandedGroup}
@@ -212,10 +241,13 @@
     ondismiss={dismiss}
     onremove={removeItem}
     oncleargroup={clearGroup}
-    ondismisserror={() => error = null}
-    ondismisssuccess={() => successMsg = null}
+    ondismisserror={() => (error = null)}
+    ondismisssuccess={() => (successMsg = null)}
     onstop={stopScan}
-    oncloseprogress={async () => { scanProgress = null; await removeSetting(SCAN_HISTORY_KEY); }}
+    oncloseprogress={async () => {
+      scanProgress = null;
+      await removeSetting(SCAN_HISTORY_KEY);
+    }}
     bind:scanCount
   />
 </div>
