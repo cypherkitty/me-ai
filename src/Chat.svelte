@@ -98,7 +98,9 @@
     if (savedRepetitionPenalty != null)
       repetitionPenalty = savedRepetitionPenalty;
 
-    engine.check();
+    if (engine.status === "idle") {
+      engine.check();
+    }
 
     if (engine.isReady) {
       showDashboardIfNeeded();
