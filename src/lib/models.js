@@ -22,6 +22,22 @@
 /** @type {ModelGroup[]} */
 export const MODEL_GROUPS = [
   {
+    label: "GPT-OSS",
+    models: [
+      {
+        id: "onnx-community/gpt-oss-20b-ONNX",
+        name: "20B",
+        size: "~12 GB",
+        contextWindow: 131072,
+        maxEmailTokens: 16000,
+        description: "OpenAI open-source, 128k context, built-in reasoning",
+        gpuWarning: "Requires powerful GPU (12 GB+ VRAM). ~12 GB download.",
+        isExperimental: true,
+        recommendedForEmailProcessing: true,
+      },
+    ],
+  },
+  {
     label: "Qwen 3.5",
     models: [
       {
@@ -50,22 +66,6 @@ export const MODEL_GROUPS = [
         description: "Best reasoning, 256k context",
         recommendedForEmailProcessing: true,
         gpuWarning: "Requires good GPU (8 GB+ VRAM recommended)",
-      },
-    ],
-  },
-  {
-    label: "GPT-OSS",
-    models: [
-      {
-        id: "onnx-community/gpt-oss-20b-ONNX",
-        name: "20B",
-        size: "~12 GB",
-        contextWindow: 131072,
-        maxEmailTokens: 16000,
-        description: "OpenAI open-source, 128k context, built-in reasoning",
-        gpuWarning: "Requires powerful GPU (12 GB+ VRAM). ~12 GB download.",
-        isExperimental: true,
-        recommendedForEmailProcessing: true,
       },
     ],
   },
