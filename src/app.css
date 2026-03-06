@@ -43,8 +43,8 @@
    ============================================================ */
 
 :root {
-  --radius: 1.5rem;
-  /* 24px — heavy pill shapes */
+  --radius: 0.35rem;
+  /* 5.6px — slightly rounded box shapes */
 
   /* ── Active preset: Premium Navy Mirage Glassmorphism ───────── */
   --background: transparent;
