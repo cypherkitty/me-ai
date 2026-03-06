@@ -1,15 +1,13 @@
 <script lang="ts">
-  import AuditView   from "./AuditView.svelte";
   import ModelsView  from "./ModelsView.svelte";
   import DataManager from "../components/actions/DataManager.svelte";
   import { cn }      from "$lib/utils.js";
-  import { ClipboardList, Database, BrainCircuit } from "lucide-svelte";
+  import { Database, BrainCircuit } from "lucide-svelte";
 
-  type Section = "audit" | "models" | "data";
-  let activeSection = $state<Section>("audit");
+  type Section = "models" | "data";
+  let activeSection = $state<Section>("models");
 
-  const NAV_ITEMS: { id: Section; label: string; icon: typeof ClipboardList }[] = [
-    { id: "audit",  label: "Audit Trail",     icon: ClipboardList },
+  const NAV_ITEMS: { id: Section; label: string; icon: typeof BrainCircuit }[] = [
     { id: "models", label: "Local Models",    icon: BrainCircuit  },
     { id: "data",   label: "Data Management", icon: Database      },
   ];
@@ -48,9 +46,7 @@
 
   <!-- ── Main content ─────────────────────────────────────────────── -->
   <main class="flex-1 min-h-0 overflow-hidden flex flex-col bg-background">
-    {#if activeSection === "audit"}
-      <AuditView />
-    {:else if activeSection === "models"}
+    {#if activeSection === "models"}
       <ModelsView />
     {:else if activeSection === "data"}
       <DataManager />

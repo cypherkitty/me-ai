@@ -13,7 +13,7 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { cn } from "$lib/utils.js";
 
-  let { msg, oncommand, onexecuted } = $props();
+  let { msg, oncommand, onexecuted, ondismiss } = $props();
 
   let expandedGroups = $state({});
   let executionState = $state({});
@@ -265,17 +265,26 @@
   <Button
     variant="outline"
     size="sm"
-    onclick={onclick_fn}
+    onclick={() => {
+      if (result?.success) {
+        onexecuted?.();
+        ondismiss?.();
+      } else {
+        onclick_fn();
+      }
+    }}
     disabled={isRunning}
     class={cn(
-      "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 shrink-0",
+      "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 shrink-0 pointer-events-auto",
       isCritical
         ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
         : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40",
+      result?.success &&
+        "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0",
     )}
   >
     {#if isRunning}Running…
-    {:else if result}{result.success ? "Done" : "Failed"}
+    {:else if result}{result.success ? "Done (Dismiss)" : "Failed"}
     {:else if isCritical}Review
     {:else}{label}
     {/if}
@@ -440,7 +449,7 @@
         commands={msg.commands}
       />
 
-      {#if executionCards[execStateKey]}
+      {#if executionCards[execStateKey] && executionCards[execStateKey].steps?.length > 0}
         <div class="mt-1 w-full">
           <TaskCard msg={executionCards[execStateKey]} />
         </div>
@@ -530,30 +539,41 @@
             </svg>
           </button>
 
-          {#if !batchApproval}
+          {#if !batchApproval && group.emails.some((e) => e.status !== "executed")}
             <Button
               variant="outline"
               size="sm"
               onclick={(e) => {
                 e.stopPropagation();
-                handleExecuteGroup(group.eventType, group.emails);
+                if (batchState?.result?.success) {
+                  onexecuted?.();
+                  ondismiss?.();
+                } else {
+                  handleExecuteGroup(
+                    group.eventType,
+                    group.emails.filter((e) => e.status !== "executed"),
+                  );
+                }
               }}
               disabled={batchState?.running}
               class={cn(
-                "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 mr-2 shrink-0",
+                "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 mr-2 shrink-0 pointer-events-auto",
                 grpDef?.requiresApproval
-                  ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12"
-                  : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12",
+                  ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
+                  : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40",
+                batchState?.result?.success &&
+                  "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0",
               )}
             >
               {#if batchState?.running}Running…
               {:else if batchState?.result}
                 {batchState.result.success
-                  ? `Done (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})`
+                  ? `Done (Dismiss) (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})`
                   : "Failed"}
               {:else if grpDef?.requiresApproval}Review & Execute ({group.emails
+                  .filter((e) => e.status !== "executed")
                   .length})
-              {:else}Execute All ({group.emails.length})
+              {:else}Execute All ({group.emails.filter((e) => e.status !== "executed").length})
               {/if}
             </Button>
           {/if}
@@ -573,7 +593,7 @@
         {/if}
 
         <!-- Batch execution task card -->
-        {#if executionCards[batchStateKey] && !batchApproval}
+        {#if executionCards[batchStateKey] && !batchApproval && executionCards[batchStateKey].steps?.length > 0}
           <div class="px-3 pb-3">
             <TaskCard msg={executionCards[batchStateKey]} />
           </div>
@@ -630,7 +650,7 @@
                       class="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/35"
                       >Action Pipeline</span
                     >
-                    {#if !execApproval}
+                    {#if email.status !== "executed" && !execApproval}
                       {@render execBtn(
                         "Execute",
                         grpDef?.requiresApproval,
@@ -649,7 +669,7 @@
                     {/if}
                   </div>
 
-                  {#if execApproval}
+                  {#if email.status !== "executed" && execApproval}
                     {@render approvalCard(
                       "Confirm execution?",
                       null,
@@ -671,7 +691,7 @@
                     </p>
                   {/if}
 
-                  {#if executionCards[execStateKey] && !execApproval}
+                  {#if executionCards[execStateKey] && !execApproval && executionCards[execStateKey].steps?.length > 0}
                     <div class="mt-0.5">
                       <TaskCard msg={executionCards[execStateKey]} />
                     </div>

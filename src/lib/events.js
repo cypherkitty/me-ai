@@ -244,15 +244,34 @@ export async function getExecutionPolicy(eventType) {
 }
 
 /**
- * Get the action pipeline for a user-defined event.
- * Returns [] if the event doesn't exist — no hardcoded fallbacks.
+ * Get the action pipeline for an event type.
+ * Uses user overrides (per-type pipeline) when present; otherwise falls back
+ * to the category-based pipeline (e.g. NOISE → trash) so chat and Event Stream
+ * show and run the same pipeline.
  * @param {string} eventType
  * @returns {Promise<Action[]>}
  */
 export async function getActionsForEvent(eventType) {
-  const normalized = eventType?.toUpperCase?.() || "";
+  const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
+  if (!normalized) return [];
+
   const map = await loadUserMap();
-  return map[normalized] || [];
+  const userActions = map[normalized];
+  // User has explicit pipeline (non-empty array) — use it
+  if (Array.isArray(userActions) && userActions.length > 0) return userActions;
+
+  // No override or empty (e.g. LLM-seeded type): use category pipeline for display + execution
+  const { getPipelineForEvent } = await import("./rules.js");
+  const pipeline = await getPipelineForEvent(eventType);
+  if (!pipeline?.actions?.length) return [];
+
+  return pipeline.actions.map((a, i) => ({
+    id: (a.commandId || "cmd") + "_" + i,
+    pluginId: a.pluginId ?? "",
+    commandId: a.commandId ?? "",
+    name: (a.commandId ?? "").replace(/_/g, " "),
+    description: "",
+  }));
 }
 
 // Alias for backward compatibility

@@ -375,9 +375,16 @@ export async function getClassifications({ action } = {}) {
  * Get classifications grouped by action type (dynamic — groups emerge from data).
  * Returns an object: action -> array of classifications, sorted by date desc.
  * Also returns the group order sorted by count descending.
+ *
+ * @param {{ pendingOnly?: boolean }} [opts] - If pendingOnly: true, only include
+ *   status IN ('pending', 'escalated'); exclude already executed/handled.
  */
-export async function getClassificationsGrouped() {
-  const rows = await query(`SELECT * FROM emailClassifications`);
+export async function getClassificationsGrouped(opts = {}) {
+  const sql =
+    opts.pendingOnly === true
+      ? `SELECT * FROM emailClassifications WHERE status IN ('pending', 'escalated')`
+      : `SELECT * FROM emailClassifications`;
+  const rows = await query(sql);
   return groupByAction(rows.map(normaliseClassificationRow));
 }
 

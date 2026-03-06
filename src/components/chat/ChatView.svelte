@@ -385,7 +385,13 @@
         {:else if msg.type === "task-card"}
           <TaskCard {msg} />
         {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
-          <EventMessage {msg} {oncommand} {onexecuted} />
+          <EventMessage
+            {msg}
+            {oncommand}
+            {onexecuted}
+            ondismiss={() =>
+              (messages = messages.filter((_, idx) => idx !== i))}
+          />
         {:else}
           {@const prevModel = messages
             .slice(0, i)
