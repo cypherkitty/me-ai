@@ -199,7 +199,7 @@
   </div>
 
   <!-- Main Chat Area -->
-  <div class="flex flex-col h-full flex-1 min-w-0 min-h-0">
+  <div class="flex flex-col h-full flex-1 min-w-0 min-h-0 bg-[#0a0f18]">
     <!-- Stats bar + Generation panel -->
     <div class="flex flex-col border-b border-border shrink-0">
       <div class="flex items-center gap-3 px-6 h-10">
@@ -361,12 +361,11 @@
     >
       {#if messages.length === 0}
         <div class="m-auto flex flex-col items-center gap-2 text-center py-12">
-          <span class="text-2xl text-muted-foreground/20">✦</span>
-          <span
-            class="text-sm font-medium text-muted-foreground/50 tracking-tight"
+          <span class="text-2xl text-muted-foreground/30">✦</span>
+          <span class="text-sm font-medium text-foreground/90 tracking-tight"
             >Start a conversation</span
           >
-          <span class="text-xs text-muted-foreground/30"
+          <span class="text-xs text-muted-foreground/80"
             >Ask about your emails, events, or anything else.</span
           >
         </div>
