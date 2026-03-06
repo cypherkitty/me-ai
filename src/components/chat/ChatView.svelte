@@ -199,10 +199,10 @@
   </div>
 
   <!-- Main Chat Area -->
-  <div class="flex flex-col h-full flex-1 min-w-0 min-h-0 bg-[#0a0f18]">
+  <div class="flex flex-col h-full flex-1 min-w-0 min-h-0 bg-background">
     <!-- Stats bar + Generation panel -->
     <div class="flex flex-col border-b border-border shrink-0">
-      <div class="flex items-center gap-3 px-6 h-10">
+      <div class="flex items-center gap-3 px-6 h-10 bg-card/10">
         {#if gpuInfo}
           <Button
             variant="outline"

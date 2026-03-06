@@ -320,7 +320,7 @@
           {@const st = execState[evt.id ?? evt.emailId]}
           {@const activeSteps = evt.steps?.length ? evt.steps : st?.steps || []}
           <div
-            class="rounded border border-border bg-card overflow-hidden hover:border-border/60 transition-colors"
+            class="rounded-xl border bg-card/60 backdrop-blur-md border-border/50 shadow-sm overflow-hidden hover:border-primary/30 transition-all"
           >
             <!-- Card content -->
             <div class="flex items-start gap-3 px-5 pt-4 pb-3.5">

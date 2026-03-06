@@ -699,7 +699,7 @@
       {#if isSignedIn}
         <!-- Top bar: account info + sync controls -->
         <div
-          class="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0 bg-sidebar/40"
+          class="flex items-center gap-3 px-8 pt-5 pb-4 border-b border-border shrink-0 bg-transparent"
         >
           <!-- Avatar + email -->
           <div class="flex items-center gap-2 min-w-0">
@@ -1025,7 +1025,7 @@
       {#if twSignedIn}
         <!-- Top bar: account info + sync controls -->
         <div
-          class="flex items-center gap-3 px-4 py-2.5 border-b border-border shrink-0 bg-sidebar/40"
+          class="flex items-center gap-3 px-8 pt-5 pb-4 border-b border-border shrink-0 bg-transparent"
         >
           <div class="flex items-center gap-2 min-w-0">
             <div
