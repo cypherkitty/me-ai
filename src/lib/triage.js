@@ -536,8 +536,19 @@ export function parseClassification(response, knownActionIds) {
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
   text = text.trim();
 
+  const firstBracket = text.indexOf("[");
   const firstBrace = text.indexOf("{");
+  const lastBracket = text.lastIndexOf("]");
   const lastBrace = text.lastIndexOf("}");
+
+  // If top-level is an array, reject (we expect a single classification object).
+  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+    const arrayStr = text.slice(firstBracket, lastBracket + 1);
+    try {
+      const parsed = JSON.parse(arrayStr);
+      if (Array.isArray(parsed)) return null;
+    } catch { /* not valid JSON array, fall through */ }
+  }
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
     console.warn("Triage: no JSON object found in response");
