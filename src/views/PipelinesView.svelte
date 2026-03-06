@@ -10,7 +10,10 @@
     moveEventTypeToCategory,
     unassignEventTypeFromCategory,
   } from "../lib/rules.js";
-  import { executePipeline, isAuthenticated } from "../lib/plugins/execution-service.js";
+  import {
+    executePipeline,
+    isAuthenticated,
+  } from "../lib/plugins/execution-service.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
   import PipelineGraph from "../components/actions/PipelineGraph.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -73,7 +76,10 @@
       const cats = (await getCategoryPipelines()) as CatPipeline[];
       categories = cats;
       const entries = await Promise.all(
-        cats.map(async (c) => [c.category, await getPendingCountByCategory(c.category)] as const),
+        cats.map(
+          async (c) =>
+            [c.category, await getPendingCountByCategory(c.category)] as const,
+        ),
       );
       pendingCounts = Object.fromEntries(entries);
     } catch (e) {
@@ -89,7 +95,9 @@
       return;
     }
     if (cat.actions.length === 0) {
-      alert("No actions in this category pipeline — add actions first (Edit Actions).");
+      alert(
+        "No actions in this category pipeline — add actions first (Edit Actions).",
+      );
       return;
     }
     const items = await getPendingItemsByCategory(cat.category);
@@ -234,7 +242,7 @@
           {@const color = catColors[cat.category] || "#888"}
           {@const icon = catIcons[cat.category] || "📦"}
           <div
-            class="rounded-xl border bg-[#0a0f18] border-border hover:border-primary/30 transition-all"
+            class="rounded-xl border bg-card/60 backdrop-blur-md border-border/50 shadow-sm hover:border-primary/30 transition-all"
           >
             <!-- Category header -->
             <div class="flex items-center gap-3 px-6 py-4">
@@ -294,7 +302,9 @@
             <div
               class="px-6 pb-4 border-t border-border/40 pt-3 flex flex-col items-start gap-1"
             >
-              <div class="flex items-center justify-between w-full gap-2 flex-wrap">
+              <div
+                class="flex items-center justify-between w-full gap-2 flex-wrap"
+              >
                 <span
                   class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
                 >
@@ -305,11 +315,9 @@
                     variant="default"
                     size="sm"
                     class="gap-2 h-7 text-xs"
-                    disabled={
-                      executingCategory === cat.category ||
+                    disabled={executingCategory === cat.category ||
                       cat.actions.length === 0 ||
-                      (pendingCounts[cat.category] ?? 0) === 0
-                    }
+                      (pendingCounts[cat.category] ?? 0) === 0}
                     onclick={() => handleExecuteCategory(cat)}
                   >
                     {#if executingCategory === cat.category}
@@ -364,7 +372,7 @@
                   <div class="flex flex-col gap-1 mt-2">
                     {#each cat.eventTypes as et}
                       <div
-                        class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-card/30 border border-border/30"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/5 border border-border/30 opacity-80"
                       >
                         <span class="text-xs font-mono text-foreground/80"
                           >{et.name}</span
