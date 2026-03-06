@@ -116,6 +116,19 @@ describe("parseClassification", () => {
     expect(parseClassification('{"reason": "test", "summary": "test"}')).toBeNull();
   });
 
+  it("returns null for config-like action (e.g. Qwen 2B hallucination)", () => {
+    expect(parseClassification('{"action": "postgres-sslmode=require", "reason": "x", "summary": "y"}')).toBeNull();
+    expect(parseClassification('{"action": "CONNECTION_STRING", "reason": "x", "summary": "y"}')).toBeNull();
+  });
+
+  it("strips ---set / --set prefixes and parses JSON", () => {
+    const input = '---set {"action": "PROMOTION", "reason": "Discount offer", "summary": "30% off", "tags": []}';
+    const result = parseClassification(input);
+    expect(result).not.toBeNull();
+    expect(result.action).toBe("PROMOTION");
+    expect(result.reason).toBe("Discount offer");
+  });
+
   it("returns null for array instead of object", () => {
     expect(parseClassification('[{"action": "DELETE"}]')).toBeNull();
   });

@@ -125,13 +125,25 @@ export function getEngine() {
     },
 
     async loadModel(modelId: string, options: { dtype?: string; device?: string } = {}) {
-      _modelId = modelId;
       _status = "loading";
       try {
+        // When switching to a different model, terminate the current worker so the browser
+        // reclaims all WebGPU/WASM memory. Otherwise the old model's resources often stay
+        // allocated (dispose() doesn't free everything), causing a memory leak.
+        if (_workerPromise && _modelId != null && _modelId !== modelId) {
+          try {
+            const w = await _workerPromise;
+            w.terminate();
+          } catch { /* ignore */ }
+          _workerPromise = null;
+          _modelId = null;
+        }
+        _modelId = modelId;
         const w = await ensureWorker();
         w.postMessage({ type: "load", modelId, options });
       } catch (err) {
         _status = "idle";
+        _modelId = null;
         const msg = err instanceof Error ? err.message : String(err);
         for (const fn of _listeners) fn({ status: "error", data: `Worker init failed: ${msg}` });
       }
