@@ -37,6 +37,8 @@ let _conn = null;
 let _initPromise = null;
 /** @type {boolean} Whether the current open path is OPFS (not :memory:) */
 let _usingOpfs = false;
+/** @type {boolean} Session flag: OPFS write probe failed, use in-memory for this tab */
+let _opfsWriteFailed = false;
 /** @type {ReturnType<typeof setTimeout> | null} */
 let _checkpointTimer = null;
 
@@ -94,7 +96,7 @@ async function _init() {
   const opfsSupported = typeof navigator !== "undefined" &&
     typeof navigator.storage?.getDirectory === "function";
 
-  if (opfsSupported) {
+  if (opfsSupported && !_opfsWriteFailed) {
     try {
       await _db.open({ path: "opfs://me-ai.db", accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
       _usingOpfs = true;
@@ -104,11 +106,44 @@ async function _init() {
       await _db.open({ path: ":memory:" });
     }
   } else {
+    if (_opfsWriteFailed) {
+      console.info("[db] Using in-memory (OPFS write probe failed earlier this session)");
+    } else {
+      console.info("[db] OPFS not available, using in-memory database");
+    }
     await _db.open({ path: ":memory:" });
-    console.info("[db] OPFS not available, using in-memory database");
   }
 
   _conn = await _db.connect();
+
+  // Probe OPFS write — DuckDB-WASM can open OPFS but commits fail with
+  // "TransactionContext Error: Failed to commit: File is not opened in write mode"
+  // (https://github.com/duckdb/duckdb-wasm/issues/2182). If so, restart init with in-memory.
+  if (_usingOpfs) {
+    try {
+      await _conn.query("CREATE TABLE IF NOT EXISTS __opfs_probe (x INTEGER)");
+      await _conn.query("INSERT INTO __opfs_probe VALUES (1)");
+      await _conn.query("DROP TABLE __opfs_probe");
+    } catch (e) {
+      const msg = e?.message ?? String(e);
+      if (msg.includes("write mode") || msg.includes("TransactionContext")) {
+        console.warn("[db] OPFS writes failed, falling back to in-memory for this session:", msg);
+        _opfsWriteFailed = true;
+        try {
+          await _conn.close();
+        } catch { /* ignore */ }
+        try {
+          await _db.terminate();
+        } catch { /* ignore */ }
+        _conn = null;
+        _db = null;
+        _initPromise = null;
+        _usingOpfs = false;
+        return getDb();
+      }
+      throw e;
+    }
+  }
 
   // Best-effort flush on page unload and visibility change (OPFS only).
   if (_usingOpfs && typeof window !== "undefined") {
@@ -641,13 +676,19 @@ export async function exec(sql, params = []) {
  * all rows land in the WAL atomically. Calls an immediate checkpoint after
  * commit so the data survives a page reload.
  *
+ * When using OPFS we skip explicit BEGIN/COMMIT to avoid DuckDB-WASM bug:
+ * "TransactionContext Error: Failed to commit: File is not opened in write mode"
+ * (see https://github.com/duckdb/duckdb-wasm/issues/2182). Statements run
+ * one-by-one; we lose atomicity but writes succeed.
+ *
  * @param {Array<{sql: string, params?: any[]}>} statements
  */
 export async function execBatch(statements) {
   if (!statements.length) return;
   const conn = await _getConn();
-  await conn.query("BEGIN");
-  try {
+
+  if (_usingOpfs) {
+    // OPFS workaround: avoid explicit transaction to prevent commit write-mode error
     for (const { sql, params = [] } of statements) {
       if (params.length > 0) {
         const stmt = await conn.prepare(sql);
@@ -657,10 +698,27 @@ export async function execBatch(statements) {
         await conn.query(sql);
       }
     }
-    await conn.query("COMMIT");
-  } catch (e) {
-    await conn.query("ROLLBACK").catch(() => { });
-    throw e;
+  } else {
+    await conn.query("BEGIN");
+    try {
+      for (const { sql, params = [] } of statements) {
+        if (params.length > 0) {
+          const stmt = await conn.prepare(sql);
+          await stmt.query(...params);
+          await stmt.close();
+        } else {
+          await conn.query(sql);
+        }
+      }
+      await conn.query("COMMIT");
+    } catch (e) {
+      try {
+        await conn.query("ROLLBACK");
+      } catch {
+        /* ignore "no transaction is active" */
+      }
+      throw e;
+    }
   }
   // Flush immediately after a bulk write — don't debounce.
   await checkpoint();
@@ -707,27 +765,32 @@ export async function getOpfsStats() {
  */
 export async function clearAllDuckDbData() {
   const conn = await _getConn();
-  await conn.query("BEGIN");
-  try {
-    for (const sql of [
-      "DELETE FROM sm_events",
-      "DELETE FROM sm_rule_commands",
-      "DELETE FROM sm_rule_triggers",
-      "DELETE FROM sm_rule_policies",
-      "DELETE FROM sm_rules",
-      "DELETE FROM items",
-      "DELETE FROM emailClassifications",
-      "DELETE FROM contacts",
-      "DELETE FROM syncState",
-      "DELETE FROM settings",
-      "DELETE FROM auditLog",
-    ]) {
-      await conn.query(sql);
+  const deletes = [
+    "DELETE FROM sm_events",
+    "DELETE FROM sm_rule_commands",
+    "DELETE FROM sm_rule_triggers",
+    "DELETE FROM sm_rule_policies",
+    "DELETE FROM sm_rules",
+    "DELETE FROM items",
+    "DELETE FROM emailClassifications",
+    "DELETE FROM contacts",
+    "DELETE FROM syncState",
+    "DELETE FROM settings",
+    "DELETE FROM auditLog",
+  ];
+  if (_usingOpfs) {
+    for (const sql of deletes) await conn.query(sql);
+  } else {
+    await conn.query("BEGIN");
+    try {
+      for (const sql of deletes) await conn.query(sql);
+      await conn.query("COMMIT");
+    } catch (e) {
+      try {
+        await conn.query("ROLLBACK");
+      } catch { /* ignore */ }
+      throw e;
     }
-    await conn.query("COMMIT");
-  } catch (e) {
-    await conn.query("ROLLBACK").catch(() => { });
-    throw e;
   }
   await checkpoint();
 }

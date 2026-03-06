@@ -3,7 +3,7 @@
   import {
     getPendingApprovals,
     rejectClassification,
-    getPipelineForEvent,
+    getCategoryPipelines,
   } from "../lib/rules.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
@@ -62,6 +62,7 @@
       type: evt.event_type || "UNKNOWN",
       source: emailData.sourceType || "gmail",
       data: {
+        id,
         emailId: id,
         subject: emailData.subject ?? evt.subject,
         from: emailData.from ?? evt.from ?? evt.source_name,
@@ -69,6 +70,14 @@
       },
       metadata: { category: evt.event_category },
     };
+
+    // Use the same category pipeline as Pipelines view (e.g. Important → Star + Mark as Important)
+    const categoryName = (evt.event_category || "").toLowerCase().trim();
+    const pipelines = await getCategoryPipelines();
+    const cat = pipelines.find(
+      (c) => c.category?.toLowerCase().trim() === categoryName
+    );
+    const actionsOverride = cat?.actions?.length ? cat.actions : undefined;
 
     const result = await executePipeline(
       event,
@@ -109,6 +118,7 @@
         }
       },
       true /* approved */,
+      actionsOverride ? { actionsOverride } : undefined,
     );
 
     execState[id] = {

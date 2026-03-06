@@ -25,6 +25,21 @@ import { logExecution, syncAfterExecution } from "../store/audit.js";
  */
 
 /**
+ * Normalise pipeline actions to the shape expected by pluginRegistry (id, pluginId, commandId, name).
+ * @param {Array<{pluginId: string, commandId: string, [order]: number}>} rawActions
+ * @returns {Array<{id: string, pluginId: string, commandId: string, name: string}>}
+ */
+function normaliseActions(rawActions) {
+  if (!rawActions?.length) return [];
+  return rawActions.map((a, i) => ({
+    id: (a.commandId || a.id) + "_" + i,
+    pluginId: a.pluginId ?? "gmail",
+    commandId: a.commandId ?? a.id,
+    name: (a.name ?? a.commandId ?? "").replace(/_/g, " ") || "",
+  }));
+}
+
+/**
  * Execute an action pipeline for a single event.
  * Respects the event type's group execution policy:
  *   NOISE    — executes without any prompt
@@ -34,39 +49,48 @@ import { logExecution, syncAfterExecution } from "../store/audit.js";
  * @param {Object} event - The event to process (must have type, source, data)
  * @param {Function} [onProgress] - Progress callback
  * @param {boolean} [approved=false] - Set true to bypass CRITICAL approval check
+ * @param {{ actionsOverride?: Array<{pluginId: string, commandId: string}> }} [options] - If set, use these actions and skip rule/category resolution (e.g. from Control Plane category Execute)
  * @returns {Promise<Object>} - Execution result
  */
-export async function executePipeline(event, onProgress, approved = false) {
+export async function executePipeline(event, onProgress, approved = false, options = {}) {
   try {
     onProgress?.({ phase: "starting", event });
 
-    const category = event.metadata?.category || event.data?.category || "";
-    const rules = await findMatchingRules(event.type, category);
-    const rule = rules[0];
-
+    const { actionsOverride } = options || {};
     let group = "INFO";
     let requiresApproval = false;
     let actions = [];
     let policy = "";
+    /** @type {{ name?: string } | undefined} */
+    let rule = undefined;
 
-    if (rule) {
-      policy = rule.policy ?? "";
-      if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
-      else if (policy === "auto") { group = "NOISE"; }
-      actions = rule.actions || [];
+    if (actionsOverride?.length) {
+      // Control Plane / PipelinesView: run exactly the category pipeline that was shown
+      actions = normaliseActions(actionsOverride);
+      policy = "manual";
+      requiresApproval = true;
+      group = "CRITICAL";
     } else {
-      // Fallback: use category-based pipeline (e.g. NOISE → trash) when no sm_rules row matches
-      const pipeline = await getPipelineForEvent(event.type);
-      if (pipeline?.actions?.length) {
-        policy = pipeline.policy ?? "manual";
+      const category = event.metadata?.category || event.data?.category || "";
+      const rules = await findMatchingRules(event.type, category);
+      rule = rules[0];
+
+      if (rule) {
+        policy = rule.policy ?? "";
         if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
         else if (policy === "auto") { group = "NOISE"; }
-        actions = pipeline.actions.map((a, i) => ({
-          id: a.commandId + "_" + i,
-          pluginId: a.pluginId,
-          commandId: a.commandId,
-          name: a.commandId?.replace(/_/g, " ") ?? "",
-        }));
+        actions = rule.actions || [];
+      }
+
+      // When no rule, or rule has no actions, use category-based pipeline (e.g. Important → mark_important + star)
+      if (!actions?.length) {
+        const pipeline = await getPipelineForEvent(event.type);
+        if (pipeline?.actions?.length) {
+          policy = pipeline.policy ?? "manual";
+          if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
+          else if (policy === "auto") { group = "NOISE"; }
+          actions = normaliseActions(pipeline.actions);
+        }
       }
     }
 

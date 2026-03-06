@@ -83,9 +83,10 @@ Guidelines for "summary":
 Active integrations: ${pluginNames || "(none)"}
 
 Rules:
-- Output ONLY the JSON object, nothing else
-- "action" must be UPPER_SNAKE_CASE
+- Output ONLY the JSON object, nothing else. No prefixes like ---set or --set, no markdown, no code fences.
+- "action" must be UPPER_SNAKE_CASE and describe the message type (e.g. PROMOTION, RECEIPT). Never use connection strings, config values, or technical jargon.
 - "category" must be exactly one of: "noise", "informational", "important", "urgent"
+- "reason" and "summary" must be plain English about the message content only. Do not insert config variables or technical strings.
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
 }
@@ -534,6 +535,8 @@ export function parseClassification(response, knownActionIds) {
 
   // Strip markdown code blocks
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
+  // Strip common garbage prefixes from small models (e.g. ---set {, --set "reason":)
+  text = text.replace(/^[\s\-]*set\s+/gi, "").replace(/^---+\s*/, "");
   text = text.trim();
 
   const firstBracket = text.indexOf("[");
@@ -555,15 +558,29 @@ export function parseClassification(response, knownActionIds) {
     return null;
   }
 
-  const jsonStr = text.slice(firstBrace, lastBrace + 1);
+  let jsonStr = text.slice(firstBrace, lastBrace + 1);
+  // Remove inline garbage some models inject (e.g. "--set " before a key)
+  jsonStr = jsonStr.replace(/\s*--set\s+/gi, " ");
 
   try {
     const parsed = JSON.parse(jsonStr);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
 
+    // Reject obvious hallucinated values (e.g. Qwen 2B outputting postgres-sslmode=require)
+    const rawAction = String(parsed.action || "").trim();
+    if (/[=]|postgres|sslmode|require|connection|config/i.test(rawAction)) {
+      console.warn("Triage: invalid action (looks like config/jargon):", rawAction.slice(0, 60));
+      return null;
+    }
+
     const action = normalizeAction(parsed.action);
     if (!action) {
       console.warn("Triage: missing or invalid action field");
+      return null;
+    }
+    // Reject normalized garbage that still looks like config (long run of tokens)
+    if (action.length > 50 || /POSTGRES|SSLMODE|REQUIRE|CONNECTION/.test(action)) {
+      console.warn("Triage: action rejected as jargon:", action.slice(0, 40));
       return null;
     }
 
@@ -594,13 +611,23 @@ export function parseClassification(response, knownActionIds) {
         .slice(0, 10);
     }
 
+    // Sanitize reason/summary: remove common model hallucinations (config strings, etc.)
+    const sanitize = (s) => {
+      let out = String(s || "").trim();
+      out = out.replace(/\bpostgres[-\s]?sslmode\s*=\s*require\b/gi, "");
+      out = out.replace(/\s*--set\s+/gi, " ").replace(/\s{2,}/g, " ").trim();
+      return out.slice(0, 500);
+    };
+    const reason = sanitize(parsed.reason).slice(0, 300);
+    const summary = sanitize(parsed.summary).slice(0, 500);
+
     return {
       action,
       category,
       group,           // backward compat
       suggestedActions, // always empty, kept for API compat
-      reason: String(parsed.reason || "").slice(0, 300),
-      summary: String(parsed.summary || "").slice(0, 500),
+      reason,
+      summary,
       tags,
     };
   } catch (e) {

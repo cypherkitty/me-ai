@@ -112,17 +112,21 @@
       for (const item of items) {
         const event = {
           type: item.eventType,
-          source: item.sourceType,
+          source: item.sourceType ?? "gmail",
           data: {
+            id: item.id,
             emailId: item.id,
             subject: item.subject,
             from: item.from,
           },
           metadata: { category: item.event_category },
         };
-        const result = (await executePipeline(event, undefined, true)) as {
-          success?: boolean;
-        };
+        const result = (await executePipeline(
+          event,
+          undefined,
+          true,
+          { actionsOverride: cat.actions },
+        )) as { success?: boolean };
         if (result.success) ok += 1;
         else failed += 1;
       }
