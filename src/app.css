@@ -46,43 +46,44 @@
   --radius: 0.25rem;
   /* 4px — tight, no bubble */
 
-  /* ── Active preset: slate (MEDIUM DARK) ───────── */
-  --background: oklch(0.170 0.020 255);
+  /* ── Active preset: Premium Navy Mirage Glassmorphism ───────── */
+  --background: transparent;
   --foreground: oklch(0.980 0 0);
 
-  --card: oklch(0.200 0.025 255);
+  /* Subtle white frosted glass */
+  --card: oklch(1 0 0 / 4%);
   --card-foreground: oklch(0.980 0 0);
 
-  --popover: oklch(0.210 0.025 255);
+  --popover: oklch(1 0 0 / 5%);
   --popover-foreground: oklch(0.980 0 0);
 
   --primary: oklch(0.560 0.22 248);
-  /* electric blue — unchanged */
+  /* electric blue */
   --primary-foreground: oklch(0.99 0 0);
 
-  --secondary: oklch(0.200 0.018 255);
-  --secondary-foreground: oklch(0.880 0 0);
+  --secondary: oklch(1 0 0 / 10%);
+  --secondary-foreground: oklch(0.980 0 0);
 
-  --muted: oklch(0.190 0.018 255);
-  --muted-foreground: oklch(0.700 0.010 255);
+  --muted: oklch(1 0 0 / 10%);
+  --muted-foreground: oklch(0.800 0 0);
 
-  --accent: oklch(0.200 0.018 255);
+  --accent: oklch(1 0 0 / 15%);
   --accent-foreground: oklch(0.980 0 0);
 
   --destructive: oklch(0.580 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.560 0.22 248);
 
-  --sidebar: oklch(0.160 0.018 255);
+  --sidebar: oklch(1 0 0 / 2%);
   --sidebar-foreground: oklch(0.980 0 0);
   --sidebar-primary: oklch(0.560 0.22 248);
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.210 0.020 255);
+  --sidebar-accent: oklch(1 0 0 / 15%);
   --sidebar-accent-foreground: oklch(0.980 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-border: oklch(1 0 0 / 15%);
   --sidebar-ring: oklch(0.560 0.22 248);
 
   /* Pipeline nodes */
@@ -96,6 +97,35 @@
   --success: oklch(0.560 0.15 142);
   --warning: oklch(0.700 0.15 70);
   --info: oklch(0.560 0.22 248);
+}
+
+@layer base {
+  body {
+    background: linear-gradient(135deg, #141E30 0%, #3F5E96 100%);
+    background-attachment: fixed;
+    color: var(--foreground);
+    min-height: 100vh;
+  }
+}
+
+.bg-card,
+.bg-popover,
+.bg-sidebar,
+.card,
+.popover,
+.sidebar {
+  /* Stronger blur for true frosted glass */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+
+  /* Bright top/left edges to simulate light hitting glass depth */
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+
+  /* Drop shadow to float the panes */
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
