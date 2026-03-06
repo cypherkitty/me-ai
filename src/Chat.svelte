@@ -859,6 +859,7 @@
   }
 </script>
 
+<div class="w-full h-full flex flex-col overflow-hidden">
 {#if status === null}
   <div class="w-full h-full overflow-y-auto flex justify-center">
     <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
@@ -919,3 +920,4 @@
     onexecuted={refreshPendingData}
   />
 {/if}
+</div>
