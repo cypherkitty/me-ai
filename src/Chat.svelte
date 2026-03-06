@@ -333,7 +333,9 @@
       }
 
       // Refresh the last events-grouped message so handled events disappear from the list
-      const eventsGroupedIdx = messages.findLastIndex((m) => m.type === "events-grouped");
+      const eventsGroupedIdx = messages.findLastIndex(
+        (m) => m.type === "events-grouped",
+      );
       if (eventsGroupedIdx !== -1) {
         const grouped = await getClassificationsGrouped({ pendingOnly: true });
         if (grouped.order.length === 0) {
@@ -859,7 +861,7 @@
 
 {#if status === null}
   <div class="w-full h-full overflow-y-auto flex justify-center">
-    <div class="w-full max-w-[520px] px-4 py-8 flex flex-col gap-0">
+    <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
       <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
       {#if backend === "webgpu"}
