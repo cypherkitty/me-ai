@@ -109,16 +109,6 @@
     <span class="text-sm font-semibold tracking-tight text-foreground"
       >me-ai</span
     >
-    <div class="flex-1"></div>
-    <a
-      href="#admin"
-      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-muted-foreground/50
-             hover:text-muted-foreground hover:bg-sidebar-accent/60 transition-colors no-underline"
-      title="Admin dashboard"
-    >
-      <ShieldCheck class="size-3.5" />
-      <span class="tracking-tight">Admin</span>
-    </a>
   </div>
 
   <!-- ── Compact Stepper Workflow ────────────────────────────────── -->
@@ -135,7 +125,7 @@
         <div class="h-8 w-32 bg-muted/40 rounded-full"></div>
       </div>
     {:else}
-      <div class="flex items-center justify-center">
+      <div class="flex items-center justify-center gap-0">
         <nav aria-label="Progress" class="flex items-center">
           <!-- ── Step 1: Sources ───────────────────────────────── -->
           <a
@@ -295,6 +285,16 @@
                   >{/if}
               </div>
             </div>
+          </a>
+
+          <div class="h-8 w-px bg-border/80 ml-6 mr-1 shrink-0" aria-hidden="true"></div>
+          <a
+            href="#admin"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 transition-colors no-underline shrink-0"
+            title="Admin dashboard"
+          >
+            <ShieldCheck class="size-3.5 shrink-0" />
+            <span class="tracking-tight">Admin</span>
           </a>
         </nav>
       </div>
