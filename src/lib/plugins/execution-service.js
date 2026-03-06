@@ -7,7 +7,7 @@
  */
 
 import { pluginRegistry } from "./plugin-registry.js";
-import { findMatchingRules } from "../rules.js";
+import { findMatchingRules, getPipelineForEvent } from "../rules.js";
 import { EVENT_GROUPS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
 import { logExecution, syncAfterExecution } from "../store/audit.js";
@@ -47,17 +47,36 @@ export async function executePipeline(event, onProgress, approved = false) {
     let group = "INFO";
     let requiresApproval = false;
     let actions = [];
+    let policy = "";
 
     if (rule) {
-      if (rule.policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
-      else if (rule.policy === "auto") { group = "NOISE"; }
+      policy = rule.policy ?? "";
+      if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
+      else if (policy === "auto") { group = "NOISE"; }
       actions = rule.actions || [];
     } else {
-      // Fallback if no matching rule
-      return { success: true, message: `No enabled pipeline rule matches event type: ${event.type}`, results: [] };
+      // Fallback: use category-based pipeline (e.g. NOISE → trash) when no sm_rules row matches
+      const pipeline = await getPipelineForEvent(event.type);
+      if (pipeline?.actions?.length) {
+        policy = pipeline.policy ?? "manual";
+        if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
+        else if (policy === "auto") { group = "NOISE"; }
+        actions = pipeline.actions.map((a, i) => ({
+          id: a.commandId + "_" + i,
+          pluginId: a.pluginId,
+          commandId: a.commandId,
+          name: a.commandId?.replace(/_/g, " ") ?? "",
+        }));
+      }
     }
 
-    onProgress?.({ phase: "policy_check", group, policy: rule.policy });
+    if (!actions?.length) {
+      return { success: true, message: rule
+        ? `No actions defined for rule: ${rule.name}`
+        : `No enabled pipeline rule or category pipeline matches event type: ${event.type}`, results: [] };
+    }
+
+    onProgress?.({ phase: "policy_check", group, policy });
 
     if (requiresApproval && !approved) {
       return {
@@ -74,10 +93,6 @@ export async function executePipeline(event, onProgress, approved = false) {
       throw new Error("Not authenticated. Please sign in to Gmail first.");
     }
     const accessToken = tokenData.access_token;
-
-    if (!actions || actions.length === 0) {
-      return { success: true, message: `No actions defined for rule: ${rule.name}`, results: [] };
-    }
 
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length });
 

@@ -314,7 +314,7 @@ export async function updateEventStatus(id, status) {
 }
 
 /**
- * Delete all events from the audit trail.
+ * Delete all events from the audit trail (Deprecated, use audit.js methods).
  */
 export async function clearAllEvents() {
   await exec(`DELETE FROM sm_events`);
@@ -322,21 +322,163 @@ export async function clearAllEvents() {
 
 /**
  * Get event statistics (counts by status).
+ * Reads from emailClassifications (pending) and auditLog (completed/failed).
  * @returns {Promise<Object>}
  */
 export async function getEventStats() {
   const { getDb } = await import("./store/db.js");
   await getDb();
 
-  const rows = await query(
-    `SELECT status, COUNT(*) as count FROM sm_events GROUP BY status`
-  );
-  const stats = { completed: 0, awaiting_user: 0, escalated: 0, failed: 0, total: 0 };
-  for (const r of rows) {
-    stats[r.status] = Number(r.count);
-    stats.total += Number(r.count);
-  }
+  // "awaiting_user" = number of pending items with category pointing to policy 'manual' (important/urgent)
+  // "escalated" = number of items where status='escalated'
+  // "completed" = number of auditLog success=true
+  // "failed" = number of auditLog success=false
+
+  const [pendingStats] = await query(`
+    SELECT 
+      COUNT(*) FILTER (WHERE status = 'pending' AND LOWER("group") IN (SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual')) as awaiting_user,
+      COUNT(*) FILTER (WHERE status = 'escalated') as escalated
+    FROM emailClassifications
+  `);
+
+  const [auditStats] = await query(`
+    SELECT
+      COUNT(*) FILTER (WHERE success = true) as completed,
+      COUNT(*) FILTER (WHERE success = false) as failed,
+      COUNT(*) as total_audit
+    FROM auditLog
+  `);
+
+  const stats = {
+    awaiting_user: Number(pendingStats?.awaiting_user || 0),
+    escalated: Number(pendingStats?.escalated || 0),
+    completed: Number(auditStats?.completed || 0),
+    failed: Number(auditStats?.failed || 0),
+  };
+  stats.total = stats.awaiting_user + stats.escalated + stats.completed + stats.failed;
+
   return stats;
+}
+
+// ── Approvals & Manual Execution (New Architecture) ─────────────────────────
+
+/**
+ * Get pending approvals.
+ * These are items in emailClassifications with status='pending'
+ * where the assigned category maps to a rule policy 'manual' (e.g., 'important' or 'urgent').
+ */
+export async function getPendingApprovals({ limit = 100 } = {}) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+
+  const rows = await query(`
+    SELECT 
+      c.emailId as id,
+      COALESCE(i.subject, c.subject) as subject,
+      COALESCE(i."from", c."from") as source_name,
+      i.body as content,
+      COALESCE(i.date, c.date) as timestamp,
+      c."group" as event_category,
+      c.action as event_type,
+      c.reason,
+      c.summary,
+      c.status
+    FROM emailClassifications c
+    LEFT JOIN items i ON c.emailId = i.id
+    WHERE c.status = 'pending'
+      AND LOWER(c."group") IN (
+        SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual'
+      )
+    ORDER BY COALESCE(i.date, c.date) DESC
+    LIMIT ?
+  `, [limit]);
+
+  return rows.map(r => ({
+    ...r,
+    sender: r.source_name, // fallback for UI
+    from: r.source_name,
+    actions_taken: [],
+    // synthesize a rule name based on category if needed
+    rule_name: `Manual Review: ${r.event_category}`,
+  }));
+}
+
+/**
+ * Get pending count for a category (for UI badge).
+ * @param {string} categoryName
+ * @returns {Promise<number>}
+ */
+export async function getPendingCountByCategory(categoryName) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  const rows = await query(
+    `SELECT COUNT(*) as n FROM emailClassifications
+     WHERE LOWER(TRIM("group")) = LOWER(TRIM(?)) AND status IN ('pending', 'escalated')`,
+    [categoryName],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * Get pending items (emailClassifications) for a given category.
+ * Used by Pipelines view to run the category pipeline on all pending events of that category.
+ *
+ * @param {string} categoryName — category name (e.g. "noise", "important")
+ * @param {{ limit?: number }} [opts]
+ * @returns {Promise<Array<{ id: string, emailId: string, subject: string, from: string, eventType: string, event_category: string, sourceType: string, status: string }>>}
+ */
+export async function getPendingItemsByCategory(categoryName, { limit = 500 } = {}) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+
+  const rows = await query(
+    `SELECT
+       c.emailId as id,
+       COALESCE(i.subject, c.subject) as subject,
+       COALESCE(i."from", c."from") as "from",
+       c.action as eventType,
+       c."group" as event_category,
+       c.status,
+       i.sourceType as sourceType
+     FROM emailClassifications c
+     LEFT JOIN items i ON c.emailId = i.id
+     WHERE LOWER(TRIM(c."group")) = LOWER(TRIM(?))
+       AND c.status IN ('pending', 'escalated')
+     ORDER BY COALESCE(i.date, c.date) DESC
+     LIMIT ?`,
+    [categoryName, limit],
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    emailId: r.id,
+    subject: r.subject ?? "",
+    from: r.from ?? "",
+    eventType: r.eventType ?? "UNKNOWN",
+    event_category: r.event_category ?? categoryName,
+    sourceType: r.sourceType ?? "gmail",
+    status: r.status ?? "pending",
+  }));
+}
+
+/**
+ * Approve a pending classification for execution.
+ * Marks it as 'approved'. The actual execution is typically handled 
+ * via ChatView / executePipeline with approved=true, but we can update state here.
+ */
+export async function approveClassification(id) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  await exec(`UPDATE emailClassifications SET status = 'approved' WHERE emailId = ?`, [id]);
+}
+
+/**
+ * Reject a pending classification (escalate).
+ */
+export async function rejectClassification(id) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  await exec(`UPDATE emailClassifications SET status = 'escalated' WHERE emailId = ?`, [id]);
 }
 
 // ── Matching: find rules for an event ──────────────────────────────────

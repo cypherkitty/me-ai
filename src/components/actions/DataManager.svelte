@@ -13,7 +13,7 @@
     clearClassificationsByAction,
     getClassificationsGrouped,
   } from "../../lib/triage.js";
-  import { clearAllEvents } from "../../lib/rules.js";
+  import { clearAuditLog } from "../../lib/store/audit.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { RefreshCw } from "lucide-svelte";
@@ -188,7 +188,7 @@
 
             <!-- DuckDB actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-events", label: "Clear audit trail", desc: "Delete all sm_events records (pipeline execution log).", action: () => run( () => clearAllEvents(), ) }, { key: "clear-duckdb", label: "Clear all DuckDB data", desc: "Reset pipelines, rules, events, emails and classifications from DuckDB.", action: () => run( () => clearAllDuckDbData(), ) }] as item}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-duckdb", label: "Clear all DuckDB data", desc: "Reset pipelines, rules, events, emails and classifications from DuckDB.", action: () => run( () => clearAllDuckDbData(), ) }] as item}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

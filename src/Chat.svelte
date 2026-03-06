@@ -237,8 +237,8 @@
               newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
               didIntercept = true;
 
-              // Asynchronously fetch and inject the dashboard
-              getClassificationsGrouped()
+              // Asynchronously fetch and inject the dashboard (pending only)
+              getClassificationsGrouped({ pendingOnly: true })
                 .then((grouped) => {
                   if (grouped.order.length > 0) {
                     buildGroupedEventsMessage(grouped).then((eventsMsg) => {
@@ -329,6 +329,20 @@
         } else {
           // Remove the dashboard if no more pending items
           messages = messages.filter((_, i) => i !== dashIdx);
+        }
+      }
+
+      // Refresh the last events-grouped message so handled events disappear from the list
+      const eventsGroupedIdx = messages.findLastIndex((m) => m.type === "events-grouped");
+      if (eventsGroupedIdx !== -1) {
+        const grouped = await getClassificationsGrouped({ pendingOnly: true });
+        if (grouped.order.length === 0) {
+          messages = messages.filter((_, i) => i !== eventsGroupedIdx);
+        } else {
+          const eventsMsg = await buildGroupedEventsMessage(grouped);
+          messages = messages.map((m, i) =>
+            i === eventsGroupedIdx ? eventsMsg : m,
+          );
         }
       }
 
@@ -718,14 +732,14 @@
     // 1. Instant Interceptor: Dashboard
     if (text.trim() === "[SHOW:DASHBOARD]") {
       try {
-        const grouped = await getClassificationsGrouped();
+        const grouped = await getClassificationsGrouped({ pendingOnly: true });
         if (!grouped.order.length) {
           messages = [
             ...messages,
             {
               role: "assistant",
               content:
-                "No classified emails yet. Run a scan first from the Actions page.",
+                "No pending classified emails. Run a scan first or all events are already handled.",
             },
           ];
         } else {
@@ -760,14 +774,14 @@
     if (text.trim().toLowerCase() === "/events") {
       messages = [...messages, { role: "user", content: text }];
       try {
-        const grouped = await getClassificationsGrouped();
+        const grouped = await getClassificationsGrouped({ pendingOnly: true });
         if (!grouped.order.length) {
           messages = [
             ...messages,
             {
               role: "assistant",
               content:
-                "No classified emails yet. Run a scan first from the Actions page.",
+                "No pending classified emails. Run a scan first or all events are already handled.",
             },
           ];
         } else {
