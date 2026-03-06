@@ -5,8 +5,8 @@
  * Each rule connects a trigger condition (EventType and/or EventCategory)
  * to an ordered list of Actions and an ExecutionPolicy.
  *
- * Triple notation: event_type : action(s) : execution_policy
- *   e.g. "ad:delete:auto" or "invoice:notify+forward:manual"
+ * Triple notation: event_type : action(s)
+ *   e.g. "ad:delete" or "invoice:notify+forward"
  */
 
 import { query, exec, toJson, fromJson } from "./store/db.js";
@@ -33,7 +33,6 @@ import { query, exec, toJson, fromJson } from "./store/db.js";
  * @property {number}   created_at  — unix ms
  * @property {Trigger[]} triggers
  * @property {Action[]} actions     — ordered plugin-bound action objects
- * @property {string}   policy      — 'auto' | 'supervised' | 'manual'
  */
 
 /**
@@ -61,7 +60,8 @@ export async function getSources() {
 
 export async function getExecutionPolicies() {
   await import("./store/db.js").then(m => m.getDb());
-  return query(`SELECT name, label, description FROM sm_execution_policies`);
+  /* DEPRECATED: execution policies are hardcoded to NOISE/CRITICAL groups */
+  return [];
 }
 
 export async function getActions() {
@@ -113,15 +113,11 @@ export async function getRules() {
        FROM sm_rule_commands
        WHERE rule_id = '${r.id}' ORDER BY order_idx`
     );
-    const policyRow = await query(
-      `SELECT policy_name FROM sm_rule_policies WHERE rule_id = '${r.id}'`
-    );
     return {
       ...r,
       enabled: Boolean(r.enabled),
       triggers,
       actions: actions,
-      policy: policyRow[0]?.policy_name ?? "auto",
     };
   }));
 }
@@ -152,15 +148,11 @@ export async function getRule(id) {
      FROM sm_rule_commands
      WHERE rule_id = '${id}' ORDER BY order_idx`
   );
-  const policyRow = await query(
-    `SELECT policy_name FROM sm_rule_policies WHERE rule_id = '${id}'`
-  );
   return {
     ...r,
     enabled: Boolean(r.enabled),
     triggers,
     actions: actions,
-    policy: policyRow[0]?.policy_name ?? "auto",
   };
 }
 
@@ -169,7 +161,7 @@ export async function getRule(id) {
  * @param {Omit<Rule, 'id'|'created_at'>} rule
  * @returns {Promise<string>} new rule ID
  */
-export async function createRule({ name, description, enabled, priority, triggers, actions, policy }) {
+export async function createRule({ name, description, enabled, priority, triggers, actions }) {
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = Date.now();
 
@@ -192,11 +184,6 @@ export async function createRule({ name, description, enabled, priority, trigger
       [id, a.id, a.pluginId, a.commandId, a.name, a.description, a.icon, i + 1]
     );
   }
-
-  await exec(
-    `INSERT INTO sm_rule_policies VALUES (?, ?)`,
-    [id, policy ?? "auto"]
-  );
 
   return id;
 }
@@ -236,11 +223,6 @@ export async function updateRule(id, updates) {
       );
     }
   }
-
-  if (updates.policy !== undefined) {
-    await exec(`DELETE FROM sm_rule_policies WHERE rule_id = ?`, [id]);
-    await exec(`INSERT INTO sm_rule_policies VALUES (?, ?)`, [id, updates.policy]);
-  }
 }
 
 /**
@@ -260,7 +242,6 @@ export async function deleteRule(id) {
   await exec(`DELETE FROM sm_rules WHERE id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_triggers WHERE rule_id = ?`, [id]);
   await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
-  await exec(`DELETE FROM sm_rule_policies WHERE rule_id = ?`, [id]);
 }
 
 // ── Event queries ──────────────────────────────────────────────────────
@@ -333,7 +314,7 @@ export async function updateEventStatus(id, status) {
 }
 
 /**
- * Delete all events from the audit trail.
+ * Delete all events from the audit trail (Deprecated, use audit.js methods).
  */
 export async function clearAllEvents() {
   await exec(`DELETE FROM sm_events`);
@@ -341,21 +322,163 @@ export async function clearAllEvents() {
 
 /**
  * Get event statistics (counts by status).
+ * Reads from emailClassifications (pending) and auditLog (completed/failed).
  * @returns {Promise<Object>}
  */
 export async function getEventStats() {
   const { getDb } = await import("./store/db.js");
   await getDb();
 
-  const rows = await query(
-    `SELECT status, COUNT(*) as count FROM sm_events GROUP BY status`
-  );
-  const stats = { completed: 0, awaiting_user: 0, escalated: 0, failed: 0, total: 0 };
-  for (const r of rows) {
-    stats[r.status] = Number(r.count);
-    stats.total += Number(r.count);
-  }
+  // "awaiting_user" = number of pending items with category pointing to policy 'manual' (important/urgent)
+  // "escalated" = number of items where status='escalated'
+  // "completed" = number of auditLog success=true
+  // "failed" = number of auditLog success=false
+
+  const [pendingStats] = await query(`
+    SELECT 
+      COUNT(*) FILTER (WHERE status = 'pending' AND LOWER("group") IN (SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual')) as awaiting_user,
+      COUNT(*) FILTER (WHERE status = 'escalated') as escalated
+    FROM emailClassifications
+  `);
+
+  const [auditStats] = await query(`
+    SELECT
+      COUNT(*) FILTER (WHERE success = true) as completed,
+      COUNT(*) FILTER (WHERE success = false) as failed,
+      COUNT(*) as total_audit
+    FROM auditLog
+  `);
+
+  const stats = {
+    awaiting_user: Number(pendingStats?.awaiting_user || 0),
+    escalated: Number(pendingStats?.escalated || 0),
+    completed: Number(auditStats?.completed || 0),
+    failed: Number(auditStats?.failed || 0),
+  };
+  stats.total = stats.awaiting_user + stats.escalated + stats.completed + stats.failed;
+
   return stats;
+}
+
+// ── Approvals & Manual Execution (New Architecture) ─────────────────────────
+
+/**
+ * Get pending approvals.
+ * These are items in emailClassifications with status='pending'
+ * where the assigned category maps to a rule policy 'manual' (e.g., 'important' or 'urgent').
+ */
+export async function getPendingApprovals({ limit = 100 } = {}) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+
+  const rows = await query(`
+    SELECT 
+      c.emailId as id,
+      COALESCE(i.subject, c.subject) as subject,
+      COALESCE(i."from", c."from") as source_name,
+      i.body as content,
+      COALESCE(i.date, c.date) as timestamp,
+      c."group" as event_category,
+      c.action as event_type,
+      c.reason,
+      c.summary,
+      c.status
+    FROM emailClassifications c
+    LEFT JOIN items i ON c.emailId = i.id
+    WHERE c.status = 'pending'
+      AND LOWER(c."group") IN (
+        SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual'
+      )
+    ORDER BY COALESCE(i.date, c.date) DESC
+    LIMIT ?
+  `, [limit]);
+
+  return rows.map(r => ({
+    ...r,
+    sender: r.source_name, // fallback for UI
+    from: r.source_name,
+    actions_taken: [],
+    // synthesize a rule name based on category if needed
+    rule_name: `Manual Review: ${r.event_category}`,
+  }));
+}
+
+/**
+ * Get pending count for a category (for UI badge).
+ * @param {string} categoryName
+ * @returns {Promise<number>}
+ */
+export async function getPendingCountByCategory(categoryName) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  const rows = await query(
+    `SELECT COUNT(*) as n FROM emailClassifications
+     WHERE LOWER(TRIM("group")) = LOWER(TRIM(?)) AND status IN ('pending', 'escalated')`,
+    [categoryName],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * Get pending items (emailClassifications) for a given category.
+ * Used by Pipelines view to run the category pipeline on all pending events of that category.
+ *
+ * @param {string} categoryName — category name (e.g. "noise", "important")
+ * @param {{ limit?: number }} [opts]
+ * @returns {Promise<Array<{ id: string, emailId: string, subject: string, from: string, eventType: string, event_category: string, sourceType: string, status: string }>>}
+ */
+export async function getPendingItemsByCategory(categoryName, { limit = 500 } = {}) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+
+  const rows = await query(
+    `SELECT
+       c.emailId as id,
+       COALESCE(i.subject, c.subject) as subject,
+       COALESCE(i."from", c."from") as "from",
+       c.action as eventType,
+       c."group" as event_category,
+       c.status,
+       i.sourceType as sourceType
+     FROM emailClassifications c
+     LEFT JOIN items i ON c.emailId = i.id
+     WHERE LOWER(TRIM(c."group")) = LOWER(TRIM(?))
+       AND c.status IN ('pending', 'escalated')
+     ORDER BY COALESCE(i.date, c.date) DESC
+     LIMIT ?`,
+    [categoryName, limit],
+  );
+
+  return rows.map((r) => ({
+    id: r.id,
+    emailId: r.id,
+    subject: r.subject ?? "",
+    from: r.from ?? "",
+    eventType: r.eventType ?? "UNKNOWN",
+    event_category: r.event_category ?? categoryName,
+    sourceType: r.sourceType ?? "gmail",
+    status: r.status ?? "pending",
+  }));
+}
+
+/**
+ * Approve a pending classification for execution.
+ * Marks it as 'approved'. The actual execution is typically handled 
+ * via ChatView / executePipeline with approved=true, but we can update state here.
+ */
+export async function approveClassification(id) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  await exec(`UPDATE emailClassifications SET status = 'approved' WHERE emailId = ?`, [id]);
+}
+
+/**
+ * Reject a pending classification (escalate).
+ */
+export async function rejectClassification(id) {
+  const { getDb } = await import("./store/db.js");
+  await getDb();
+  await exec(`UPDATE emailClassifications SET status = 'escalated' WHERE emailId = ?`, [id]);
 }
 
 // ── Matching: find rules for an event ──────────────────────────────────
@@ -383,6 +506,158 @@ export async function findMatchingRules(eventType, eventCategory) {
       return typeMatch && catMatch;
     })
     .sort((a, b) => b.priority - a.priority);
+}
+
+// ── Category-based pipeline resolution ─────────────────────────────────
+
+/**
+ * Get the pipeline for an event type using the category-based model.
+ *
+ * Resolution order:
+ * 1. Check sm_type_pipeline for a per-type override
+ * 2. Look up the event type's category from sm_event_types
+ * 3. Use sm_category_pipeline for the category's default pipeline
+ *
+ * @param {string} eventType — UPPER_SNAKE_CASE event type name
+ * @returns {Promise<{ actions: Array<{pluginId: string, commandId: string, order: number}>, policy: string, category: string }>}
+ */
+export async function getPipelineForEvent(eventType) {
+  const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
+
+  // 1. Check for per-type override
+  const typeOverride = await query(`
+    SELECT plugin_id, command_id, action_idx
+    FROM sm_type_pipeline
+    WHERE type_name = ?
+    ORDER BY action_idx
+  `, [normalized]);
+
+  // 2. Look up the event type's category
+  const typeRow = await query(`
+    SELECT category_name FROM sm_event_types WHERE UPPER(name) = ?
+  `, [normalized]);
+  const category = typeRow?.[0]?.category_name || "important";
+
+  // 3. Get category policy
+  const catRow = await query(`
+    SELECT policy FROM sm_event_categories WHERE name = ?
+  `, [category]);
+  const policy = catRow?.[0]?.policy || "manual";
+
+  if (typeOverride?.length > 0) {
+    return {
+      actions: typeOverride.map(r => ({
+        pluginId: r.plugin_id,
+        commandId: r.command_id,
+        order: r.action_idx,
+      })),
+      policy,
+      category,
+      isOverride: true,
+    };
+  }
+
+  // 4. Fall back to category default pipeline
+  const catPipeline = await query(`
+    SELECT plugin_id, command_id, action_idx
+    FROM sm_category_pipeline
+    WHERE category_name = ?
+    ORDER BY action_idx
+  `, [category]);
+
+  return {
+    actions: (catPipeline || []).map(r => ({
+      pluginId: r.plugin_id,
+      commandId: r.command_id,
+      order: r.action_idx,
+    })),
+    policy,
+    category,
+    isOverride: false,
+  };
+}
+
+/**
+ * Get all category pipelines for display in the UI.
+ * @returns {Promise<Array<{category: string, label: string, priority: number, policy: string, actions: Array}>>}
+ */
+export async function getCategoryPipelines() {
+  const categories = await query(`
+    SELECT name, label, priority, policy FROM sm_event_categories ORDER BY priority
+  `);
+
+  const pipelines = await query(`
+    SELECT category_name, plugin_id, command_id, action_idx
+    FROM sm_category_pipeline
+    ORDER BY category_name, action_idx
+  `);
+
+  const types = await query(`
+    SELECT name, label, category_name, auto_created FROM sm_event_types ORDER BY name
+  `);
+
+  return (categories || []).map(cat => ({
+    category: cat.name,
+    label: cat.label,
+    priority: cat.priority,
+    policy: cat.policy,
+    actions: (pipelines || [])
+      .filter(p => p.category_name === cat.name)
+      .map(p => ({ pluginId: p.plugin_id, commandId: p.command_id, order: p.action_idx })),
+    eventTypes: (types || [])
+      .filter(t => t.category_name === cat.name)
+      .map(t => ({ name: t.name, label: t.label, autoCreated: t.auto_created })),
+  }));
+}
+
+/**
+ * Update a category's default pipeline (replaces all actions).
+ * @param {string} categoryName
+ * @param {Array<{pluginId: string, commandId: string}>} actions — ordered
+ */
+export async function updateCategoryPipeline(categoryName, actions) {
+  await query(`DELETE FROM sm_category_pipeline WHERE category_name = ?`, [categoryName]);
+  for (let i = 0; i < actions.length; i++) {
+    await query(`
+      INSERT INTO sm_category_pipeline (category_name, action_idx, plugin_id, command_id)
+      VALUES (?, ?, ?, ?)
+    `, [categoryName, i, actions[i].pluginId, actions[i].commandId]);
+  }
+}
+
+/**
+ * Update a category's execution policy.
+ * @param {string} categoryName
+ * @param {string} policy — auto | supervised | manual
+ */
+export async function updateCategoryPolicy(categoryName, policy) {
+  await query(`UPDATE sm_event_categories SET policy = ? WHERE name = ?`, [policy, categoryName]);
+}
+
+/**
+ * Move an event type to a different category.
+ * @param {string} eventTypeName
+ * @param {string} newCategory
+ */
+export async function moveEventTypeToCategory(eventTypeName, newCategory) {
+  await query(`UPDATE sm_event_types SET category_name = ? WHERE name = ?`, [newCategory, eventTypeName]);
+}
+
+/**
+ * Remove an event type's category assignment (set to NULL).
+ * @param {string} eventTypeName
+ */
+export async function unassignEventTypeFromCategory(eventTypeName) {
+  await query(`UPDATE sm_event_types SET category_name = NULL WHERE name = ?`, [eventTypeName]);
+}
+
+/**
+ * Delete an event type completely from the system.
+ * @param {string} eventTypeName
+ */
+export async function deleteEventType(eventTypeName) {
+  await query(`DELETE FROM sm_type_pipeline WHERE type_name = ?`, [eventTypeName]);
+  await query(`DELETE FROM sm_event_types WHERE name = ?`, [eventTypeName]);
 }
 
 // ── Source management ──────────────────────────────────────────────────
@@ -442,7 +717,6 @@ export async function seedRuleForEventType(eventType, policy, actions) {
       name: a.name || a.commandId || "",
       description: a.description || "",
       icon: a.icon,
-    })),
-    policy: policy || "supervised",
+    }))
   });
 }

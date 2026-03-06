@@ -4,6 +4,7 @@
    */
 
   import { cn } from "$lib/utils.js";
+  import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
   let { msg } = $props();
 
@@ -128,7 +129,8 @@
     {/if}
 
     {#if msg.steps?.length > 0}
-      <div class="border-t border-border">
+      <ScrollArea class="border-t border-border h-[min(320px,50vh)]">
+        <div class="pr-2">
         {#each msg.steps as step (step.id)}
           {@const isExpanded = expandedSteps.has(step.id)}
           {@const hasBody = step.expandable && (step.subContent || step.thumbnail || step.badges?.length)}
@@ -223,7 +225,8 @@
             {/if}
           </div>
         {/each}
-      </div>
+        </div>
+      </ScrollArea>
     {/if}
   {/if}
 </div>

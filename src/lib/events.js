@@ -37,38 +37,47 @@
 
 /**
  * Event group definitions with their execution policies.
- * NOISE    — auto-execute pipeline without user interaction
- * INFO     — show to user; execute on demand
- * CRITICAL — require explicit user approval before any action runs
+ * NOISE         — auto-execute pipeline without user interaction
+ * INFORMATIONAL — execute then notify (supervised)
+ * IMPORTANT     — require explicit user approval
+ * URGENT        — require explicit user approval (highest priority)
  */
 export const EVENT_GROUPS = {
   NOISE: {
     id: "NOISE",
     label: "Noise",
-    description: "Unimportant emails that can be safely deleted or archived automatically.",
+    description: "Unimportant messages that can be safely deleted automatically.",
     autoExecute: true,
     requiresApproval: false,
     color: "#6b7280",  // gray
   },
-  INFO: {
-    id: "INFO",
-    label: "Info",
-    description: "Informational emails to review. Actions run on user request.",
-    autoExecute: false,
+  INFORMATIONAL: {
+    id: "INFORMATIONAL",
+    label: "Informational",
+    description: "Useful but not urgent — will be silently archived.",
+    autoExecute: true,
     requiresApproval: false,
     color: "#3b82f6",  // blue
   },
-  CRITICAL: {
-    id: "CRITICAL",
-    label: "Critical",
-    description: "High-stakes emails that change state. User must approve before any action runs.",
+  IMPORTANT: {
+    id: "IMPORTANT",
+    label: "Important",
+    description: "Requires attention. User must review before any action runs.",
     autoExecute: false,
     requiresApproval: true,
-    color: "#f59e0b",  // amber
+    color: "#d97706",  // amber
+  },
+  URGENT: {
+    id: "URGENT",
+    label: "Urgent",
+    description: "Needs immediate action. Highest priority.",
+    autoExecute: false,
+    requiresApproval: true,
+    color: "#ef4444",  // red
   },
 };
 
-export const DEFAULT_GROUP = "INFO";
+export const DEFAULT_GROUP = "IMPORTANT";
 
 // ── EventCategory ─────────────────────────────────────────────────────
 
@@ -77,30 +86,39 @@ export const DEFAULT_GROUP = "INFO";
  * Maps to the sm_event_categories table.
  */
 export const EVENT_CATEGORIES = {
-  noise:         { name: "noise",         label: "Noise",         priority: 1, color: "#4b5563" },
-  informational: { name: "informational", label: "Informational", priority: 2, color: "#3b82f6" },
-  important:     { name: "important",     label: "Important",     priority: 3, color: "#d97706" },
-  urgent:        { name: "urgent",        label: "Urgent",        priority: 4, color: "#dc2626" },
+  noise: { name: "noise", label: "Noise", priority: 1, color: "#4b5563", policy: "auto" },
+  informational: { name: "informational", label: "Informational", priority: 2, color: "#3b82f6", policy: "supervised" },
+  important: { name: "important", label: "Important", priority: 3, color: "#d97706", policy: "manual" },
+  urgent: { name: "urgent", label: "Urgent", priority: 4, color: "#ef4444", policy: "manual" },
 };
 
 /**
  * Execution policies.
  */
 export const EXECUTION_POLICIES = {
-  auto:       { name: "auto",       label: "Auto",       description: "Executes without user input",    color: "#10b981" },
-  supervised: { name: "supervised", label: "Supervised", description: "Executes then notifies user",   color: "#f59e0b" },
-  manual:     { name: "manual",     label: "Manual",     description: "Waits for user approval",        color: "#6366f1" },
+  auto: { name: "auto", label: "Auto", description: "Executes without user input", color: "#10b981" },
+  supervised: { name: "supervised", label: "Supervised", description: "Executes then notifies user", color: "#f59e0b" },
+  manual: { name: "manual", label: "Manual", description: "Waits for user approval", color: "#6366f1" },
 };
 
 /**
+ * Map category name → ExecutionPolicy name.
+ * @param {string} category — noise | informational | important | urgent
+ * @returns {string} policy name
+ */
+export function categoryToPolicy(category) {
+  return EVENT_CATEGORIES[category]?.policy || "manual";
+}
+
+/**
  * Map legacy event group → ExecutionPolicy name.
- * @param {string} group — NOISE | INFO | CRITICAL
+ * @param {string} group — NOISE | INFORMATIONAL | IMPORTANT | URGENT
  * @returns {string} policy name
  */
 export function groupToPolicy(group) {
-  if (group === "NOISE")    return "auto";
-  if (group === "CRITICAL") return "manual";
-  return "supervised"; // INFO
+  if (group === "NOISE") return "auto";
+  if (group === "INFORMATIONAL") return "supervised";
+  return "manual";
 }
 
 /**
@@ -109,9 +127,9 @@ export function groupToPolicy(group) {
  * @returns {string} group
  */
 export function policyToGroup(policy) {
-  if (policy === "auto")   return "NOISE";
-  if (policy === "manual") return "CRITICAL";
-  return "INFO";
+  if (policy === "auto") return "NOISE";
+  if (policy === "supervised") return "INFORMATIONAL";
+  return "IMPORTANT";
 }
 
 /**
@@ -120,9 +138,11 @@ export function policyToGroup(policy) {
  * @returns {string} category name
  */
 export function groupToCategory(group) {
-  if (group === "NOISE")    return "noise";
-  if (group === "CRITICAL") return "important";
-  return "informational";
+  const g = (group || "").toUpperCase();
+  if (g === "NOISE") return "noise";
+  if (g === "INFORMATIONAL") return "informational";
+  if (g === "URGENT") return "urgent";
+  return "important";
 }
 
 const STORAGE_KEY = "me-ai-events";
@@ -159,7 +179,7 @@ async function saveGroupsMap(map) {
 async function getEventTypesFromDB() {
   try {
     const { query } = await import("./store/db.js");
-    const rows  = await query(`SELECT DISTINCT action FROM emailClassifications WHERE action IS NOT NULL`);
+    const rows = await query(`SELECT DISTINCT action FROM emailClassifications WHERE action IS NOT NULL`);
     return rows.map(r => r.action).filter(Boolean).sort();
   } catch {
     return [];
@@ -224,15 +244,34 @@ export async function getExecutionPolicy(eventType) {
 }
 
 /**
- * Get the action pipeline for a user-defined event.
- * Returns [] if the event doesn't exist — no hardcoded fallbacks.
+ * Get the action pipeline for an event type.
+ * Uses user overrides (per-type pipeline) when present; otherwise falls back
+ * to the category-based pipeline (e.g. NOISE → trash) so chat and Event Stream
+ * show and run the same pipeline.
  * @param {string} eventType
  * @returns {Promise<Action[]>}
  */
 export async function getActionsForEvent(eventType) {
-  const normalized = eventType?.toUpperCase?.() || "";
+  const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
+  if (!normalized) return [];
+
   const map = await loadUserMap();
-  return map[normalized] || [];
+  const userActions = map[normalized];
+  // User has explicit pipeline (non-empty array) — use it
+  if (Array.isArray(userActions) && userActions.length > 0) return userActions;
+
+  // No override or empty (e.g. LLM-seeded type): use category pipeline for display + execution
+  const { getPipelineForEvent } = await import("./rules.js");
+  const pipeline = await getPipelineForEvent(eventType);
+  if (!pipeline?.actions?.length) return [];
+
+  return pipeline.actions.map((a, i) => ({
+    id: (a.commandId || "cmd") + "_" + i,
+    pluginId: a.pluginId ?? "",
+    commandId: a.commandId ?? "",
+    name: (a.commandId ?? "").replace(/_/g, " "),
+    description: "",
+  }));
 }
 
 // Alias for backward compatibility
@@ -270,59 +309,56 @@ export async function addEventType(eventType) {
 }
 
 /**
- * Seed an event type from LLM suggestions if no pipeline is defined yet.
- * Called automatically when the LLM classifies an email for a new event type.
- * Does not overwrite user-defined pipelines.
+ * Seed an event type from LLM classification.
+ * Under the new category-based model, the LLM assigns a category to the event
+ * type, and the category's default pipeline applies automatically.
+ * No per-type pipeline is created — override pipelines are user-defined only.
  *
  * @param {string} eventType
- * @param {EventGroup} group        — LLM-suggested group
- * @param {string[]} suggestedActionIds — LLM-suggested action IDs (e.g. ["trash", "mark_read"])
+ * @param {string} category — noise | informational | important | urgent
+ * @param {string[]} [suggestedActionIds] — Ignored (kept for API compat)
  */
-export async function seedEventTypeFromLLM(eventType, group, suggestedActionIds) {
+export async function seedEventTypeFromLLM(eventType, category, suggestedActionIds) {
   const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
   if (!normalized) return;
 
-  const map = await loadUserMap();
+  // Map legacy group values to category
+  const validCategories = ["noise", "informational", "important", "urgent"];
+  let cat = (category || "").toLowerCase();
+  if (!validCategories.includes(cat)) {
+    // Legacy compat: map old group names
+    if (cat === "noise" || category === "NOISE") cat = "noise";
+    else if (cat === "critical" || category === "CRITICAL" || category === "IMPORTANT") cat = "important";
+    else cat = "important";
+  }
+
   const groupsMap = await loadGroupsMap();
 
-  // Only set group if not already user-defined
+  // Only set group if not already user-defined (backward compat with legacy localStorage)
   if (!(normalized in groupsMap)) {
-    const validGroup = EVENT_GROUPS[group] ? group : DEFAULT_GROUP;
+    const validGroup = EVENT_GROUPS[cat.toUpperCase()] ? cat.toUpperCase() : DEFAULT_GROUP;
     groupsMap[normalized] = validGroup;
     await saveGroupsMap(groupsMap);
   }
 
-  // Only seed pipeline if not already user-defined
+  // Persist event type in DB with category assignment
+  try {
+    const { query } = await import("./store/db.js");
+    // Use INSERT OR IGNORE — don't overwrite existing types (user may have changed category)
+    await query(`
+      INSERT INTO sm_event_types (name, label, category_name, auto_created)
+      VALUES ('${normalized}', '${normalized.replace(/_/g, " ")}', '${cat}', true)
+      ON CONFLICT (name) DO NOTHING
+    `);
+  } catch (e) {
+    console.warn("[events] Failed to persist event type in DB:", normalized, e?.message ?? e);
+  }
+
+  // Also maintain the legacy localStorage map for backward compat
+  const map = await loadUserMap();
   if (!(normalized in map)) {
-    // Map action IDs to Action objects using the worker registry metadata
-    const { pluginRegistry } = await import("./plugins/plugin-registry.js");
-    const available = pluginRegistry.getAvailableActions("gmail");
-    const actionMap = Object.fromEntries(available.map(a => [a.actionId, a]));
-
-    const pipeline = (suggestedActionIds || [])
-      .filter(id => actionMap[id])
-      .map(id => ({
-        id,
-        pluginId: "gmail",
-        commandId: id,
-        name: actionMap[id].name,
-        description: actionMap[id].description,
-      }));
-
-    map[normalized] = pipeline;
+    map[normalized] = []; // empty pipeline — category carries the actual pipeline
     await saveUserMap(map);
-
-    // Bridge: also create a matching rule in the rules pipeline system so that
-    // execution-service.js (which uses findMatchingRules) can run this pipeline.
-    if (pipeline.length > 0) {
-      try {
-        const { seedRuleForEventType } = await import("./rules.js");
-        const validGroup = groupsMap[normalized] || DEFAULT_GROUP;
-        await seedRuleForEventType(normalized, groupToPolicy(validGroup), pipeline);
-      } catch (e) {
-        console.warn("[events] Failed to bridge rule for event type:", normalized, e?.message ?? e);
-      }
-    }
   }
 }
 

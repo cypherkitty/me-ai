@@ -14,7 +14,7 @@
  *   "contacts"  — contact rows (keyed by email)
  */
 
-const DB_NAME    = "me-ai-store";
+const DB_NAME = "me-ai-store";
 const DB_VERSION = 1;
 
 /** @type {IDBDatabase | null} */
@@ -22,7 +22,7 @@ let _idb = null;
 
 function openIdb() {
   if (_idb) return Promise.resolve(_idb);
-  return new Promise((resolve, reject) => {
+  const idbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
@@ -33,19 +33,31 @@ function openIdb() {
       if (!db.objectStoreNames.contains("contacts"))
         db.createObjectStore("contacts", { keyPath: "email" });
     };
-    req.onsuccess  = (e) => { _idb = e.target.result; resolve(_idb); };
-    req.onerror    = ()  => reject(req.error);
+    req.onsuccess = (e) => { _idb = e.target.result; resolve(_idb); };
+    req.onerror = () => reject(req.error);
   });
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("IndexedDB open timed out after 5 s")), 5000)
+  );
+  return Promise.race([idbPromise, timeout]);
+}
+
+/** Close the cached IDB connection so deleteDatabase is not blocked. */
+export function closeIdb() {
+  if (_idb) {
+    try { _idb.close(); } catch { }
+    _idb = null;
+  }
 }
 
 function tx(storeName, mode, fn) {
   return openIdb().then(db => new Promise((resolve, reject) => {
-    const t     = db.transaction(storeName, mode);
+    const t = db.transaction(storeName, mode);
     const store = t.objectStore(storeName);
-    const req   = fn(store);
+    const req = fn(store);
     t.oncomplete = () => resolve(req?.result);
-    t.onerror    = () => reject(t.error);
-    t.onabort    = () => reject(t.error);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
   }));
 }
 
@@ -60,8 +72,8 @@ export async function idbPutItems(items) {
     const s = t.objectStore("items");
     for (const item of items) s.put(item);
     t.oncomplete = resolve;
-    t.onerror    = () => reject(t.error);
-    t.onabort    = () => reject(t.error);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
   });
 }
 
@@ -74,8 +86,8 @@ export async function idbDeleteItems(ids) {
     const s = t.objectStore("items");
     for (const id of ids) s.delete(id);
     t.oncomplete = resolve;
-    t.onerror    = () => reject(t.error);
-    t.onabort    = () => reject(t.error);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
   });
 }
 
@@ -119,11 +131,34 @@ export async function idbPutContacts(contacts) {
     const s = t.objectStore("contacts");
     for (const c of contacts) s.put(c);
     t.oncomplete = resolve;
-    t.onerror    = () => reject(t.error);
-    t.onabort    = () => reject(t.error);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
   });
 }
 
 export function idbGetAllContacts() {
   return tx("contacts", "readonly", s => s.getAll());
 }
+
+/** Delete all contacts. */
+export function idbClearAllContacts() {
+  return tx("contacts", "readwrite", s => s.clear());
+}
+
+/**
+ * Wipe every store — items, syncState, contacts.
+ * Called when the user resets all local data.
+ */
+export async function idbWipeAll() {
+  const db = await openIdb();
+  await new Promise((resolve, reject) => {
+    const t = db.transaction(["items", "syncState", "contacts"], "readwrite");
+    t.objectStore("items").clear();
+    t.objectStore("syncState").clear();
+    t.objectStore("contacts").clear();
+    t.oncomplete = resolve;
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error);
+  });
+}
+

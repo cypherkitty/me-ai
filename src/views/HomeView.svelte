@@ -1,44 +1,77 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getSavedToken, isTokenValid } from "../lib/google-auth.js";
-  import { getSetting } from "../lib/store/settings.js";
+  import { getSavedTwitterToken } from "../lib/twitter-auth.js";
   import { getEventStats } from "../lib/rules.js";
   import { getClassificationCounts } from "../lib/triage.js";
   import { getGmailSyncStatus } from "../lib/store/gmail-sync.js";
+  import { getTwitterSyncStatus } from "../lib/store/twitter-sync.js";
+  import { getUnifiedEngine } from "../lib/unified-engine.js";
   import Chat from "../Chat.svelte";
-  import { GitBranch, CheckCircle2, Zap, ScanSearch, Mail, ArrowRight, ShieldCheck } from "lucide-svelte";
+  import {
+    GitBranch,
+    CheckCircle2,
+    Zap,
+    ScanSearch,
+    Mail,
+    ShieldCheck,
+  } from "lucide-svelte";
 
-  interface SyncStatus { synced: boolean; totalItems: number; lastSyncAt: number | null; hasMore: boolean; }
+  interface SyncStatus {
+    synced: boolean;
+    totalItems: number;
+    lastSyncAt: number | null;
+    hasMore: boolean;
+  }
 
   let gmailConnected = $state(false);
-  let gmailEmail     = $state<string | null>(null);
-  let emailCount     = $state(0);
-  let scannedCount   = $state(0);
-  let pipelineCount  = $state(0);
-  let checking       = $state(true);
+  let emailCount = $state(0);
+  let scannedCount = $state(0);
+  let pipelineCount = $state(0);
+  let checking = $state(true);
+
+  // Reactively track engine readiness
+  const engine = getUnifiedEngine();
+  let engineReady = $state(engine.isReady);
+  $effect(() => {
+    const unsub = engine.onMessage((msg: { status: string }) => {
+      if (msg.status === "ready") engineReady = true;
+    });
+    return unsub;
+  });
 
   onMount(async () => {
     try {
       const token = await getSavedToken();
       if (token && isTokenValid()) {
-        const profile = await getSetting("gmail-profile") as { emailAddress?: string } | null;
-        gmailEmail    = profile?.emailAddress ?? "Gmail";
         gmailConnected = true;
       }
     } catch {}
 
     try {
-      const status = await getGmailSyncStatus() as SyncStatus;
+      const status = (await getGmailSyncStatus()) as SyncStatus;
       emailCount = status.totalItems ?? 0;
     } catch {}
 
+    // Also count Twitter items
     try {
-      const counts = await getClassificationCounts() as { total?: number };
+      const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
+      emailCount += twStatus.totalItems ?? 0;
+    } catch {}
+
+    // Check if Twitter is connected
+    try {
+      const twToken = await getSavedTwitterToken();
+      if (twToken) gmailConnected = true; // reuse flag — means "any source connected"
+    } catch {}
+
+    try {
+      const counts = (await getClassificationCounts()) as { total?: number };
       scannedCount = counts.total ?? 0;
     } catch {}
 
     try {
-      const stats = await getEventStats() as { total?: number };
+      const stats = (await getEventStats()) as { total?: number };
       pipelineCount = stats.total ?? 0;
     } catch {}
 
@@ -46,156 +79,224 @@
   });
 
   // Step states: idle | active | done
-  const s1 = $derived(gmailConnected ? (emailCount > 0 ? 'done' : 'active') : 'idle');
-  const s2 = $derived(emailCount > 0 ? (scannedCount > 0 ? 'done' : 'active') : 'idle');
-  const s3 = $derived(scannedCount > 0 ? (pipelineCount > 0 ? 'done' : 'active') : 'idle');
+  const s1 = $derived(
+    gmailConnected ? (emailCount > 0 ? "done" : "active") : "idle",
+  );
+  // Scan requires emails AND AI backend to be loaded
+  const s2 = $derived(
+    emailCount > 0 && engineReady
+      ? scannedCount > 0
+        ? "done"
+        : "active"
+      : "idle",
+  );
+  const s2Blocked = $derived(emailCount > 0 && !engineReady); // has emails but no AI
+  const s3 = $derived(
+    scannedCount > 0 ? (pipelineCount > 0 ? "done" : "active") : "idle",
+  );
 </script>
 
 <div class="flex flex-col h-full overflow-hidden">
-
   <!-- ── Top bar: brand ────────────────────────────────────────── -->
-  <div class="flex items-center gap-2 px-4 h-11 shrink-0 border-b border-border bg-sidebar">
-    <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
+  <div
+    class="flex items-center gap-2 px-4 h-11 shrink-0 border-b border-border bg-sidebar"
+  >
+    <div
+      class="size-6 rounded bg-primary flex items-center justify-center shrink-0"
+    >
       <Zap class="size-3.5 text-primary-foreground" />
     </div>
-    <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
-    <div class="flex-1"></div>
-    <a href="#admin"
-      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-muted-foreground/50
-             hover:text-muted-foreground hover:bg-sidebar-accent/60 transition-colors no-underline"
-      title="Admin dashboard"
+    <span class="text-sm font-semibold tracking-tight text-foreground"
+      >me-ai</span
     >
-      <ShieldCheck class="size-3.5" />
-      <span class="tracking-tight">Admin</span>
-    </a>
   </div>
 
-  <!-- ── Workflow strip ────────────────────────────────────────── -->
-  <div class="shrink-0 border-b border-border bg-sidebar/60 px-6 py-4">
+  <!-- ── Compact Stepper Workflow ────────────────────────────────── -->
+  <div
+    class="shrink-0 border-b border-border bg-card/40 backdrop-blur-sm px-6 py-2.5"
+  >
     {#if checking}
       <!-- Skeleton -->
-      <div class="flex items-center gap-3">
-        {#each [1,2,3] as _}
-          <div class="flex-1 h-16 rounded-xl bg-muted/40 animate-pulse"></div>
-          {#if _ < 3}<div class="size-5 rounded-full bg-muted/30 animate-pulse shrink-0"></div>{/if}
-        {/each}
+      <div class="flex items-center justify-center gap-4 animate-pulse h-10">
+        <div class="h-8 w-32 bg-muted/40 rounded-full"></div>
+        <div class="h-px w-8 bg-muted/40"></div>
+        <div class="h-8 w-32 bg-muted/40 rounded-full"></div>
+        <div class="h-px w-8 bg-muted/40"></div>
+        <div class="h-8 w-32 bg-muted/40 rounded-full"></div>
       </div>
     {:else}
-      <div class="flex items-stretch gap-2">
-
-        <!-- ── Step 1: Sources ───────────────────────────────── -->
-        <a href="#sources" class="
-          group flex-1 flex flex-col gap-2 px-4 py-3 rounded-xl border no-underline transition-all duration-200
-          {s1 === 'done'   ? 'border-success/30 bg-success/5 hover:bg-success/8'
-          : s1 === 'active' ? 'border-primary/40 bg-primary/5 hover:bg-primary/8 ring-1 ring-primary/20'
-          :                   'border-border/50 bg-muted/20 hover:bg-muted/30 opacity-70'}
-        ">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="size-5 rounded-full flex items-center justify-center text-[0.6rem] font-bold shrink-0
-                {s1 === 'done' ? 'bg-success text-white' : s1 === 'active' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-                {#if s1 === 'done'}<CheckCircle2 class="size-3" />{:else}1{/if}
+      <div class="flex items-center justify-center gap-0">
+        <nav aria-label="Progress" class="flex items-center">
+          <!-- ── Step 1: Sources ───────────────────────────────── -->
+          <a
+            href="#sources"
+            class="relative flex items-center group no-underline"
+          >
+            <div
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s1 ===
+              'done'
+                ? 'bg-success/10 hover:bg-success/20 text-success'
+                : s1 === 'active'
+                  ? 'bg-primary/10 hover:bg-primary/20 text-primary ring-1 ring-primary/30 shadow-sm'
+                  : 'hover:bg-muted/50 text-muted-foreground'}"
+            >
+              <div
+                class="flex items-center justify-center size-5 rounded-full shrink-0 transition-colors {s1 ===
+                'done'
+                  ? 'bg-success text-success-foreground'
+                  : s1 === 'active'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted-foreground/20 text-muted-foreground'}"
+              >
+                {#if s1 === "done"}<CheckCircle2 class="size-3" />{:else}<Mail
+                    class="size-3"
+                  />{/if}
               </div>
-              <span class="text-xs font-semibold tracking-tight
-                {s1 === 'done' ? 'text-success' : s1 === 'active' ? 'text-foreground' : 'text-muted-foreground'}">
-                Sources
-              </span>
-            </div>
-            <Mail class="size-3.5 {s1 === 'done' ? 'text-success/60' : s1 === 'active' ? 'text-primary/60' : 'text-muted-foreground/30'}" />
-          </div>
-          <div class="flex flex-col gap-0.5">
-            {#if s1 === 'done'}
-              <span class="text-[0.7rem] font-medium text-success/80 truncate">{gmailEmail}</span>
-              <span class="text-[0.65rem] text-muted-foreground/50">{emailCount.toLocaleString()} emails synced</span>
-            {:else if s1 === 'active'}
-              <span class="text-[0.7rem] text-foreground/70">Connected — sync emails</span>
-              <span class="text-[0.65rem] text-primary/50">Click to download →</span>
-            {:else}
-              <span class="text-[0.7rem] text-muted-foreground/50">Connect Gmail or other sources</span>
-              <span class="text-[0.65rem] text-muted-foreground/30">Start here</span>
-            {/if}
-          </div>
-        </a>
-
-        <!-- Connector -->
-        <div class="flex items-center shrink-0 self-center">
-          <ArrowRight class="size-4 {s2 !== 'idle' ? 'text-muted-foreground/50' : 'text-muted-foreground/20'}" />
-        </div>
-
-        <!-- ── Step 2: Scan ──────────────────────────────────── -->
-        <a href="#scan" class="
-          group flex-1 flex flex-col gap-2 px-4 py-3 rounded-xl border no-underline transition-all duration-200
-          {s2 === 'done'   ? 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/8'
-          : s2 === 'active' ? 'border-primary/40 bg-primary/5 hover:bg-primary/8 ring-1 ring-primary/20'
-          :                   'border-border/50 bg-muted/20 hover:bg-muted/30 opacity-40 pointer-events-none'}
-        ">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="size-5 rounded-full flex items-center justify-center text-[0.6rem] font-bold shrink-0
-                {s2 === 'done' ? 'bg-amber-500 text-white' : s2 === 'active' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-                {#if s2 === 'done'}<CheckCircle2 class="size-3" />{:else}2{/if}
+              <div class="flex flex-col">
+                <span
+                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Sources</span
+                >
+                {#if s1 === "done"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{emailCount.toLocaleString()} emails</span
+                  >
+                {:else if s1 === "active"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >Sync needed</span
+                  >
+                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
+                    >Start here</span
+                  >{/if}
               </div>
-              <span class="text-xs font-semibold tracking-tight
-                {s2 === 'done' ? 'text-amber-400' : s2 === 'active' ? 'text-foreground' : 'text-muted-foreground'}">
-                Scan
-              </span>
             </div>
-            <ScanSearch class="size-3.5 {s2 === 'done' ? 'text-amber-400/60' : s2 === 'active' ? 'text-primary/60' : 'text-muted-foreground/30'}" />
-          </div>
-          <div class="flex flex-col gap-0.5">
-            {#if s2 === 'done'}
-              <span class="text-[0.7rem] font-medium text-amber-400/80">{scannedCount.toLocaleString()} classified</span>
-              <span class="text-[0.65rem] text-muted-foreground/50">AI has processed your emails</span>
-            {:else if s2 === 'active'}
-              <span class="text-[0.7rem] text-foreground/70">{emailCount.toLocaleString()} emails ready</span>
-              <span class="text-[0.65rem] text-primary/50">Run AI classifier →</span>
-            {:else}
-              <span class="text-[0.7rem] text-muted-foreground/50">AI classifies your emails</span>
-              <span class="text-[0.65rem] text-muted-foreground/30">After sources</span>
-            {/if}
-          </div>
-        </a>
+          </a>
 
-        <!-- Connector -->
-        <div class="flex items-center shrink-0 self-center">
-          <ArrowRight class="size-4 {s3 !== 'idle' ? 'text-muted-foreground/50' : 'text-muted-foreground/20'}" />
-        </div>
+          <!-- Divider -->
+          <div
+            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s2 !==
+            'idle'
+              ? 'bg-primary/40'
+              : 'bg-border/60'}"
+          ></div>
 
-        <!-- ── Step 3: Control Plane ─────────────────────────── -->
-        <a href="#pipelines" class="
-          group flex-1 flex flex-col gap-2 px-4 py-3 rounded-xl border no-underline transition-all duration-200
-          {s3 === 'done'   ? 'border-primary/30 bg-primary/5 hover:bg-primary/8'
-          : s3 === 'active' ? 'border-primary/40 bg-primary/5 hover:bg-primary/8 ring-1 ring-primary/20'
-          :                   'border-border/50 bg-muted/20 hover:bg-muted/30 opacity-40 pointer-events-none'}
-        ">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <div class="size-5 rounded-full flex items-center justify-center text-[0.6rem] font-bold shrink-0
-                {s3 === 'done' ? 'bg-primary text-primary-foreground' : s3 === 'active' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-                {#if s3 === 'done'}<CheckCircle2 class="size-3" />{:else}3{/if}
+          <!-- ── Step 2: Scan ──────────────────────────────────── -->
+          <a
+            href="#scan"
+            class="relative flex items-center group no-underline {s2 === 'idle'
+              ? 'pointer-events-none opacity-40 mix-blend-luminosity hover:mix-blend-normal transition-all'
+              : ''}"
+          >
+            <div
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s2 ===
+              'done'
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500'
+                : s2 === 'active'
+                  ? 'bg-primary/10 hover:bg-primary/20 text-primary ring-1 ring-primary/30 shadow-sm'
+                  : 'hover:bg-muted/50 text-muted-foreground'}"
+            >
+              <div
+                class="flex items-center justify-center size-5 rounded-full shrink-0 transition-colors {s2 ===
+                'done'
+                  ? 'bg-amber-500 text-white'
+                  : s2 === 'active'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted-foreground/20 text-muted-foreground'}"
+              >
+                {#if s2 === "done"}<CheckCircle2
+                    class="size-3"
+                  />{:else}<ScanSearch class="size-3" />{/if}
               </div>
-              <span class="text-xs font-semibold tracking-tight
-                {s3 !== 'idle' ? 'text-foreground' : 'text-muted-foreground'}">
-                Control plane
-              </span>
+              <div class="flex flex-col">
+                <span
+                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Scan</span
+                >
+                {#if s2 === "done"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{scannedCount.toLocaleString()} classified</span
+                  >
+                {:else if s2 === "active"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >Ready to run</span
+                  >
+                {:else if s2Blocked}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none text-amber-400/80"
+                    >Load AI first</span
+                  >
+                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
+                    >Pending sources</span
+                  >{/if}
+              </div>
             </div>
-            <GitBranch class="size-3.5 {s3 !== 'idle' ? 'text-primary/60' : 'text-muted-foreground/30'}" />
-          </div>
-          <div class="flex flex-col gap-0.5">
-            {#if s3 === 'done'}
-              <span class="text-[0.7rem] font-medium text-primary/80">{pipelineCount} pipeline{pipelineCount === 1 ? '' : 's'} active</span>
-              <span class="text-[0.65rem] text-muted-foreground/50">Rules & actions configured</span>
-            {:else if s3 === 'active'}
-              <span class="text-[0.7rem] text-foreground/70">Ready to configure</span>
-              <span class="text-[0.65rem] text-primary/50">Set up rules & actions →</span>
-            {:else}
-              <span class="text-[0.7rem] text-muted-foreground/50">Rules, pipelines & approvals</span>
-              <span class="text-[0.65rem] text-muted-foreground/30">After scanning</span>
-            {/if}
-          </div>
-        </a>
+          </a>
 
+          <!-- Divider -->
+          <div
+            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s3 !==
+            'idle'
+              ? 'bg-primary/40'
+              : 'bg-border/60'}"
+          ></div>
 
+          <!-- ── Step 3: Control Plane ─────────────────────────── -->
+          <a
+            href="#pipelines"
+            class="relative flex items-center group no-underline {s3 === 'idle'
+              ? 'pointer-events-none opacity-40 mix-blend-luminosity hover:mix-blend-normal transition-all'
+              : ''}"
+          >
+            <div
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s3 ===
+              'done'
+                ? 'bg-primary/10 hover:bg-primary/20 text-primary'
+                : s3 === 'active'
+                  ? 'bg-primary/10 hover:bg-primary/20 text-primary ring-1 ring-primary/30 shadow-sm'
+                  : 'hover:bg-muted/50 text-muted-foreground'}"
+            >
+              <div
+                class="flex items-center justify-center size-5 rounded-full shrink-0 transition-colors {s3 ===
+                'done'
+                  ? 'bg-primary text-primary-foreground'
+                  : s3 === 'active'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted-foreground/20 text-muted-foreground'}"
+              >
+                {#if s3 === "done"}<CheckCircle2
+                    class="size-3"
+                  />{:else}<GitBranch class="size-3" />{/if}
+              </div>
+              <div class="flex flex-col">
+                <span
+                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Control</span
+                >
+                {#if s3 === "done"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{pipelineCount}
+                    {pipelineCount === 1 ? "rule" : "rules"} active</span
+                  >
+                {:else if s3 === "active"}<span
+                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >Configure rules</span
+                  >
+                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
+                    >Pending scan</span
+                  >{/if}
+              </div>
+            </div>
+          </a>
+
+          <div class="h-8 w-px bg-border/80 ml-6 mr-1 shrink-0" aria-hidden="true"></div>
+          <a
+            href="#admin"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[0.7rem] font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 transition-colors no-underline shrink-0"
+            title="Admin dashboard"
+          >
+            <ShieldCheck class="size-3.5 shrink-0" />
+            <span class="tracking-tight">Admin</span>
+          </a>
+        </nav>
       </div>
     {/if}
   </div>
@@ -204,5 +305,4 @@
   <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
     <Chat />
   </div>
-
 </div>

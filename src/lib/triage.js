@@ -27,75 +27,51 @@ export const CLASSIFICATION_CONFIG = {
 
 /**
  * Build the system prompt dynamically from the currently registered plugins.
- * This ensures the LLM always knows about the real, available actions — no
- * hardcoded action IDs in the prompt.
+ * The LLM's job is to classify messages into an event_type and a category.
+ * Categories carry their own default pipelines — the LLM does NOT suggest actions.
  *
  * @param {{ pluginId: string, pluginName: string, actions: import('./plugins/base-plugin.js').ActionHandler[] }[]} plugins
  * @returns {string}
  */
 export function buildSystemPrompt(plugins) {
-  const actionLines = [];
-  const allActionIds = [];
+  // We still list plugins so the LLM knows the platform context,
+  // but it no longer needs to suggest specific action IDs.
+  const pluginNames = plugins
+    .filter(p => p.actions.length)
+    .map(p => p.pluginName)
+    .join(", ");
 
-  for (const plugin of plugins) {
-    if (!plugin.actions.length) continue;
-    actionLines.push(`${plugin.pluginName} plugin:`);
-    for (const a of plugin.actions) {
-      actionLines.push(`  ${a.actionId.padEnd(22)} — ${a.name}: ${a.description}`);
-      allActionIds.push(a.actionId);
-    }
-  }
-
-  const actionsSection = actionLines.length
-    ? actionLines.join("\n")
-    : "  (no actions available)";
-
-  const allIdsInline = allActionIds.join(", ");
-
-  return `You are an email classifier. Analyze this email and produce a classification with suggested actions.
+  return `You are a message classifier. Analyze this message and produce a classification.
 
 Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
 
 Format:
 {
-  "action": "SHORT_ACTION_NAME",
-  "group": "NOISE",
-  "suggestedActions": ["trash"],
+  "action": "EVENT_TYPE_NAME",
+  "category": "noise",
   "reason": "One sentence explaining why",
-  "summary": "2-3 sentence summary of the email content",
+  "summary": "2-3 sentence summary of the message content",
   "tags": ["tag1", "tag2", "tag3"]
 }
 
-Guidelines for "action":
-- Use a short UPPER_SNAKE_CASE label that describes what the user should do
-- Examples: DELETE, REPLY, REVIEW, READ_LATER, ARCHIVE, PAY_BILL, TRACK_DELIVERY, SCHEDULE_MEETING, UNSUBSCRIBE, SAVE_RECEIPT, FOLLOW_UP, ACKNOWLEDGE, IGNORE
-- Be specific: prefer "TRACK_DELIVERY" over "NOTIFY", prefer "PAY_BILL" over "REVIEW"
-- If genuinely nothing to do, use "NO_ACTION"
+Guidelines for "action" (Event Type):
+- Condense the message's core purpose into a distinct, high-level event type.
+- This MUST be a flexible, dynamically generated string categorizing the *nature* of the message.
+- Examples: RECEIPT, SHIPPING_UPDATE, NEWSLETTER, SECURITY_ALERT, ACCOUNT_NOTICE, PROMOTION, BILLING_REMINDER, JOB_ALERT, SOCIAL_MENTION
+- Do not use verbs. Use noun phrases that describe the event type.
+- Reuse existing event types when the message fits — avoid creating very similar types.
 
-Guidelines for "group":
-- Classify the email into one of three urgency tiers:
-  - "NOISE"    — unimportant (promotions, newsletters, notifications with no action needed). Actions run automatically.
-  - "INFO"     — informational, worth reading (receipts, shipping updates, account notifications). User decides when to act.
-  - "CRITICAL" — requires careful human review before acting (financial transactions, purchases, security alerts, legal notices, anything that changes state or commits money/data).
-- When in doubt between NOISE and INFO, use INFO
-- When in doubt between INFO and CRITICAL, use CRITICAL
-
-Available actions (from installed plugins):
-${actionsSection}
-
-Guidelines for "suggestedActions":
-- Suggest 1-3 actions from the list above, in execution order
-- Use ONLY the exact action IDs listed above (${allIdsInline})
-- Match actions to the email's group and purpose:
-    NOISE    → prefer: trash, mark_spam, archive (auto-cleanup)
-    INFO     → prefer: mark_read, archive, star (quiet filing)
-    CRITICAL → prefer: star, mark_important (never trash/delete CRITICAL emails)
-- Choose the most specific and least destructive actions that serve the event type
-- These seed the default pipeline for this event type (the user can edit later)
-- If genuinely no action is needed, use []
+Guidelines for "category" (Event Category):
+- Classify the message into one of four tiers:
+  - "noise"         — Pure spam, mass marketing, social media digests, promotional blasts. Will be automatically deleted. Use ONLY when you are certain.
+  - "informational" — Useful but not urgent: newsletters, shipping updates, social notifications, automated confirmations. Will be silently archived.
+  - "important"     — Requires attention: personal messages, work emails, invoices, account changes, financial transactions. User must review.
+  - "urgent"        — Needs immediate action: security alerts, payment failures, time-sensitive deadlines. User must act now.
+- When in doubt, always use "important" — it is safer.
+- "noise" auto-deletes, so be extremely conservative with it.
 
 Guidelines for "tags":
-- 2-5 short lowercase tags describing the email's nature
+- 2-5 short lowercase tags describing the message's nature
 - Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, finance, travel
 - Be descriptive and specific
 
@@ -104,11 +80,12 @@ Guidelines for "summary":
 - Include specific details: amounts, dates, names, tracking numbers, deadlines
 - Write from the perspective of what matters to the recipient
 
+Active integrations: ${pluginNames || "(none)"}
+
 Rules:
 - Output ONLY the JSON object, nothing else
 - "action" must be UPPER_SNAKE_CASE
-- "group" must be exactly "NOISE", "INFO", or "CRITICAL"
-- "suggestedActions" must be an array of valid action IDs from the list above
+- "category" must be exactly one of: "noise", "informational", "important", "urgent"
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
 }
@@ -119,9 +96,9 @@ Rules:
  */
 function getPluginsForPrompt() {
   return pluginRegistry.getAllPlugins().map(plugin => ({
-    pluginId:   plugin.pluginId,
+    pluginId: plugin.pluginId,
     pluginName: plugin.serviceName,
-    actions:    plugin.getHandlers(),
+    actions: plugin.getHandlers(),
   }));
 }
 
@@ -148,7 +125,7 @@ export const SYSTEM_PROMPT = buildSystemPrompt(getPluginsForPrompt());
  */
 export async function scanEmails(
   engine,
-  { count = DEFAULT_COUNT, force = false, onProgress = () => {}, signal } = {}
+  { count = DEFAULT_COUNT, force = false, onProgress = () => { }, signal } = {}
 ) {
   if (!engine.isReady) {
     throw new Error("Model not loaded. Please load a model first.");
@@ -190,28 +167,28 @@ export async function scanEmails(
     return { scanned: 0, classified: 0, skipped, errors: 0 };
   }
 
-  const scannedAt  = Date.now();
-  const scanStart  = performance.now();
-  let classified   = 0;
-  let errors       = 0;
+  const scannedAt = Date.now();
+  const scanStart = performance.now();
+  let classified = 0;
+  let errors = 0;
   let totalOutputTokens = 0;
-  let totalInputTokens  = 0;
-  const results    = [];
+  let totalInputTokens = 0;
+  const results = [];
 
-  const plugins       = getPluginsForPrompt();
-  const systemPrompt  = buildSystemPrompt(plugins);
+  const plugins = getPluginsForPrompt();
+  const systemPrompt = buildSystemPrompt(plugins);
   const validActionIds = new Set(plugins.flatMap(p => p.actions.map(a => a.actionId)));
 
   const currentModel = engine.modelId;
-  const modelInfo    = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
+  const modelInfo = getModelInfo(currentModel) || getOllamaModelInfo(currentModel);
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
 
   if (!modelInfo.recommendedForEmailProcessing && toProcess.length > 0) {
-    const { MODELS }         = await import("./models.js");
-    const { OLLAMA_MODELS }  = await import("./ollama-models.js");
-    const recommendedModels  = [
+    const { MODELS } = await import("./models.js");
+    const { OLLAMA_MODELS } = await import("./ollama-models.js");
+    const recommendedModels = [
       ...MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.name),
       ...OLLAMA_MODELS.filter(m => m.recommendedForEmailProcessing).map(m => m.displayName),
     ];
@@ -226,26 +203,26 @@ export async function scanEmails(
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
-    const email        = toProcess[i];
-    const emailPrompt  = formatEmailPrompt(email);
+    const email = toProcess[i];
+    const emailPrompt = formatEmailPrompt(email);
     const promptMessages = [
       { role: "system", content: systemPrompt },
-      { role: "user",   content: emailPrompt  },
+      { role: "user", content: emailPrompt },
     ];
 
     onProgress({
-      phase:    "scanning",
-      current:  i + 1,
-      total:    toProcess.length,
+      phase: "scanning",
+      current: i + 1,
+      total: toProcess.length,
       classified,
       errors,
       results,
-      email:    { subject: email.subject, from: email.from, date: email.date },
-      prompt:   { system: SYSTEM_PROMPT, user: emailPrompt },
+      email: { subject: email.subject, from: email.from, date: email.date },
+      prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
-      live:     null,
+      live: null,
       lastResult: null,
-      totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+      totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
     });
 
     const emailStart = performance.now();
@@ -256,25 +233,25 @@ export async function scanEmails(
         { maxTokens: CLASSIFICATION_CONFIG.maxTokens, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
           onProgress({
-            phase:    "generating",
-            current:  i + 1,
-            total:    toProcess.length,
+            phase: "generating",
+            current: i + 1,
+            total: toProcess.length,
             classified,
             errors,
             results,
-            email:    { subject: email.subject, from: email.from, date: email.date },
-            live:     { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
+            email: { subject: email.subject, from: email.from, date: email.date },
+            live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
             streamingText: tokenInfo.text || "",
-            totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+            totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
           });
         }
       );
 
       totalOutputTokens += numTokens;
-      totalInputTokens  += inputTokens;
+      totalInputTokens += inputTokens;
 
       const classification = parseClassification(response, validActionIds);
-      const emailElapsed   = performance.now() - emailStart;
+      const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
         await exec(
@@ -306,54 +283,54 @@ export async function scanEmails(
           ]
         );
 
-        // Auto-seed pipeline for this event type if it's new
+        // Auto-seed event type with its category (category pipeline applies automatically)
         await seedEventTypeFromLLM(
           classification.action,
-          classification.group,
+          classification.category,
           classification.suggestedActions,
         );
 
         classified++;
 
         const emailResult = {
-          success:     true,
-          email:       { subject: email.subject, from: email.from, date: email.date },
+          success: true,
+          email: { subject: email.subject, from: email.from, date: email.date },
           classification,
           rawResponse: response,
-          stats:       { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          promptSize:  emailPrompt.length,
+          stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
+          promptSize: emailPrompt.length,
         };
         results.push(emailResult);
 
         onProgress({
-          phase:    "classified",
-          current:  i + 1,
-          total:    toProcess.length,
+          phase: "classified",
+          current: i + 1,
+          total: toProcess.length,
           classified,
           errors,
           results,
-          email:    { subject: email.subject, from: email.from, date: email.date },
-          result:   classification,
+          email: { subject: email.subject, from: email.from, date: email.date },
+          result: classification,
           rawResponse: response,
           emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          totals:   { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+          totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
         });
       }
     } catch (e) {
       console.error(`Triage email ${i + 1} failed:`, e);
       errors++;
-      const errMsg       = e.message || String(e);
+      const errMsg = e.message || String(e);
       const truncatedError = errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg;
       results.push({
-        success:    false,
-        email:      { subject: email.subject, from: email.from, date: email.date },
-        error:      truncatedError,
+        success: false,
+        email: { subject: email.subject, from: email.from, date: email.date },
+        error: truncatedError,
         promptSize: emailPrompt.length,
       });
     }
   }
 
-  const totalElapsed  = performance.now() - scanStart;
+  const totalElapsed = performance.now() - scanStart;
   const avgPromptSize = results.length > 0
     ? Math.round(results.reduce((sum, r) => sum + r.promptSize, 0) / results.length)
     : 0;
@@ -362,20 +339,20 @@ export async function scanEmails(
     : null;
 
   onProgress({
-    phase:    "done",
-    current:  toProcess.length,
-    total:    toProcess.length,
+    phase: "done",
+    current: toProcess.length,
+    total: toProcess.length,
     classified,
     errors,
     results,
     summary: {
       avgPromptSize,
       avgTps,
-      systemPromptSize:    systemPrompt.length,
-      processed:           toProcess.length,
+      systemPromptSize: systemPrompt.length,
+      processed: toProcess.length,
       skipped,
-      modelName:           modelInfo.displayName || modelInfo.name,
-      modelContextWindow:  modelInfo.contextWindow,
+      modelName: modelInfo.displayName || modelInfo.name,
+      modelContextWindow: modelInfo.contextWindow,
       modelMaxEmailTokens: modelInfo.maxEmailTokens,
     },
     totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
@@ -398,9 +375,16 @@ export async function getClassifications({ action } = {}) {
  * Get classifications grouped by action type (dynamic — groups emerge from data).
  * Returns an object: action -> array of classifications, sorted by date desc.
  * Also returns the group order sorted by count descending.
+ *
+ * @param {{ pendingOnly?: boolean }} [opts] - If pendingOnly: true, only include
+ *   status IN ('pending', 'escalated'); exclude already executed/handled.
  */
-export async function getClassificationsGrouped() {
-  const rows = await query(`SELECT * FROM emailClassifications`);
+export async function getClassificationsGrouped(opts = {}) {
+  const sql =
+    opts.pendingOnly === true
+      ? `SELECT * FROM emailClassifications WHERE status IN ('pending', 'escalated')`
+      : `SELECT * FROM emailClassifications`;
+  const rows = await query(sql);
   return groupByAction(rows.map(normaliseClassificationRow));
 }
 
@@ -423,7 +407,7 @@ export async function getClassificationCounts() {
  * Get all unique tags with their counts.
  */
 export async function getTagCounts() {
-  const rows   = await query(`SELECT tags FROM emailClassifications`);
+  const rows = await query(`SELECT tags FROM emailClassifications`);
   const tagMap = {};
   for (const r of rows) {
     const tags = fromJson(r.tags, []);
@@ -476,7 +460,7 @@ export async function getScanStats() {
   );
   const [classRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
   const totalEmails = Number(emailRow?.cnt ?? 0);
-  const classified  = Number(classRow?.cnt ?? 0);
+  const classified = Number(classRow?.cnt ?? 0);
   return {
     totalEmails,
     classified,
@@ -489,19 +473,19 @@ export async function getScanStats() {
 function normaliseItemRow(row) {
   return {
     ...row,
-    date:     row.date     != null ? Number(row.date)     : null,
+    date: row.date != null ? Number(row.date) : null,
     syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
-    labels:   fromJson(row.labels, []),
-    raw:      fromJson(row.raw, null),
+    labels: fromJson(row.labels, []),
+    raw: fromJson(row.raw, null),
   };
 }
 
 function normaliseClassificationRow(row) {
   return {
     ...row,
-    date:      row.date      != null ? Number(row.date)      : null,
+    date: row.date != null ? Number(row.date) : null,
     scannedAt: row.scannedAt != null ? Number(row.scannedAt) : null,
-    tags:      fromJson(row.tags, []),
+    tags: fromJson(row.tags, []),
   };
 }
 
@@ -510,8 +494,8 @@ function normaliseClassificationRow(row) {
 export function formatEmailPrompt(email) {
   const date = email.date
     ? new Date(email.date).toLocaleDateString("en-US", {
-        weekday: "short", year: "numeric", month: "short", day: "numeric",
-      })
+      weekday: "short", year: "numeric", month: "short", day: "numeric",
+    })
     : "Unknown date";
   const body = email.body || email.snippet || "";
 
@@ -530,15 +514,14 @@ export function formatEmailPrompt(email) {
 // ── Response parsing ─────────────────────────────────────────────────
 
 /**
- * Parse the LLM's JSON response for a single email classification.
- * Expects: {"action": "...", "reason": "...", "summary": "...", "tags": [...]}
+ * Parse the LLM's JSON response for a single message classification.
+ * Expects: {"action": "...", "category": "...", "reason": "...", "summary": "...", "tags": [...]}
  *
  * Action types are freeform — any UPPER_SNAKE_CASE string is accepted.
- * suggestedActions are validated against the provided set of known action IDs.
+ * Category must be one of: noise, informational, important, urgent.
  *
  * @param {string} response - Raw LLM output
- * @param {Set<string>} [knownActionIds] - Valid action IDs from the plugin registry.
- *   When omitted, any non-empty string is accepted (loose mode for tests/preview).
+ * @param {Set<string>} [knownActionIds] - Unused (kept for API compat)
  * @returns {object|null} Parsed classification or null
  */
 export function parseClassification(response, knownActionIds) {
@@ -553,8 +536,19 @@ export function parseClassification(response, knownActionIds) {
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
   text = text.trim();
 
+  const firstBracket = text.indexOf("[");
   const firstBrace = text.indexOf("{");
-  const lastBrace  = text.lastIndexOf("}");
+  const lastBracket = text.lastIndexOf("]");
+  const lastBrace = text.lastIndexOf("}");
+
+  // If top-level is an array, reject (we expect a single classification object).
+  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
+    const arrayStr = text.slice(firstBracket, lastBracket + 1);
+    try {
+      const parsed = JSON.parse(arrayStr);
+      if (Array.isArray(parsed)) return null;
+    } catch { /* not valid JSON array, fall through */ }
+  }
 
   if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
     console.warn("Triage: no JSON object found in response");
@@ -573,23 +567,24 @@ export function parseClassification(response, knownActionIds) {
       return null;
     }
 
-    const VALID_GROUPS = ["NOISE", "INFO", "CRITICAL"];
-    const group = VALID_GROUPS.includes(parsed.group) ? parsed.group : "INFO";
+    // Parse category (new 4-tier model) — also accept legacy "group" field
+    const VALID_CATEGORIES = ["noise", "informational", "important", "urgent"];
+    const rawCategory = (parsed.category || parsed.group || "").toLowerCase().trim();
+    // Map legacy 2-tier values to new 4-tier
+    let category;
+    if (VALID_CATEGORIES.includes(rawCategory)) {
+      category = rawCategory;
+    } else if (rawCategory === "noise" || parsed.group === "NOISE") {
+      category = "noise";
+    } else {
+      category = "important"; // safe default
+    }
 
-    let suggestedActions = [];
-    if (Array.isArray(parsed.suggestedActions)) {
-      suggestedActions = parsed.suggestedActions
-        .filter(a => {
-          if (typeof a !== "string" || !a.trim()) return false;
-          if (knownActionIds) return knownActionIds.has(a.trim());
-          return true;
-        })
-        .map(a => a.trim())
-        .slice(0, 5);
-    }
-    if (suggestedActions.length === 0 && Array.isArray(parsed.suggestedActions) && parsed.suggestedActions.length > 0) {
-      console.warn("Triage: suggestedActions contained unknown IDs — all filtered out:", parsed.suggestedActions);
-    }
+    // Backward compat: derive legacy group from category
+    const group = category === "noise" ? "NOISE" : "IMPORTANT";
+
+    // suggestedActions removed — categories carry their own pipelines
+    const suggestedActions = [];
 
     let tags = [];
     if (Array.isArray(parsed.tags)) {
@@ -601,9 +596,10 @@ export function parseClassification(response, knownActionIds) {
 
     return {
       action,
-      group,
-      suggestedActions,
-      reason:  String(parsed.reason  || "").slice(0, 300),
+      category,
+      group,           // backward compat
+      suggestedActions, // always empty, kept for API compat
+      reason: String(parsed.reason || "").slice(0, 300),
       summary: String(parsed.summary || "").slice(0, 500),
       tags,
     };

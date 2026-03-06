@@ -124,9 +124,21 @@ async function _init() {
 
   await _createSchema(_conn);
 
-  // Rehydrate email data from IndexedDB into DuckDB (in-memory fallback path).
-  // This runs regardless of OPFS status — IndexedDB is the reliable source of
-  // truth for emails; DuckDB is the query engine.
+  // If OPFS is in use but the DB file was freshly created (empty), it means
+  // the user deliberately deleted the OPFS file via DevTools. Wipe IndexedDB
+  // too so that rehydration loads nothing — giving a truly clean slate.
+  if (_usingOpfs) {
+    try {
+      const res = await _conn.query(`SELECT COUNT(*) AS cnt FROM items`);
+      const count = Number(res.toArray()[0]?.cnt ?? 0);
+      if (count === 0) {
+        const { idbWipeAll } = await import("./idb.js");
+        await idbWipeAll();
+        console.info("[db] Fresh OPFS detected — wiped IndexedDB to stay in sync");
+      }
+    } catch { /* ignore */ }
+  }
+
   await _rehydrateFromIdb(_conn);
 
   return _db;
@@ -212,20 +224,60 @@ export function getDb() {
   return _initPromise;
 }
 
+/**
+ * Nuke all user data — items, syncState, contacts — from both DuckDB and IndexedDB.
+ * Does NOT touch schema tables (event categories, pipelines, etc.).
+ */
+export async function wipeAllData() {
+  const { idbWipeAll } = await import("./idb.js");
+
+  // 1. Clear DuckDB in-memory tables
+  if (_conn) {
+    try { await _conn.query(`DELETE FROM items`); } catch { }
+    try { await _conn.query(`DELETE FROM syncState`); } catch { }
+    try { await _conn.query(`DELETE FROM contacts`); } catch { }
+  }
+
+  // 2. Close DuckDB connection so OPFS file is not locked
+  if (_conn) { try { await _conn.close(); } catch { } _conn = null; }
+  if (_db) { try { await _db.terminate(); } catch { } _db = null; }
+  _initPromise = null;
+  _usingOpfs = false;
+
+  // 3. Delete OPFS files (me-ai.db + WAL)
+  try {
+    const opfsRoot = await navigator.storage.getDirectory();
+    for (const name of ["me-ai.db", "me-ai.db.wal"]) {
+      try { await opfsRoot.removeEntry(name); } catch { /* already gone */ }
+    }
+  } catch { /* OPFS not supported or already gone */ }
+
+  // 4. Clear IndexedDB — the durable persistence layer
+  await idbWipeAll();
+
+  // 5. Reload so the app starts fresh
+  window.location.reload();
+}
+
+
 // ── Schema ───────────────────────────────────────────────────────────
+
 
 async function _createSchema(conn) {
   await conn.query(`
     -- ── Static lookup tables ──────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS sm_event_types (
-      name     VARCHAR PRIMARY KEY,
-      label    VARCHAR
+      name          VARCHAR PRIMARY KEY,
+      label         VARCHAR,
+      category_name VARCHAR DEFAULT 'important',
+      auto_created  BOOLEAN DEFAULT false
     );
 
     CREATE TABLE IF NOT EXISTS sm_event_categories (
       name     VARCHAR PRIMARY KEY,
       label    VARCHAR,
-      priority INTEGER
+      priority INTEGER,
+      policy   VARCHAR DEFAULT 'manual'
     );
 
     CREATE TABLE IF NOT EXISTS sm_sources (
@@ -264,6 +316,23 @@ async function _createSchema(conn) {
       plugin_name VARCHAR,
       source_name VARCHAR,
       PRIMARY KEY (plugin_name, source_name)
+    );
+
+    -- ── Category-based pipelines (RBAC model) ────────────────────────
+    CREATE TABLE IF NOT EXISTS sm_category_pipeline (
+      category_name VARCHAR,
+      action_idx    INTEGER,
+      plugin_id     VARCHAR,
+      command_id    VARCHAR,
+      PRIMARY KEY (category_name, action_idx)
+    );
+
+    CREATE TABLE IF NOT EXISTS sm_type_pipeline (
+      type_name  VARCHAR,
+      action_idx INTEGER,
+      plugin_id  VARCHAR,
+      command_id VARCHAR,
+      PRIMARY KEY (type_name, action_idx)
     );
 
     -- ── Rules ─────────────────────────────────────────────────────────
@@ -431,23 +500,27 @@ async function _seedSignalMap(conn) {
       ('supervised', 'Supervised', 'Executes then notifies user'),
       ('manual',     'Manual',     'Waits for explicit user approval');
 
-    INSERT INTO sm_event_types VALUES
-      ('ad',                   'Advertisement'),
-      ('newsletter',           'Newsletter'),
-      ('personal_message',     'Personal Message'),
-      ('work_email',           'Work Email'),
-      ('instagram_post',       'Instagram Post'),
-      ('youtube_video',        'YouTube Video'),
-      ('security_alert',       'Security Alert'),
-      ('invoice',              'Invoice'),
-      ('social_mention',       'Social Mention'),
-      ('startup_notification', 'Startup Notification');
+    INSERT INTO sm_event_types (name, label, category_name, auto_created) VALUES
+      ('ad',                   'Advertisement',         'noise',         false),
+      ('newsletter',           'Newsletter',            'noise',         false),
+      ('personal_message',     'Personal Message',      'important',     false),
+      ('work_email',           'Work Email',            'important',     false),
+      ('instagram_post',       'Instagram Post',        'informational', false),
+      ('youtube_video',        'YouTube Video',         'informational', false),
+      ('security_alert',       'Security Alert',        'urgent',        false),
+      ('invoice',              'Invoice',               'important',     false),
+      ('social_mention',       'Social Mention',        'informational', false),
+      ('startup_notification', 'Startup Notification',  'informational', false),
+      ('tweet',                'Tweet',                 'informational', false),
+      ('retweet',              'Retweet',               'noise',         false),
+      ('twitter_mention',      'Twitter Mention',       'informational', false),
+      ('twitter_thread',       'Twitter Thread',        'informational', false);
 
     INSERT INTO sm_event_categories VALUES
-      ('noise',         'Noise',         1),
-      ('informational', 'Informational', 2),
-      ('important',     'Important',     3),
-      ('urgent',        'Urgent',        4);
+      ('noise',         'Noise',         1, 'auto'),
+      ('informational', 'Informational', 2, 'supervised'),
+      ('important',     'Important',     3, 'manual'),
+      ('urgent',        'Urgent',        4, 'manual');
 
     INSERT INTO sm_sources VALUES
       ('gmail',     'Gmail',     'email',     'gmail_api_v1',          true),
@@ -455,7 +528,7 @@ async function _seedSignalMap(conn) {
       ('instagram', 'Instagram', 'social',    'instagram_graph_api',   false),
       ('youtube',   'YouTube',   'video',     'youtube_data_api_v3',   false),
       ('slack',     'Slack',     'messenger', 'slack_web_api',         false),
-      ('twitter',   'Twitter/X', 'social',    'twitter_api_v2',        false);
+      ('twitter',   'Twitter/X', 'social',    'twitter_api_v2',        true);
 
     INSERT INTO sm_actions VALUES
       ('delete',      'Delete'),
@@ -471,6 +544,7 @@ async function _seedSignalMap(conn) {
 
     INSERT INTO sm_plugins VALUES
       ('gmail_plugin',     'Gmail',          '2.1.0', true),
+      ('twitter_plugin',   'Twitter/X',      '1.0.0', true),
       ('telegram_plugin',  'Telegram',       '3.0.1', false),
       ('instagram_plugin', 'Instagram',      '1.3.0', false),
       ('ai_summarizer',    'AI Summarizer',  '1.0.0', true),
@@ -495,8 +569,16 @@ async function _seedSignalMap(conn) {
 
     INSERT INTO sm_plugin_sources VALUES
       ('gmail_plugin',    'gmail'),
+      ('twitter_plugin',  'twitter'),
       ('telegram_plugin', 'telegram'),
       ('instagram_plugin','instagram');
+
+    -- ── Default category pipelines ─────────────────────────────────
+    INSERT INTO sm_category_pipeline VALUES
+      ('noise',         0, 'gmail', 'gmail:trash'),
+      ('informational', 0, 'gmail', 'gmail:mark_read'),
+      ('informational', 1, 'gmail', 'gmail:archive');
+    -- important and urgent have no default pipeline (user must act)
   `);
 }
 
@@ -644,7 +726,7 @@ export async function clearAllDuckDbData() {
     }
     await conn.query("COMMIT");
   } catch (e) {
-    await conn.query("ROLLBACK").catch(() => {});
+    await conn.query("ROLLBACK").catch(() => { });
     throw e;
   }
   await checkpoint();
@@ -656,11 +738,11 @@ export async function clearAllDuckDbData() {
  */
 export async function deleteOpfsFileAndReload() {
   // Flush any pending writes first
-  try { await checkpoint(); } catch {}
+  try { await checkpoint(); } catch { }
 
   // Close connection and DB
-  try { await _conn?.close(); } catch {}
-  try { await _db?.terminate(); } catch {}
+  try { await _conn?.close(); } catch { }
+  try { await _db?.terminate(); } catch { }
   _conn = null;
   _db = null;
   _initPromise = null;
@@ -687,9 +769,9 @@ export async function deleteOpfsFileAndReload() {
  */
 export async function nukeAllLocalData() {
   // 1. Close DuckDB gracefully
-  try { await checkpoint(); } catch {}
-  try { await _conn?.close(); } catch {}
-  try { await _db?.terminate(); } catch {}
+  try { await checkpoint(); } catch { }
+  try { await _conn?.close(); } catch { }
+  try { await _db?.terminate(); } catch { }
   _conn = null;
   _db = null;
   _initPromise = null;
@@ -698,11 +780,19 @@ export async function nukeAllLocalData() {
   try {
     const root = await navigator.storage.getDirectory();
     const entries = [];
-    for await (const [name] of root.entries()) entries.push(name);
+    for await (const [name] of root.entries()) {
+      entries.push(name);
+    }
     await Promise.allSettled(entries.map((name) => root.removeEntry(name, { recursive: true })));
   } catch (e) {
     console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
   }
+
+  // 2b. Close the IndexedDB connection from idb.js so deleteDatabase is not blocked
+  try {
+    const { closeIdb } = await import("./idb.js");
+    closeIdb();
+  } catch { }
 
   // 3. Delete all IndexedDB databases
   try {
@@ -710,10 +800,16 @@ export async function nukeAllLocalData() {
     await Promise.allSettled(
       dbs.map(
         ({ name }) =>
-          new Promise((res, rej) => {
+          new Promise((res) => {
             const r = indexedDB.deleteDatabase(name);
             r.onsuccess = res;
-            r.onerror   = () => rej(r.error);
+            r.onerror = res;           // don't block on errors
+            r.onblocked = () => {
+              console.warn(`[db] deleteDatabase("${name}") blocked — force-proceeding`);
+              res();                      // force-proceed even if blocked
+            };
+            // Absolute safety: resolve after 3 s no matter what
+            setTimeout(res, 3000);
           })
       )
     );
@@ -732,8 +828,8 @@ export async function nukeAllLocalData() {
   }
 
   // 5. Clear Web Storage
-  try { localStorage.clear(); }   catch {}
-  try { sessionStorage.clear(); } catch {}
+  try { localStorage.clear(); } catch { }
+  try { sessionStorage.clear(); } catch { }
 
   window.location.reload();
 }

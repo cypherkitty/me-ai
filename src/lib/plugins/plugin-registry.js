@@ -6,6 +6,7 @@
  */
 
 import { gmailPlugin } from "./gmail-plugin.js";
+import { twitterPlugin } from "./twitter-plugin.js";
 
 /**
  * @typedef {import('./base-plugin.js').PluginContext} PluginContext
@@ -28,6 +29,7 @@ class PluginRegistry {
    */
   registerDefaultPlugins() {
     this.registerPlugin(gmailPlugin);
+    this.registerPlugin(twitterPlugin);
   }
 
   /**
@@ -209,6 +211,7 @@ class PluginRegistry {
   resolvePluginId(source) {
     const mapping = {
       gmail: "gmail",
+      twitter: "twitter",
       // Add more as plugins are added:
       // slack: "slack",
       // telegram: "telegram",

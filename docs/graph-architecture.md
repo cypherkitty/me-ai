@@ -4,6 +4,8 @@
 **Branch:** `feature/signal-map`  
 **Last updated:** 2026-02-26
 
+> **⚠️ Note (2026-03-03):** The pipeline routing model has been updated to a **category-based architecture** where categories carry default pipelines instead of per-event-type rules. See [Category Pipeline Architecture](./category-pipeline-architecture.md) for the current model. The graph schema and concepts below remain valid for the overall event stream design.
+
 ---
 
 ## Motivation
