@@ -78,7 +78,13 @@ class PluginRegistry {
       : action;
 
     const pluginId = actionObj.pluginId || this.resolvePluginId(context.event.source);
-    const commandId = actionObj.commandId || actionObj.id;
+    let commandId = actionObj.commandId || actionObj.id;
+    
+    // Legacy support: strip pluginId prefix if present in commandId (e.g. 'gmail:trash' -> 'trash')
+    if (pluginId && commandId.startsWith(`${pluginId}:`)) {
+      commandId = commandId.slice(pluginId.length + 1);
+    }
+    
     const plugin = this.getPlugin(pluginId);
 
     if (!plugin) {

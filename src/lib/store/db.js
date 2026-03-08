@@ -610,9 +610,9 @@ async function _seedSignalMap(conn) {
 
     -- ── Default category pipelines ─────────────────────────────────
     INSERT INTO sm_category_pipeline VALUES
-      ('noise',         0, 'gmail', 'gmail:trash'),
-      ('informational', 0, 'gmail', 'gmail:mark_read'),
-      ('informational', 1, 'gmail', 'gmail:archive');
+      ('noise',         0, 'gmail', 'trash'),
+      ('informational', 0, 'gmail', 'mark_read'),
+      ('informational', 1, 'gmail', 'archive');
     -- important and urgent have no default pipeline (user must act)
   `);
 }
