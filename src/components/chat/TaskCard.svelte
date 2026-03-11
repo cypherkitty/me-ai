@@ -17,9 +17,10 @@
     anthropic: "#f59e0b", google: "#3b82f6", xai: "#e2e2e2",
   };
   const GROUP_COLORS = {
-    NOISE:   { bg: "color-mix(in srgb, #9ca3af 10%, transparent)", text: "#9ca3af", border: "color-mix(in srgb, #9ca3af 20%, transparent)" },
-    INFO:    { bg: "color-mix(in srgb, #60a5fa 10%, transparent)", text: "#60a5fa", border: "color-mix(in srgb, #60a5fa 20%, transparent)" },
-    COMMAND: { bg: "color-mix(in srgb, #fbbf24 10%, transparent)", text: "#fbbf24", border: "color-mix(in srgb, #fbbf24 20%, transparent)" },
+    NOISE:    { bg: "color-mix(in srgb, #9ca3af 10%, transparent)", text: "#9ca3af", border: "color-mix(in srgb, #9ca3af 20%, transparent)" },
+    INFO:     { bg: "color-mix(in srgb, #60a5fa 10%, transparent)", text: "#60a5fa", border: "color-mix(in srgb, #60a5fa 20%, transparent)" },
+    CRITICAL: { bg: "color-mix(in srgb, #ef4444 10%, transparent)", text: "#ef4444", border: "color-mix(in srgb, #ef4444 20%, transparent)" },
+    COMMAND:  { bg: "color-mix(in srgb, #fbbf24 10%, transparent)", text: "#fbbf24", border: "color-mix(in srgb, #fbbf24 20%, transparent)" },
   };
 
   let cardOpen = $state(true);

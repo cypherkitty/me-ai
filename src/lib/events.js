@@ -1,16 +1,12 @@
 /**
  * Event Stream + Action Pipeline
  *
- * This module bridges the legacy email scan/triage flow with the new routing
- * architecture. It retains backward-compatible exports while integrating:
+ * Single urgency model: NOISE / INFO / CRITICAL (3 tiers).
+ * Category names in DB and rules use lowercase: noise, info, critical.
  *
- *   EventType       — what kind of content (ad, newsletter, invoice, …)
- *   EventCategory   — urgency tier (noise / informational / important / urgent)
- *   Rule            — the central pipeline unit connecting trigger → actions → policy
- *   ExecutionPolicy — auto / supervised / manual
- *
- * Legacy event groups (NOISE/INFO/CRITICAL) are preserved for the existing
- * triage/execution pipeline until that pipeline is fully migrated.
+ *   EventType     — what kind of content (ad, newsletter, invoice, …)
+ *   EventGroup    — NOISE | INFO | CRITICAL (execution policy)
+ *   category_name — noise | info | critical (stored in DB, used by rules)
  */
 
 /**
@@ -36,11 +32,10 @@
  */
 
 /**
- * Event group definitions with their execution policies.
- * NOISE         — auto-execute pipeline without user interaction
- * INFORMATIONAL — execute then notify (supervised)
- * IMPORTANT     — require explicit user approval
- * URGENT        — require explicit user approval (highest priority)
+ * Event groups (3 tiers). Stored in DB as category_name: noise | info | critical.
+ * NOISE    — auto-execute pipeline
+ * INFO     — supervised (execute then notify)
+ * CRITICAL — require explicit user approval
  */
 export const EVENT_GROUPS = {
   NOISE: {
@@ -51,59 +46,39 @@ export const EVENT_GROUPS = {
     requiresApproval: false,
     color: "#6b7280",  // gray
   },
-  INFORMATIONAL: {
-    id: "INFORMATIONAL",
-    label: "Informational",
+  INFO: {
+    id: "INFO",
+    label: "Info",
     description: "Useful but not urgent — will be silently archived.",
     autoExecute: true,
     requiresApproval: false,
     color: "#3b82f6",  // blue
   },
-  IMPORTANT: {
-    id: "IMPORTANT",
-    label: "Important",
+  CRITICAL: {
+    id: "CRITICAL",
+    label: "Critical",
     description: "Requires attention. User must review before any action runs.",
-    autoExecute: false,
-    requiresApproval: true,
-    color: "#d97706",  // amber
-  },
-  URGENT: {
-    id: "URGENT",
-    label: "Urgent",
-    description: "Needs immediate action. Highest priority.",
     autoExecute: false,
     requiresApproval: true,
     color: "#ef4444",  // red
   },
 };
 
-export const DEFAULT_GROUP = "IMPORTANT";
-
-// ── EventCategory ─────────────────────────────────────────────────────
+export const DEFAULT_GROUP = "CRITICAL";
 
 /**
- * Event categories (urgency tiers).
- * Maps to the sm_event_categories table.
+ * Category names used in DB (sm_event_types.category_name, sm_event_categories).
+ * One-to-one with groups: noise ↔ NOISE, info ↔ INFO, critical ↔ CRITICAL.
  */
 export const EVENT_CATEGORIES = {
-  noise: { name: "noise", label: "Noise", priority: 1, color: "#4b5563", policy: "auto" },
-  informational: { name: "informational", label: "Informational", priority: 2, color: "#3b82f6", policy: "supervised" },
-  important: { name: "important", label: "Important", priority: 3, color: "#d97706", policy: "manual" },
-  urgent: { name: "urgent", label: "Urgent", priority: 4, color: "#ef4444", policy: "manual" },
-};
-
-/**
- * Execution policies.
- */
-export const EXECUTION_POLICIES = {
-  auto: { name: "auto", label: "Auto", description: "Executes without user input", color: "#10b981" },
-  supervised: { name: "supervised", label: "Supervised", description: "Executes then notifies user", color: "#f59e0b" },
-  manual: { name: "manual", label: "Manual", description: "Waits for user approval", color: "#6366f1" },
+  noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
+  info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "supervised" },
+  critical: { name: "critical", label: "Critical", priority: 3, color: "#ef4444", policy: "manual" },
 };
 
 /**
  * Map category name → ExecutionPolicy name.
- * @param {string} category — noise | informational | important | urgent
+ * @param {string} category — noise | info | critical
  * @returns {string} policy name
  */
 export function categoryToPolicy(category) {
@@ -111,38 +86,38 @@ export function categoryToPolicy(category) {
 }
 
 /**
- * Map legacy event group → ExecutionPolicy name.
- * @param {string} group — NOISE | INFORMATIONAL | IMPORTANT | URGENT
+ * Map event group → ExecutionPolicy name.
+ * @param {string} group — NOISE | INFO | CRITICAL
  * @returns {string} policy name
  */
 export function groupToPolicy(group) {
   if (group === "NOISE") return "auto";
-  if (group === "INFORMATIONAL") return "supervised";
+  if (group === "INFO") return "supervised";
   return "manual";
 }
 
 /**
- * Map ExecutionPolicy → legacy event group.
+ * Map ExecutionPolicy → event group.
  * @param {string} policy — auto | supervised | manual
  * @returns {string} group
  */
 export function policyToGroup(policy) {
   if (policy === "auto") return "NOISE";
-  if (policy === "supervised") return "INFORMATIONAL";
-  return "IMPORTANT";
+  if (policy === "supervised") return "INFO";
+  return "CRITICAL";
 }
 
 /**
- * Map legacy event group → EventCategory name.
- * @param {string} group
- * @returns {string} category name
+ * Map event group → category name (for DB and rules).
+ * @param {string} group — NOISE | INFO | CRITICAL
+ * @returns {string} noise | info | critical
  */
 export function groupToCategory(group) {
   const g = (group || "").toUpperCase();
   if (g === "NOISE") return "noise";
-  if (g === "INFORMATIONAL") return "informational";
-  if (g === "URGENT") return "urgent";
-  return "important";
+  if (g === "INFO") return "info";
+  if (g === "CRITICAL") return "critical";
+  return "critical";
 }
 
 const STORAGE_KEY = "me-ai-events";
@@ -201,6 +176,19 @@ export async function getAllEventTypes() {
 // ── Event group management ──────────────────────────────────────────
 
 /**
+ * Normalize stored group to 3-tier (NOISE | INFO | CRITICAL).
+ * @param {string} [stored]
+ * @returns {EventGroup}
+ */
+function normalizeGroup(stored) {
+  const g = (stored || "").toUpperCase();
+  if (g === "NOISE") return "NOISE";
+  if (g === "INFO" || g === "INFORMATIONAL") return "INFO";
+  if (g === "CRITICAL" || g === "IMPORTANT" || g === "URGENT") return "CRITICAL";
+  return DEFAULT_GROUP;
+}
+
+/**
  * Get the group for an event type.
  * @param {string} eventType
  * @returns {Promise<EventGroup>}
@@ -208,7 +196,7 @@ export async function getAllEventTypes() {
 export async function getGroupForEventType(eventType) {
   const normalized = eventType?.toUpperCase?.() || "";
   const map = await loadGroupsMap();
-  return map[normalized] || DEFAULT_GROUP;
+  return normalizeGroup(map[normalized]);
 }
 
 /**
@@ -310,54 +298,50 @@ export async function addEventType(eventType) {
 
 /**
  * Seed an event type from LLM classification.
- * Under the new category-based model, the LLM assigns a category to the event
- * type, and the category's default pipeline applies automatically.
- * No per-type pipeline is created — override pipelines are user-defined only.
+ * Category must be noise | info | critical (3-tier). Legacy 4-tier values are mapped to 3-tier.
  *
  * @param {string} eventType
- * @param {string} category — noise | informational | important | urgent
+ * @param {string} category — noise | info | critical (or legacy: informational→info, important/urgent→critical)
  * @param {string[]} [suggestedActionIds] — Ignored (kept for API compat)
  */
 export async function seedEventTypeFromLLM(eventType, category, suggestedActionIds) {
   const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
   if (!normalized) return;
 
-  // Map legacy group values to category
-  const validCategories = ["noise", "informational", "important", "urgent"];
-  let cat = (category || "").toLowerCase();
+  const validCategories = ["noise", "info", "critical"];
+  let cat = (category || "").toLowerCase().trim();
   if (!validCategories.includes(cat)) {
-    // Legacy compat: map old group names
+    // Legacy compat: map old 4-tier or group names to 3-tier
     if (cat === "noise" || category === "NOISE") cat = "noise";
-    else if (cat === "critical" || category === "CRITICAL" || category === "IMPORTANT") cat = "important";
-    else cat = "important";
+    else if (cat === "informational") cat = "info";
+    else if (cat === "important" || cat === "urgent" || category === "CRITICAL" || category === "IMPORTANT" || category === "URGENT") cat = "critical";
+    else cat = "critical";
   }
 
+  const group = cat === "noise" ? "NOISE" : cat === "info" ? "INFO" : "CRITICAL";
   const groupsMap = await loadGroupsMap();
 
-  // Only set group if not already user-defined (backward compat with legacy localStorage)
   if (!(normalized in groupsMap)) {
-    const validGroup = EVENT_GROUPS[cat.toUpperCase()] ? cat.toUpperCase() : DEFAULT_GROUP;
-    groupsMap[normalized] = validGroup;
+    groupsMap[normalized] = group;
     await saveGroupsMap(groupsMap);
   }
 
-  // Persist event type in DB with category assignment
   try {
     const { query } = await import("./store/db.js");
-    // Use INSERT OR IGNORE — don't overwrite existing types (user may have changed category)
-    await query(`
-      INSERT INTO sm_event_types (name, label, category_name, auto_created)
-      VALUES ('${normalized}', '${normalized.replace(/_/g, " ")}', '${cat}', true)
-      ON CONFLICT (name) DO NOTHING
-    `);
+    const label = normalized.replace(/_/g, " ");
+    await query(
+      `INSERT INTO sm_event_types (name, label, category_name, auto_created)
+       VALUES (?, ?, ?, true)
+       ON CONFLICT (name) DO NOTHING`,
+      [normalized, label, cat]
+    );
   } catch (e) {
     console.warn("[events] Failed to persist event type in DB:", normalized, e?.message ?? e);
   }
 
-  // Also maintain the legacy localStorage map for backward compat
   const map = await loadUserMap();
   if (!(normalized in map)) {
-    map[normalized] = []; // empty pipeline — category carries the actual pipeline
+    map[normalized] = [];
     await saveUserMap(map);
   }
 }
@@ -444,8 +428,9 @@ export const updateCommandInEvent = updateActionInEvent;
  * @returns {Promise<{ event: EmailEvent, commands: Action[] }>}
  */
 export async function buildEmailEvent(classification, email) {
+  const group = classification.group || (await getGroupForEventType(classification.action));
   const event = {
-    type: classification.action,  // event type from LLM classification
+    type: classification.action,
     source: "gmail",
     data: {
       subject: email.subject,
@@ -456,7 +441,8 @@ export async function buildEmailEvent(classification, email) {
     metadata: {
       reason: classification.reason,
       summary: classification.summary,
-      tags: classification.tags || [],  // secondary metadata, not structurally important
+      tags: classification.tags || [],
+      group,
       classifiedAt: Date.now(),
     },
   };

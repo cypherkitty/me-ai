@@ -71,7 +71,8 @@ export async function executePipeline(event, onProgress, approved = false, optio
       requiresApproval = true;
       group = "CRITICAL";
     } else {
-      const category = event.metadata?.category || event.data?.category || "";
+      const rawCategory = event.metadata?.category || event.data?.category || "";
+      const category = (rawCategory || "").toLowerCase().trim();
       const rules = await findMatchingRules(event.type, category);
       rule = rules[0];
 
@@ -79,16 +80,17 @@ export async function executePipeline(event, onProgress, approved = false, optio
         policy = rule.policy ?? "";
         if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
         else if (policy === "auto") { group = "NOISE"; }
+        else if (policy === "supervised") { group = "INFO"; }
         actions = rule.actions || [];
       }
 
-      // When no rule, or rule has no actions, use category-based pipeline (e.g. Important → mark_important + star)
       if (!actions?.length) {
         const pipeline = await getPipelineForEvent(event.type);
         if (pipeline?.actions?.length) {
           policy = pipeline.policy ?? "manual";
           if (policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
           else if (policy === "auto") { group = "NOISE"; }
+          else if (policy === "supervised") { group = "INFO"; }
           actions = normaliseActions(pipeline.actions);
         }
       }
@@ -159,9 +161,8 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
   try {
     onProgress?.({ phase: "starting", eventType, eventCount: events.length });
 
-    // In batch mode, we assume events generally share the same rule logic.
-    // We'll use the first event's category to find the matching rule for the batch.
-    const sampleCategory = events[0]?.metadata?.category || events[0]?.data?.category || "";
+    const rawCategory = events[0]?.metadata?.category || events[0]?.data?.category || "";
+    const sampleCategory = (rawCategory || "").toLowerCase().trim();
     const rules = await findMatchingRules(eventType, sampleCategory);
     const rule = rules[0];
 
@@ -172,6 +173,7 @@ export async function executePipelineBatch(eventType, events, onProgress, approv
     if (rule) {
       if (rule.policy === "manual") { requiresApproval = true; group = "CRITICAL"; }
       else if (rule.policy === "auto") { group = "NOISE"; }
+      else if (rule.policy === "supervised") { group = "INFO"; }
       actions = rule.actions || [];
     } else {
       return { success: true, message: `No enabled pipeline rule matches event type: ${eventType}`, results: [], total: 0, successful: 0, failed: 0 };

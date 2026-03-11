@@ -46,7 +46,7 @@
     return null;
   });
 
-  const CATEGORY_ORDER = ["urgent", "important", "informational", "noise"];
+  const CATEGORY_ORDER = ["critical", "info", "noise"];
 
   // Group the event types by category
   let categoriesWithGroups = $derived.by(() => {
@@ -63,7 +63,7 @@
         });
       }
     }
-    // Also catch any unknown/unmapped event types just in case
+    // Catch any unknown/unmapped event types (e.g. legacy INFORMATIONAL/IMPORTANT/URGENT normalized to info/critical)
     const unknownIds = groupOrder.filter(
       (id) => !CATEGORY_ORDER.includes(eventTypeToCategory[id]),
     );

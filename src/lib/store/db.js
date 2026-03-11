@@ -304,7 +304,7 @@ async function _createSchema(conn) {
     CREATE TABLE IF NOT EXISTS sm_event_types (
       name          VARCHAR PRIMARY KEY,
       label         VARCHAR,
-      category_name VARCHAR DEFAULT 'important',
+      category_name VARCHAR DEFAULT 'critical',
       auto_created  BOOLEAN DEFAULT false
     );
 
@@ -425,6 +425,7 @@ async function _createSchema(conn) {
   `);
 
   await _seedSignalMap(conn);
+  await _migrateEventCategoriesTo3Tier(conn);
 
   // One-time migration: remove sm_rule_commands rows created by an older version
   // of PipelinesView that stored actions as plain string names (no plugin binding).
@@ -536,26 +537,25 @@ async function _seedSignalMap(conn) {
       ('manual',     'Manual',     'Waits for explicit user approval');
 
     INSERT INTO sm_event_types (name, label, category_name, auto_created) VALUES
-      ('ad',                   'Advertisement',         'noise',         false),
-      ('newsletter',           'Newsletter',            'noise',         false),
-      ('personal_message',     'Personal Message',      'important',     false),
-      ('work_email',           'Work Email',            'important',     false),
-      ('instagram_post',       'Instagram Post',        'informational', false),
-      ('youtube_video',        'YouTube Video',         'informational', false),
-      ('security_alert',       'Security Alert',        'urgent',        false),
-      ('invoice',              'Invoice',               'important',     false),
-      ('social_mention',       'Social Mention',        'informational', false),
-      ('startup_notification', 'Startup Notification',  'informational', false),
-      ('tweet',                'Tweet',                 'informational', false),
-      ('retweet',              'Retweet',               'noise',         false),
-      ('twitter_mention',      'Twitter Mention',       'informational', false),
-      ('twitter_thread',       'Twitter Thread',        'informational', false);
+      ('ad',                   'Advertisement',         'noise',    false),
+      ('newsletter',           'Newsletter',            'noise',    false),
+      ('personal_message',     'Personal Message',      'critical', false),
+      ('work_email',           'Work Email',            'critical', false),
+      ('instagram_post',       'Instagram Post',        'info',     false),
+      ('youtube_video',        'YouTube Video',         'info',     false),
+      ('security_alert',       'Security Alert',        'critical',  false),
+      ('invoice',              'Invoice',               'critical', false),
+      ('social_mention',       'Social Mention',        'info',     false),
+      ('startup_notification', 'Startup Notification',  'info',     false),
+      ('tweet',                'Tweet',                 'info',     false),
+      ('retweet',              'Retweet',               'noise',    false),
+      ('twitter_mention',      'Twitter Mention',       'info',     false),
+      ('twitter_thread',       'Twitter Thread',        'info',     false);
 
     INSERT INTO sm_event_categories VALUES
-      ('noise',         'Noise',         1, 'auto'),
-      ('informational', 'Informational', 2, 'supervised'),
-      ('important',     'Important',     3, 'manual'),
-      ('urgent',        'Urgent',        4, 'manual');
+      ('noise',    'Noise',    1, 'auto'),
+      ('info',     'Info',     2, 'supervised'),
+      ('critical', 'Critical', 3, 'manual');
 
     INSERT INTO sm_sources VALUES
       ('gmail',     'Gmail',     'email',     'gmail_api_v1',          true),
@@ -610,11 +610,43 @@ async function _seedSignalMap(conn) {
 
     -- ── Default category pipelines ─────────────────────────────────
     INSERT INTO sm_category_pipeline VALUES
-      ('noise',         0, 'gmail', 'trash'),
-      ('informational', 0, 'gmail', 'mark_read'),
-      ('informational', 1, 'gmail', 'archive');
-    -- important and urgent have no default pipeline (user must act)
+      ('noise',    0, 'gmail', 'trash'),
+      ('info',     0, 'gmail', 'mark_read'),
+      ('info',     1, 'gmail', 'archive');
+    -- critical has no default pipeline (user must act)
   `);
+}
+
+/**
+ * One-time migration: 4-tier categories → 3-tier (noise | info | critical).
+ * Runs after seed; no-op if already on 3-tier.
+ */
+async function _migrateEventCategoriesTo3Tier(conn) {
+  try {
+    const hasOld = await conn.query(`
+      SELECT 1 FROM sm_event_categories WHERE name = 'informational' LIMIT 1
+    `);
+    if (!hasOld.toArray?.()?.length) return;
+
+    await conn.query(`
+      UPDATE sm_event_types SET category_name = 'info' WHERE category_name = 'informational';
+      UPDATE sm_event_types SET category_name = 'critical' WHERE category_name IN ('important', 'urgent');
+    `);
+    await conn.query(`
+      UPDATE emailClassifications SET "group" = 'INFO' WHERE UPPER(TRIM("group")) = 'INFORMATIONAL';
+      UPDATE emailClassifications SET "group" = 'CRITICAL' WHERE UPPER(TRIM("group")) IN ('IMPORTANT', 'URGENT');
+    `);
+    await conn.query(`
+      DELETE FROM sm_category_pipeline WHERE category_name = 'informational';
+      INSERT INTO sm_category_pipeline VALUES ('info', 0, 'gmail', 'mark_read'), ('info', 1, 'gmail', 'archive');
+    `);
+    await conn.query(`
+      DELETE FROM sm_event_categories WHERE name IN ('informational', 'important', 'urgent');
+      INSERT INTO sm_event_categories VALUES ('info', 'Info', 2, 'supervised'), ('critical', 'Critical', 3, 'manual');
+    `);
+  } catch (e) {
+    console.warn("[db] 4-tier→3-tier migration skipped or failed:", e?.message ?? e);
+  }
 }
 
 // ── Query helpers ─────────────────────────────────────────────────────
