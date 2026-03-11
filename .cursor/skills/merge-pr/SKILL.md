@@ -7,7 +7,8 @@ description: Merge a pull request safely with all required checks. Use when the 
 
 Safely merge a PR with all mandatory checks. Never skip steps.
 
-**CRITICAL: Never merge automatically.** After completing all checks (CI, comments), always stop and ask the user for explicit confirmation before merging. The user may have additional instructions, want to review something first, or need to coordinate timing.
+**CRITICAL: Never merge automatically.** After completing all checks (CI, comments), always stop and ask the user for explicit confirmation before merging. 
+The user may have additional instructions, want to review something first, or need to coordinate timing.
 
 ## Procedure
 
@@ -19,23 +20,15 @@ After creating a PR or when the user mentions merging, **always ask the user fir
 - **Wait for explicit "yes" / confirmation before proceeding to the merge step.**
 - Do NOT merge just because all checks pass. The user decides when.
 
-### Step 1: Identify the PR
+### Step 1
 
-First, list all open PRs:
+**If the current branch has an open PR, always reuse it.** 
+Push new commits to the same branch — do NOT create a new branch or a new PR. 
+The existing PR will update automatically.
 
-```bash
-gh pr list --state open
-```
-
-Also check if the current branch has an open PR:
-
-```bash
-gh pr list --head "$(git branch --show-current)"
-```
-
-**If the current branch has an open PR, always reuse it.** Push new commits to the same branch — do NOT create a new branch or a new PR. The existing PR will update automatically.
-
-**IMPORTANT:** There should normally be only one open PR at a time. If multiple PRs are open, ask the user which one to merge first. Do NOT create new PRs until existing ones are merged.
+**IMPORTANT:** There should normally be only one open PR at a time. 
+If multiple PRs are open, ask the user which one to merge first. 
+Do NOT create new PRs until existing ones are merged.
 
 ### Step 2: Check CI status
 
@@ -45,27 +38,6 @@ gh pr checks <PR_NUMBER>
 
 - **All checks must pass.** If any check is `pending`, wait and re-check (sleep 15–30s between attempts, up to 5 minutes).
 - If a check **fails**, stop. Report the failure to the user. Do NOT merge.
-
-### Step 2.5: Verify preview deployment
-
-If a `preview` check exists in the PR checks output:
-
-1. Find the preview URL from the PR issue comments (the bot posts it):
-
-```bash
-gh api repos/{owner}/{repo}/issues/<PR_NUMBER>/comments --jq '.[].body' | grep 'pr-preview'
-```
-
-The preview URL follows the pattern: `https://cypherkitty.github.io/me-ai/pr-preview/pr-<PR_NUMBER>/`
-
-2. Navigate to the preview URL using the browser and verify the page loads:
-   - Use `browser_navigate` to open the preview URL
-   - Use `browser_snapshot` to confirm the page rendered (look for the nav bar with "me-ai", "Chat", "Dashboard" links)
-   - Take a screenshot for the user if needed
-
-3. Report the preview status alongside CI and comment status.
-
-If no `preview` check exists (e.g., docs-only changes), skip this step.
 
 ### Step 3: Check PR comments
 
@@ -79,46 +51,13 @@ Also check review comments:
 gh api repos/{owner}/{repo}/pulls/<PR_NUMBER>/reviews
 ```
 
-- If there are **unresolved comments or change requests**, stop. Show the comments to the user and address them. After fixing, push changes and go back to Step 2.
+- If there are **unresolved comments or change requests**, stop. 
+  Show the comments to the user and address them. After fixing, push changes and go back to Step 2.
 - If there are **no comments** or all are resolved/approved, proceed.
 
 ### Step 3.5: Resolve merge conflicts
 
-Check if the PR has merge conflicts:
-
-```bash
-gh pr view <PR_NUMBER> --json mergeable,mergeStateStatus
-```
-
-If `mergeable` is `CONFLICTING`:
-
-1. Update the local branch with latest `main`:
-
-```bash
-git fetch origin main
-git merge origin/main
-```
-
-2. Resolve all conflicts manually. Review each conflicted file carefully — do not blindly accept one side.
-
-3. After resolving, run **all tests locally** to verify nothing broke:
-
-```bash
-npm run test:ci       # unit tests
-npx playwright test   # E2E tests
-```
-
-4. Commit the merge resolution and push:
-
-```bash
-git add .
-git commit -m "merge: resolve conflicts with main"
-git push
-```
-
-5. **Go back to Step 2** — wait for CI to pass again on the updated branch. Do NOT proceed to merge until all PR checks are green.
-
-If `mergeable` is `MERGEABLE`, skip this step.
+Check if the PR has merge conflicts and resolve them
 
 ### Step 4: Squash merge
 
@@ -140,14 +79,3 @@ Report to the user:
 - PR number and title
 - Merge status (success)
 - Any post-merge actions (e.g., deploy triggered)
-
-## Rules
-
-- **Always ask before merging.** Never merge without explicit user confirmation. Report status, then wait for a "yes".
-- **Never push directly to main.** All changes go through PRs.
-- **Never merge with failing CI.** Wait or fix first.
-- **Never merge with unaddressed comments.** Resolve everything.
-- **Always squash merge.** Clean history, one commit per feature.
-- **Never merge with conflicts.** Resolve conflicts locally, run all tests, push, and wait for CI to pass again before merging.
-- **Never skip steps.** Even if the user says "just merge it", run all checks first and inform them of any issues.
-- **One open PR at a time.** Never create a new PR while another is still open. Push all new work to the existing open PR's branch. Only after the user says "merge" and the PR is merged should you create a new branch and PR for the next task. This prevents PR sprawl and keeps review focused.

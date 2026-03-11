@@ -29,33 +29,7 @@ Allowed classes on shadcn components: **layout** (`flex`, `gap-*`, `p-*`, `h-*`,
 
 All components live in `$lib/components/ui/`:
 
-```svelte
-import { Button }      from "$lib/components/ui/button/index.js";
-import { Badge }       from "$lib/components/ui/badge/index.js";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "$lib/components/ui/card/index.js";
-import { Input }       from "$lib/components/ui/input/index.js";
-import { Label }       from "$lib/components/ui/label/index.js";
-import * as Select     from "$lib/components/ui/select/index.js";
-import { Switch }      from "$lib/components/ui/switch/index.js";
-import { Separator }   from "$lib/components/ui/separator/index.js";
-import { ScrollArea }  from "$lib/components/ui/scroll-area/index.js";
-import * as Table      from "$lib/components/ui/table/index.js";
-import * as Dialog     from "$lib/components/ui/dialog/index.js";
-import * as Sheet      from "$lib/components/ui/sheet/index.js";
-import * as Tooltip    from "$lib/components/ui/tooltip/index.js";
-import { cn }          from "$lib/utils.js"; // will become utils.ts after migration
-```
-
 Icons from **lucide-svelte**: `import { Mail, Settings, Zap } from "lucide-svelte";`
-
-## Badge variants
-
-| Variant | When to use |
-|---------|-------------|
-| `default` | Primary/highlighted label |
-| `secondary` | Neutral, subdued label |
-| `outline` | Low-emphasis label |
-| `destructive` | Error / danger label |
 
 ## Button variants
 
@@ -68,34 +42,3 @@ Icons from **lucide-svelte**: `import { Mail, Settings, Zap } from "lucide-svelt
 - **Dark-only app** — no `dark:` prefix needed
 - **Add components** via `npx shadcn-svelte@latest add --yes <name>`
 - Custom colors belong in `src/app.css` CSS variables, not on components
-
-## Layout patterns
-
-```svelte
-<!-- Card with content -->
-<Card>
-  <CardHeader>
-    <CardTitle>Title</CardTitle>
-  </CardHeader>
-  <CardContent class="space-y-2">...</CardContent>
-</Card>
-
-<!-- Form field -->
-<div class="space-y-1.5">
-  <Label for="x">Label</Label>
-  <Input id="x" bind:value={v} />
-</div>
-
-<!-- Destructive confirm dialog -->
-<Dialog.Root bind:open={open}>
-  <Dialog.Content>
-    <Dialog.Header>
-      <Dialog.Title>Delete?</Dialog.Title>
-    </Dialog.Header>
-    <Dialog.Footer>
-      <Button variant="outline" onclick={() => open = false}>Cancel</Button>
-      <Button variant="destructive" onclick={doDelete}>Delete</Button>
-    </Dialog.Footer>
-  </Dialog.Content>
-</Dialog.Root>
-```
