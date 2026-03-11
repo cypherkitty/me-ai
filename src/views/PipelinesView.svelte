@@ -56,16 +56,14 @@
 
   const catColors: Record<string, string> = {
     noise: "#6b7280",
-    informational: "#3b82f6",
-    important: "#d97706",
-    urgent: "#ef4444",
+    info: "#3b82f6",
+    critical: "#ef4444",
   };
 
   const catIcons: Record<string, string> = {
     noise: "🗑",
-    informational: "📋",
-    important: "⭐",
-    urgent: "🚨",
+    info: "📋",
+    critical: "🚨",
   };
 
   onMount(load);

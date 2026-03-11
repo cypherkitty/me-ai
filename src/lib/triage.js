@@ -61,13 +61,11 @@ Guidelines for "action" (Event Type):
 - Do not use verbs. Use noun phrases that describe the event type.
 - Reuse existing event types when the message fits — avoid creating very similar types.
 
-Guidelines for "category" (Event Category):
-- Classify the message into one of four tiers:
-  - "noise"         — Pure spam, mass marketing, social media digests, promotional blasts. Will be automatically deleted. Use ONLY when you are certain.
-  - "informational" — Useful but not urgent: newsletters, shipping updates, social notifications, automated confirmations. Will be silently archived.
-  - "important"     — Requires attention: personal messages, work emails, invoices, account changes, financial transactions. User must review.
-  - "urgent"        — Needs immediate action: security alerts, payment failures, time-sensitive deadlines. User must act now.
-- When in doubt, always use "important" — it is safer.
+Guidelines for "category" (Event Category — exactly three tiers):
+- "noise"    — Pure spam, mass marketing, social media digests, promotional blasts. Will be automatically deleted. Use ONLY when you are certain.
+- "info"     — Useful but not urgent: newsletters, shipping updates, social notifications, automated confirmations. Will be silently archived.
+- "critical" — Requires attention: personal messages, work emails, invoices, account changes, financial transactions, security alerts. User must review.
+- When in doubt, always use "critical" — it is safer.
 - "noise" auto-deletes, so be extremely conservative with it.
 
 Guidelines for "tags":
@@ -85,7 +83,7 @@ Active integrations: ${pluginNames || "(none)"}
 Rules:
 - Output ONLY the JSON object, nothing else. No prefixes like ---set or --set, no markdown, no code fences.
 - "action" must be UPPER_SNAKE_CASE and describe the message type (e.g. PROMOTION, RECEIPT). Never use connection strings, config values, or technical jargon.
-- "category" must be exactly one of: "noise", "informational", "important", "urgent"
+- "category" must be exactly one of: "noise", "info", "critical"
 - "reason" and "summary" must be plain English about the message content only. Do not insert config variables or technical strings.
 - "tags" must be an array of lowercase strings
 - "summary" must be a string`;
@@ -519,7 +517,7 @@ export function formatEmailPrompt(email) {
  * Expects: {"action": "...", "category": "...", "reason": "...", "summary": "...", "tags": [...]}
  *
  * Action types are freeform — any UPPER_SNAKE_CASE string is accepted.
- * Category must be one of: noise, informational, important, urgent.
+ * Category must be one of: noise, info, critical.
  *
  * @param {string} response - Raw LLM output
  * @param {Set<string>} [knownActionIds] - Unused (kept for API compat)
@@ -584,21 +582,23 @@ export function parseClassification(response, knownActionIds) {
       return null;
     }
 
-    // Parse category (new 4-tier model) — also accept legacy "group" field
-    const VALID_CATEGORIES = ["noise", "informational", "important", "urgent"];
+    // Parse category (3-tier: noise | info | critical)
+    const VALID_CATEGORIES = ["noise", "info", "critical"];
     const rawCategory = (parsed.category || parsed.group || "").toLowerCase().trim();
-    // Map legacy 2-tier values to new 4-tier
     let category;
     if (VALID_CATEGORIES.includes(rawCategory)) {
       category = rawCategory;
     } else if (rawCategory === "noise" || parsed.group === "NOISE") {
       category = "noise";
+    } else if (rawCategory === "informational") {
+      category = "info";
+    } else if (rawCategory === "important" || rawCategory === "urgent" || parsed.group === "CRITICAL" || parsed.group === "IMPORTANT" || parsed.group === "URGENT") {
+      category = "critical";
     } else {
-      category = "important"; // safe default
+      category = "critical"; // safe default
     }
 
-    // Backward compat: derive legacy group from category
-    const group = category === "noise" ? "NOISE" : "IMPORTANT";
+    const group = category === "noise" ? "NOISE" : category === "info" ? "INFO" : "CRITICAL";
 
     // suggestedActions removed — categories carry their own pipelines
     const suggestedActions = [];

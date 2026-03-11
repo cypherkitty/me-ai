@@ -329,7 +329,7 @@ export async function getEventStats() {
   const { getDb } = await import("./store/db.js");
   await getDb();
 
-  // "awaiting_user" = number of pending items with category pointing to policy 'manual' (important/urgent)
+  // "awaiting_user" = number of pending items with category pointing to policy 'manual' (critical)
   // "escalated" = number of items where status='escalated'
   // "completed" = number of auditLog success=true
   // "failed" = number of auditLog success=false
@@ -365,7 +365,7 @@ export async function getEventStats() {
 /**
  * Get pending approvals.
  * These are items in emailClassifications with status='pending'
- * where the assigned category maps to a rule policy 'manual' (e.g., 'important' or 'urgent').
+ * where the assigned category maps to a rule policy 'manual' (critical).
  */
 export async function getPendingApprovals({ limit = 100 } = {}) {
   const { getDb } = await import("./store/db.js");
@@ -536,7 +536,7 @@ export async function getPipelineForEvent(eventType) {
   const typeRow = await query(`
     SELECT category_name FROM sm_event_types WHERE UPPER(name) = ?
   `, [normalized]);
-  const category = typeRow?.[0]?.category_name || "important";
+  const category = typeRow?.[0]?.category_name || "critical";
 
   // 3. Get category policy
   const catRow = await query(`
