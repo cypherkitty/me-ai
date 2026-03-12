@@ -35,74 +35,69 @@ fn serialize_to_js<T: serde::Serialize>(value: &T) -> Result<JsValue, JsValue> {
     to_value(value).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
 }
 
+/// Map Result<T, CoreError> to Result<JsValue, JsValue> at the WASM boundary.
+fn wasm_result<T: serde::Serialize>(r: Result<T, CoreError>) -> Result<JsValue, JsValue> {
+    r.map_err(|e| error_to_js(&e)).and_then(|v| serialize_to_js(&v))
+}
+
 /// Fetch event types (name, label) from sm_event_types. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getEventTypes)]
 pub async fn get_event_types() -> Result<JsValue, JsValue> {
-    let rows = events::get_event_types().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&rows)
+    wasm_result(events::get_event_types().await)
 }
 
 /// Fetch event categories (name, label, priority) from sm_event_categories. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getEventCategories)]
 pub async fn get_event_categories() -> Result<JsValue, JsValue> {
-    let rows = events::get_event_categories().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&rows)
+    wasm_result(events::get_event_categories().await)
 }
 
 /// Fetch sources from sm_sources. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getSources)]
 pub async fn get_sources() -> Result<JsValue, JsValue> {
-    let rows = rules::get_sources().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&rows)
+    wasm_result(rules::get_sources().await)
 }
 
 /// Fetch actions from sm_actions. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getActions)]
 pub async fn get_actions() -> Result<JsValue, JsValue> {
-    let rows = rules::get_actions().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&rows)
+    wasm_result(rules::get_actions().await)
 }
 
 /// Count of all items (for post-schema init). Requires init(adapter) first.
 #[wasm_bindgen(js_name = getItemsCount)]
 pub async fn get_items_count() -> Result<JsValue, JsValue> {
-    let n = items::get_items_count().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(items::get_items_count().await)
 }
 
 /// Count of items with sourceType = 'gmail'. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getItemsCountGmail)]
 pub async fn get_items_count_gmail() -> Result<JsValue, JsValue> {
-    let n = items::get_items_count_gmail().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(items::get_items_count_gmail().await)
 }
 
 /// Count of contacts. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getContactsCount)]
 pub async fn get_contacts_count() -> Result<JsValue, JsValue> {
-    let n = items::get_contacts_count().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(items::get_contacts_count().await)
 }
 
 /// Oldest date among gmail items (ms). Requires init(adapter) first.
 #[wasm_bindgen(js_name = getItemsDateMin)]
 pub async fn get_items_date_min() -> Result<JsValue, JsValue> {
-    let d = items::get_items_date_min().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&d)
+    wasm_result(items::get_items_date_min().await)
 }
 
 /// Newest date among gmail items (ms). Requires init(adapter) first.
 #[wasm_bindgen(js_name = getItemsDateMax)]
 pub async fn get_items_date_max() -> Result<JsValue, JsValue> {
-    let d = items::get_items_date_max().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&d)
+    wasm_result(items::get_items_date_max().await)
 }
 
 /// Count of email classifications. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getEmailClassificationsCount)]
 pub async fn get_email_classifications_count() -> Result<JsValue, JsValue> {
-    let n = items::get_email_classifications_count().await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(items::get_email_classifications_count().await)
 }
 
 /// Create all tables, seed data, and run migrations. Call after init(adapter).
@@ -114,8 +109,7 @@ pub async fn create_schema_and_migrations() -> Result<(), JsValue> {
 /// Row count for a known table (for stats). Table must be in allowlist.
 #[wasm_bindgen(js_name = getTableCount)]
 pub async fn get_table_count(table: &str) -> Result<JsValue, JsValue> {
-    let n = app::get_table_count(table).await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(app::get_table_count(table).await)
 }
 
 /// Clear all user-data tables (keeps schema and seed data).
@@ -127,8 +121,7 @@ pub async fn clear_all_data() -> Result<(), JsValue> {
 /// Get a setting value by key. Returns null if not found.
 #[wasm_bindgen(js_name = getSetting)]
 pub async fn get_setting(key: &str) -> Result<JsValue, JsValue> {
-    let v = app::get_setting(key).await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&v)
+    wasm_result(app::get_setting(key).await)
 }
 
 /// Set a setting (insert or replace). Value must be JSON string.
@@ -188,10 +181,7 @@ pub async fn get_audit_log_wasm(
     offset: u32,
     failures_only: bool,
 ) -> Result<JsValue, JsValue> {
-    let result = audit::get_audit_log(limit as i64, offset as i64, failures_only)
-        .await
-        .map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&result)
+    wasm_result(audit::get_audit_log(limit as i64, offset as i64, failures_only).await)
 }
 
 /// Delete all audit log entries.
@@ -219,8 +209,7 @@ pub async fn clear_items_sync_contacts_wasm() -> Result<(), JsValue> {
 
 #[wasm_bindgen(js_name = getItemsCountBySource)]
 pub async fn get_items_count_by_source_wasm(source_type: &str) -> Result<JsValue, JsValue> {
-    let n = sync::get_items_count_by_source(source_type).await.map_err(|e| error_to_js(&e))?;
-    serialize_to_js(&n)
+    wasm_result(sync::get_items_count_by_source(source_type).await)
 }
 
 #[wasm_bindgen(js_name = getSyncState)]
