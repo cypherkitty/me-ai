@@ -1,4 +1,4 @@
-<script module>
+<script lang="ts" module>
 	import { cn } from "$lib/utils.js";
 	import { tv } from "tailwind-variants";
 
@@ -32,7 +32,20 @@
 
 </script>
 
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
+
+	interface Props {
+		class?: string;
+		variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+		size?: "default" | "sm" | "lg" | "icon" | "icon-sm" | "icon-lg";
+		ref?: HTMLButtonElement | HTMLAnchorElement | null;
+		href?: string;
+		type?: "button" | "submit" | "reset";
+		disabled?: boolean;
+		children?: Snippet;
+		[key: string]: unknown;
+	}
 	let {
 		class: className = undefined,
 		variant = "default",
@@ -43,7 +56,7 @@
 		disabled = undefined,
 		children = undefined,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 {#if href}

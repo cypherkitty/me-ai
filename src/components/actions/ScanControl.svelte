@@ -1,8 +1,21 @@
-<script>
+<script lang="ts">
   import ScanLiveView from "./ScanLiveView.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Search } from "lucide-svelte";
 
+  interface Props {
+    engineStatus?: string;
+    modelName?: string;
+    isScanning?: boolean;
+    scanProgress?: unknown;
+    scanCount?: number;
+    stats?: unknown;
+    onscan?: () => void;
+    onrescan?: () => void;
+    oninspect?: () => void;
+    onstop?: () => void;
+    oncloseprogress?: () => void;
+  }
   let {
     engineStatus = "idle",
     modelName = "",
@@ -15,7 +28,7 @@
     oninspect,
     onstop,
     oncloseprogress,
-  } = $props();
+  }: Props = $props();
 
   const COUNT_OPTIONS = [
     { value: 1, label: "1" },

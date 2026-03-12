@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
+  import type { AuditLogEntry, EventCategory } from "$lib/types.js";
   import { getEventStats } from "../lib/rules.js";
   import { getAuditLog } from "../lib/store/audit.js";
   import { query } from "../lib/store/db.js";
@@ -18,13 +19,34 @@
     Search,
     Tag,
     Activity,
-    Hourglass,
     Play,
     Loader,
     CheckCircle,
   } from "lucide-svelte";
 
-  let events = $state([]);
+  interface ExecStep {
+    id?: string;
+    label?: string;
+    status?: string;
+    [key: string]: unknown;
+  }
+  interface StreamEvent {
+    id?: string;
+    emailId?: string;
+    executedAt?: number;
+    timestamp?: number;
+    _streamStatus?: string;
+    subject?: string;
+    from?: string;
+    sender?: string;
+    source_name?: string;
+    eventType?: string;
+    event_type?: string;
+    event_category?: unknown;
+    steps?: ExecStep[];
+    [key: string]: unknown;
+  }
+  let events = $state<StreamEvent[]>([]);
   let stats = $state({
     total: 0,
     completed: 0,
@@ -35,10 +57,9 @@
   let loading = $state(true);
   let filterStatus = $state("");
   let searchQuery = $state("");
-  /** @type {Record<string, { running: boolean, steps: any[], success?: boolean }>} */
-  let execState = $state({});
+  let execState = $state<Record<string, { running: boolean; steps: ExecStep[]; success?: boolean }>>({});
 
-  const SOURCE_COLORS = {
+  const SOURCE_COLORS: Record<string, string> = {
     gmail: "#ea4335",
     telegram: "#26a5e4",
     instagram: "#e1306c",
@@ -73,13 +94,19 @@
         getEventStats(),
       ]);
 
-      // Tag executed entries
-      const executed = auditEntries.map((e) => ({
+      // Tag executed entries (audit entries have emailId, executedAt, etc.)
+      const executed = (auditEntries as unknown as AuditLogEntry[]).map((e) => ({
         ...e,
         _streamStatus: e.success ? "completed" : "failed",
-      }));
+      })) as unknown as StreamEvent[];
       // Tag pending entries
-      const pending = pendingRows.map((r) => ({
+      interface PendingRow {
+        id?: string;
+        sender?: string;
+        status?: string;
+        [key: string]: unknown;
+      }
+      const pending: StreamEvent[] = (pendingRows as PendingRow[]).map((r) => ({
         ...r,
         from: r.sender,
         _streamStatus: r.status === "escalated" ? "escalated" : "awaiting_user",
@@ -89,7 +116,7 @@
 
       // Merge: deduplicate by emailId — prefer executed entry if both exist
       const executedIds = new Set(executed.map((e) => e.emailId));
-      const filteredPending = pending.filter((p) => !executedIds.has(p.id));
+      const filteredPending = pending.filter((p) => !executedIds.has(p.id ?? ""));
 
       events = [...executed, ...filteredPending].sort(
         (a, b) =>
@@ -125,27 +152,27 @@
     }),
   );
 
-  function formatTime(ts) {
+  function formatTime(ts: number | null | undefined) {
     if (!ts) return "";
     const d = new Date(Number(ts));
-    const diffM = Math.round((Date.now() - d) / 60000);
+    const diffM = Math.round((Date.now() - d.getTime()) / 60000);
     if (diffM < 60) return `${diffM}m ago`;
     const diffH = Math.round(diffM / 60);
     if (diffH < 24) return `${diffH}h ago`;
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
 
-  function etLabel(et) {
+  function etLabel(et: string | undefined) {
     return et?.replace(/_/g, " ") ?? "";
   }
 
   /** Execute a pipeline directly from the stream for a pending event */
-  async function executeFromStream(evt) {
-    const id = evt.id ?? evt.emailId;
-    let emailData = {};
+  async function executeFromStream(evt: StreamEvent) {
+    const id = evt.id ?? evt.emailId ?? "";
+    let emailData: Record<string, unknown> = {};
     try {
       const rows = await query(`SELECT * FROM items WHERE id = ?`, [id]);
-      emailData = rows[0] ?? {};
+      emailData = (rows[0] as Record<string, unknown>) ?? {};
     } catch {}
 
     execState[id] = { running: true, steps: [] };
@@ -155,15 +182,15 @@
     );
 
     const event = {
-      type: evt.eventType || evt.event_type || "UNKNOWN",
-      source: emailData.sourceType || "gmail",
+      type: (evt.eventType || evt.event_type || "UNKNOWN") as string,
+      source: (emailData.sourceType as string) || "gmail",
       data: {
         emailId: id,
-        subject: emailData.subject ?? evt.subject,
-        from: emailData.from ?? evt.from ?? evt.sender ?? evt.source_name,
+        subject: (emailData.subject ?? evt.subject) as string | undefined,
+        from: (emailData.from ?? evt.from ?? evt.sender ?? evt.source_name) as string | undefined,
         ...emailData,
       },
-      metadata: { category: evt.event_category },
+      metadata: { category: evt.event_category as EventCategory | undefined },
     };
 
     const result = await executePipeline(
@@ -173,11 +200,14 @@
         if (progress.phase === "pipeline_loaded") {
           execState[id] = {
             ...st,
-            steps: progress.actions.map((a) => ({
-              label: a.name ?? a.commandId,
-              commandId: a.commandId,
+            steps: (progress.actions ?? []).map((a: unknown) => {
+              const act = a as { name?: string; commandId?: string };
+              return {
+              label: act.name ?? act.commandId,
+              commandId: act.commandId,
               status: "pending",
-            })),
+            };
+            }),
           };
         } else if (progress.phase === "action_start") {
           execState[id] = {
@@ -189,7 +219,8 @@
             ),
           };
         } else if (progress.phase === "action_complete") {
-          const ok = progress.result?.success !== false;
+          const result = progress.result as { success?: boolean; message?: string } | undefined;
+          const ok = result?.success !== false;
           execState[id] = {
             ...st,
             steps: st.steps.map((s) =>
@@ -197,7 +228,7 @@
                 ? {
                     ...s,
                     status: ok ? "done" : "error",
-                    message: progress.result?.message,
+                    message: result?.message,
                   }
                 : s,
             ),
@@ -315,10 +346,11 @@
       </div>
     {:else}
       <div class="flex flex-col gap-3 max-w-3xl">
-        {#each displayed as evt (evt.id)}
-          {@const srcColor = SOURCE_COLORS[evt.source_name] ?? "#6b7280"}
-          {@const st = execState[evt.id ?? evt.emailId]}
-          {@const activeSteps = evt.steps?.length ? evt.steps : st?.steps || []}
+        {#each displayed as evt (evt.id ?? evt.emailId ?? "")}
+          {@const srcColor = SOURCE_COLORS[String(evt.source_name ?? "")] ?? "#6b7280"}
+          {@const evtKey = evt.id ?? evt.emailId ?? ""}
+          {@const st = execState[evtKey]}
+          {@const activeSteps = (evt.steps?.length ? evt.steps : st?.steps || []) as ExecStep[]}
           <div
             class="rounded-xl border bg-card/60 backdrop-blur-md border-border/50 shadow-sm overflow-hidden hover:border-primary/30 transition-all"
           >
@@ -362,7 +394,7 @@
                       class="gap-1.5 h-6 text-xs font-medium"
                     >
                       <Tag class="size-3 shrink-0" />
-                      {etLabel(evt.event_type)}
+                      {etLabel(evt.event_type as string | undefined)}
                     </Badge>
                   {/if}
                   {#if evt.event_category}
@@ -401,7 +433,7 @@
             <!-- Execution trace -->
             {#if activeSteps.length}
               <div class="mx-3 mb-3">
-                <PipelineTrace steps={activeSteps} />
+                <PipelineTrace steps={activeSteps as { success?: boolean; status?: "running" | "done" | "error" | "pending"; actionName?: string; commandId?: string; label?: string; message?: string; error?: string }[]} />
               </div>
             {/if}
           </div>

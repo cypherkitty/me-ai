@@ -1,13 +1,19 @@
-<script>
+<script lang="ts">
 	import { Switch as SwitchPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		checked?: boolean;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
 		checked = $bindable(false),
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <SwitchPrimitive.Root

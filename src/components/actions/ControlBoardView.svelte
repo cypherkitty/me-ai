@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
@@ -7,6 +7,33 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { ShieldCheck } from "lucide-svelte";
 
+  interface Props {
+    engineStatus?: string;
+    modelName?: string;
+    categories?: Record<string, unknown>;
+    categoryOrder?: string[];
+    eventTypeToCategory?: Record<string, string>;
+    counts?: Record<string, number>;
+    stats?: unknown;
+    expandedCategory?: string | null;
+    isScanning?: boolean;
+    scanProgress?: unknown;
+    scanCount?: number;
+    error?: string | null;
+    successMsg?: string | null;
+    onscan?: () => void;
+    onrescan?: () => void;
+    ontogglecategory?: (cat: string) => void;
+    onexecute?: () => void;
+    onmarkacted?: (id: string) => void;
+    ondismiss?: () => void;
+    onremove?: (id: string) => void;
+    onclearcategory?: (category: string) => void;
+    ondismisserror?: () => void;
+    ondismisssuccess?: () => void;
+    onstop?: () => void;
+    oncloseprogress?: () => void;
+  }
   let {
     engineStatus,
     modelName,
@@ -33,7 +60,7 @@
     ondismisssuccess,
     onstop,
     oncloseprogress,
-  } = $props();
+  }: Props = $props();
 
   let showInspector = $state(false);
 

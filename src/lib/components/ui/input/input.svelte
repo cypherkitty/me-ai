@@ -1,6 +1,15 @@
-<script>
+<script lang="ts">
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: HTMLInputElement | null;
+		value?: string;
+		type?: string;
+		files?: FileList | undefined;
+		class?: string;
+		"data-slot"?: string;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		value = $bindable(),
@@ -9,7 +18,7 @@
 		class: className,
 		"data-slot": dataSlot = "input",
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 {#if type === "file"}

@@ -78,7 +78,7 @@ Examples:
   ad            : delete      : auto
   newsletter    : archive     : auto
   personal_msg  : reply       : manual
-  security_alert: escalate    : supervised
+  security_alert: escalate    : auto
   invoice       : notify+fwd  : manual
 ```
 
@@ -175,7 +175,6 @@ Controls whether the agent acts autonomously or defers to the user.
 | Policy | Behavior |
 |--------|----------|
 | `auto` | Agent executes immediately, no user involvement |
-| `supervised` | Agent executes but sends a post-action notification to user |
 | `manual` | Agent drafts the action and waits for explicit user approval |
 
 ---
@@ -242,9 +241,8 @@ Event ──ACTION_TAKEN──► Action
        ▼
 5. For each matching Rule:
    a. Check ExecutionPolicy
-   b. auto       → dispatch Actions immediately
-   c. supervised → dispatch Actions, then notify user
-   d. manual     → notify user, await approval, then dispatch
+   b. auto   → dispatch Actions immediately
+   c. manual → notify user, await approval, then dispatch
        │
        ▼
 6. Actions dispatched via the Plugin that HANDLES_SOURCE
@@ -265,7 +263,7 @@ Event ──ACTION_TAKEN──► Action
 | `rule_02` | EventType: `newsletter` | `archive` | `auto` | Auto-archive newsletters |
 | `rule_03` | EventCategory: `noise` | `mark_read` | `auto` | Mark-read all noise |
 | `rule_04` | EventType: `personal_message` + EventCategory: `important` | `notify_user` → `reply` | `manual` | Notify then draft reply |
-| `rule_05` | EventType: `security_alert` | `escalate` | `supervised` | Escalate security alerts |
+| `rule_05` | EventType: `security_alert` | `escalate` | `auto` | Escalate security alerts |
 | `rule_06` | EventType: `youtube_video` | `summarize` | `auto` | Auto-summarize videos |
 | `rule_07` | EventType: `invoice` | `notify_user` → `forward` | `manual` | Notify and forward invoices |
 
@@ -293,7 +291,6 @@ CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE;
 // --- Execution Policies ---
 CREATE (:ExecutionPolicy { name: "auto",       label: "Automatic",  description: "Agent executes without human input" });
 CREATE (:ExecutionPolicy { name: "manual",     label: "Manual",     description: "Waits for explicit user approval" });
-CREATE (:ExecutionPolicy { name: "supervised", label: "Supervised", description: "Executes then notifies user" });
 
 // --- Event Types ---
 CREATE (:EventType { name: "ad",                  label: "Advertisement" });
@@ -393,9 +390,9 @@ MATCH (r:Rule {id:"rule_04"}), (a1:Action {name:"notify_user"}), (a2:Action {nam
 CREATE (r)-[:EXECUTES {order:1}]->(a1) CREATE (r)-[:EXECUTES {order:2}]->(a2);
 
 MATCH (u:User {id:"user_01"})
-CREATE (r:Rule { id:"rule_05", name:"security_alert:escalate:supervised", description:"Escalate security alerts", enabled:true, priority:100, created_at:datetime() })
+CREATE (r:Rule { id:"rule_05", name:"security_alert:escalate:auto", description:"Escalate security alerts", enabled:true, priority:100, created_at:datetime() })
 CREATE (u)-[:OWNS]->(r);
-MATCH (r:Rule {id:"rule_05"}), (et:EventType {name:"security_alert"}), (a:Action {name:"escalate"}), (ep:ExecutionPolicy {name:"supervised"})
+MATCH (r:Rule {id:"rule_05"}), (et:EventType {name:"security_alert"}), (a:Action {name:"escalate"}), (ep:ExecutionPolicy {name:"auto"})
 CREATE (r)-[:TRIGGERED_BY]->(et) CREATE (r)-[:EXECUTES {order:1}]->(a) CREATE (r)-[:WITH_POLICY]->(ep);
 
 MATCH (u:User {id:"user_01"})
@@ -438,7 +435,7 @@ MATCH (e:Event {id:"evt_003"}), (r:Rule {id:"rule_04"}), (a1:Action {name:"notif
 CREATE (e)-[:PROCESSED_BY {at:datetime("2026-02-26T09:30:02"), result:"pending_user_input"}]->(r)
 CREATE (e)-[:ACTION_TAKEN {at:datetime("2026-02-26T09:30:02"), result:"push_notification_sent"}]->(a1);
 
-// evt_004: Security alert → escalated (supervised) by rule_05
+// evt_004: Security alert → escalated (auto) by rule_05
 MATCH (et:EventType {name:"security_alert"}), (ec:EventCategory {name:"urgent"}), (s:Source {name:"gmail"})
 CREATE (e:Event { id:"evt_004", subject:"Security alert: new sign-in", content:"New sign-in from unknown device in Russia.", sender:"no-reply@accounts.google.com", timestamp:datetime("2026-02-26T11:45:00"), status:"escalated" })
 CREATE (e)-[:HAS_TYPE]->(et) CREATE (e)-[:HAS_CATEGORY]->(ec) CREATE (e)-[:FROM_SOURCE]->(s);

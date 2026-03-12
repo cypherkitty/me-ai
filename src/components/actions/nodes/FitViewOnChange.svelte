@@ -1,7 +1,11 @@
-<script>
+<script lang="ts">
+  import type { Node } from '@xyflow/svelte';
   import { useSvelteFlow } from '@xyflow/svelte';
 
-  let { nodes } = $props();
+  interface Props {
+    nodes: Node[];
+  }
+  let { nodes }: Props = $props();
   const { fitView } = useSvelteFlow();
 
   $effect(() => {

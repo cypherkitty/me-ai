@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { OLLAMA_MODELS, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
   import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels } from "../../lib/ollama-client.js";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -9,7 +9,12 @@
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { cn } from "$lib/utils.js";
 
-  let { selectedModel = $bindable(), onload, error = $bindable() } = $props();
+  interface Props {
+    selectedModel?: string;
+    onload?: () => void;
+    error?: string | null;
+  }
+  let { selectedModel = $bindable(), onload, error = $bindable() }: Props = $props();
 
   const isLocal = typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");

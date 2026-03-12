@@ -1,7 +1,10 @@
-<script>
+<script lang="ts">
 	import { Tooltip as TooltipPrimitive } from "bits-ui";
 
-	let { ...restProps } = $props();
+	interface Props {
+		[key: string]: unknown;
+	}
+	let { ...restProps }: Props = $props();
 </script>
 
 <TooltipPrimitive.Portal {...restProps} />

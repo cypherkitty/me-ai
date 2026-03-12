@@ -1,30 +1,36 @@
-<script>
+<script lang="ts">
   import { EVENT_CATEGORY_TIERS } from "../../lib/events.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
 
-  let { progress = null, onstop, oninspect, onclose } = $props();
+  interface Props {
+    progress?: { current?: number; total?: number; [key: string]: unknown } | null;
+    onstop?: () => void;
+    oninspect?: () => void;
+    onclose?: () => void;
+  }
+  let { progress = null, onstop, oninspect, onclose }: Props = $props();
 
-  function fmtTime(ms) {
+  function fmtTime(ms: number | undefined) {
     if (!ms || ms < 0) return "—";
     if (ms < 1000) return `${Math.round(ms)}ms`;
     if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
     return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
   }
 
-  function fmtTokens(n) {
+  function fmtTokens(n: number | undefined) {
     if (!n) return "0";
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     return String(n);
   }
 
-  function shortSender(from) {
+  function shortSender(from: string) {
     if (!from) return "—";
     const name = from.replace(/<.*>/, "").trim();
     return name.length > 30 ? name.slice(0, 28) + "…" : name;
   }
 
-  function shortDate(ts) {
+  function shortDate(ts: number | null | undefined) {
     if (!ts) return "";
     try {
       return new Date(ts).toLocaleDateString("en-US", {

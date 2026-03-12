@@ -1,11 +1,20 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { formatBytesPrecise, progressPct } from "../../lib/format.js";
   import { mountLog } from "../../lib/debug.js";
   import { Progress } from "$lib/components/ui/progress/index.js";
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
 
-  let { message = "", items = [] } = $props();
+  interface ProgressItem {
+    file?: string;
+    loaded?: number;
+    total?: number;
+  }
+  interface Props {
+    message?: string;
+    items?: ProgressItem[];
+  }
+  let { message = "", items = [] }: Props = $props();
 
   onMount(() => mountLog("LoadingProgress"));
 </script>

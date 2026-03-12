@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import MessageBubble from "./MessageBubble.svelte";
   import EventMessage from "./EventMessage.svelte";
@@ -16,6 +16,35 @@
   import { actionColor } from "../../lib/triage.js";
   import { mountLog } from "../../lib/debug.js";
 
+  interface Props {
+    messages?: unknown[];
+    pendingData?: unknown;
+    hasScanData?: boolean;
+    engineReady?: boolean;
+    isScanning?: boolean;
+    isRunning?: boolean;
+    tps?: number | null;
+    numTokens?: number | null;
+    generationPhase?: string | null;
+    gpuInfo?: unknown;
+    enableThinking?: boolean;
+    maxTokens?: number;
+    doSample?: boolean;
+    temperature?: number;
+    repetitionPenalty?: number;
+    backend?: string;
+    chatContainer?: HTMLElement | null;
+    onsend?: (text: string) => void;
+    onstop?: () => void;
+    onreset?: () => void;
+    onmarkacted?: (id: string) => void;
+    ondismiss?: () => void;
+    onremove?: (id: string) => void;
+    onclearcategory?: (category: string) => void;
+    onscan?: () => void;
+    oncommand?: (cmd: { id: string }) => void;
+    onexecuted?: () => void;
+  }
   onMount(() => mountLog("ChatView"));
 
   let {
@@ -46,7 +75,7 @@
     onscan,
     oncommand,
     onexecuted,
-  } = $props();
+  }: Props = $props();
 
   let input = $state("");
   let showGpuPanel = $state(false);

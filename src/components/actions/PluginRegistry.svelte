@@ -1,7 +1,10 @@
-<script>
+<script lang="ts">
   import { pluginRegistry } from "../../lib/plugins/plugin-registry.js";
 
-  let { open = $bindable(false) } = $props();
+  interface Props {
+    open?: boolean;
+  }
+  let { open = $bindable(false) }: Props = $props();
 
   // Snapshot all plugins and their handlers at open time
   const plugins = $derived.by(() => {

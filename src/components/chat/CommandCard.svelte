@@ -1,5 +1,16 @@
-<script>
-  let { command, onexecute } = $props();
+<script lang="ts">
+  interface Command {
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+    body?: string;
+  }
+  interface Props {
+    command: Command;
+    onexecute?: (id: string) => void;
+  }
+  let { command, onexecute }: Props = $props();
 </script>
 
 <button

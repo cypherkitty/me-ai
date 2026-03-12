@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * Perplexity-style task card with nested expandable steps.
    */
@@ -6,7 +6,14 @@
   import { cn } from "$lib/utils.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
-  let { msg } = $props();
+  interface TaskCardMessage {
+    model?: string;
+    [key: string]: unknown;
+  }
+  interface Props {
+    msg: TaskCardMessage;
+  }
+  let { msg }: Props = $props();
 
   const MODEL_LABELS = {
     webgpu: "WebGPU", ollama: "Ollama", openai: "GPT",
@@ -24,10 +31,10 @@
   };
 
   let cardOpen = $state(true);
-  let expandedSteps = $state(new Set());
+  let expandedSteps = $state(new Set<string>());
 
   function toggleCard() { cardOpen = !cardOpen; }
-  function toggleStep(id) {
+  function toggleStep(id: string) {
     const next = new Set(expandedSteps);
     if (next.has(id)) next.delete(id); else next.add(id);
     expandedSteps = next;
@@ -36,13 +43,13 @@
   let modelLabel = $derived(msg.model ? (MODEL_LABELS[msg.model] ?? msg.model) : null);
   let modelColor = $derived(msg.model ? (MODEL_COLORS[msg.model] ?? "#888") : "#888");
 
-  function elapsed(ts) {
+  function elapsed(ts: number | undefined) {
     if (!ts) return "";
     const secs = Math.round((Date.now() - ts) / 1000);
     return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
   }
 
-  function categoryStyle(category) {
+  function categoryStyle(category: string) {
     return CATEGORY_COLORS[category] ?? {
       bg: "color-mix(in srgb, white 4%, transparent)",
       text: "var(--color-muted-foreground)",

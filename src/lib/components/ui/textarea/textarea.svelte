@@ -1,12 +1,20 @@
-<script>
+<script lang="ts">
 	import { cn } from "$lib/utils.js";
+
+	interface Props {
+		ref?: HTMLTextAreaElement | null;
+		value?: string;
+		class?: string;
+		"data-slot"?: string;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		value = $bindable(),
 		class: className,
 		"data-slot": dataSlot = "textarea",
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <textarea

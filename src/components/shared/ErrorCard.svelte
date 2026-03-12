@@ -1,10 +1,15 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { parseError } from "../../lib/error-parser.js";
   import { mountLog } from "../../lib/debug.js";
   import { Button } from "$lib/components/ui/button/index.js";
 
-  let { error, ondismiss = null, onsignout = null } = $props();
+  interface Props {
+    error: unknown;
+    ondismiss?: (() => void) | null;
+    onsignout?: (() => void) | null;
+  }
+  let { error, ondismiss = null, onsignout = null }: Props = $props();
 
   let parsed = $derived(parseError(error));
 

@@ -15,7 +15,7 @@ When a new event (e.g. email) arrives, the LLM dynamically extracts:
 - **`action`** — the **event type** (e.g. `PROMOTION`, `INVOICE`, `SECURITY_ALERT`, `SHIPPING_UPDATE`). 
   Event types are emergent: the LLM creates them from message content; they are not a fixed enum.
 - **`category`** — one of three **event categories**: `noise` | `info` | `critical`. 
-  This tier drives both the **default pipeline** and the **execution policy** (auto / supervised / manual).
+  This tier drives both the **default pipeline** and the **execution policy** (auto / manual).
 
 The LLM does **not** suggest concrete actions or command IDs. 
 Categories carry their own default pipelines; the classifier only assigns type + category.
@@ -26,10 +26,10 @@ Categories carry their own default pipelines; the classifier only assigns type +
   Stored in `sm_event_types` with a `category_name`. Many event types can share one category.
 - **Event category**: Coarse-grained bucket with a **default pipeline** and **execution policy**. Stored in `sm_event_categories`. The three categories are:
   - `noise` — auto-delete (e.g. trash); policy `auto`
-  - `info` — useful but not urgent; policy `supervised` (execute then notify)
+  - `info` — useful but not urgent; policy `auto`
   - `critical` — requires attention; policy `manual` (user approval)
 
-Execution policies: `auto` (run without user), `supervised` (run then notify), `manual` (wait for approval).
+Execution policies: `auto` (run without user), `manual` (wait for approval).
 
 ## 3. Pipeline Resolution (Category-Based + Optional Overrides)
 
@@ -47,7 +47,7 @@ Users manage category pipelines and overrides in the UI (e.g. Action Pipeline Ed
 an ordered list of plugin commands, and an execution policy. 
 Stored in `sm_rules`, `sm_rule_triggers`, `sm_rule_commands`, `sm_rule_policies`. 
 At execution time, matching rules are considered first; if a rule matches and has actions, those are used. 
-Otherwise the category-based pipeline (above) is used.
+Otherwise, the category-based pipeline (above) is used.
 
 ## 5. Execution (Plugin Registry)
 

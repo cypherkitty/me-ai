@@ -1,8 +1,21 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import CheckIcon from "@lucide/svelte/icons/check";
 	import { Select as SelectPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
+	interface ItemSnippetProps {
+		selected: boolean;
+		highlighted: boolean;
+	}
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		value?: string;
+		label?: string;
+		children?: Snippet<[ItemSnippetProps]>;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
@@ -10,7 +23,7 @@
 		label,
 		children: childrenProp,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <SelectPrimitive.Item

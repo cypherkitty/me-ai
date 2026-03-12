@@ -1,20 +1,21 @@
-<script>
+<script lang="ts">
     import { cn } from "$lib/utils.js";
     import { CircleCheck, TriangleAlert } from "lucide-svelte";
 
-    /**
-     * @typedef {Object} Step
-     * @property {boolean} [success]
-     * @property {string} [status] - "running", "done", "error", "pending" (used in chat)
-     * @property {string} [actionName]
-     * @property {string} [commandId]
-     * @property {string} [label] - alternative to actionName/commandId
-     * @property {string} [message]
-     * @property {string} [error]
-     */
-
-    /** @type {{ steps: Step[], class?: string }} */
-    let { steps = [], class: className } = $props();
+    interface Step {
+      success?: boolean;
+      status?: "running" | "done" | "error" | "pending";
+      actionName?: string;
+      commandId?: string;
+      label?: string;
+      message?: string;
+      error?: string;
+    }
+    interface Props {
+      steps?: Step[];
+      class?: string;
+    }
+    let { steps = [], class: className }: Props = $props();
 </script>
 
 {#if steps?.length}

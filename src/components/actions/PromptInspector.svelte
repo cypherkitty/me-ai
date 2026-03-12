@@ -1,7 +1,11 @@
-<script>
+<script lang="ts">
   import { SYSTEM_PROMPT, CLASSIFICATION_CONFIG, formatEmailPrompt } from "../../lib/triage.js";
 
-  let { open = $bindable(false), sampleEmail = null } = $props();
+  interface Props {
+    open?: boolean;
+    sampleEmail?: unknown;
+  }
+  let { open = $bindable(false), sampleEmail = null }: Props = $props();
 
   let activeTab = $state("system");
 
@@ -14,7 +18,7 @@
     open = false;
   }
 
-  function handleBackdrop(e) {
+  function handleBackdrop(e: MouseEvent) {
     if (e.target === e.currentTarget) close();
   }
 </script>

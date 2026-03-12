@@ -1,14 +1,22 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { ScrollArea as ScrollAreaPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: HTMLElement | null;
+		class?: string;
+		orientation?: "vertical" | "horizontal";
+		children?: Snippet;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
 		orientation = "vertical",
 		children,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <ScrollAreaPrimitive.Scrollbar

@@ -1,8 +1,17 @@
-<script>
+<script lang="ts">
   import { Handle, Position } from "@xyflow/svelte";
   import { ChevronDown, Trash2 } from "lucide-svelte";
 
-  let { data } = $props();
+  interface TriggerNodeData {
+    triggerType?: string;
+    isEditable?: boolean;
+    onClick?: () => void;
+    [key: string]: unknown;
+  }
+  interface Props {
+    data: TriggerNodeData;
+  }
+  let { data }: Props = $props();
 </script>
 
 <div

@@ -1,4 +1,5 @@
-<script>
+<script lang="ts">
+  import type { StoredItem } from "$lib/types.js";
   import { onMount } from "svelte";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
@@ -7,7 +8,12 @@
   import { emailToJsonString, emailJsonFilename } from "../../lib/json-export.js";
   import { mountLog } from "../../lib/debug.js";
 
-  let { message, loading = false, onclose } = $props();
+  interface Props {
+    message: StoredItem;
+    loading?: boolean;
+    onclose?: () => void;
+  }
+  let { message, loading = false, onclose }: Props = $props();
 
   onMount(() => mountLog("MessageModal"));
 
@@ -28,7 +34,7 @@
 
   let mdTab = $state("raw"); // "raw" | "preview"
 
-  function setViewMode(mode) {
+  function setViewMode(mode: string) {
     viewMode = viewMode === mode ? "email" : mode;
     if (mode === "markdown") mdTab = "raw";
   }
@@ -42,7 +48,7 @@
   }
 
   /** Render markdown to sanitized HTML using marked + DOMPurify */
-  function renderMarkdown(md) {
+  function renderMarkdown(md: string) {
     const raw = marked.parse(md);
     return DOMPurify.sanitize(raw, {
       ADD_ATTR: ["target"],

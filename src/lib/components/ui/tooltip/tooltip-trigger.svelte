@@ -1,7 +1,11 @@
-<script>
+<script lang="ts">
 	import { Tooltip as TooltipPrimitive } from "bits-ui";
 
-	let { ref = $bindable(null), ...restProps } = $props();
+	interface Props {
+		ref?: unknown;
+		[key: string]: unknown;
+	}
+	let { ref = $bindable(null), ...restProps }: Props = $props();
 </script>
 
 <TooltipPrimitive.Trigger bind:ref data-slot="tooltip-trigger" {...restProps} />

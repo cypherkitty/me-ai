@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { getSources, setSourceEnabled } from "../lib/rules.js";
   import {

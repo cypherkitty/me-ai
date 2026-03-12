@@ -1,6 +1,13 @@
-<script>
+<script lang="ts">
   import { Handle, Position } from '@xyflow/svelte';
-  let { data } = $props();
+
+  interface AddNodeData {
+    onClick?: () => void;
+  }
+  interface Props {
+    data: AddNodeData;
+  }
+  let { data }: Props = $props();
 </script>
 
 <button

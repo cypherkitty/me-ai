@@ -1,13 +1,17 @@
-<script>
+<script lang="ts">
+  import type { AuditLogEntry } from "$lib/types.js";
   import { getAuditLog, clearAuditLog } from "../../lib/store/audit.js";
 
-  let { open = $bindable(false) } = $props();
+  interface Props {
+    open?: boolean;
+  }
+  let { open = $bindable(false) }: Props = $props();
 
-  let entries = $state([]);
+  let entries = $state<AuditLogEntry[]>([]);
   let total = $state(0);
   let loading = $state(false);
   let failuresOnly = $state(false);
-  let expandedId = $state(null);
+  let expandedId = $state<string | null>(null);
   let confirmClear = $state(false);
 
   $effect(() => {
@@ -32,11 +36,11 @@
     confirmClear = false;
   }
 
-  function toggle(id) {
+  function toggle(id: string) {
     expandedId = expandedId === id ? null : id;
   }
 
-  function formatTime(ts) {
+  function formatTime(ts: number | null | undefined) {
     if (!ts) return "—";
     const d = new Date(ts);
     return d.toLocaleString("en-US", {

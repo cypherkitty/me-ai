@@ -282,7 +282,6 @@
                     class="h-6 px-1.5 text-xs rounded border border-input bg-background text-foreground"
                   >
                     <option value="auto">Auto-execute</option>
-                    <option value="supervised">Execute & notify</option>
                     <option value="manual">User approval</option>
                   </select>
                 </div>

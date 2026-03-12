@@ -1,8 +1,21 @@
-<script>
+<script lang="ts">
   import { Handle, Position } from "@xyflow/svelte";
   import { Edit2, Trash2 } from "lucide-svelte";
 
-  let { data } = $props();
+  interface ActionCmd {
+    pluginId?: string;
+    icon?: string;
+    [key: string]: unknown;
+  }
+  interface ActionNodeData {
+    cmd: ActionCmd;
+    onClick?: () => void;
+    [key: string]: unknown;
+  }
+  interface Props {
+    data: ActionNodeData;
+  }
+  let { data }: Props = $props();
   let cmd = $derived(data.cmd);
 </script>
 

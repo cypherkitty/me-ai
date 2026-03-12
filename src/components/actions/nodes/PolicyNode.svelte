@@ -27,7 +27,6 @@
         onchange={(e) => data.onChange?.((e.target as HTMLSelectElement).value)}
       >
         <option value="auto">auto</option>
-        <option value="supervised">supervised</option>
         <option value="manual">manual</option>
       </select>
     {:else}

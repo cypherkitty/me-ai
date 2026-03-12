@@ -1,7 +1,11 @@
-<script>
+<script lang="ts">
   import { cn } from "$lib/utils.js";
 
-  let { backend = $bindable("webgpu"), isWebGPUAvailable = true } = $props();
+  interface Props {
+    backend?: "webgpu" | "ollama" | "cloud";
+    isWebGPUAvailable?: boolean;
+  }
+  let { backend = $bindable("webgpu"), isWebGPUAvailable = true }: Props = $props();
 
   const options = [
     {
