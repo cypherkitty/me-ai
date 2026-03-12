@@ -121,5 +121,5 @@ async fn build_rexie_impl() -> rexie::Result<Rexie> {
 pub async fn get_rexie() -> Result<Rexie, CoreError> {
     build_rexie_impl()
         .await
-        .map_err(|e| CoreError::Rexie(e.to_string()))
+        .map_err(crate::error::rexie_to_core)
 }

@@ -4,15 +4,18 @@
  */
 
 import { toJson, fromJson } from "./db.js";
-import { getCore } from "../core.js";
+import {
+  getSetting as getSettingRaw,
+  setSetting as setSettingRaw,
+  removeSetting as removeSettingRaw,
+} from "../core.js";
 
 /**
  * Get a setting value by key.
  * @param fallback — default value when the key is absent (not a storage fallback).
  */
 export async function getSetting<T>(key: string, fallback: T | null = null): Promise<T | null> {
-  const core = await getCore();
-  const raw = await core.getSetting(key);
+  const raw = await getSettingRaw(key);
   if (raw == null || raw === undefined) return fallback;
   return fromJson(String(raw), fallback as T) as T | null;
 }
@@ -21,16 +24,14 @@ export async function getSetting<T>(key: string, fallback: T | null = null): Pro
  * Set a setting value.
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {
-  const core = await getCore();
-  await core.setSetting(key, toJson(value));
+  await setSettingRaw(key, toJson(value));
 }
 
 /**
  * Remove a setting by key.
  */
 export async function removeSetting(key: string): Promise<void> {
-  const core = await getCore();
-  await core.removeSetting(key);
+  await removeSettingRaw(key);
 }
 
 /**
@@ -38,9 +39,8 @@ export async function removeSetting(key: string): Promise<void> {
  */
 export async function getSettings(keys: string[]): Promise<Record<string, unknown>> {
   if (keys.length === 0) return {};
-  const core = await getCore();
   const entries = await Promise.all(
-    keys.map(async (k) => [k, fromJson<unknown>(String(await core.getSetting(k) ?? ""), null)] as const)
+    keys.map(async (k) => [k, fromJson<unknown>(String(await getSettingRaw(k) ?? ""), null)] as const)
   );
   return Object.fromEntries(entries);
 }

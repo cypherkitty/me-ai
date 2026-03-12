@@ -5,7 +5,14 @@
  * results. Rust builds queries and passes them to the JS adapter for execution.
  */
 
-import { getCore, getItemsCountGmail, getContactsCount, getItemsDateMin, getItemsDateMax } from "../core.js";
+import {
+  getItemsGmailByDateDesc,
+  getEmailClassifications,
+  getItemsCountGmail,
+  getContactsCount,
+  getItemsDateMin,
+  getItemsDateMax,
+} from "../core.js";
 import { fromJson } from "./db.js";
 import { truncate } from "../format.js";
 import { groupByAction } from "../email-utils.js";
@@ -70,8 +77,7 @@ export async function getDetailedSummary(): Promise<string> {
  * Get recent emails formatted for LLM context.
  */
 export async function getRecentEmails(limit = 10): Promise<string> {
-  const w = await getCore();
-  const items = (await w.getItemsGmailByDateDesc(limit)) as Record<string, unknown>[];
+  const items = (await getItemsGmailByDateDesc(limit)) as Record<string, unknown>[];
   if (!items?.length) return "No emails stored locally.";
   return items
     .map((r) => formatItemForLLM(normaliseRow(r)))
@@ -83,8 +89,7 @@ export async function getRecentEmails(limit = 10): Promise<string> {
  */
 export async function searchData(searchQuery: string, limit = 10): Promise<string> {
   if (!searchQuery) return "No search query provided.";
-  const w = await getCore();
-  const rows = (await w.getItemsGmailByDateDesc(limit * 5)) as Record<string, unknown>[];
+  const rows = (await getItemsGmailByDateDesc(limit * 5)) as Record<string, unknown>[];
   const q = searchQuery.toLowerCase();
   const scored = (rows ?? []).filter((r) => {
     const subj = String(r.subject ?? "").toLowerCase();
@@ -107,8 +112,7 @@ export async function searchData(searchQuery: string, limit = 10): Promise<strin
  * Returns null if there are no pending items.
  */
 export async function getPendingActions(): Promise<PendingActionsResult | null> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const rows = (await getEmailClassifications()) as Record<string, unknown>[];
   const pending = (rows ?? []).filter((r) => r.status === "pending");
   if (pending.length === 0) return null;
   const all = pending.map((r) => ({ ...r, tags: fromJson<unknown[]>(r.tags as string, []) }));
@@ -126,9 +130,8 @@ export async function getStoredEmails({
   limit = 50,
   offset = 0,
 }: GetStoredEmailsOptions = {}): Promise<GetStoredEmailsResult> {
-  const w = await getCore();
   const fetchSize = searchQuery ? 2000 : limit + offset;
-  const rows = (await w.getItemsGmailByDateDesc(fetchSize)) as Record<string, unknown>[];
+  const rows = (await getItemsGmailByDateDesc(fetchSize)) as Record<string, unknown>[];
 
   let items = rows ?? [];
   if (searchQuery) {

@@ -14,7 +14,17 @@
  * - totalItems      — count of locally stored items
  */
 
-import { getCore } from "../core.js";
+import {
+  deleteSyncState,
+  deleteItemsBySource,
+  getItemsCountBySource,
+  upsertSyncState,
+  insertItemsBatch,
+  deleteItemsByIds,
+  getContactByEmail,
+  upsertContact,
+  getSyncState as getSyncStateRaw,
+} from "../core.js";
 import { makeItemId, toJson } from "./db.js";
 import {
   getProfile,
@@ -90,8 +100,7 @@ export async function syncGmail(
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
-        const w = await getCore();
-        await w.deleteSyncState(SOURCE_TYPE);
+        await deleteSyncState(SOURCE_TYPE);
       } else {
         throw e;
       }
@@ -133,14 +142,12 @@ export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
 }
 
 export async function clearGmailData(): Promise<void> {
-  const w = await getCore();
-  await w.deleteItemsBySource(SOURCE_TYPE);
-  await w.deleteSyncState(SOURCE_TYPE);
+  await deleteItemsBySource(SOURCE_TYPE);
+  await deleteSyncState(SOURCE_TYPE);
 }
 
 export async function getGmailItemCount(): Promise<number> {
-  const w = await getCore();
-  return Number(await w.getItemsCountBySource(SOURCE_TYPE) ?? 0);
+  return Number(await getItemsCountBySource(SOURCE_TYPE) ?? 0);
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -192,7 +199,7 @@ async function fullSync(
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await upsertSyncState({
+    await writeSyncState({
       sourceType: SOURCE_TYPE,
       historyId: profile.historyId ?? "",
       lastSyncAt: Date.now(),
@@ -205,7 +212,7 @@ async function fullSync(
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
   const totalItems = await getGmailItemCount();
 
-  await upsertSyncState({
+  await writeSyncState({
     sourceType: SOURCE_TYPE,
     historyId: profile.historyId ?? "",
     lastSyncAt: Date.now(),
@@ -263,8 +270,7 @@ async function continueFetch(
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    const w = await getCore();
-    await w.upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
+    await upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
@@ -272,8 +278,7 @@ async function continueFetch(
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
   const totalItems = await getGmailItemCount();
 
-  const w = await getCore();
-  await w.upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
+  await upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
 
   onProgress({
     phase: "done",
@@ -372,7 +377,7 @@ async function incrementalSync(
 
   const totalItems = await getGmailItemCount();
 
-  await upsertSyncState({
+  await writeSyncState({
     sourceType: SOURCE_TYPE,
     historyId: newHistoryId,
     lastSyncAt: Date.now(),
@@ -514,13 +519,11 @@ async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
     raw: toJson(item.raw),
     syncedAt: item.syncedAt ?? null,
   }));
-  const w = await getCore();
-  await w.insertItemsBatch(rows);
+  await insertItemsBatch(rows);
 }
 
 async function bulkDeleteItems(ids: string[]): Promise<void> {
-  const w = await getCore();
-  await w.deleteItemsByIds(ids);
+  await deleteItemsByIds(ids);
 }
 
 // ── Contact extraction ──────────────────────────────────────────────
@@ -549,19 +552,18 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
     }
   }
 
-  const w = await getCore();
   for (const [email, { name, date }] of contactMap) {
-    const existing = await w.getContactByEmail(email);
+    const existing = await getContactByEmail(email);
     if (existing != null) {
       const row = existing as Record<string, unknown>;
-      await w.upsertContact(
+      await upsertContact(
         email,
         (row.name as string) || name || "",
         Number(row.firstSeen) || date,
         Math.max(date, Number(row.lastSeen) || 0)
       );
     } else {
-      await w.upsertContact(email, name || "", date, date);
+      await upsertContact(email, name || "", date, date);
     }
   }
 }
@@ -582,8 +584,7 @@ function parseEmailAddress(str: string): ParsedEmail | null {
 // ── syncState helpers ───────────────────────────────────────────────
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
-  const w = await getCore();
-  const r = await w.getSyncState(sourceType);
+  const r = await getSyncStateRaw(sourceType);
   if (r == null) return null;
   const row = r as Record<string, unknown>;
   return {
@@ -595,15 +596,14 @@ async function getSyncState(sourceType: string): Promise<SyncState | null> {
   };
 }
 
-async function upsertSyncState({
+async function writeSyncState({
   sourceType,
   historyId,
   lastSyncAt,
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  const w = await getCore();
-  await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
+  await upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
 }
 
 // ── Utilities ───────────────────────────────────────────────────────

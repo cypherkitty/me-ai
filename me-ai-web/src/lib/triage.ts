@@ -6,7 +6,19 @@
  * for each email. Action categories emerge dynamically from the data.
  */
 
-import { getCore, getItemsCountGmail, getEmailClassificationsCount } from "./core.js";
+import {
+  getItemsCountGmail,
+  getEmailClassificationsCount,
+  getItemsGmailByDateDesc,
+  getEmailClassifications as coreGetEmailClassifications,
+  getItemById as coreGetItemById,
+  putEmailClassification as corePutEmailClassification,
+  updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
+  clearEmailClassifications as coreClearEmailClassifications,
+  deleteEmailClassificationsByAction as coreDeleteEmailClassificationsByAction,
+  deleteEmailClassification as coreDeleteEmailClassification,
+  getItemsBySource as coreGetItemsBySource,
+} from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
@@ -196,24 +208,23 @@ export async function scanEmails(
 
   onProgress({ phase: "loading", message: "Loading recent emails..." });
 
-  const w = await getCore();
   let toProcess: StoredItem[];
   let skipped = 0;
 
   if (force) {
-    const rows = (await w.getItemsGmailByDateDesc(count)) as Record<string, unknown>[];
+    const rows = (await getItemsGmailByDateDesc(count)) as Record<string, unknown>[];
     toProcess = rows.map((r) => normaliseItemRow(r));
   } else {
     const [allItems, allClassifications] = await Promise.all([
-      w.getItemsGmailByDateDesc(5000) as Promise<Record<string, unknown>[]>,
-      w.getEmailClassifications(null, 5000) as Promise<{ emailId?: string }[]>,
+      getItemsGmailByDateDesc(5000) as Promise<Record<string, unknown>[]>,
+      coreGetEmailClassifications(null, 5000) as Promise<{ emailId?: string }[]>,
     ]);
     const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
     toProcess = (allItems ?? [])
       .filter((r) => !classifiedIds.has(r.id as string))
       .slice(0, count)
       .map((r) => normaliseItemRow(r));
-    skipped = Number((await w.getEmailClassificationsCount()) ?? 0);
+    skipped = Number((await getEmailClassificationsCount()) ?? 0);
   }
 
   if (toProcess.length === 0) {
@@ -311,7 +322,7 @@ export async function scanEmails(
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
-        await w.putEmailClassification(
+        await corePutEmailClassification(
           email.id,
           classification.action,
           classification.categoryTier,
@@ -410,8 +421,7 @@ export async function scanEmails(
 }
 
 export async function getClassifications(options: { action?: string } = {}): Promise<ClassificationRow[]> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications(options.action ?? null, undefined)) as Record<string, unknown>[];
+  const rows = (await coreGetEmailClassifications(options.action ?? null, undefined)) as Record<string, unknown>[];
   return (rows ?? []).map((r) => normaliseClassificationRow(r));
 }
 
@@ -422,8 +432,7 @@ export interface GetClassificationsByCategoryOptions {
 export async function getClassificationsByCategory(
   opts: GetClassificationsByCategoryOptions = {}
 ): Promise<{ categories: Record<string, ClassificationRow[]>; order: string[] }> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications(null, 5000)) as Record<string, unknown>[];
+  const rows = (await coreGetEmailClassifications(null, 5000)) as Record<string, unknown>[];
   let list = (rows ?? []).map((r) => normaliseClassificationRow(r));
   if (opts.pendingOnly === true) {
     list = list.filter((r) => r.status === "pending" || r.status === "escalated");
@@ -432,8 +441,7 @@ export async function getClassificationsByCategory(
 }
 
 export async function getClassificationCounts(): Promise<Record<string, number>> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications(null, 50000)) as { action?: string }[];
+  const rows = (await coreGetEmailClassifications(null, 50000)) as { action?: string }[];
   const total = (rows ?? []).length;
   const counts: Record<string, number> = { total };
   for (const r of rows ?? []) {
@@ -444,8 +452,7 @@ export async function getClassificationCounts(): Promise<Record<string, number>>
 }
 
 export async function getTagCounts(): Promise<Record<string, number>> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications(null, 50000)) as { tags?: string }[];
+  const rows = (await coreGetEmailClassifications(null, 50000)) as { tags?: string }[];
   const tagMap: Record<string, number> = {};
   for (const r of rows ?? []) {
     const tags = fromJson(r.tags, []) as string[];
@@ -459,23 +466,19 @@ export async function getTagCounts(): Promise<Record<string, number>> {
 }
 
 export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {
-  const w = await getCore();
-  await w.updateEmailClassificationStatus(emailId, newStatus);
+  await coreUpdateEmailClassificationStatus(emailId, newStatus);
 }
 
 export async function clearClassifications(): Promise<void> {
-  const w = await getCore();
-  await w.clearEmailClassifications();
+  await coreClearEmailClassifications();
 }
 
 export async function clearClassificationsByAction(action: string): Promise<void> {
-  const w = await getCore();
-  await w.deleteEmailClassificationsByAction(action);
+  await coreDeleteEmailClassificationsByAction(action);
 }
 
 export async function deleteClassification(emailId: string): Promise<void> {
-  const w = await getCore();
-  await w.deleteEmailClassification(emailId);
+  await coreDeleteEmailClassification(emailId);
 }
 
 export async function getScanStats(): Promise<{

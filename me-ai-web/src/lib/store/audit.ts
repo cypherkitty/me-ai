@@ -6,7 +6,12 @@
  * All SQL runs in me-ai-core (Rust); this module calls the core.
  */
 
-import { getCore } from "../core.js";
+import {
+  logAuditExecution as coreLogAuditExecution,
+  syncAfterAuditExecution as coreSyncAfterAuditExecution,
+  getAuditLog as coreGetAuditLog,
+  clearAuditLog as coreClearAuditLog,
+} from "../core.js";
 import { toJson, fromJson } from "./db.js";
 import type { PipelineAction, ActionExecutionResult, AuditStep } from "$lib/types";
 
@@ -46,8 +51,7 @@ export async function logExecution({
     message: (r.message ?? "") as string,
   }));
 
-  const w = await getCore();
-  await w.logAuditExecution(
+  await coreLogAuditExecution(
     crypto.randomUUID(),
     emailId,
     subject ?? "(no subject)",
@@ -78,8 +82,7 @@ export async function syncAfterExecution(
   const isArchiving = successfulCommandIds.some((id) => ARCHIVING_COMMAND_IDS.has(id));
   const deleteItem = isDestructive || isArchiving;
 
-  const w = await getCore();
-  await w.syncAfterAuditExecution(emailId, deleteItem);
+  await coreSyncAfterAuditExecution(emailId, deleteItem);
 }
 
 export interface GetAuditLogOptions {
@@ -101,8 +104,7 @@ export async function getAuditLog({
   offset = 0,
   failuresOnly = false,
 }: GetAuditLogOptions = {}): Promise<GetAuditLogResult> {
-  const w = await getCore();
-  const result = await w.getAuditLog(limit, offset, failuresOnly) as { entries: Record<string, unknown>[]; total: number };
+  const result = await coreGetAuditLog(limit, offset, failuresOnly) as { entries: Record<string, unknown>[]; total: number };
   const entries = (result.entries ?? []).map((r) => ({
     ...r,
     steps: fromJson<AuditStep[]>(r.steps as string, []),
@@ -115,6 +117,5 @@ export async function getAuditLog({
  * Delete all audit log entries.
  */
 export async function clearAuditLog(): Promise<void> {
-  const w = await getCore();
-  await w.clearAuditLog();
+  await coreClearAuditLog();
 }

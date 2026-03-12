@@ -7,7 +7,7 @@
   } from "../lib/rules.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
-  import { getCore } from "../lib/core.js";
+  import { getItemById } from "../lib/core.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -64,8 +64,7 @@
     const id = evt.id;
     let emailData: Record<string, unknown>;
     try {
-      const w = await getCore();
-      const item = await w.getItemById(id);
+      const item = await getItemById(id);
       emailData = (item ?? {}) as Record<string, unknown>;
     } catch {
       emailData = {};

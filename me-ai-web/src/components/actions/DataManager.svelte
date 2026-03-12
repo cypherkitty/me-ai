@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getCore } from "../../lib/core.js";
   import { nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
   import {
     getOpfsStats,
@@ -8,6 +7,7 @@
     getItemsCountGmail,
     getContactsCount,
     getEmailClassificationsCount,
+    clearContacts,
   } from "../../lib/core.js";
   import {
     clearClassifications,
@@ -312,7 +312,7 @@
                     confirm = null;
                     busy = true;
                     wipeAllData();
-                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { const w = await getCore(); await w.clearContacts(); }, ) }] as item}
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await clearContacts(); }, ) }] as item}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

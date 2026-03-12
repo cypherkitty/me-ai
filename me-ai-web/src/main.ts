@@ -8,11 +8,17 @@ const el = document.getElementById("app");
 if (!el) throw new Error("Missing #app element");
 const app = mount(App, { target: el });
 
-// Eager-init core (shell-style): load WASM and schema in background so first use is fast.
-initCore().catch((e) => {
-  console.error("[core] init failed", e);
-  console.warn("[core] IndexedDB may be unavailable (e.g. private browsing). Settings will use localStorage.");
-});
+// Init core after document is ready so IndexedDB open runs in a valid browser context.
+function startCoreInit() {
+  initCore().catch((e) => {
+    console.error("[core] init failed", e);
+  });
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startCoreInit);
+} else {
+  startCoreInit();
+}
 
 // Expose DB helpers on window for Playwright E2E tests.
 // These are no-ops in production but harmless.
