@@ -6,6 +6,7 @@
  * for each email. Action categories emerge dynamically from the data.
  */
 
+import { getItemsCountGmail, getEmailClassificationsCount } from "./core.js";
 import { query, exec, toJson, fromJson } from "./store/db.js";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
@@ -497,10 +498,10 @@ export async function getScanStats(): Promise<{
   classified: number;
   unclassified: number;
 }> {
-  const [emailRow] = await query(`SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`);
-  const [classRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
-  const totalEmails = Number((emailRow as { cnt?: number })?.cnt ?? 0);
-  const classified = Number((classRow as { cnt?: number })?.cnt ?? 0);
+  const [totalEmails, classified] = await Promise.all([
+    getItemsCountGmail().then((n) => Number(n ?? 0)),
+    getEmailClassificationsCount().then((n) => Number(n ?? 0)),
+  ]);
   return {
     totalEmails,
     classified,

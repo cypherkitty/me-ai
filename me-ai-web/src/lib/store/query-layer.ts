@@ -1,31 +1,27 @@
 /**
  * Query layer for accessing stored data.
  *
- * Provides both LLM-formatted queries (returning markdown strings) and
- * raw data queries (returning objects for UI display). Source-agnostic
- * where possible — when we add messengers, social networks, etc., most
- * queries work across all sources automatically.
+ * SQL lives in Rust (me-ai-core). This layer is thin: it calls core and formats
+ * results. Rust builds queries and passes them to the JS adapter for execution.
  */
 
+import { getItemsCountGmail, getContactsCount, getItemsDateMin, getItemsDateMax } from "../core.js";
 import { query, fromJson } from "./db.js";
 import { truncate } from "../format.js";
 import { groupByAction } from "../email-utils.js";
 import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
 
-// ── Data summary ────────────────────────────────────────────────────
+// ── Data summary (WASM core builds SQL and passes to adapter) ───────────────
 
 /**
  * Get a high-level summary of all stored data.
  * Suitable for always-on system prompt context (small token footprint).
  */
 export async function getDataSummary(): Promise<string | null> {
-  const [countRow] = await query(
-    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`
-  );
-  const totalEmails = Number(countRow?.cnt ?? 0);
-
-  const [contactRow] = await query(`SELECT COUNT(*) AS cnt FROM contacts`);
-  const totalContacts = Number(contactRow?.cnt ?? 0);
+  const [totalEmails, totalContacts] = await Promise.all([
+    getItemsCountGmail().then((n) => Number(n ?? 0)),
+    getContactsCount().then((n) => Number(n ?? 0)),
+  ]);
 
   if (totalEmails === 0) return null;
 
@@ -45,13 +41,10 @@ export async function getDataSummary(): Promise<string | null> {
  * Get a detailed summary with label distribution, top senders, etc.
  */
 export async function getDetailedSummary(): Promise<string> {
-  const [countRow] = await query(
-    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`
-  );
-  const totalEmails = Number(countRow?.cnt ?? 0);
-
-  const [contactRow] = await query(`SELECT COUNT(*) AS cnt FROM contacts`);
-  const totalContacts = Number(contactRow?.cnt ?? 0);
+  const [totalEmails, totalContacts] = await Promise.all([
+    getItemsCountGmail().then((n) => Number(n ?? 0)),
+    getContactsCount().then((n) => Number(n ?? 0)),
+  ]);
 
   if (totalEmails === 0) return "No emails stored locally.";
 
@@ -168,10 +161,7 @@ export async function getStoredEmails({
     return { items: rows.map((r) => normaliseRow(r as Record<string, unknown>)), total };
   }
 
-  const [countRow] = await query(
-    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`
-  );
-  const total = Number(countRow?.cnt ?? 0);
+  const total = Number(await getItemsCountGmail() ?? 0);
 
   const rows = await query(
     `SELECT * FROM items WHERE sourceType = 'gmail'
@@ -183,21 +173,22 @@ export async function getStoredEmails({
   return { items: rows.map((r) => normaliseRow(r as Record<string, unknown>)), total };
 }
 
-// ── Internal helpers ────────────────────────────────────────────────
+// ── Internal helpers (core builds SQL and passes to adapter) ────────────────
 
+/** Date range of gmail items. WASM core builds the queries and passes them to the adapter. */
 async function getDateRange(): Promise<{
   oldest: { date: number } | null;
   newest: { date: number } | null;
 }> {
-  const [oldest] = await query(
-    `SELECT date FROM items WHERE sourceType = 'gmail' ORDER BY date ASC  LIMIT 1`
-  );
-  const [newest] = await query(
-    `SELECT date FROM items WHERE sourceType = 'gmail' ORDER BY date DESC LIMIT 1`
-  );
+  const [minVal, maxVal] = await Promise.all([
+    getItemsDateMin(),
+    getItemsDateMax(),
+  ]);
+  const min = minVal != null ? Number(minVal) : null;
+  const max = maxVal != null ? Number(maxVal) : null;
   return {
-    oldest: oldest ? { date: Number(oldest.date) } : null,
-    newest: newest ? { date: Number(newest.date) } : null,
+    oldest: min != null ? { date: min } : null,
+    newest: max != null ? { date: max } : null,
   };
 }
 

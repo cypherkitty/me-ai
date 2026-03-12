@@ -1,7 +1,7 @@
 /**
- * DB adapter for me-ai-core (Rust WASM).
- * Execution-only: no SQL here. Pass this object to core.init(adapter).
- * The Rust side calls adapter.query(sql, params) and adapter.exec(sql, params).
+ * DB adapter for me-ai-core (Rust WASM). JS is thin: execution-only.
+ * Rust builds all SQL and passes (sql, params) here. We just run them and return results.
+ * Pass this object to core.init(adapter).
  */
 
 import { query, exec } from "./store/db.js";
