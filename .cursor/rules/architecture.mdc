@@ -8,6 +8,8 @@ alwaysApply: true
 **Browser-only AI assistant built on an event-stream model.** 
 No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
 
+**Never use fallback functionality — strictly prohibited.** Do not implement or rely on fallback paths, default alternatives, or degradation; fail explicitly when the primary path is unavailable.
+
 ## Project layout: core + web
 
 The repo is split into two main parts:

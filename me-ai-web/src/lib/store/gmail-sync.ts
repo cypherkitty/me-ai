@@ -551,21 +551,17 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
 
   const w = await getCore();
   for (const [email, { name, date }] of contactMap) {
-    try {
-      const existing = await w.getContactByEmail(email);
-      if (existing != null) {
-        const row = existing as Record<string, unknown>;
-        await w.upsertContact(
-          email,
-          (row.name as string) || name || "",
-          Number(row.firstSeen) || date,
-          Math.max(date, Number(row.lastSeen) || 0)
-        );
-      } else {
-        await w.upsertContact(email, name || "", date, date);
-      }
-    } catch (e) {
-      console.debug("Contact upsert skipped:", email, (e as Error)?.message ?? e);
+    const existing = await w.getContactByEmail(email);
+    if (existing != null) {
+      const row = existing as Record<string, unknown>;
+      await w.upsertContact(
+        email,
+        (row.name as string) || name || "",
+        Number(row.firstSeen) || date,
+        Math.max(date, Number(row.lastSeen) || 0)
+      );
+    } else {
+      await w.upsertContact(email, name || "", date, date);
     }
   }
 }

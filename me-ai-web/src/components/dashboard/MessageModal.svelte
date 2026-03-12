@@ -65,9 +65,10 @@
 
   // ── Sandboxed HTML iframe ─────────────────────────────────────────
   let iframeEl = $state(null);
+  const messageKey = $derived(message?.id || message?.messageId || "single");
 
   $effect(() => {
-    if (iframeEl && message.htmlBody && !loading && viewMode === "email") {
+    if (messageKey && iframeEl && message.htmlBody && !loading && viewMode === "email") {
       // Write HTML into the sandboxed iframe
       const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
       if (doc) {

@@ -1,6 +1,6 @@
 /**
- * Settings Store — key/value persistence via DuckDB (OPFS).
- * All SQL runs in me-ai-core; this module calls the core.
+ * Settings Store — key/value persistence via me-ai-core (IndexedDB/Rexie).
+ * No fallbacks; fails explicitly when IndexedDB is unavailable.
  */
 
 import { toJson, fromJson } from "./db.js";
@@ -8,40 +8,29 @@ import { getCore } from "../core.js";
 
 /**
  * Get a setting value by key.
+ * @param fallback — default value when the key is absent (not a storage fallback).
  */
 export async function getSetting<T>(key: string, fallback: T | null = null): Promise<T | null> {
-  try {
-    const core = await getCore();
-    const raw = await core.getSetting(key);
-    if (raw == null || raw === undefined) return fallback;
-    return fromJson(String(raw), fallback as T) as T | null;
-  } catch {
-    return fallback;
-  }
+  const core = await getCore();
+  const raw = await core.getSetting(key);
+  if (raw == null || raw === undefined) return fallback;
+  return fromJson(String(raw), fallback as T) as T | null;
 }
 
 /**
  * Set a setting value.
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {
-  try {
-    const core = await getCore();
-    await core.setSetting(key, toJson(value));
-  } catch (e) {
-    console.error(`[settings] setSetting("${key}") failed:`, e);
-  }
+  const core = await getCore();
+  await core.setSetting(key, toJson(value));
 }
 
 /**
  * Remove a setting by key.
  */
 export async function removeSetting(key: string): Promise<void> {
-  try {
-    const core = await getCore();
-    await core.removeSetting(key);
-  } catch {
-    /* ignore */
-  }
+  const core = await getCore();
+  await core.removeSetting(key);
 }
 
 /**

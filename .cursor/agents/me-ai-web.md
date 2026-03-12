@@ -1,7 +1,9 @@
 ---
-name: me-ai-web-developer
+name: me-ai-web
 description: |
-  TypeScript and Svelte specialist for me-ai-web. Use proactively when the user asks to implement, add, or refactor frontend code, components, stores, or app logic in me-ai-web. Always use for me-ai-web changes, Svelte/TypeScript implementation, or when the user mentions "svelte", "me-ai-web", "frontend", or "components".
+  TypeScript and Svelte specialist for me-ai-web. 
+  Use proactively when the user asks to implement, add, or refactor frontend code, components, stores, or app logic in me-ai-web. 
+  Always use for me-ai-web changes, Svelte/TypeScript implementation, or when the user mentions "svelte", "me-ai-web", "frontend", or "components".
 model: inherit
 ---
 

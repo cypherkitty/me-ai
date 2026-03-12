@@ -48,6 +48,7 @@
   import { Progress } from "$lib/components/ui/progress/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { cn } from "$lib/utils.js";
+  import type { StoredItem } from "$lib/types.js";
   import { RefreshCw, LogOut, Trash2, Search, Database } from "lucide-svelte";
 
   // ── Source metadata ────────────────────────────────────────────────
@@ -153,6 +154,12 @@
 
   const LIMIT_OPTIONS = [50, 100, 200, 500];
   const LOCAL_PAGE_SIZE = 50;
+  /** Safe error message for UI (handles non-Error throws and undefined .message). */
+  function errMsg(e) {
+    if (e == null) return "Unknown error";
+    if (typeof e === "string") return e;
+    return e?.message ?? String(e);
+  }
   const isSignedIn = $derived(!!accessToken);
   const isDefaultClientId = $derived(clientId === DEFAULT_CLIENT_ID);
   const hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
@@ -185,7 +192,7 @@
           }
         })
         .catch((e) => {
-          gmailError = `Auth init failed: ${e.message}`;
+          gmailError = `Auth init failed: ${errMsg(e)}`;
         });
     }
   });
@@ -252,7 +259,7 @@
       scheduleTokenRefresh();
       await fetchProfile();
     } catch (e) {
-      gmailError = e.message;
+      gmailError = errMsg(e);
     } finally {
       loadingAuth = false;
     }
@@ -282,7 +289,7 @@
       await setSetting("gmail-profile", r);
     } catch (e) {
       if (!accessToken) return;
-      gmailError = `Profile fetch failed: ${e.message}`;
+      gmailError = `Profile fetch failed: ${errMsg(e)}`;
     }
   }
 
@@ -301,7 +308,7 @@
       totalLocalMessages = result.total;
       localOffset = emailMessages.length;
     } catch (e) {
-      gmailError = `Failed to load messages: ${e.message}`;
+      gmailError = `Failed to load messages: ${errMsg(e)}`;
     } finally {
       loadingMessages = false;
     }
@@ -338,8 +345,8 @@
       await refreshSyncStatus();
       await loadLocalMessages(false);
     } catch (e) {
-      if (e.name !== "AbortError" && accessToken)
-        gmailError = `Sync failed: ${e.message}`;
+      if (e?.name !== "AbortError" && accessToken)
+        gmailError = `Sync failed: ${errMsg(e)}`;
     } finally {
       isSyncing = false;
     }
@@ -362,8 +369,8 @@
       await refreshSyncStatus();
       await loadLocalMessages(false);
     } catch (e) {
-      if (e.name !== "AbortError" && accessToken)
-        gmailError = `Sync more failed: ${e.message}`;
+      if (e?.name !== "AbortError" && accessToken)
+        gmailError = `Sync more failed: ${errMsg(e)}`;
     } finally {
       isSyncing = false;
     }
@@ -378,7 +385,7 @@
       localOffset = 0;
       showClearConfirm = false;
     } catch (e) {
-      gmailError = `Failed to clear data: ${e.message}`;
+      gmailError = `Failed to clear data: ${errMsg(e)}`;
     }
   }
 
@@ -448,7 +455,7 @@
           // Clean up URL
           window.location.hash = "#sources";
         } catch (e) {
-          twError = `Auth failed: ${e.message}`;
+          twError = `Auth failed: ${errMsg(e)}`;
         }
       }
     }
@@ -486,7 +493,7 @@
       initTwitterAuth(twClientId);
       await requestTwitterAccessToken(); // redirects to Twitter
     } catch (e) {
-      twError = e.message;
+      twError = errMsg(e);
       twLoadingAuth = false;
     }
   }
@@ -511,7 +518,7 @@
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
-      twError = `Profile fetch failed: ${e.message}`;
+      twError = `Profile fetch failed: ${errMsg(e)}`;
     }
   }
 
@@ -538,7 +545,7 @@
       twTotalMessages = total;
       twLocalOffset = twMessages.length;
     } catch (e) {
-      twError = `Failed to load tweets: ${e.message}`;
+      twError = `Failed to load tweets: ${errMsg(e)}`;
     } finally {
       twLoadingMessages = false;
     }
@@ -573,7 +580,7 @@
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
-      if (e.name !== "AbortError") twError = `Sync failed: ${e.message}`;
+      if (e?.name !== "AbortError") twError = `Sync failed: ${errMsg(e)}`;
     } finally {
       twSyncing = false;
     }
@@ -594,7 +601,7 @@
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
-      if (e.name !== "AbortError") twError = `Sync more failed: ${e.message}`;
+      if (e?.name !== "AbortError") twError = `Sync more failed: ${errMsg(e)}`;
     } finally {
       twSyncing = false;
     }
@@ -609,7 +616,7 @@
       twLocalOffset = 0;
       twShowClearConfirm = false;
     } catch (e) {
-      twError = `Failed to clear data: ${e.message}`;
+      twError = `Failed to clear data: ${errMsg(e)}`;
     }
   }
 
@@ -1374,11 +1381,13 @@
   </div>
 </div>
 
-<!-- Message detail modal -->
+<!-- Message detail modal (key ensures non-empty identity; avoids "key '' not recognized" when id is empty) -->
 {#if selectedMessage}
-  <MessageModal
-    message={selectedMessage}
-    loading={false}
-    onclose={() => (selectedMessage = null)}
-  />
+  {#key (selectedMessage as StoredItem).id || (selectedMessage as StoredItem).messageId || "modal"}
+    <MessageModal
+      message={selectedMessage}
+      loading={false}
+      onclose={() => (selectedMessage = null)}
+    />
+  {/key}
 {/if}

@@ -58,7 +58,7 @@
     {:else}
       <div class="flex flex-col gap-3">
         <div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));">
-          {#each plugins as plugin (plugin.name)}
+          {#each plugins as plugin, i (plugin.name ?? `plugin-${i}`)}
             {@const meta = PLUGIN_META[plugin.name] ?? { color: "#6366f1", icon: "P", desc: "" }}
             <div class={cn(
               "flex flex-col gap-2.5 p-3.5 rounded border bg-card transition-colors",
