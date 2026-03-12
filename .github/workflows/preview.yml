@@ -23,12 +23,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: me-ai-web/package-lock.json
+          cache-dependency-path: me-ai-web/package.json
 
       - name: Install and Build
         if: github.event.action != 'closed'
         run: |
-          npm ci
+          npm install
           npm run build
         env:
           VITE_BASE: "./"
