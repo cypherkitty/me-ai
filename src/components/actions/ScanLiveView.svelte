@@ -1,5 +1,5 @@
 <script>
-  import { EVENT_GROUPS } from "../../lib/events.js";
+  import { EVENT_CATEGORY_TIERS } from "../../lib/events.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
 
@@ -164,10 +164,10 @@
               <span class="text-[0.68rem] font-medium text-foreground truncate flex-1">{r.email.subject || "(no subject)"}</span>
               {#if r.success}
                 <span class="text-[0.56rem] font-bold text-[var(--color-success)] uppercase tracking-wide bg-[var(--color-success)]/10 px-1.5 py-0.5 rounded shrink-0">{r.classification.action}</span>
-                {#if r.classification.group}
-                  {@const grp = EVENT_GROUPS[r.classification.group] || EVENT_GROUPS["CRITICAL"]}
-                  {#if grp}
-                    <span class="text-[0.52rem] font-bold uppercase tracking-wide shrink-0 opacity-80" style:color={grp.color} title={grp.description}>{grp.label}</span>
+                {#if r.classification.categoryTier}
+                  {@const catDef = EVENT_CATEGORY_TIERS[r.classification.categoryTier] || EVENT_CATEGORY_TIERS["CRITICAL"]}
+                  {#if catDef}
+                    <span class="text-[0.52rem] font-bold uppercase tracking-wide shrink-0 opacity-80" style:color={catDef.color} title={catDef.description}>{catDef.label}</span>
                   {/if}
                 {/if}
               {:else}

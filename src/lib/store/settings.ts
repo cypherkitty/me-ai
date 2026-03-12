@@ -14,19 +14,13 @@ import { query, exec, toJson, fromJson } from "./db.js";
 
 /**
  * Get a setting value by key.
- * @template T
- * @param {string} key
- * @param {T} [fallback] - Value returned if key is not found
- * @returns {Promise<T|null>}
  */
-export async function getSetting(key, fallback = null) {
+export async function getSetting<T>(key: string, fallback: T | null = null): Promise<T | null> {
   try {
-    const rows = await query(
-      `SELECT value FROM settings WHERE key = ?`,
-      [key]
-    );
+    const rows = await query(`SELECT value FROM settings WHERE key = ?`, [key]);
     if (rows.length === 0) return fallback;
-    return fromJson(rows[0].value, fallback);
+    const raw = rows[0].value as string | undefined;
+    return fromJson(raw ?? "", fallback as T) as T | null;
   } catch {
     return fallback;
   }
@@ -34,11 +28,8 @@ export async function getSetting(key, fallback = null) {
 
 /**
  * Set a setting value.
- * @param {string} key
- * @param {*} value - Any JSON-serialisable value
- * @returns {Promise<void>}
  */
-export async function setSetting(key, value) {
+export async function setSetting(key: string, value: unknown): Promise<void> {
   try {
     await exec(
       `INSERT INTO settings (key, value) VALUES (?, ?)
@@ -52,27 +43,27 @@ export async function setSetting(key, value) {
 
 /**
  * Remove a setting by key.
- * @param {string} key
- * @returns {Promise<void>}
  */
-export async function removeSetting(key) {
+export async function removeSetting(key: string): Promise<void> {
   try {
     await exec(`DELETE FROM settings WHERE key = ?`, [key]);
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
  * Get multiple settings at once.
- * @param {string[]} keys
- * @returns {Promise<Record<string, *>>}
  */
-export async function getSettings(keys) {
+export async function getSettings(keys: string[]): Promise<Record<string, unknown>> {
   if (keys.length === 0) return {};
   const placeholders = keys.map(() => "?").join(", ");
   const rows = await query(
     `SELECT key, value FROM settings WHERE key IN (${placeholders})`,
     keys
   );
-  const map = Object.fromEntries(rows.map(r => [r.key, fromJson(r.value)]));
-  return Object.fromEntries(keys.map(k => [k, map[k] ?? null]));
+  const map = Object.fromEntries(
+    rows.map((r) => [r.key as string, fromJson<unknown>(r.value as string, null)])
+  );
+  return Object.fromEntries(keys.map((k) => [k, map[k] ?? null]));
 }

@@ -1,26 +1,8 @@
 /** Available ONNX models for browser inference with Transformers.js v4 */
 
-/**
- * @typedef {Object} Model
- * @property {string} id - HuggingFace model ID
- * @property {string} name - Short display name (shown in dropdown)
- * @property {string} size - Approximate download size
- * @property {number} contextWindow - Max context tokens
- * @property {number} maxEmailTokens - Safe limit for email processing
- * @property {string} description - One-line description
- * @property {boolean} [recommendedForEmailProcessing]
- * @property {string} [gpuWarning]
- * @property {boolean} [isExperimental]
- */
+import type { Model, ModelGroup } from "$lib/types";
 
-/**
- * @typedef {Object} ModelGroup
- * @property {string} label - Group header in dropdown
- * @property {Model[]} models
- */
-
-/** @type {ModelGroup[]} */
-export const MODEL_GROUPS = [
+export const MODEL_GROUPS: ModelGroup[] = [
   {
     label: "GPT-OSS",
     models: [
@@ -71,10 +53,8 @@ export const MODEL_GROUPS = [
   },
 ];
 
-/** Flat list of all models (for backwards compat) */
-export const MODELS = MODEL_GROUPS.flatMap((g) => g.models);
+export const MODELS: Model[] = MODEL_GROUPS.flatMap((g) => g.models);
 
-/** Get model metadata by ID */
-export function getModelInfo(modelId) {
+export function getModelInfo(modelId: string): Model | undefined {
   return MODELS.find((m) => m.id === modelId);
 }

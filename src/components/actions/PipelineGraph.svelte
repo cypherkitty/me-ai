@@ -1,21 +1,21 @@
 <script>
-  import { EVENT_GROUPS, DEFAULT_GROUP } from "../../lib/events.js";
+  import { EVENT_CATEGORY_TIERS, DEFAULT_CATEGORY } from "../../lib/events.js";
   import { getAvailableActions } from "../../lib/plugins/execution-service.js";
 
   let {
     eventType,
     eventTypes = null,
-    group,
+    category,
     commands = [],
     onExecute = undefined,
     executionState = null,
     policy = "auto",
   } = $props();
 
-  let grpDef = $derived(
-    group
-      ? EVENT_GROUPS[group] || EVENT_GROUPS[DEFAULT_GROUP]
-      : EVENT_GROUPS[DEFAULT_GROUP],
+  let categoryDef = $derived(
+    category
+      ? EVENT_CATEGORY_TIERS[category] || EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY]
+      : EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY],
   );
 
   const PLUGIN_ACTIONS = (() => {
@@ -48,8 +48,8 @@
       ) {
         clone.commandId = clone.commandId.slice(clone.pluginId.length + 1);
       }
-      const group = PLUGIN_ACTIONS.find((p) => p.pluginId === clone.pluginId);
-      const handler = group?.actions.find(
+      const pluginBlock = PLUGIN_ACTIONS.find((p) => p.pluginId === clone.pluginId);
+      const handler = pluginBlock?.actions.find(
         (a) => a.actionId === clone.commandId,
       );
       if (handler) {
@@ -80,9 +80,9 @@
         </div>
         <span
           class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate"
-          style:color={grpDef?.color}
+          style:color={categoryDef?.color}
         >
-          {grpDef?.label || "Event"}
+          {categoryDef?.label || "Event"}
         </span>
       </div>
       <span

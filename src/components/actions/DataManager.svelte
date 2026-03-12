@@ -11,7 +11,7 @@
   import {
     clearClassifications,
     clearClassificationsByAction,
-    getClassificationsGrouped,
+    getClassificationsByCategory,
   } from "../../lib/triage.js";
   import { clearAuditLog } from "../../lib/store/audit.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
@@ -34,7 +34,7 @@
   let confirm = $state<string | null>(null);
   let busy = $state(false);
   let loading = $state(true);
-  let groupOrder = $state<string[]>([]);
+  let categoryOrder = $state<string[]>([]);
   let opfs = $state<OpfsStats | null>(null);
   let idb = $state<IdbSummary | null>(null);
 
@@ -59,11 +59,11 @@
 
       opfs = (await getOpfsStats()) as OpfsStats;
 
-      const result = (await getClassificationsGrouped()) as {
-        groups: unknown;
+      const result = (await getClassificationsByCategory()) as {
+        categories: unknown;
         order: string[];
       };
-      groupOrder = result.order;
+      categoryOrder = result.order;
     } finally {
       loading = false;
     }
@@ -265,15 +265,15 @@
           {/if}
 
           <!-- Per-category clear -->
-          {#if groupOrder.length > 0}
+          {#if categoryOrder.length > 0}
             <div class="flex flex-col gap-2">
               <span
                 class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40"
                 >Clear by category</span
               >
               <div class="flex flex-wrap gap-1.5">
-                {#each groupOrder as action}
-                  {#if confirm === `group:${action}`}
+                {#each categoryOrder as action}
+                  {#if confirm === `category:${action}`}
                     <span
                       class="inline-flex items-center gap-2 text-[0.7rem] text-muted-foreground/60 px-2 py-1 rounded border border-destructive/20 bg-destructive/5"
                     >
@@ -293,7 +293,7 @@
                     </span>
                   {:else}
                     <button
-                      onclick={() => (confirm = `group:${action}`)}
+                      onclick={() => (confirm = `category:${action}`)}
                       disabled={busy}
                       class="text-[0.7rem] px-2 py-1 rounded border border-border/40 text-muted-foreground/60 bg-muted/20 hover:text-destructive hover:border-destructive/30 disabled:opacity-40 transition-colors"
                     >

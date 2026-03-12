@@ -10,9 +10,10 @@
  * Then reload the page.
  */
 
-const enabled = typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
+const enabled =
+  typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
 
-export function debug(...args) {
+export function debug(...args: unknown[]): void {
   if (enabled) console.log("[debug]", ...args);
 }
 
@@ -22,7 +23,7 @@ export function debug(...args) {
  *
  * Logs mount and returns a destroy callback that logs unmount.
  */
-export function mountLog(name) {
+export function mountLog(name: string): () => void {
   debug(`[MOUNT] ${name}`);
   return () => debug(`[DESTROY] ${name}`);
 }

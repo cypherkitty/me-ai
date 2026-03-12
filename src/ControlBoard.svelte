@@ -5,14 +5,14 @@
   import { OLLAMA_MODELS } from "./lib/ollama-models.js";
   import {
     scanEmails,
-    getClassificationsGrouped,
+    getClassificationsByCategory,
     getClassificationCounts,
     updateClassificationStatus,
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
   } from "./lib/triage.js";
-  import { getGroupForEventType, groupToCategory } from "./lib/events.js";
+  import { getCategoryForEventType, categoryTierToName } from "./lib/events.js";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
   import {
     getSetting,
@@ -25,12 +25,12 @@
   // ── State ──────────────────────────────────────────────────────────
   let engineStatus = $state(engine.status);
   let modelName = $state("");
-  let groups = $state({});
-  let groupOrder = $state([]);
+  let categories = $state({});
+  let categoryOrder = $state([]);
   let eventTypeToCategory = $state({});
   let counts = $state({ total: 0 });
   let stats = $state(null);
-  let expandedGroup = $state(null);
+  let expandedCategory = $state(null);
 
   let isScanning = $state(false);
   let scanProgress = $state(null);
@@ -94,18 +94,18 @@
   // ── Load data from DB ──────────────────────────────────────────────
   async function loadData() {
     try {
-      const result = await getClassificationsGrouped();
+      const result = await getClassificationsByCategory();
       const fetchedCounts = await getClassificationCounts();
       const fetchedStats = await getScanStats();
 
       const map = {};
       for (const et of result.order) {
-        const group = await getGroupForEventType(et);
-        map[et] = groupToCategory(group);
+        const categoryTier = await getCategoryForEventType(et);
+        map[et] = categoryTierToName(categoryTier);
       }
 
-      groups = result.groups;
-      groupOrder = result.order;
+      categories = result.categories;
+      categoryOrder = result.order;
       counts = fetchedCounts;
       stats = fetchedStats;
       eventTypeToCategory = map;
@@ -172,7 +172,7 @@
     }
 
     try {
-      // Find the email's full data from the group to pass to the pipeline
+      // Find the email's full data from the category to pass to the pipeline
       const eventData = { type: eventType, source: "gmail", data: email };
 
       const result = await executePipeline(
@@ -208,14 +208,14 @@
     await loadData();
   }
 
-  // ── Group actions ──────────────────────────────────────────────────
-  async function clearGroup(actionId) {
+  // ── Category actions ───────────────────────────────────────────────
+  async function clearCategory(actionId) {
     await clearClassificationsByAction(actionId);
     await loadData();
   }
 
-  function toggleGroup(actionId) {
-    expandedGroup = expandedGroup === actionId ? null : actionId;
+  function toggleCategory(actionId) {
+    expandedCategory = expandedCategory === actionId ? null : actionId;
   }
 </script>
 
@@ -223,24 +223,24 @@
   <ControlBoardView
     {engineStatus}
     {modelName}
-    {groups}
-    {groupOrder}
+    categories={categories}
+    categoryOrder={categoryOrder}
     {eventTypeToCategory}
     {counts}
     {stats}
-    {expandedGroup}
+    expandedCategory={expandedCategory}
     {isScanning}
     {scanProgress}
     {error}
     {successMsg}
     onscan={startScan}
     onrescan={rescan}
-    ontogglegroup={toggleGroup}
+    ontogglecategory={toggleCategory}
     onexecute={executeEmail}
     onmarkacted={markActed}
     ondismiss={dismiss}
     onremove={removeItem}
-    oncleargroup={clearGroup}
+    onclearcategory={clearCategory}
     ondismisserror={() => (error = null)}
     ondismisssuccess={() => (successMsg = null)}
     onstop={stopScan}

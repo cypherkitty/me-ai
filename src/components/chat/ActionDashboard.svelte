@@ -1,6 +1,6 @@
 <script>
   import { actionColor } from "../../lib/triage.js";
-  import { getActionsForEvent, getGroupForEventType } from "../../lib/events.js";
+  import { getActionsForEvent, getCategoryForEventType } from "../../lib/events.js";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
@@ -10,24 +10,24 @@
     onmarkacted,
     ondismiss,
     onremove,
-    oncleargroup,
+    onclearcategory,
     onaskai,
   } = $props();
 
-  let activeGroup = $state(null);
+  let activeCategory = $state(null);
   let confirmClear = $state(null);
   let activePipeline = $state([]);
   let activeTier = $state(null);
 
-  export function toggleGroup(action) {
-    activeGroup = activeGroup === action ? null : action;
+  export function toggleCategory(action) {
+    activeCategory = activeCategory === action ? null : action;
     confirmClear = null;
   }
 
   $effect(() => {
-    if (activeGroup) {
-      getActionsForEvent(activeGroup).then(actions => activePipeline = actions);
-      getGroupForEventType(activeGroup).then(grp => activeTier = grp);
+    if (activeCategory) {
+      getActionsForEvent(activeCategory).then(actions => activePipeline = actions);
+      getCategoryForEventType(activeCategory).then(cat => activeTier = cat);
     } else {
       activePipeline = [];
       activeTier = null;
@@ -58,14 +58,14 @@
       {pendingData.total} item{pendingData.total !== 1 ? "s" : ""} need attention
     </p>
 
-    <!-- Group chips -->
+    <!-- Category chips -->
     <div class="flex flex-wrap gap-1">
       {#each pendingData.order as action (action)}
-        {@const items = pendingData.groups[action]}
+        {@const items = pendingData.categories[action]}
         {@const color = actionColor(action)}
-        {@const isActive = activeGroup === action}
+        {@const isActive = activeCategory === action}
         <button
-          onclick={() => toggleGroup(action)}
+          onclick={() => toggleCategory(action)}
           class={cn(
             "inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[0.64rem] font-medium transition-all whitespace-nowrap",
             isActive
@@ -85,26 +85,26 @@
       {/each}
     </div>
 
-    <!-- Drilled-in group detail -->
-    {#if activeGroup && pendingData.groups[activeGroup]}
-      {@const items = pendingData.groups[activeGroup]}
-      {@const color = actionColor(activeGroup)}
+    <!-- Drilled-in category detail -->
+    {#if activeCategory && pendingData.categories[activeCategory]}
+      {@const items = pendingData.categories[activeCategory]}
+      {@const color = actionColor(activeCategory)}
       <div class="mt-2 pt-2 border-t border-border">
-        <!-- Group header -->
+        <!-- Category header -->
         <div class="flex items-center gap-1.5 pb-2 mb-2 border-b-2" style:border-color={color}>
           <button
-            onclick={() => { activeGroup = null; confirmClear = null; }}
+            onclick={() => { activeCategory = null; confirmClear = null; }}
             class="text-xs text-muted-foreground/50 hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-accent"
           >
             ←
           </button>
-          <span class="text-xs font-semibold text-foreground tracking-tight flex-1">{fmt(activeGroup)}</span>
+          <span class="text-xs font-semibold text-foreground tracking-tight flex-1">{fmt(activeCategory)}</span>
           <span class="text-[0.6rem] text-muted-foreground/40">{items.length}</span>
         </div>
 
         <!-- Pipeline preview -->
         <div class="mb-2 bg-background p-1 px-2 rounded border border-border">
-          <PipelineGraph eventType={activeGroup} group={activeTier} commands={activePipeline} />
+          <PipelineGraph eventType={activeCategory} category={activeTier} commands={activePipeline} />
         </div>
 
         <!-- Email rows -->
@@ -142,15 +142,15 @@
 
         <!-- Batch actions -->
         <div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-border">
-          {#if confirmClear !== activeGroup}
+          {#if confirmClear !== activeCategory}
             <button
               onclick={() => items.forEach(i => onmarkacted?.(i.emailId))}
               class="text-[0.6rem] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
             >All handled</button>
             <button
-              onclick={() => confirmClear = activeGroup}
+              onclick={() => confirmClear = activeCategory}
               class="text-[0.6rem] font-medium text-muted-foreground/40 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
-            >Clear group</button>
+            >Clear category</button>
           {:else}
             <span class="text-[0.6rem] text-muted-foreground/40 mr-auto">Remove {items.length}?</span>
             <button
@@ -158,7 +158,7 @@
               class="text-[0.6rem] text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
             >Cancel</button>
             <button
-              onclick={() => { oncleargroup?.(activeGroup); confirmClear = null; activeGroup = null; }}
+              onclick={() => { onclearcategory?.(activeCategory); confirmClear = null; activeCategory = null; }}
               class="text-[0.6rem] text-destructive/70 hover:text-destructive hover:bg-destructive/8 px-1.5 py-0.5 rounded transition-all"
             >Delete</button>
           {/if}

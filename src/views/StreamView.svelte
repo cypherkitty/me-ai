@@ -59,7 +59,7 @@
             COALESCE(i.subject, c.subject) as subject,
             COALESCE(i."from", c."from") as sender,
             c.action as eventType,
-            c."group" as event_category,
+            c.category as event_category,
             c.reason,
             c.status,
             COALESCE(i.date, c.date) as timestamp,

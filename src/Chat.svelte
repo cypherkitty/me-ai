@@ -9,9 +9,9 @@
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
   import {
     buildBatchEventMessage,
-    buildGroupedEventsMessage,
+    buildEventsByCategoryMessage,
   } from "./lib/events.js";
-  import { getClassificationsGrouped } from "./lib/triage.js";
+  import { getClassificationsByCategory } from "./lib/triage.js";
   import {
     updateClassificationStatus,
     deleteClassification,
@@ -210,24 +210,24 @@
             let didIntercept = false;
 
             // 1. Intercept Execution Commands
-            const execRegex = /\[EXECUTE:GROUP:([A-Z_]+)\]/g;
+            const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
             let match;
-            const executedGroups = [];
+            const executedCategories = [];
             while ((match = execRegex.exec(newContent)) !== null) {
-              executedGroups.push(match[1]);
+              executedCategories.push(match[1]);
             }
-            if (executedGroups.length > 0) {
+            if (executedCategories.length > 0) {
               newContent = newContent
-                .replace(/\[EXECUTE:GROUP:[A-Z_]+\]/g, "")
+                .replace(/\[EXECUTE:CATEGORY:[A-Z_]+\]/g, "")
                 .trim();
               didIntercept = true;
-              for (const group of executedGroups) {
+              for (const eventType of executedCategories) {
                 if (
                   pendingData &&
-                  pendingData.groups &&
-                  pendingData.groups[group]
+                  pendingData.categories &&
+                  pendingData.categories[eventType]
                 ) {
-                  runAutomatedExecution(group, pendingData.groups[group]);
+                  runAutomatedExecution(eventType, pendingData.categories[eventType]);
                 }
               }
             }
@@ -238,10 +238,10 @@
               didIntercept = true;
 
               // Asynchronously fetch and inject the dashboard (pending only)
-              getClassificationsGrouped({ pendingOnly: true })
-                .then((grouped) => {
-                  if (grouped.order.length > 0) {
-                    buildGroupedEventsMessage(grouped).then((eventsMsg) => {
+              getClassificationsByCategory({ pendingOnly: true })
+                .then((byCategory) => {
+                  if (byCategory.order.length > 0) {
+                    buildEventsByCategoryMessage(byCategory).then((eventsMsg) => {
                       messages = [...messages, eventsMsg];
                       scrollToBottom();
                     });
@@ -332,18 +332,18 @@
         }
       }
 
-      // Refresh the last events-grouped message so handled events disappear from the list
-      const eventsGroupedIdx = messages.findLastIndex(
-        (m) => m.type === "events-grouped",
+      // Refresh the last events-by-category message so handled events disappear from the list
+      const eventsByCategoryIdx = messages.findLastIndex(
+        (m) => m.type === "events-by-category",
       );
-      if (eventsGroupedIdx !== -1) {
-        const grouped = await getClassificationsGrouped({ pendingOnly: true });
-        if (grouped.order.length === 0) {
-          messages = messages.filter((_, i) => i !== eventsGroupedIdx);
+      if (eventsByCategoryIdx !== -1) {
+        const byCategory = await getClassificationsByCategory({ pendingOnly: true });
+        if (byCategory.order.length === 0) {
+          messages = messages.filter((_, i) => i !== eventsByCategoryIdx);
         } else {
-          const eventsMsg = await buildGroupedEventsMessage(grouped);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
           messages = messages.map((m, i) =>
-            i === eventsGroupedIdx ? eventsMsg : m,
+            i === eventsByCategoryIdx ? eventsMsg : m,
           );
         }
       }
@@ -473,7 +473,7 @@
     await refreshPendingData();
   }
 
-  async function clearGroup(action) {
+  async function clearCategory(action) {
     await clearClassificationsByAction(action);
     await refreshPendingData();
   }
@@ -564,7 +564,7 @@
             const shortSubj =
               subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             const cls = progress.result;
-            const group = cls?.group ?? "";
+            const categoryTier = cls?.categoryTier ?? cls?.category ?? "";
             const action = cls?.action ?? "";
             const reason = cls?.reason ?? "";
             const summary = cls?.summary ?? "";
@@ -579,9 +579,9 @@
               id: `email-${progress.current}`,
               label: shortSubj,
               status: "done",
-              detail: action || group,
+              detail: action || categoryTier,
               expandable: true,
-              badges: [group, action].filter(Boolean),
+              badges: [categoryTier, action].filter(Boolean),
               subContent: lines.join("\n"),
             });
 
@@ -734,8 +734,8 @@
     // 1. Instant Interceptor: Dashboard
     if (text.trim() === "[SHOW:DASHBOARD]") {
       try {
-        const grouped = await getClassificationsGrouped({ pendingOnly: true });
-        if (!grouped.order.length) {
+        const byCategory = await getClassificationsByCategory({ pendingOnly: true });
+        if (!byCategory.order.length) {
           messages = [
             ...messages,
             {
@@ -745,7 +745,7 @@
             },
           ];
         } else {
-          const eventsMsg = await buildGroupedEventsMessage(grouped);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {
@@ -762,12 +762,12 @@
     }
 
     // 2. Instant Interceptor: Execution
-    const execRegex = /^\[EXECUTE:GROUP:([A-Z_]+)\]$/;
+    const execRegex = /^\[EXECUTE:CATEGORY:([A-Z_]+)\]$/;
     const match = execRegex.exec(text.trim());
     if (match) {
-      const group = match[1];
-      if (pendingData && pendingData.groups && pendingData.groups[group]) {
-        runAutomatedExecution(group, pendingData.groups[group]);
+      const eventType = match[1];
+      if (pendingData && pendingData.categories && pendingData.categories[eventType]) {
+        runAutomatedExecution(eventType, pendingData.categories[eventType]);
       }
       return;
     }
@@ -776,8 +776,8 @@
     if (text.trim().toLowerCase() === "/events") {
       messages = [...messages, { role: "user", content: text }];
       try {
-        const grouped = await getClassificationsGrouped({ pendingOnly: true });
-        if (!grouped.order.length) {
+        const byCategory = await getClassificationsByCategory({ pendingOnly: true });
+        if (!byCategory.order.length) {
           messages = [
             ...messages,
             {
@@ -787,7 +787,7 @@
             },
           ];
         } else {
-          const eventsMsg = await buildGroupedEventsMessage(grouped);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {
@@ -828,7 +828,7 @@
       .filter(
         (m) =>
           m.type !== "dashboard" &&
-          m.type !== "events-grouped" &&
+          m.type !== "events-by-category" &&
           m.type !== "event-batch" &&
           m.type !== "event",
       )
@@ -914,7 +914,7 @@
     onmarkacted={markActed}
     ondismiss={dismiss}
     onremove={removeItem}
-    oncleargroup={clearGroup}
+    onclearcategory={clearCategory}
     onscan={triggerScan}
     oncommand={handleCommand}
     onexecuted={refreshPendingData}

@@ -16,7 +16,7 @@
     webgpu: "#4ade80", ollama: "#a78bfa", openai: "#10b981",
     anthropic: "#f59e0b", google: "#3b82f6", xai: "#e2e2e2",
   };
-  const GROUP_COLORS = {
+  const CATEGORY_COLORS = {
     NOISE:    { bg: "color-mix(in srgb, #9ca3af 10%, transparent)", text: "#9ca3af", border: "color-mix(in srgb, #9ca3af 20%, transparent)" },
     INFO:     { bg: "color-mix(in srgb, #60a5fa 10%, transparent)", text: "#60a5fa", border: "color-mix(in srgb, #60a5fa 20%, transparent)" },
     CRITICAL: { bg: "color-mix(in srgb, #ef4444 10%, transparent)", text: "#ef4444", border: "color-mix(in srgb, #ef4444 20%, transparent)" },
@@ -42,8 +42,8 @@
     return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
   }
 
-  function groupStyle(group) {
-    return GROUP_COLORS[group] ?? {
+  function categoryStyle(category) {
+    return CATEGORY_COLORS[category] ?? {
       bg: "color-mix(in srgb, white 4%, transparent)",
       text: "var(--color-muted-foreground)",
       border: "color-mix(in srgb, white 8%, transparent)"
@@ -159,7 +159,7 @@
               {#if step.badges?.length}
                 <span class="flex gap-1 shrink-0">
                   {#each step.badges as badge}
-                    {@const gs = groupStyle(badge)}
+                    {@const gs = categoryStyle(badge)}
                     <span
                       class="text-[0.58rem] font-bold uppercase tracking-wider px-1.5 py-px rounded border"
                       style:background={gs.bg}
@@ -209,7 +209,7 @@
                 {#if step.badges?.length}
                   <div class="flex flex-wrap gap-1.5">
                     {#each step.badges as badge}
-                      {@const gs = groupStyle(badge)}
+                      {@const gs = categoryStyle(badge)}
                       <span
                         class="text-[0.63rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded border"
                         style:background={gs.bg}

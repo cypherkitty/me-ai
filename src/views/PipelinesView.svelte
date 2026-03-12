@@ -117,7 +117,7 @@
             subject: item.subject,
             from: item.from,
           },
-          metadata: { category: item.event_category },
+          metadata: { category: item.event_category as import("$lib/types").EventCategory },
         };
         const result = (await executePipeline(
           event,
@@ -353,7 +353,7 @@
                   commands={cat.actions}
                   eventType={`Any ${cat.label} event`}
                   eventTypes={cat.eventTypes.map((t) => t.name)}
-                  group={cat.category.toUpperCase()}
+                  category={cat.category.toUpperCase()}
                   policy={cat.policy}
                 />
               {/if}

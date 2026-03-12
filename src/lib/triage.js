@@ -3,7 +3,7 @@
  *
  * Classifies emails one-by-one through the LLM. Instead of a fixed set
  * of action types, the LLM freely determines the action, tags, and summary
- * for each email. Action groups emerge dynamically from the data.
+ * for each email. Action categories emerge dynamically from the data.
  */
 
 import { query, exec, toJson, fromJson } from "./store/db.js";
@@ -255,11 +255,11 @@ export async function scanEmails(
       if (classification) {
         await exec(
           `INSERT INTO emailClassifications
-             (emailId, action, "group", reason, summary, tags, subject, "from", date, scannedAt, status)
+             (emailId, action, category, reason, summary, tags, subject, "from", date, scannedAt, status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
            ON CONFLICT (emailId) DO UPDATE SET
              action    = excluded.action,
-             "group"   = excluded."group",
+             category  = excluded.category,
              reason    = excluded.reason,
              summary   = excluded.summary,
              tags      = excluded.tags,
@@ -271,7 +271,7 @@ export async function scanEmails(
           [
             email.id,
             classification.action,
-            classification.group,
+            classification.categoryTier,
             classification.reason,
             classification.summary,
             toJson(classification.tags),
@@ -371,14 +371,13 @@ export async function getClassifications({ action } = {}) {
 }
 
 /**
- * Get classifications grouped by action type (dynamic — groups emerge from data).
- * Returns an object: action -> array of classifications, sorted by date desc.
- * Also returns the category order sorted by count descending.
+ * Get classifications by category (action type). Returns an object: action -> array
+ * of classifications, sorted by date desc. Also returns the category order sorted by count descending.
  *
  * @param {{ pendingOnly?: boolean }} [opts] - If pendingOnly: true, only include
  *   status IN ('pending', 'escalated'); exclude already executed/handled.
  */
-export async function getClassificationsGrouped(opts = {}) {
+export async function getClassificationsByCategory(opts = {}) {
   const sql =
     opts.pendingOnly === true
       ? `SELECT * FROM emailClassifications WHERE status IN ('pending', 'escalated')`
@@ -437,7 +436,7 @@ export async function clearClassifications() {
 }
 
 /**
- * Clear classifications for a specific action group.
+ * Clear classifications for a specific action category.
  */
 export async function clearClassificationsByAction(action) {
   await exec(`DELETE FROM emailClassifications WHERE action = ?`, [action]);
@@ -584,21 +583,21 @@ export function parseClassification(response, knownActionIds) {
 
     // Parse category (3-tier: noise | info | critical)
     const VALID_CATEGORIES = ["noise", "info", "critical"];
-    const rawCategory = (parsed.category || parsed.group || "").toLowerCase().trim();
+    const rawCategory = (parsed.category || "").toLowerCase().trim();
     let category;
     if (VALID_CATEGORIES.includes(rawCategory)) {
       category = rawCategory;
-    } else if (rawCategory === "noise" || parsed.group === "NOISE") {
+    } else if (rawCategory === "noise" || parsed.categoryTier === "NOISE") {
       category = "noise";
     } else if (rawCategory === "informational") {
       category = "info";
-    } else if (rawCategory === "important" || rawCategory === "urgent" || parsed.group === "CRITICAL" || parsed.group === "IMPORTANT" || parsed.group === "URGENT") {
+    } else if (rawCategory === "important" || rawCategory === "urgent" || parsed.categoryTier === "CRITICAL" || parsed.categoryTier === "IMPORTANT" || parsed.categoryTier === "URGENT") {
       category = "critical";
     } else {
       category = "critical"; // safe default
     }
 
-    const group = category === "noise" ? "NOISE" : category === "info" ? "INFO" : "CRITICAL";
+    const categoryTier = category === "noise" ? "NOISE" : category === "info" ? "INFO" : "CRITICAL";
 
     // suggestedActions removed — categories carry their own pipelines
     const suggestedActions = [];
@@ -624,7 +623,7 @@ export function parseClassification(response, knownActionIds) {
     return {
       action,
       category,
-      group,           // backward compat
+      categoryTier,
       suggestedActions, // always empty, kept for API compat
       reason,
       summary,
@@ -648,7 +647,7 @@ function normalizeAction(raw) {
 // ── Color generation ─────────────────────────────────────────────────
 
 /**
- * Generate a stable HSL color from a string (for dynamic action groups).
+ * Generate a stable HSL color from a string (for dynamic action categories).
  * Same string always produces the same color.
  */
 export function actionColor(action) {
