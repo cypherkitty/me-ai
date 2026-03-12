@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import {
-    query,
     exec,
     getOpfsStats,
     clearAllDuckDbData,
     nukeAllLocalData,
     wipeAllData,
   } from "../../lib/store/db.js";
+  import {
+    getItemsCountGmail,
+    getContactsCount,
+    getEmailClassificationsCount,
+  } from "../../lib/core.js";
   import {
     clearClassifications,
     clearClassificationsByAction,
@@ -41,19 +45,19 @@
   async function load() {
     loading = true;
     try {
-      const [[emailRow], [classRow], [contactRow]] = await Promise.all([
-        query(`SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'`),
-        query(`SELECT COUNT(*) AS cnt FROM emailClassifications`),
-        query(`SELECT COUNT(*) AS cnt FROM contacts`),
+      const [emailCount, classCount, contactCount] = await Promise.all([
+        getItemsCountGmail().then((n) => Number(n ?? 0)),
+        getEmailClassificationsCount().then((n) => Number(n ?? 0)),
+        getContactsCount().then((n) => Number(n ?? 0)),
       ]);
       let idbBytes = 0;
       try {
         idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
       } catch {}
       idb = {
-        emailCount: Number((emailRow as any)?.cnt ?? 0),
-        classCount: Number((classRow as any)?.cnt ?? 0),
-        contactCount: Number((contactRow as any)?.cnt ?? 0),
+        emailCount,
+        classCount,
+        contactCount,
         idbBytes,
       };
 

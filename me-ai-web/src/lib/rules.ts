@@ -1,40 +1,29 @@
 /**
  * Rule CRUD
  *
- * Rules are the central pipeline unit of the routing architecture.
- * Each rule connects a trigger condition (EventType and/or EventCategory)
- * to an ordered list of Actions and an ExecutionPolicy.
+ * SQL for seed data (event types, categories, sources, actions) lives in Rust.
+ * This layer is thin: it calls core; Rust builds queries and passes them to the JS adapter.
  */
 
+import { getEventTypes as coreGetEventTypes, getEventCategories as coreGetEventCategories, getSources as coreGetSources, getActions as coreGetActions } from "./core.js";
 import { query, exec, toJson, fromJson } from "./store/db.js";
 import type { Rule, Action, Trigger } from "$lib/types";
 
-// ── Seed / static data queries ─────────────────────────────────────────
+// ── Seed / static data (WASM core builds SQL and passes to adapter) ────────
 
-async function getEventTypesFromDb(): Promise<Record<string, unknown>[]> {
-  await import("./store/db.js").then((m) => m.getDb());
-  return query(`SELECT name, label FROM sm_event_types ORDER BY name`);
-}
-
-/** Event types from DB; uses me-ai-core (WASM) when available, else TS query. */
 export async function getEventTypes(): Promise<Record<string, unknown>[]> {
-  try {
-    const core = await import("./core.js").then((m) => m.loadCore());
-    const rows = await core.getEventTypes();
-    return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : await getEventTypesFromDb();
-  } catch {
-    return getEventTypesFromDb();
-  }
+  const rows = await coreGetEventTypes();
+  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
 }
 
 export async function getEventCategories(): Promise<Record<string, unknown>[]> {
-  await import("./store/db.js").then((m) => m.getDb());
-  return query(`SELECT name, label, priority FROM sm_event_categories ORDER BY priority`);
+  const rows = await coreGetEventCategories();
+  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
 }
 
 export async function getSources(): Promise<Record<string, unknown>[]> {
-  await import("./store/db.js").then((m) => m.getDb());
-  return query(`SELECT name, label, platform, api, enabled FROM sm_sources ORDER BY name`);
+  const rows = await coreGetSources();
+  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
 }
 
 export async function getExecutionPolicies(): Promise<unknown[]> {
@@ -43,8 +32,8 @@ export async function getExecutionPolicies(): Promise<unknown[]> {
 }
 
 export async function getActions(): Promise<Record<string, unknown>[]> {
-  await import("./store/db.js").then((m) => m.getDb());
-  return query(`SELECT name, label FROM sm_actions ORDER BY name`);
+  const rows = await coreGetActions();
+  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
 }
 
 export async function getPlugins(): Promise<Record<string, unknown>[]> {
