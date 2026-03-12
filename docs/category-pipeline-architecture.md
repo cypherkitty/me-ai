@@ -189,8 +189,8 @@ Each card displays:
 | Pipeline Concept | RBAC Equivalent | Linux Equivalent |
 |-----------------|-----------------|------------------|
 | Event Type | Permission / User | User |
-| Event Category | Role | Group |
-| Category Pipeline | Role permissions | Group permissions |
+| Event Category | Role | Category |
+| Category Pipeline | Role permissions | Category permissions |
 | Type Override | User-specific permission | User-specific permission |
 | Execution Policy | Approval workflow | sudo policy |
 

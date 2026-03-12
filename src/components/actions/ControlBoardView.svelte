@@ -10,12 +10,12 @@
   let {
     engineStatus,
     modelName,
-    groups = {},
-    groupOrder = [],
+    categories = {},
+    categoryOrder = [],
     eventTypeToCategory = {},
     counts = {},
     stats = null,
-    expandedGroup = null,
+    expandedCategory = null,
     isScanning = false,
     scanProgress = null,
     scanCount = $bindable(20),
@@ -23,12 +23,12 @@
     successMsg = null,
     onscan,
     onrescan,
-    ontogglegroup,
+    ontogglecategory,
     onexecute,
     onmarkacted,
     ondismiss,
     onremove,
-    oncleargroup,
+    onclearcategory,
     ondismisserror,
     ondismisssuccess,
     onstop,
@@ -37,10 +37,10 @@
 
   let showInspector = $state(false);
 
-  /** Grab a sample email from the first group to show in the inspector */
+  /** Grab a sample email from the first category to show in the inspector */
   let sampleEmail = $derived.by(() => {
-    for (const action of groupOrder) {
-      const items = groups[action];
+    for (const action of categoryOrder) {
+      const items = categories[action];
       if (items?.length > 0) return items[0];
     }
     return null;
@@ -48,11 +48,11 @@
 
   const CATEGORY_ORDER = ["critical", "info", "noise"];
 
-  // Group the event types by category
-  let categoriesWithGroups = $derived.by(() => {
+  // Organize event types by category
+  let categoriesWithEventTypes = $derived.by(() => {
     const res = [];
     for (const catName of CATEGORY_ORDER) {
-      const actionIds = groupOrder.filter(
+      const actionIds = categoryOrder.filter(
         (id) => eventTypeToCategory[id] === catName,
       );
       if (actionIds.length > 0) {
@@ -64,7 +64,7 @@
       }
     }
     // Catch any unknown/unmapped event types (e.g. legacy INFORMATIONAL/IMPORTANT/URGENT normalized to info/critical)
-    const unknownIds = groupOrder.filter(
+    const unknownIds = categoryOrder.filter(
       (id) => !CATEGORY_ORDER.includes(eventTypeToCategory[id]),
     );
     if (unknownIds.length > 0) {
@@ -99,7 +99,7 @@
         >
       </div>
       <p class="text-xs text-muted-foreground">
-        Classify emails using AI and execute actions by group.
+        Classify emails using AI and execute actions by category.
       </p>
     </div>
     <div class="flex items-center gap-1">
@@ -157,7 +157,7 @@
 
     {#if counts.total > 0}
       <div class="flex flex-col gap-6">
-        {#each categoriesWithGroups as catBlock (catBlock.name)}
+        {#each categoriesWithEventTypes as catBlock (catBlock.name)}
           <div class="flex flex-col gap-2">
             <!-- Category Header -->
             <div class="flex items-center gap-2 mb-1 pl-1">
@@ -190,15 +190,15 @@
                 <ActionGroup
                   action={actionId}
                   color={actionColor(actionId)}
-                  count={groups[actionId]?.length || 0}
-                  items={groups[actionId] || []}
-                  expanded={expandedGroup === actionId}
-                  ontoggle={() => ontogglegroup(actionId)}
+                  count={categories[actionId]?.length || 0}
+                  items={categories[actionId] || []}
+                  expanded={expandedCategory === actionId}
+                  ontoggle={() => ontogglecategory(actionId)}
                   onexecute={(email) => onexecute(actionId, email)}
                   {onmarkacted}
                   {ondismiss}
                   {onremove}
-                  oncleargroup={() => oncleargroup(actionId)}
+                  onclearcategory={() => onclearcategory(actionId)}
                 />
               {/each}
             </div>
@@ -207,7 +207,7 @@
       </div>
       <div class="pt-3 mt-1 border-t border-border">
         <span class="text-xs text-muted-foreground/40 tabular-nums">
-          {counts.total} emails classified into {groupOrder.length} categories
+          {counts.total} emails classified into {categoryOrder.length} categories
         </span>
       </div>
     {:else if !isScanning}

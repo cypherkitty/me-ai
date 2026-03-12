@@ -1,5 +1,5 @@
 /** Format bytes with 1 decimal (e.g. "1.1 GB") */
-export function formatBytes(bytes) {
+export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];
@@ -8,7 +8,7 @@ export function formatBytes(bytes) {
 }
 
 /** Format bytes with 2 decimals for MB/GB (e.g. "1.07 GB") */
-export function formatBytesPrecise(bytes) {
+export function formatBytesPrecise(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];
@@ -19,20 +19,20 @@ export function formatBytesPrecise(bytes) {
 }
 
 /** Calculate progress percentage, returns null if total is unknown */
-export function progressPct(loaded, total) {
+export function progressPct(loaded: number, total: number): number | null {
   if (!total || total <= 0) return null;
   return Math.min(100, (loaded / total) * 100);
 }
 
 /** Truncate a string to maxLen characters, appending "..." if truncated */
-export function truncate(str, maxLen) {
+export function truncate(str: string | null | undefined, maxLen: number): string {
   if (!str) return "";
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen) + "...";
 }
 
 /** Generate a stable hue (0-360) from a string via simple hash */
-export function stringToHue(str) {
+export function stringToHue(str: string): number {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);

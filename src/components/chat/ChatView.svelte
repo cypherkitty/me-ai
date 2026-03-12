@@ -42,7 +42,7 @@
     onmarkacted,
     ondismiss,
     onremove,
-    oncleargroup,
+    onclearcategory,
     onscan,
     oncommand,
     onexecuted,
@@ -152,11 +152,11 @@
             >
           </div>
 
-          {#each pendingData.order as group (group)}
-            {@const count = pendingData.groups[group].length}
-            {@const color = actionColor(group)}
+          {#each pendingData.order as eventType (eventType)}
+            {@const count = pendingData.categories[eventType].length}
+            {@const color = actionColor(eventType)}
             <button
-              onclick={() => sendCommand(`[EXECUTE:GROUP:${group}]`)}
+              onclick={() => sendCommand(`[EXECUTE:CATEGORY:${eventType}]`)}
               disabled={isRunning}
               class="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs text-foreground/80 hover:bg-accent rounded-md transition-all group/btn disabled:opacity-50"
             >
@@ -167,7 +167,7 @@
                 ></span>
                 <span
                   class="truncate tracking-tight group-hover/btn:text-foreground"
-                  >{group.split("_").join(" ")}</span
+                  >{eventType.split("_").join(" ")}</span
                 >
               </span>
               <span class="flex items-center gap-1.5 shrink-0">
@@ -378,12 +378,12 @@
             {onmarkacted}
             {ondismiss}
             {onremove}
-            {oncleargroup}
+            {onclearcategory}
             onaskai={handleAskAI}
           />
         {:else if msg.type === "task-card"}
           <TaskCard {msg} />
-        {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-grouped"}
+        {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-by-category"}
           <EventMessage
             {msg}
             {oncommand}

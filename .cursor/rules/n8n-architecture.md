@@ -14,7 +14,7 @@ When a new event (e.g. email) arrives, the LLM dynamically extracts:
 
 - **`action`** — the **event type** (e.g. `PROMOTION`, `INVOICE`, `SECURITY_ALERT`, `SHIPPING_UPDATE`). 
   Event types are emergent: the LLM creates them from message content; they are not a fixed enum.
-- **`category`** — one of four **event categories**: `noise` | `informational` | `important` | `urgent`. 
+- **`category`** — one of three **event categories**: `noise` | `info` | `critical`. 
   This tier drives both the **default pipeline** and the **execution policy** (auto / supervised / manual).
 
 The LLM does **not** suggest concrete actions or command IDs. 
@@ -24,11 +24,10 @@ Categories carry their own default pipelines; the classifier only assigns type +
 
 - **Event type**: Fine-grained label per message (e.g. `NEWSLETTER`, `BILLING_REMINDER`). 
   Stored in `sm_event_types` with a `category_name`. Many event types can share one category.
-- **Event category**: Coarse-grained bucket with a **default pipeline** and **execution policy**. Stored in `sm_event_categories`. The four categories are:
+- **Event category**: Coarse-grained bucket with a **default pipeline** and **execution policy**. Stored in `sm_event_categories`. The three categories are:
   - `noise` — auto-delete (e.g. trash); policy `auto`
-  - `informational` — useful but not urgent; policy `supervised` (execute then notify)
-  - `important` — requires attention; policy `manual` (user approval)
-  - `urgent` — immediate action; policy `manual`
+  - `info` — useful but not urgent; policy `supervised` (execute then notify)
+  - `critical` — requires attention; policy `manual` (user approval)
 
 Execution policies: `auto` (run without user), `supervised` (run then notify), `manual` (wait for approval).
 

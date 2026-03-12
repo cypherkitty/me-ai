@@ -5,7 +5,7 @@
   import PipelineGraph from "./PipelineGraph.svelte";
   import {
     getActionsForEvent,
-    getGroupForEventType,
+    getCategoryForEventType,
   } from "../../lib/events.js";
 
   let {
@@ -19,7 +19,7 @@
     onmarkacted,
     ondismiss,
     onremove,
-    oncleargroup,
+    onclearcategory,
   } = $props();
 
   let pendingItems = $derived(items.filter((i) => i.status === "pending"));
@@ -32,7 +32,7 @@
   $effect(() => {
     if (expanded && action) {
       getActionsForEvent(action).then((actions) => (activePipeline = actions));
-      getGroupForEventType(action).then((grp) => (activeTier = grp));
+      getCategoryForEventType(action).then((cat) => (activeTier = cat));
     }
   });
 
@@ -45,7 +45,7 @@
 </script>
 
 <div class="rounded border border-border bg-card overflow-hidden">
-  <!-- Group header toggle -->
+  <!-- Category header toggle -->
   <button
     onclick={ontoggle}
     class="flex items-center gap-2.5 w-full px-4 py-2.5 text-left hover:bg-accent/30 transition-colors"
@@ -88,7 +88,7 @@
         {/if}
         <PipelineGraph
           eventType={action}
-          group={activeTier}
+          category={activeTier}
           commands={activePipeline}
         />
       </div>
@@ -128,7 +128,7 @@
             onclick={() => (showClearConfirm = true)}
             class="text-xs text-muted-foreground/40 hover:text-muted-foreground underline transition-colors"
           >
-            Clear group
+            Clear category
           </button>
         {:else}
           <div class="flex items-center gap-2 text-xs text-muted-foreground/60">
@@ -139,7 +139,7 @@
             >
             <button
               onclick={() => {
-                oncleargroup();
+                onclearcategory();
                 showClearConfirm = false;
               }}
               class="text-destructive hover:text-destructive/80 transition-colors"

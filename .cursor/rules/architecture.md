@@ -71,7 +71,7 @@ src/lib/plugins/
                          Exports: pluginRegistry
   execution-service.js — High-level API consumed by UI components
                          Exports: executePipeline, executePipelineBatch, getAvailableActions,
-                                  isAuthenticated, getRequiredScopes, EVENT_GROUPS (event categories: NOISE/INFO/CRITICAL)
+                                  isAuthenticated, getRequiredScopes, EVENT_CATEGORY_TIERS (event categories: NOISE/INFO/CRITICAL)
 ```
 
 ### Chat as Control Interface
@@ -85,25 +85,33 @@ The **chat is the control interface** on top of the event stream. Chat messages 
 
 **Invisible LLM Interceptors (Control Tags):**
 The LLM can trigger actions in the UI by appending hidden text tags to its responses:
-- `[EXECUTE:GROUP:{EventType}]` — The UI strips this tag and automatically executes the pipeline batch for the specified pending event category/type.
-- `[SHOW:DASHBOARD]` — The UI strips this tag and automatically renders the interactive `events-grouped` visual dashboard inline within the chat.
+- `[EXECUTE:CATEGORY:{EventType}]` — The UI strips this tag and automatically executes the pipeline batch for the specified pending event category/type.
+- `[SHOW:DASHBOARD]` — The UI strips this tag and automatically renders the interactive `events-by-category` visual dashboard inline within the chat.
 
 CRITICAL event types show an amber **approval card** in the chat instead of a direct execute button. 
 The card displays all pipeline steps before execution.
 
 ### Data Flow
 
-```
-Data Sources (Gmail, future: Telegram, etc.)
-    ↓
-LLM Triage (triage.js)
-    ↓
-Event Type → Pipeline
-    ↓
-Chat Messages (flat text + typed event/command cards)
-    ↓
-User interaction:
-  NOISE    → execute automatically
-  INFO     → user clicks Execute
-  CRITICAL → user clicks Review → approval card → user confirms → execute
+```mermaid
+sequenceDiagram
+    participant Sources as Data Sources
+    participant Triage as LLM Triage
+    participant Pipeline as Event Type → Pipeline
+    participant Chat as Chat Messages
+
+    Sources->>Triage: raw data (Gmail, future: Telegram, etc.)
+    Triage->>Triage: classify event type + category
+    Triage->>Pipeline: event type → pipeline
+    Pipeline->>Chat: flat text + typed event/command cards
+
+    Note over Chat,Pipeline: NOISE → execute automatically
+    Chat->>Pipeline: execute (NOISE)
+
+    Note over Chat,Pipeline: INFO → Execute action triggers run
+    Chat->>Pipeline: execute (INFO)
+
+    Note over Chat,Pipeline: CRITICAL → Review → approval card → confirm → execute
+    Chat->>Chat: approval card (steps preview)
+    Chat->>Pipeline: execute (CRITICAL after confirm)
 ```

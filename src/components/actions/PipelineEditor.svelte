@@ -63,7 +63,6 @@
     let triggers = $state<RuleTrigger[]>([]);
     let typesToMove = $state<string[]>([]);
     let typesToDelete = $state<string[]>([]);
-    let addEventTypeValue = $state(""); // controlled value for "+ Add Event Type" select
 
     let editingCmd = $state<EditingCmd | null>(null);
     let showActionPicker = $state(false);
@@ -153,7 +152,6 @@
                 triggers = (currentRule.triggers || []).map((t) => ({ ...t }));
                 typesToMove = [];
                 typesToDelete = [];
-                addEventTypeValue = "";
             } else {
                 commands = [];
                 triggers = [];

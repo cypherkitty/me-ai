@@ -7,7 +7,7 @@
     executePipeline,
     executePipelineBatch,
     isAuthenticated,
-    EVENT_GROUPS,
+    EVENT_CATEGORY_TIERS,
   } from "../../lib/plugins/execution-service.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -15,7 +15,7 @@
 
   let { msg, oncommand, onexecuted, ondismiss } = $props();
 
-  let expandedGroups = $state({});
+  let expandedCategories = $state({});
   let executionState = $state({});
   let approvalPending = $state({});
   let executionCards = $state({});
@@ -136,7 +136,7 @@
           event,
           emailId,
           actions: result.actions,
-          group: result.group,
+          category: result.category,
           isBatch: false,
         };
         return;
@@ -200,7 +200,7 @@
           eventType,
           emails,
           actions: result.actions,
-          group: result.group,
+          category: result.category,
           isBatch: true,
         };
         return;
@@ -236,10 +236,10 @@
     approvalPending = { ...approvalPending };
   }
 
-  function toggleGroup(eventType) {
-    expandedGroups = {
-      ...expandedGroups,
-      [eventType]: !expandedGroups[eventType],
+  function toggleCategory(eventType) {
+    expandedCategories = {
+      ...expandedCategories,
+      [eventType]: !expandedCategories[eventType],
     };
   }
 
@@ -413,8 +413,8 @@
       {@const execStateKey = `single_${msg.event.data.emailId || Date.now()}`}
       {@const execState = getExecutionState(execStateKey)}
       {@const execApproval = approvalPending[execStateKey]}
-      {@const grpDef = msg.event.metadata?.group
-        ? EVENT_GROUPS[msg.event.metadata.group] || EVENT_GROUPS["CRITICAL"]
+      {@const categoryDef = msg.event.metadata?.category
+        ? EVENT_CATEGORY_TIERS[msg.event.metadata.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
         : null}
 
       <div class="flex items-center justify-between gap-2">
@@ -425,7 +425,7 @@
         {#if !execApproval}
           {@render execBtn(
             "Execute",
-            grpDef?.requiresApproval,
+            categoryDef?.requiresApproval,
             execState?.running,
             execState?.result,
             () => handleExecute(msg.event, msg.event.data.emailId),
@@ -445,7 +445,7 @@
 
       <PipelineGraph
         eventType={msg.event.type}
-        group={msg.event.metadata?.group}
+        category={msg.event.metadata?.category}
         commands={msg.commands}
       />
 
@@ -472,7 +472,7 @@
         {@render eventCard(item.event, true)}
         <PipelineGraph
           eventType={item.event.type}
-          group={item.event.metadata?.group}
+          category={item.event.metadata?.category}
           commands={item.commands}
         />
       </div>
@@ -480,49 +480,49 @@
   </div>
 
   <!-- ── Events by category ──────────────────────────────────────────── -->
-{:else if msg.type === "events-grouped"}
+{:else if msg.type === "events-by-category"}
   <div class="self-start w-full max-w-[95%] flex flex-col gap-2">
     <div class="flex items-baseline gap-3 py-1">
       <span class="text-xs font-bold uppercase tracking-wider text-foreground"
         >Events</span
       >
       <span class="text-[0.62rem] text-muted-foreground/40">
-        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.groups.length} event
-        type{msg.groups.length === 1 ? "" : "s"}
+        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.categories.length} event
+        type{msg.categories.length === 1 ? "" : "s"}
       </span>
     </div>
 
-    {#each msg.groups as group}
-      {@const isExpanded = expandedGroups[group.eventType] ?? true}
-      {@const batchStateKey = `batch_${group.eventType}`}
+    {#each msg.categories as catBlock}
+      {@const isExpanded = expandedCategories[catBlock.eventType] ?? true}
+      {@const batchStateKey = `batch_${catBlock.eventType}`}
       {@const batchState = getExecutionState(batchStateKey)}
       {@const batchApproval = approvalPending[batchStateKey]}
-      {@const grpDef = group.group
-        ? EVENT_GROUPS[group.group] || EVENT_GROUPS["CRITICAL"]
+      {@const categoryDef = catBlock.category
+        ? EVENT_CATEGORY_TIERS[catBlock.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
         : null}
 
       <div class="rounded border border-border bg-card overflow-hidden">
         <!-- Category header row -->
         <div class="flex items-center gap-2 px-1 py-0.5">
           <button
-            onclick={() => toggleGroup(group.eventType)}
+            onclick={() => toggleCategory(catBlock.eventType)}
             class="flex items-center gap-2 flex-1 px-3 py-2.5 text-left hover:bg-accent transition-colors"
           >
             <span
               class="text-[0.58rem] font-bold tracking-wider px-1.5 py-0.5 rounded text-white shrink-0"
-              style:background={eventTypeColor(group.eventType)}
+              style:background={eventTypeColor(catBlock.eventType)}
             >
-              {formatLabel(group.eventType)}
+              {formatLabel(catBlock.eventType)}
             </span>
-            {#if grpDef}
+            {#if categoryDef}
               <span
                 class="text-[0.5rem] font-bold uppercase tracking-wider shrink-0"
-                style:color={grpDef.color}
-                title={grpDef.description}>{grpDef.label}</span
+                style:color={categoryDef.color}
+                title={categoryDef.description}>{categoryDef.label}</span
               >
             {/if}
             <span class="text-sm font-semibold text-foreground min-w-[18px]"
-              >{group.emails.length}</span
+              >{catBlock.emails.length}</span
             >
             <span class="flex-1"></span>
             <svg
@@ -539,7 +539,7 @@
             </svg>
           </button>
 
-          {#if !batchApproval && group.emails.some((e) => e.status !== "executed")}
+          {#if !batchApproval && catBlock.emails.some((e) => e.status !== "executed")}
             <Button
               variant="outline"
               size="sm"
@@ -550,15 +550,15 @@
                   ondismiss?.();
                 } else {
                   handleExecuteGroup(
-                    group.eventType,
-                    group.emails.filter((e) => e.status !== "executed"),
+                    catBlock.eventType,
+                    catBlock.emails.filter((e) => e.status !== "executed"),
                   );
                 }
               }}
               disabled={batchState?.running}
               class={cn(
                 "h-6 text-[0.6rem] font-bold uppercase tracking-wider px-2 mr-2 shrink-0 pointer-events-auto",
-                grpDef?.requiresApproval
+                categoryDef?.requiresApproval
                   ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
                   : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40",
                 batchState?.result?.success &&
@@ -570,10 +570,10 @@
                 {batchState.result.success
                   ? `Done (Dismiss) (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})`
                   : "Failed"}
-              {:else if grpDef?.requiresApproval}Review & Execute ({group.emails
+              {:else if categoryDef?.requiresApproval}Review & Execute ({catBlock.emails
                   .filter((e) => e.status !== "executed")
                   .length})
-              {:else}Execute All ({group.emails.filter((e) => e.status !== "executed").length})
+              {:else}Execute All ({catBlock.emails.filter((e) => e.status !== "executed").length})
               {/if}
             </Button>
           {/if}
@@ -584,7 +584,7 @@
           <div class="px-3 pb-3">
             {@render approvalCard(
               "Review required — this is a CRITICAL event type",
-              `The following actions will run on <strong>${group.emails.length} email${group.emails.length === 1 ? "" : "s"}</strong>. This changes email state and cannot be undone easily.`,
+              `The following actions will run on <strong>${catBlock.emails.length} email${catBlock.emails.length === 1 ? "" : "s"}</strong>. This changes email state and cannot be undone easily.`,
               batchApproval.actions,
               batchStateKey,
               false,
@@ -602,7 +602,7 @@
         <!-- Email list -->
         {#if isExpanded}
           <div class="border-t border-border flex flex-col">
-            {#each group.emails as email}
+            {#each catBlock.emails as email}
               {@const execStateKey = `single_${email.emailId}`}
               {@const execState = getExecutionState(execStateKey)}
               {@const execApproval = approvalPending[execStateKey]}
@@ -653,13 +653,13 @@
                     {#if email.status !== "executed" && !execApproval}
                       {@render execBtn(
                         "Execute",
-                        grpDef?.requiresApproval,
+                        categoryDef?.requiresApproval,
                         execState?.running,
                         execState?.result,
                         () =>
                           handleExecute(
                             {
-                              type: group.eventType,
+                              type: catBlock.eventType,
                               source: "gmail",
                               data: email,
                             },
@@ -679,11 +679,11 @@
                     )}
                   {/if}
 
-                  {#if group.commands?.length}
+                  {#if catBlock.commands?.length}
                     <PipelineGraph
-                      eventType={group.eventType}
-                      group={group.group}
-                      commands={group.commands}
+                      eventType={catBlock.eventType}
+                      category={catBlock.category}
+                      commands={catBlock.commands}
                     />
                   {:else}
                     <p class="text-[0.58rem] text-muted-foreground/35 italic">

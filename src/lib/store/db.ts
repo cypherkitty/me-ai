@@ -27,20 +27,28 @@ import mvp_worker_url from "@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.j
 import eh_worker_url from "@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url";
 import * as duckdb from "@duckdb/duckdb-wasm";
 
+/** Minimal DuckDB connection interface (package has no types). */
+interface DuckDBQueryResult {
+  toArray(): Array<{ toJSON?: () => Record<string, unknown> }>;
+}
+interface DuckDBPreparedStatement {
+  query(...params: unknown[]): Promise<DuckDBQueryResult>;
+  close(): Promise<void>;
+}
+export interface DuckDBConnection {
+  query(sql: string): Promise<DuckDBQueryResult>;
+  prepare(sql: string): Promise<DuckDBPreparedStatement>;
+  close(): Promise<void>;
+}
+
 // ── Singleton ────────────────────────────────────────────────────────
 
-/** @type {duckdb.AsyncDuckDB | null} */
-let _db = null;
-/** @type {duckdb.AsyncDuckDBConnection | null} */
-let _conn = null;
-/** @type {Promise<duckdb.AsyncDuckDB> | null} */
-let _initPromise = null;
-/** @type {boolean} Whether the current open path is OPFS (not :memory:) */
+let _db: InstanceType<typeof duckdb.AsyncDuckDB> | null = null;
+let _conn: DuckDBConnection | null = null;
+let _initPromise: Promise<InstanceType<typeof duckdb.AsyncDuckDB>> | null = null;
 let _usingOpfs = false;
-/** @type {boolean} Session flag: OPFS write probe failed, use in-memory for this tab */
 let _opfsWriteFailed = false;
-/** @type {ReturnType<typeof setTimeout> | null} */
-let _checkpointTimer = null;
+let _checkpointTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Debounced CHECKPOINT — flushes the DuckDB WAL to the OPFS file.
@@ -50,14 +58,14 @@ let _checkpointTimer = null;
  * We debounce (50 ms) to batch rapid writes (e.g. bulk email sync) into
  * a single checkpoint rather than one per row.
  */
-function _scheduleCheckpoint() {
+function _scheduleCheckpoint(): void {
   if (!_usingOpfs || !_conn) return;
   if (_checkpointTimer) clearTimeout(_checkpointTimer);
   _checkpointTimer = setTimeout(async () => {
     try {
-      await _conn.query("CHECKPOINT");
+      await _conn!.query("CHECKPOINT");
     } catch (e) {
-      console.warn("[db] CHECKPOINT failed:", e?.message ?? e);
+      console.warn("[db] CHECKPOINT failed:", (e as Error)?.message ?? e);
     }
     _checkpointTimer = null;
   }, 50);
@@ -67,74 +75,91 @@ function _scheduleCheckpoint() {
  * Immediate CHECKPOINT — use for critical writes (auth tokens, settings)
  * where we can't afford to lose data on a fast reload.
  */
-export async function checkpoint() {
+export async function checkpoint(): Promise<void> {
   if (!_usingOpfs || !_conn) return;
-  if (_checkpointTimer) { clearTimeout(_checkpointTimer); _checkpointTimer = null; }
+  if (_checkpointTimer) {
+    clearTimeout(_checkpointTimer);
+    _checkpointTimer = null;
+  }
   try {
     await _conn.query("CHECKPOINT");
   } catch (e) {
-    console.warn("[db] CHECKPOINT failed:", e?.message ?? e);
+    console.warn("[db] CHECKPOINT failed:", (e as Error)?.message ?? e);
   }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────
 
-async function _init() {
+async function _init(): Promise<InstanceType<typeof duckdb.AsyncDuckDB>> {
   const BUNDLES = {
     mvp: { mainModule: duckdb_mvp_wasm, mainWorker: mvp_worker_url },
     eh: { mainModule: duckdb_eh_wasm, mainWorker: eh_worker_url },
   };
 
   const bundle = await duckdb.selectBundle(BUNDLES);
-  const worker = new Worker(bundle.mainWorker);
+  const workerUrl = bundle.mainWorker;
+  if (!workerUrl) throw new Error("DuckDB bundle missing mainWorker");
+  const worker = new Worker(workerUrl);
   const logger = new duckdb.VoidLogger();
 
   _db = new duckdb.AsyncDuckDB(logger, worker);
   await _db.instantiate(bundle.mainModule, bundle.pthreadWorker);
 
-  // Try OPFS persistence; fall back to in-memory.
-  const opfsSupported = typeof navigator !== "undefined" &&
+  const opfsSupported =
+    typeof navigator !== "undefined" &&
     typeof navigator.storage?.getDirectory === "function";
 
   if (opfsSupported && !_opfsWriteFailed) {
     try {
-      await _db.open({ path: "opfs://me-ai.db", accessMode: duckdb.DuckDBAccessMode.READ_WRITE });
+      await _db.open({
+        path: "opfs://me-ai.db",
+        accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
+      });
       _usingOpfs = true;
       console.info("[db] Using OPFS persistence (opfs://me-ai.db)");
     } catch (e) {
-      console.warn("[db] OPFS open failed, falling back to in-memory:", e?.message ?? e);
+      console.warn(
+        "[db] OPFS open failed, falling back to in-memory:",
+        (e as Error)?.message ?? e
+      );
       await _db.open({ path: ":memory:" });
     }
   } else {
     if (_opfsWriteFailed) {
-      console.info("[db] Using in-memory (OPFS write probe failed earlier this session)");
+      console.info(
+        "[db] Using in-memory (OPFS write probe failed earlier this session)"
+      );
     } else {
       console.info("[db] OPFS not available, using in-memory database");
     }
     await _db.open({ path: ":memory:" });
   }
 
-  _conn = await _db.connect();
+  _conn = (await _db.connect()) as DuckDBConnection;
 
-  // Probe OPFS write — DuckDB-WASM can open OPFS but commits fail with
-  // "TransactionContext Error: Failed to commit: File is not opened in write mode"
-  // (https://github.com/duckdb/duckdb-wasm/issues/2182). If so, restart init with in-memory.
   if (_usingOpfs) {
     try {
       await _conn.query("CREATE TABLE IF NOT EXISTS __opfs_probe (x INTEGER)");
       await _conn.query("INSERT INTO __opfs_probe VALUES (1)");
       await _conn.query("DROP TABLE __opfs_probe");
     } catch (e) {
-      const msg = e?.message ?? String(e);
+      const msg = (e as Error)?.message ?? String(e);
       if (msg.includes("write mode") || msg.includes("TransactionContext")) {
-        console.warn("[db] OPFS writes failed, falling back to in-memory for this session:", msg);
+        console.warn(
+          "[db] OPFS writes failed, falling back to in-memory for this session:",
+          msg
+        );
         _opfsWriteFailed = true;
         try {
           await _conn.close();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         try {
           await _db.terminate();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         _conn = null;
         _db = null;
         _initPromise = null;
@@ -145,33 +170,32 @@ async function _init() {
     }
   }
 
-  // Best-effort flush on page unload and visibility change (OPFS only).
   if (_usingOpfs && typeof window !== "undefined") {
     window.addEventListener("beforeunload", () => {
-      _conn.query("CHECKPOINT").catch(() => { });
+      _conn?.query("CHECKPOINT").catch(() => {});
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
-        _conn.query("CHECKPOINT").catch(() => { });
+        _conn?.query("CHECKPOINT").catch(() => {});
       }
     });
   }
 
   await _createSchema(_conn);
 
-  // If OPFS is in use but the DB file was freshly created (empty), it means
-  // the user deliberately deleted the OPFS file via DevTools. Wipe the IDB
-  // cache too so that rehydration loads nothing — giving a truly clean slate.
   if (_usingOpfs) {
     try {
       const res = await _conn.query(`SELECT COUNT(*) AS cnt FROM items`);
-      const count = Number(res.toArray()[0]?.cnt ?? 0);
+      const row = res.toArray()[0];
+      const count = Number(row?.toJSON?.()?.cnt ?? 0);
       if (count === 0) {
         const { idbWipeAll } = await import("./idb.js");
         await idbWipeAll();
         console.info("[db] Fresh OPFS detected — wiped IDB cache to stay in sync");
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   await _rehydrateFromIdb(_conn);
@@ -179,13 +203,10 @@ async function _init() {
   return _db;
 }
 
-/**
- * Restore items, syncState, and contacts from IDB cache into DuckDB.
- * Called once on startup so queries work even when OPFS is unavailable.
- */
-async function _rehydrateFromIdb(conn) {
+async function _rehydrateFromIdb(conn: DuckDBConnection): Promise<void> {
   try {
-    const { idbGetAllItems, idbGetAllSyncStates, idbGetAllContacts } = await import("./idb.js");
+    const { idbGetAllItems, idbGetAllSyncStates, idbGetAllContacts } =
+      await import("./idb.js");
 
     const [items, syncStates, contacts] = await Promise.all([
       idbGetAllItems(),
@@ -205,16 +226,30 @@ async function _rehydrateFromIdb(conn) {
         try {
           const stmt = await conn.prepare(sql);
           await stmt.query(
-            item.id, item.sourceType, item.sourceId, item.threadKey, item.type,
-            item.from, item.to, item.cc, item.subject, item.snippet,
-            item.body, item.htmlBody, item.date,
+            item.id,
+            item.sourceType,
+            item.sourceId,
+            item.threadKey,
+            item.type,
+            item.from,
+            item.to,
+            item.cc,
+            item.subject,
+            item.snippet,
+            item.body,
+            item.htmlBody,
+            item.date,
             item.labels,
-            item.messageId, item.inReplyTo, item.references,
+            item.messageId,
+            item.inReplyTo,
+            item.references,
             item.raw,
-            item.syncedAt,
+            item.syncedAt
           );
           await stmt.close();
-        } catch { }
+        } catch {
+          /* ignore */
+        }
       }
     }
 
@@ -225,9 +260,17 @@ async function _rehydrateFromIdb(conn) {
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT (sourceType) DO NOTHING`
         );
-        await stmt.query(s.sourceType, s.historyId, s.lastSyncAt, s.totalItems, s.oldestPageToken);
+        await stmt.query(
+          s.sourceType,
+          s.historyId,
+          s.lastSyncAt,
+          s.totalItems,
+          s.oldestPageToken
+        );
         await stmt.close();
-      } catch { }
+      } catch {
+        /* ignore */
+      }
     }
 
     for (const c of contacts) {
@@ -239,22 +282,26 @@ async function _rehydrateFromIdb(conn) {
         );
         await stmt.query(c.email, c.name, c.firstSeen, c.lastSeen);
         await stmt.close();
-      } catch { }
+      } catch {
+        /* ignore */
+      }
     }
 
     if (items.length > 0 || syncStates.length > 0) {
       console.info("[db] Rehydration complete");
     }
   } catch (e) {
-    console.warn("[db] Rehydration from IDB cache failed:", e?.message ?? e);
+    console.warn(
+      "[db] Rehydration from IDB cache failed:",
+      (e as Error)?.message ?? e
+    );
   }
 }
 
 /**
  * Returns the initialised DuckDB instance (lazy singleton).
- * @returns {Promise<duckdb.AsyncDuckDB>}
  */
-export function getDb() {
+export function getDb(): Promise<InstanceType<typeof duckdb.AsyncDuckDB>> {
   if (!_initPromise) _initPromise = _init();
   return _initPromise;
 }
@@ -263,42 +310,57 @@ export function getDb() {
  * Nuke all user data — items, syncState, contacts — from DuckDB and IDB cache.
  * Does NOT touch schema tables (event categories, pipelines, etc.).
  */
-export async function wipeAllData() {
+export async function wipeAllData(): Promise<void> {
   const { idbWipeAll } = await import("./idb.js");
 
-  // 1. Clear DuckDB in-memory tables
   if (_conn) {
-    try { await _conn.query(`DELETE FROM items`); } catch { }
-    try { await _conn.query(`DELETE FROM syncState`); } catch { }
-    try { await _conn.query(`DELETE FROM contacts`); } catch { }
+    try {
+      await _conn.query(`DELETE FROM items`);
+    } catch {}
+    try {
+      await _conn.query(`DELETE FROM syncState`);
+    } catch {}
+    try {
+      await _conn.query(`DELETE FROM contacts`);
+    } catch {}
   }
 
-  // 2. Close DuckDB connection so OPFS file is not locked
-  if (_conn) { try { await _conn.close(); } catch { } _conn = null; }
-  if (_db) { try { await _db.terminate(); } catch { } _db = null; }
+  if (_conn) {
+    try {
+      await _conn.close();
+    } catch {}
+    _conn = null;
+  }
+  if (_db) {
+    try {
+      await _db.terminate();
+    } catch {}
+    _db = null;
+  }
   _initPromise = null;
   _usingOpfs = false;
 
-  // 3. Delete OPFS files (me-ai.db + WAL)
   try {
     const opfsRoot = await navigator.storage.getDirectory();
     for (const name of ["me-ai.db", "me-ai.db.wal"]) {
-      try { await opfsRoot.removeEntry(name); } catch { /* already gone */ }
+      try {
+        await opfsRoot.removeEntry(name);
+      } catch {
+        /* already gone */
+      }
     }
-  } catch { /* OPFS not supported or already gone */ }
+  } catch {
+    /* OPFS not supported or already gone */
+  }
 
-  // 4. Clear IDB cache (write-through layer)
   await idbWipeAll();
 
-  // 5. Reload so the app starts fresh
   window.location.reload();
 }
 
-
 // ── Schema ───────────────────────────────────────────────────────────
 
-
-async function _createSchema(conn) {
+async function _createSchema(conn: DuckDBConnection): Promise<void> {
   await conn.query(`
     -- ── Static lookup tables ──────────────────────────────────────────
     CREATE TABLE IF NOT EXISTS sm_event_types (
@@ -382,7 +444,7 @@ async function _createSchema(conn) {
 
     CREATE TABLE IF NOT EXISTS sm_rule_triggers (
       rule_id      VARCHAR,
-      trigger_type VARCHAR,   -- 'event_type' | 'event_category'
+      trigger_type VARCHAR,
       trigger_name VARCHAR
     );
 
@@ -409,13 +471,13 @@ async function _createSchema(conn) {
       subject        VARCHAR,
       sender         VARCHAR,
       timestamp      BIGINT,
-      status         VARCHAR,   -- completed | awaiting_user | failed | escalated
+      status         VARCHAR,
       event_type     VARCHAR,
       event_category VARCHAR,
       source_name    VARCHAR,
-      rule_id        VARCHAR,   -- rule that processed this
-      actions_taken  VARCHAR,   -- JSON array of action names
-      output         VARCHAR    -- JSON blob (summarize output, etc.)
+      rule_id        VARCHAR,
+      actions_taken  VARCHAR,
+      output         VARCHAR
     );
 
     CREATE INDEX IF NOT EXISTS idx_sm_events_status    ON sm_events (status);
@@ -427,9 +489,6 @@ async function _createSchema(conn) {
   await _seedSignalMap(conn);
   await _migrateEventCategoriesTo3Tier(conn);
 
-  // One-time migration: remove sm_rule_commands rows created by an older version
-  // of PipelinesView that stored actions as plain string names (no plugin binding).
-  // Those rows have NULL plugin_id and NULL action_id and are not executable.
   await conn.query(`
     DELETE FROM sm_rule_commands WHERE plugin_id IS NULL AND action_id IS NULL
   `);
@@ -449,11 +508,11 @@ async function _createSchema(conn) {
       body        VARCHAR,
       htmlBody    VARCHAR,
       date        BIGINT,
-      labels      VARCHAR,   -- JSON array stored as text
+      labels      VARCHAR,
       messageId   VARCHAR,
       inReplyTo   VARCHAR,
       "references" VARCHAR,
-      raw         VARCHAR,   -- JSON blob
+      raw         VARCHAR,
       syncedAt    BIGINT
     );
 
@@ -485,12 +544,12 @@ async function _createSchema(conn) {
       "group"    VARCHAR,
       reason     VARCHAR,
       summary    VARCHAR,
-      tags       VARCHAR,   -- JSON array
+      tags       VARCHAR,
       subject    VARCHAR,
       "from"     VARCHAR,
       date       BIGINT,
       scannedAt  BIGINT,
-      status     VARCHAR    -- 'pending' | 'executed'
+      status     VARCHAR
     );
 
     CREATE INDEX IF NOT EXISTS idx_ec_action        ON emailClassifications (action);
@@ -501,7 +560,7 @@ async function _createSchema(conn) {
 
     CREATE TABLE IF NOT EXISTS settings (
       key   VARCHAR PRIMARY KEY,
-      value VARCHAR   -- JSON-encoded value
+      value VARCHAR
     );
 
     CREATE TABLE IF NOT EXISTS auditLog (
@@ -513,7 +572,7 @@ async function _createSchema(conn) {
       executedAt  BIGINT,
       success     BOOLEAN,
       error       VARCHAR,
-      steps       VARCHAR   -- JSON array
+      steps       VARCHAR
     );
 
     CREATE INDEX IF NOT EXISTS idx_audit_emailId    ON auditLog (emailId);
@@ -522,12 +581,11 @@ async function _createSchema(conn) {
   `);
 }
 
-// ── Seed data ─────────────────────────────────────────────────────────
-
-async function _seedSignalMap(conn) {
-  // Only seed if tables are empty (idempotent)
+async function _seedSignalMap(conn: DuckDBConnection): Promise<void> {
   const hasTypes = await conn.query(`SELECT COUNT(*) as n FROM sm_event_types`);
-  const count = hasTypes.toArray()[0]?.n ?? hasTypes.toArray()[0]?.toJSON?.()?.n ?? 0;
+  const arr = hasTypes.toArray();
+  const first = arr[0];
+  const count = first?.toJSON?.()?.n ?? 0;
   if (Number(count) > 0) return;
 
   await conn.query(`
@@ -543,7 +601,7 @@ async function _seedSignalMap(conn) {
       ('work_email',           'Work Email',            'critical', false),
       ('instagram_post',       'Instagram Post',        'info',     false),
       ('youtube_video',        'YouTube Video',         'info',     false),
-      ('security_alert',       'Security Alert',        'critical',  false),
+      ('security_alert',       'Security Alert',        'critical', false),
       ('invoice',              'Invoice',               'critical', false),
       ('social_mention',       'Social Mention',        'info',     false),
       ('startup_notification', 'Startup Notification',  'info',     false),
@@ -608,20 +666,14 @@ async function _seedSignalMap(conn) {
       ('telegram_plugin', 'telegram'),
       ('instagram_plugin','instagram');
 
-    -- ── Default category pipelines ─────────────────────────────────
     INSERT INTO sm_category_pipeline VALUES
       ('noise',    0, 'gmail', 'trash'),
       ('info',     0, 'gmail', 'mark_read'),
       ('info',     1, 'gmail', 'archive');
-    -- critical has no default pipeline (user must act)
   `);
 }
 
-/**
- * One-time migration: 4-tier categories → 3-tier (noise | info | critical).
- * Runs after seed; no-op if already on 3-tier.
- */
-async function _migrateEventCategoriesTo3Tier(conn) {
+async function _migrateEventCategoriesTo3Tier(conn: DuckDBConnection): Promise<void> {
   try {
     const hasOld = await conn.query(`
       SELECT 1 FROM sm_event_categories WHERE name = 'informational' LIMIT 1
@@ -645,32 +697,29 @@ async function _migrateEventCategoriesTo3Tier(conn) {
       INSERT INTO sm_event_categories VALUES ('info', 'Info', 2, 'supervised'), ('critical', 'Critical', 3, 'manual');
     `);
   } catch (e) {
-    console.warn("[db] 4-tier→3-tier migration skipped or failed:", e?.message ?? e);
+    console.warn(
+      "[db] 4-tier→3-tier migration skipped or failed:",
+      (e as Error)?.message ?? e
+    );
   }
 }
 
 // ── Query helpers ─────────────────────────────────────────────────────
 
-/**
- * Ensure the connection is ready and return it.
- * @returns {Promise<duckdb.AsyncDuckDBConnection>}
- */
-async function _getConn() {
+async function _getConn(): Promise<DuckDBConnection> {
   await getDb();
-  return _conn;
+  return _conn!;
 }
 
 /**
  * Run a SQL query and return rows as plain JS objects.
- * Supports positional parameters via Apache Arrow / DuckDB prepared statements.
- *
- * @param {string}  sql
- * @param {any[]}   [params]
- * @returns {Promise<object[]>}
  */
-export async function query(sql, params = []) {
+export async function query(
+  sql: string,
+  params: unknown[] = []
+): Promise<Record<string, unknown>[]> {
   const conn = await _getConn();
-  let result;
+  let result: DuckDBQueryResult;
   if (params.length > 0) {
     const stmt = await conn.prepare(sql);
     result = await stmt.query(...params);
@@ -678,18 +727,14 @@ export async function query(sql, params = []) {
   } else {
     result = await conn.query(sql);
   }
-  return result.toArray().map(row => row.toJSON ? row.toJSON() : row);
+  return result.toArray().map((row) => (row.toJSON ? row.toJSON() : (row as Record<string, unknown>)));
 }
 
 /**
  * Execute a SQL statement (INSERT / UPDATE / DELETE / DDL).
- * Returns nothing — use query() if you need results.
  * Schedules a debounced CHECKPOINT to flush the WAL to OPFS.
- *
- * @param {string}  sql
- * @param {any[]}   [params]
  */
-export async function exec(sql, params = []) {
+export async function exec(sql: string, params: unknown[] = []): Promise<void> {
   const conn = await _getConn();
   if (params.length > 0) {
     const stmt = await conn.prepare(sql);
@@ -698,29 +743,22 @@ export async function exec(sql, params = []) {
   } else {
     await conn.query(sql);
   }
-  // Flush WAL to OPFS after every write so data survives page reloads.
   _scheduleCheckpoint();
 }
 
+export interface ExecBatchStatement {
+  sql: string;
+  params?: unknown[];
+}
+
 /**
- * Execute multiple SQL statements inside a single BEGIN/COMMIT transaction.
- * Much faster than individual exec() calls for bulk inserts, and guarantees
- * all rows land in the WAL atomically. Calls an immediate checkpoint after
- * commit so the data survives a page reload.
- *
- * When using OPFS we skip explicit BEGIN/COMMIT to avoid DuckDB-WASM bug:
- * "TransactionContext Error: Failed to commit: File is not opened in write mode"
- * (see https://github.com/duckdb/duckdb-wasm/issues/2182). Statements run
- * one-by-one; we lose atomicity but writes succeed.
- *
- * @param {Array<{sql: string, params?: any[]}>} statements
+ * Execute multiple SQL statements (bulk inserts). Calls checkpoint after.
  */
-export async function execBatch(statements) {
+export async function execBatch(statements: ExecBatchStatement[]): Promise<void> {
   if (!statements.length) return;
   const conn = await _getConn();
 
   if (_usingOpfs) {
-    // OPFS workaround: avoid explicit transaction to prevent commit write-mode error
     for (const { sql, params = [] } of statements) {
       if (params.length > 0) {
         const stmt = await conn.prepare(sql);
@@ -747,23 +785,25 @@ export async function execBatch(statements) {
       try {
         await conn.query("ROLLBACK");
       } catch {
-        /* ignore "no transaction is active" */
+        /* ignore */
       }
       throw e;
     }
   }
-  // Flush immediately after a bulk write — don't debounce.
   await checkpoint();
 }
 
 // ── OPFS helpers ──────────────────────────────────────────────────────
 
-/**
- * Return stats about the OPFS DuckDB file and key table row counts.
- * @returns {Promise<{supported: boolean, fileBytes: number, tables: Record<string, number>}>}
- */
-export async function getOpfsStats() {
-  const supported = typeof navigator !== "undefined" &&
+export interface OpfsStats {
+  supported: boolean;
+  fileBytes: number;
+  tables: Record<string, number>;
+}
+
+export async function getOpfsStats(): Promise<OpfsStats> {
+  const supported =
+    typeof navigator !== "undefined" &&
     typeof navigator.storage?.getDirectory === "function";
 
   let fileBytes = 0;
@@ -773,19 +813,29 @@ export async function getOpfsStats() {
       const fh = await root.getFileHandle("me-ai.db", { create: false });
       const file = await fh.getFile();
       fileBytes = file.size;
-    } catch { /* file may not exist yet */ }
+    } catch {
+      /* file may not exist yet */
+    }
   }
 
   await getDb();
-  const tables = {};
+  const tables: Record<string, number> = {};
   for (const tbl of [
-    "sm_rules", "sm_rule_triggers", "sm_rule_commands",
-    "sm_events", "items", "emailClassifications", "contacts", "settings",
+    "sm_rules",
+    "sm_rule_triggers",
+    "sm_rule_commands",
+    "sm_events",
+    "items",
+    "emailClassifications",
+    "contacts",
+    "settings",
   ]) {
     try {
       const rows = await query(`SELECT COUNT(*) AS n FROM ${tbl}`);
       tables[tbl] = Number(rows[0]?.n ?? 0);
-    } catch { tables[tbl] = 0; }
+    } catch {
+      tables[tbl] = 0;
+    }
   }
 
   return { supported, fileBytes, tables };
@@ -793,9 +843,8 @@ export async function getOpfsStats() {
 
 /**
  * Clear all user-data tables in DuckDB (keeps lookup/seed tables).
- * Resets pipelines, events, emails, classifications, contacts, settings.
  */
-export async function clearAllDuckDbData() {
+export async function clearAllDuckDbData(): Promise<void> {
   const conn = await _getConn();
   const deletes = [
     "DELETE FROM sm_events",
@@ -820,7 +869,9 @@ export async function clearAllDuckDbData() {
     } catch (e) {
       try {
         await conn.query("ROLLBACK");
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       throw e;
     }
   }
@@ -829,125 +880,124 @@ export async function clearAllDuckDbData() {
 
 /**
  * Close the DuckDB connection, delete the OPFS file, then reload the page.
- * This is a destructive operation — all DuckDB data will be lost.
  */
-export async function deleteOpfsFileAndReload() {
-  // Flush any pending writes first
-  try { await checkpoint(); } catch { }
+export async function deleteOpfsFileAndReload(): Promise<void> {
+  try {
+    await checkpoint();
+  } catch {}
 
-  // Close connection and DB
-  try { await _conn?.close(); } catch { }
-  try { await _db?.terminate(); } catch { }
+  try {
+    await _conn?.close();
+  } catch {}
+  try {
+    await _db?.terminate();
+  } catch {}
   _conn = null;
   _db = null;
   _initPromise = null;
 
-  // Delete the OPFS file
   try {
     const root = await navigator.storage.getDirectory();
     await root.removeEntry("me-ai.db");
   } catch (e) {
-    console.warn("[db] Could not delete OPFS file:", e?.message);
+    console.warn("[db] Could not delete OPFS file:", (e as Error)?.message);
   }
 
   window.location.reload();
 }
 
 /**
- * Wipe ALL local data for this origin and reload:
- *  1. DuckDB connection + all OPFS files (me-ai.db, me-ai.db.wal, …)
- *  2. All IDB databases (write-through cache)
- *  3. All Cache API caches (model weights via transformers-cache, etc.)
- *  4. localStorage + sessionStorage
- *
- * The page reloads automatically when done.
+ * Wipe ALL local data for this origin and reload.
  */
-export async function nukeAllLocalData() {
-  // 1. Close DuckDB gracefully
-  try { await checkpoint(); } catch { }
-  try { await _conn?.close(); } catch { }
-  try { await _db?.terminate(); } catch { }
+export async function nukeAllLocalData(): Promise<void> {
+  try {
+    await checkpoint();
+  } catch {}
+  try {
+    await _conn?.close();
+  } catch {}
+  try {
+    await _db?.terminate();
+  } catch {}
   _conn = null;
   _db = null;
   _initPromise = null;
 
-  // 2. Delete all OPFS files
   try {
     const root = await navigator.storage.getDirectory();
-    const entries = [];
-    for await (const [name] of root.entries()) {
+    const entries: string[] = [];
+    const dir = root as unknown as { entries(): AsyncIterableIterator<[string, FileSystemHandle]> };
+    for await (const [name] of dir.entries()) {
       entries.push(name);
     }
-    await Promise.allSettled(entries.map((name) => root.removeEntry(name, { recursive: true })));
+    await Promise.allSettled(
+      entries.map((name) => root.removeEntry(name, { recursive: true }))
+    );
   } catch (e) {
-    console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
+    console.warn("[db] nukeAllLocalData: OPFS sweep failed:", (e as Error)?.message);
   }
 
-  // 2b. Close the IDB connection from idb.js so deleteDatabase is not blocked
   try {
     const { closeIdb } = await import("./idb.js");
     closeIdb();
-  } catch { }
+  } catch {}
 
-  // 3. Delete all IDB databases
   try {
-    const dbs = await indexedDB.databases?.() ?? [];
+    const dbs = (await indexedDB.databases?.()) ?? [];
     await Promise.allSettled(
       dbs.map(
         ({ name }) =>
-          new Promise((res) => {
+          new Promise<void>((res) => {
+            if (!name) return res();
             const r = indexedDB.deleteDatabase(name);
-            r.onsuccess = res;
-            r.onerror = res;           // don't block on errors
+            r.onsuccess = () => res();
+            r.onerror = () => res();
             r.onblocked = () => {
               console.warn(`[db] deleteDatabase("${name}") blocked — force-proceeding`);
-              res();                      // force-proceed even if blocked
+              res();
             };
-            // Absolute safety: resolve after 3 s no matter what
             setTimeout(res, 3000);
           })
       )
     );
   } catch (e) {
-    console.warn("[db] nukeAllLocalData: IDB sweep failed:", e?.message);
+    console.warn("[db] nukeAllLocalData: IDB sweep failed:", (e as Error)?.message);
   }
 
-  // 4. Delete all Cache API caches (model weights, etc.)
   try {
     if ("caches" in window) {
       const names = await caches.keys();
       await Promise.allSettled(names.map((n) => caches.delete(n)));
     }
   } catch (e) {
-    console.warn("[db] nukeAllLocalData: Cache API sweep failed:", e?.message);
+    console.warn("[db] nukeAllLocalData: Cache API sweep failed:", (e as Error)?.message);
   }
 
-  // 5. Clear Web Storage
-  try { localStorage.clear(); } catch { }
-  try { sessionStorage.clear(); } catch { }
+  try {
+    localStorage.clear();
+  } catch {}
+  try {
+    sessionStorage.clear();
+  } catch {}
 
   window.location.reload();
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────
 
-/**
- * Generate a universal item ID from source type and source-specific ID.
- * @param {string} sourceType - e.g. "gmail"
- * @param {string} sourceId   - source-specific ID
- * @returns {string} e.g. "gmail:18e12345abcd"
- */
-export function makeItemId(sourceType, sourceId) {
+export function makeItemId(sourceType: string, sourceId: string): string {
   return `${sourceType}:${sourceId}`;
 }
 
-/** Encode a JS value for storage in a VARCHAR JSON column. */
-export function toJson(value) {
+export function toJson(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
-/** Decode a VARCHAR JSON column back to a JS value. */
-export function fromJson(text, fallback = null) {
+export function fromJson<T>(text: string | null | undefined, fallback: T): T {
   if (text == null) return fallback;
-  try { return JSON.parse(text); } catch { return fallback; }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return fallback;
+  }
 }
