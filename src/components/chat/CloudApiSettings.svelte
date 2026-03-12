@@ -89,7 +89,7 @@
         autocomplete="off"
       />
       <p class="text-[0.68rem] text-muted-foreground/50 leading-relaxed">
-        Stored locally in IndexedDB. Sent only to {activeProvider.toUpperCase()}.
+        Stored locally in DuckDB. Sent only to {activeProvider.toUpperCase()}.
       </p>
     </div>
 

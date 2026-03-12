@@ -1,9 +1,9 @@
 /**
- * Thin IndexedDB wrapper for reliable email + sync-state persistence.
+ * Thin IndexedDB wrapper used as write-through cache for DuckDB.
  *
  * DuckDB-WASM's OPFS backend has known WAL-replay and checksum issues that
- * cause data loss on page reload. This module provides a simple, battle-tested
- * IndexedDB store that:
+ * cause data loss on page reload. This module provides a simple IndexedDB
+ * store that:
  *
  *   - Persists raw email rows and syncState across reloads (write-through)
  *   - Rehydrates DuckDB in-memory tables on startup
@@ -37,7 +37,7 @@ function openIdb() {
     req.onerror = () => reject(req.error);
   });
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("IndexedDB open timed out after 5 s")), 5000)
+    setTimeout(() => reject(new Error("IDB open timed out after 5 s")), 5000)
   );
   return Promise.race([idbPromise, timeout]);
 }

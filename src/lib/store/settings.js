@@ -1,7 +1,7 @@
 /**
  * Settings Store — key/value persistence via DuckDB (OPFS).
  *
- * API mirrors the old Dexie-based interface:
+ * API mirrors the old Dexie-based interface (now backed by DuckDB):
  *   getSetting(key, fallback?)  →  async get
  *   setSetting(key, value)      →  async set
  *   removeSetting(key)          →  async remove

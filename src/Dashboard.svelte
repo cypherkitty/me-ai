@@ -24,7 +24,7 @@
   onMount(async () => {
     window.addEventListener("keydown", handleKeydown);
 
-    // Load saved Google Client ID from IndexedDB, fall back to default
+    // Load saved Google Client ID from DuckDB (settings), fall back to default
     if (!clientId) {
       const saved = await getSetting("googleClientId");
       clientId = saved || DEFAULT_CLIENT_ID;
@@ -97,7 +97,7 @@
   let selectedMessage = $state(null);
   let searchQuery = $state("");
 
-  // Local message list (from IndexedDB)
+  // Local message list (from DuckDB)
   let emailMessages = $state([]);
   let totalLocalMessages = $state(0);
   let localOffset = $state(0);
@@ -134,7 +134,7 @@
       initGoogleAuth(clientId)
         .then(async () => {
           authInitialized = true;
-          // Auto-restore saved token from IndexedDB
+          // Auto-restore saved token from DuckDB
           if (!accessToken) {
             const saved = await getSavedToken();
             if (saved) {
@@ -216,7 +216,7 @@
     }
   }
 
-  // ── Local message loading (from IndexedDB) ─────────────────────────
+  // ── Local message loading (from DuckDB) ─────────────────────────
   async function loadLocalMessages(append = false) {
     loadingMessages = true;
     try {

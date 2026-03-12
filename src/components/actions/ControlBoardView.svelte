@@ -207,7 +207,7 @@
       </div>
       <div class="pt-3 mt-1 border-t border-border">
         <span class="text-xs text-muted-foreground/40 tabular-nums">
-          {counts.total} emails classified into {groupOrder.length} groups
+          {counts.total} emails classified into {groupOrder.length} categories
         </span>
       </div>
     {:else if !isScanning}

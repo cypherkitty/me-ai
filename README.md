@@ -8,7 +8,7 @@ A private AI chat and Gmail dashboard that runs **entirely in your browser** —
 
 The system is built on an **event-stream model**: all data (emails, messages, etc.) flows through as events, each classified into a type. Each event type maps to a list of **commands** — actions that can be taken. 
 
-The chat serves as the **control interface** on top of this event stream, rendering not just text but interactive command cards. The AI acts as a transparent control plane by outputting invisible tags (e.g., `[EXECUTE:GROUP:EVENT]` or `[SHOW:DASHBOARD]`) that the Svelte UI intercepts and runs automatically.
+The chat serves as the **control interface** on top of this event stream, rendering not just text but interactive command cards. The AI acts as a transparent control plane by outputting invisible tags (e.g., `[EXECUTE:GROUP:EVENT_TYPE]` for a pending event category or `[SHOW:DASHBOARD]`) that the Svelte UI intercepts and runs automatically.
 
 ```
 Data Sources → Events → EventType → Commands → Chat UI
@@ -35,7 +35,7 @@ See [`.cursor/rules/architecture.md`](.cursor/rules/architecture.md) for the ful
 - **Ollama** — optional local LLM backend via HTTP API
 - **Google Identity Services** — client-side OAuth implicit flow
 - **Gmail REST API** — direct fetch with Bearer token
-- **Dexie.js** — IndexedDB wrapper for local data store
+- **DuckDB (WASM + OPFS)** — primary local data store; IndexedDB used as write-through cache for reliability
 - **marked** + **DOMPurify** — Markdown rendering with XSS protection
 - **Vitest** — unit testing
 

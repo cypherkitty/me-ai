@@ -518,7 +518,7 @@ async function bulkUpsertItems(items) {
     ],
   })));
 
-  // Write-through to IndexedDB — the reliable persistence layer.
+  // Write-through to IDB cache (for DuckDB rehydration).
   // Store labels and raw as JSON strings (same as DuckDB columns) so
   // rehydration can insert them back verbatim.
   await idbPutItems(items.map(item => ({
@@ -634,7 +634,7 @@ async function upsertSyncState({ sourceType, historyId, lastSyncAt, totalItems, 
        oldestPageToken = excluded.oldestPageToken`,
     [sourceType, historyId, lastSyncAt, totalItems, oldestPageToken]
   );
-  // Mirror to IndexedDB — reliable persistence.
+  // Mirror to IDB cache — reliable persistence.
   await idbPutSyncState({ sourceType, historyId, lastSyncAt, totalItems, oldestPageToken });
 }
 

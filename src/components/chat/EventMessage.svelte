@@ -479,7 +479,7 @@
     {/each}
   </div>
 
-  <!-- ── Grouped events ──────────────────────────────────────────────── -->
+  <!-- ── Events by category ──────────────────────────────────────────── -->
 {:else if msg.type === "events-grouped"}
   <div class="self-start w-full max-w-[95%] flex flex-col gap-2">
     <div class="flex items-baseline gap-3 py-1">
@@ -502,7 +502,7 @@
         : null}
 
       <div class="rounded border border-border bg-card overflow-hidden">
-        <!-- Group header row -->
+        <!-- Category header row -->
         <div class="flex items-center gap-2 px-1 py-0.5">
           <button
             onclick={() => toggleGroup(group.eventType)}

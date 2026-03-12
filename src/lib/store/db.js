@@ -160,8 +160,8 @@ async function _init() {
   await _createSchema(_conn);
 
   // If OPFS is in use but the DB file was freshly created (empty), it means
-  // the user deliberately deleted the OPFS file via DevTools. Wipe IndexedDB
-  // too so that rehydration loads nothing — giving a truly clean slate.
+  // the user deliberately deleted the OPFS file via DevTools. Wipe the IDB
+  // cache too so that rehydration loads nothing — giving a truly clean slate.
   if (_usingOpfs) {
     try {
       const res = await _conn.query(`SELECT COUNT(*) AS cnt FROM items`);
@@ -169,7 +169,7 @@ async function _init() {
       if (count === 0) {
         const { idbWipeAll } = await import("./idb.js");
         await idbWipeAll();
-        console.info("[db] Fresh OPFS detected — wiped IndexedDB to stay in sync");
+        console.info("[db] Fresh OPFS detected — wiped IDB cache to stay in sync");
       }
     } catch { /* ignore */ }
   }
@@ -180,7 +180,7 @@ async function _init() {
 }
 
 /**
- * Restore items, syncState, and contacts from IndexedDB into DuckDB.
+ * Restore items, syncState, and contacts from IDB cache into DuckDB.
  * Called once on startup so queries work even when OPFS is unavailable.
  */
 async function _rehydrateFromIdb(conn) {
@@ -194,7 +194,7 @@ async function _rehydrateFromIdb(conn) {
     ]);
 
     if (items.length > 0) {
-      console.info(`[db] Rehydrating ${items.length} emails from IndexedDB`);
+      console.info(`[db] Rehydrating ${items.length} emails from IDB cache`);
       const sql = `INSERT INTO items
          (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
           snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
@@ -246,7 +246,7 @@ async function _rehydrateFromIdb(conn) {
       console.info("[db] Rehydration complete");
     }
   } catch (e) {
-    console.warn("[db] Rehydration from IndexedDB failed:", e?.message ?? e);
+    console.warn("[db] Rehydration from IDB cache failed:", e?.message ?? e);
   }
 }
 
@@ -260,7 +260,7 @@ export function getDb() {
 }
 
 /**
- * Nuke all user data — items, syncState, contacts — from both DuckDB and IndexedDB.
+ * Nuke all user data — items, syncState, contacts — from DuckDB and IDB cache.
  * Does NOT touch schema tables (event categories, pipelines, etc.).
  */
 export async function wipeAllData() {
@@ -287,7 +287,7 @@ export async function wipeAllData() {
     }
   } catch { /* OPFS not supported or already gone */ }
 
-  // 4. Clear IndexedDB — the durable persistence layer
+  // 4. Clear IDB cache (write-through layer)
   await idbWipeAll();
 
   // 5. Reload so the app starts fresh
@@ -856,7 +856,7 @@ export async function deleteOpfsFileAndReload() {
 /**
  * Wipe ALL local data for this origin and reload:
  *  1. DuckDB connection + all OPFS files (me-ai.db, me-ai.db.wal, …)
- *  2. All IndexedDB databases
+ *  2. All IDB databases (write-through cache)
  *  3. All Cache API caches (model weights via transformers-cache, etc.)
  *  4. localStorage + sessionStorage
  *
@@ -883,13 +883,13 @@ export async function nukeAllLocalData() {
     console.warn("[db] nukeAllLocalData: OPFS sweep failed:", e?.message);
   }
 
-  // 2b. Close the IndexedDB connection from idb.js so deleteDatabase is not blocked
+  // 2b. Close the IDB connection from idb.js so deleteDatabase is not blocked
   try {
     const { closeIdb } = await import("./idb.js");
     closeIdb();
   } catch { }
 
-  // 3. Delete all IndexedDB databases
+  // 3. Delete all IDB databases
   try {
     const dbs = await indexedDB.databases?.() ?? [];
     await Promise.allSettled(
@@ -909,7 +909,7 @@ export async function nukeAllLocalData() {
       )
     );
   } catch (e) {
-    console.warn("[db] nukeAllLocalData: IndexedDB sweep failed:", e?.message);
+    console.warn("[db] nukeAllLocalData: IDB sweep failed:", e?.message);
   }
 
   // 4. Delete all Cache API caches (model weights, etc.)
