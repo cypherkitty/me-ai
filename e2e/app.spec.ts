@@ -7,10 +7,7 @@ test.describe("App shell", () => {
   test("renders brand and nav links in chat mode", async ({ page }) => {
     await page.goto("/");
 
-    // Brand
     await expect(page.getByText("me-ai").first()).toBeVisible();
-
-    // Header links
     await expect(page.getByRole("link", { name: /Pipeline/i })).toBeVisible();
   });
 
@@ -34,7 +31,6 @@ test.describe("Navigation", () => {
     await page.getByRole("link", { name: /Pipeline/i }).click();
     await expect(page).toHaveURL(/#stream/);
 
-    // Sidebar should appear with nav items
     await expect(page.getByRole("link", { name: /Event Stream/i })).toBeVisible();
   });
 
@@ -44,7 +40,6 @@ test.describe("Navigation", () => {
     await page.getByRole("link", { name: /Back to Chat/i }).click();
     await expect(page).toHaveURL(/#chat/);
 
-    // Chat mode: backend selector visible again
     await expect(page.getByText("AI BACKEND")).toBeVisible();
   });
 
@@ -99,7 +94,6 @@ test.describe("Chat page", () => {
   test("WebGPU backend is selected by default", async ({ page }) => {
     await page.goto("/");
 
-    // WebGPU button should be visually selected (has primary border styling)
     const webgpuBtn = page.getByRole("button", { name: /WebGPU/i });
     await expect(webgpuBtn).toBeVisible();
   });
@@ -109,46 +103,37 @@ test.describe("Chat page", () => {
 
     await page.getByRole("button", { name: /Ollama/i }).click();
 
-    // WebGPU model selector is gone, Ollama settings appear instead
     await expect(page.locator("#model-select")).not.toBeVisible();
     await expect(page.locator("#ollama-model")).toBeVisible();
   });
 
   test("thinking is collapsed by default, expands on click", async ({ page }) => {
-    test.setTimeout(180_000); // Model load can take 1–2 min
+    test.setTimeout(180_000);
     await page.goto("/");
 
-    // Load WebGPU model
     await page.getByRole("button", { name: "Load Model" }).click();
 
-    // Wait for chat input (model ready)
     const input = page.getByPlaceholder(/Type a message|message/i);
     await expect(input).toBeVisible({ timeout: 120_000 });
 
-    // Enable Thinking
     const thinkingSwitch = page.getByRole("switch", { name: /Thinking/i });
     if (await thinkingSwitch.isVisible()) {
-      if (await thinkingSwitch.getAttribute("aria-checked") !== "true") {
+      if ((await thinkingSwitch.getAttribute("aria-checked")) !== "true") {
         await thinkingSwitch.click();
       }
     }
 
-    // Send message
     await input.fill("hi");
     await input.press("Enter");
 
-    // Wait for "Internal reasoning" to appear (thinking completed)
     const reasoningTrigger = page.getByText("Internal reasoning");
     await expect(reasoningTrigger).toBeVisible({ timeout: 60_000 });
 
-    // Thinking content (pre) should be hidden when collapsed - check it's not visible
     const preContent = page.locator("pre").filter({ hasText: /Analyze|Request|Thinking/i });
     await expect(preContent).toBeHidden();
 
-    // Click to expand
     await reasoningTrigger.click();
 
-    // Now thinking content should be visible
     await expect(preContent).toBeVisible({ timeout: 5_000 });
   });
 });
