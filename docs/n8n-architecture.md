@@ -1,8 +1,3 @@
----
-description: Ensure the AI understands the n8n.io-like dynamically generated action flow architecture.
-alwaysApply: true
----
-
 # n8n-like Architecture (Dynamic Action Flow)
 
 The fundamental architectural principle of me-ai is modeled after **n8n.io** workflows, but heavily driven by the LLM on the frontend.
@@ -36,7 +31,7 @@ Execution policies: `auto` (run without user), `manual` (wait for approval).
 Pipelines are **not** seeded from LLM output. Resolution order:
 
 1. **Per-type override**: If the event type has a user-defined pipeline in `sm_type_pipeline`, use it.
-2. **Category default**: Otherwise, look up the event type’s category in `sm_event_types`, then use that category’s default pipeline from `sm_category_pipeline`.
+2. **Category default**: Otherwise, look up the event type's category in `sm_event_types`, then use that category's default pipeline from `sm_category_pipeline`.
 
 So: **categories carry default pipelines**; optional **per-event-type overrides** exist for special cases. 
 Users manage category pipelines and overrides in the UI (e.g. Action Pipeline Editor / Rules view).

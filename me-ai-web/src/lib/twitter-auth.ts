@@ -88,8 +88,6 @@ async function saveToken(accessToken: string, refreshToken: string, expiresIn: n
   try {
     const { setSetting } = await import("./store/settings.js");
     await setSetting(SETTINGS_TOKEN_KEY, data);
-    const { checkpoint } = await import("./store/db.js");
-    await checkpoint();
   } catch {
     /* ignore */
   }

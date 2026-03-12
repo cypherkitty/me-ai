@@ -77,8 +77,6 @@ async function saveToken(accessToken: string, expiresIn: number): Promise<void> 
   try {
     const { setSetting } = await import("./store/settings.js");
     await setSetting(TOKEN_KEY, { access_token: accessToken, expires_at: _expiresAt });
-    const { checkpoint } = await import("./store/db.js");
-    await checkpoint();
   } catch {
     /* ignore */
   }

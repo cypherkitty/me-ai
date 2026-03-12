@@ -6,8 +6,8 @@
  * for each email. Action categories emerge dynamically from the data.
  */
 
-import { getItemsCountGmail, getEmailClassificationsCount } from "./core.js";
-import { query, exec, toJson, fromJson } from "./store/db.js";
+import { getCore, getItemsCountGmail, getEmailClassificationsCount } from "./core.js";
+import { toJson, fromJson } from "./store/db.js";
 import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
@@ -196,28 +196,24 @@ export async function scanEmails(
 
   onProgress({ phase: "loading", message: "Loading recent emails..." });
 
+  const w = await getCore();
   let toProcess: StoredItem[];
   let skipped = 0;
 
   if (force) {
-    const rows = await query(
-      `SELECT * FROM items WHERE sourceType = 'gmail' ORDER BY date DESC LIMIT ?`,
-      [count]
-    );
-    toProcess = rows.map((r) => normaliseItemRow(r as Record<string, unknown>));
+    const rows = (await w.getItemsGmailByDateDesc(count)) as Record<string, unknown>[];
+    toProcess = rows.map((r) => normaliseItemRow(r));
   } else {
-    const rows = await query(
-      `SELECT i.* FROM items i
-       LEFT JOIN emailClassifications ec ON ec.emailId = i.id
-       WHERE i.sourceType = 'gmail' AND ec.emailId IS NULL
-       ORDER BY i.date DESC
-       LIMIT ?`,
-      [count]
-    );
-    toProcess = rows.map((r) => normaliseItemRow(r as Record<string, unknown>));
-
-    const [skipRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
-    skipped = Number((skipRow as { cnt?: number })?.cnt ?? 0);
+    const [allItems, allClassifications] = await Promise.all([
+      w.getItemsGmailByDateDesc(5000) as Promise<Record<string, unknown>[]>,
+      w.getEmailClassifications(null, 5000) as Promise<{ emailId?: string }[]>,
+    ]);
+    const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
+    toProcess = (allItems ?? [])
+      .filter((r) => !classifiedIds.has(r.id as string))
+      .slice(0, count)
+      .map((r) => normaliseItemRow(r));
+    skipped = Number((await w.getEmailClassificationsCount()) ?? 0);
   }
 
   if (toProcess.length === 0) {
@@ -315,33 +311,18 @@ export async function scanEmails(
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
-        await exec(
-          `INSERT INTO emailClassifications
-             (emailId, action, category, reason, summary, tags, subject, "from", date, scannedAt, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-           ON CONFLICT (emailId) DO UPDATE SET
-             action    = excluded.action,
-             category  = excluded.category,
-             reason    = excluded.reason,
-             summary   = excluded.summary,
-             tags      = excluded.tags,
-             subject   = excluded.subject,
-             "from"    = excluded."from",
-             date      = excluded.date,
-             scannedAt = excluded.scannedAt,
-             status    = 'pending'`,
-          [
-            email.id,
-            classification.action,
-            classification.categoryTier,
-            classification.reason,
-            classification.summary,
-            toJson(classification.tags),
-            email.subject || "(no subject)",
-            email.from || "",
-            email.date,
-            scannedAt,
-          ]
+        await w.putEmailClassification(
+          email.id,
+          classification.action,
+          classification.categoryTier,
+          classification.reason,
+          classification.summary,
+          toJson(classification.tags),
+          email.subject || "(no subject)",
+          email.from || "",
+          email.date ?? null,
+          scannedAt,
+          "pending"
         );
 
         await seedEventTypeFromLLM(
@@ -429,11 +410,9 @@ export async function scanEmails(
 }
 
 export async function getClassifications(options: { action?: string } = {}): Promise<ClassificationRow[]> {
-  const { action } = options;
-  const rows = action
-    ? await query(`SELECT * FROM emailClassifications WHERE action = ? ORDER BY date DESC`, [action])
-    : await query(`SELECT * FROM emailClassifications ORDER BY date DESC`);
-  return rows.map((r) => normaliseClassificationRow(r as Record<string, unknown>));
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications(options.action ?? null, undefined)) as Record<string, unknown>[];
+  return (rows ?? []).map((r) => normaliseClassificationRow(r));
 }
 
 export interface GetClassificationsByCategoryOptions {
@@ -443,30 +422,32 @@ export interface GetClassificationsByCategoryOptions {
 export async function getClassificationsByCategory(
   opts: GetClassificationsByCategoryOptions = {}
 ): Promise<{ categories: Record<string, ClassificationRow[]>; order: string[] }> {
-  const sql =
-    opts.pendingOnly === true
-      ? `SELECT * FROM emailClassifications WHERE status IN ('pending', 'escalated')`
-      : `SELECT * FROM emailClassifications`;
-  const rows = await query(sql);
-  return groupByAction(rows.map((r) => normaliseClassificationRow(r as Record<string, unknown>)));
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications(null, 5000)) as Record<string, unknown>[];
+  let list = (rows ?? []).map((r) => normaliseClassificationRow(r));
+  if (opts.pendingOnly === true) {
+    list = list.filter((r) => r.status === "pending" || r.status === "escalated");
+  }
+  return groupByAction(list);
 }
 
 export async function getClassificationCounts(): Promise<Record<string, number>> {
-  const rows = await query(
-    `SELECT action, COUNT(*) AS cnt FROM emailClassifications GROUP BY action`
-  );
-  const [totalRow] = await query(`SELECT COUNT(*) AS cnt FROM emailClassifications`);
-  const counts: Record<string, number> = { total: Number((totalRow as { cnt?: number })?.cnt ?? 0) };
-  for (const r of rows as { action?: string; cnt?: number }[]) {
-    counts[r.action ?? "UNKNOWN"] = Number(r.cnt);
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications(null, 50000)) as { action?: string }[];
+  const total = (rows ?? []).length;
+  const counts: Record<string, number> = { total };
+  for (const r of rows ?? []) {
+    const k = r.action ?? "UNKNOWN";
+    counts[k] = (counts[k] ?? 0) + 1;
   }
   return counts;
 }
 
 export async function getTagCounts(): Promise<Record<string, number>> {
-  const rows = await query(`SELECT tags FROM emailClassifications`);
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications(null, 50000)) as { tags?: string }[];
   const tagMap: Record<string, number> = {};
-  for (const r of rows as { tags: string }[]) {
+  for (const r of rows ?? []) {
     const tags = fromJson(r.tags, []) as string[];
     if (Array.isArray(tags)) {
       for (const tag of tags) {
@@ -478,19 +459,23 @@ export async function getTagCounts(): Promise<Record<string, number>> {
 }
 
 export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {
-  await exec(`UPDATE emailClassifications SET status = ? WHERE emailId = ?`, [newStatus, emailId]);
+  const w = await getCore();
+  await w.updateEmailClassificationStatus(emailId, newStatus);
 }
 
 export async function clearClassifications(): Promise<void> {
-  await exec(`DELETE FROM emailClassifications`);
+  const w = await getCore();
+  await w.clearEmailClassifications();
 }
 
 export async function clearClassificationsByAction(action: string): Promise<void> {
-  await exec(`DELETE FROM emailClassifications WHERE action = ?`, [action]);
+  const w = await getCore();
+  await w.deleteEmailClassificationsByAction(action);
 }
 
 export async function deleteClassification(emailId: string): Promise<void> {
-  await exec(`DELETE FROM emailClassifications WHERE emailId = ?`, [emailId]);
+  const w = await getCore();
+  await w.deleteEmailClassification(emailId);
 }
 
 export async function getScanStats(): Promise<{
@@ -514,8 +499,8 @@ function normaliseItemRow(row: Record<string, unknown>): StoredItem {
     ...row,
     date: row.date != null ? Number(row.date) : null,
     syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
-    labels: fromJson(row.labels, []) as string[],
-    raw: fromJson(row.raw, null),
+    labels: fromJson(String(row.labels ?? ""), []) as string[],
+    raw: fromJson(row.raw != null ? String(row.raw) : null, null),
   } as StoredItem;
 }
 
@@ -524,7 +509,7 @@ function normaliseClassificationRow(row: Record<string, unknown>): Classificatio
     ...row,
     date: row.date != null ? Number(row.date) : null,
     scannedAt: row.scannedAt != null ? Number(row.scannedAt) : null,
-    tags: fromJson(row.tags, []) as string[],
+    tags: fromJson(row.tags != null ? String(row.tags) : null, []) as string[],
   } as ClassificationRow;
 }
 

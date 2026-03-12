@@ -7,7 +7,7 @@
   } from "../lib/rules.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
-  import { query } from "../lib/store/db.js";
+  import { getCore } from "../lib/core.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -49,7 +49,7 @@
     loading = true;
     execState = {};
     try {
-      events = await getPendingApprovals({ limit: 100 });
+      events = (await getPendingApprovals({ limit: 100 })) as ApprovalEvent[];
     } catch (e) {
       console.error("ApprovalsView:", e);
     }
@@ -62,11 +62,11 @@
   /** Execute the selected event's pipeline right here in the dashboard */
   async function execute(evt: { id: string; [key: string]: unknown }) {
     const id = evt.id;
-    // Look up the full email data needed by executePipeline
-    let emailData;
+    let emailData: Record<string, unknown>;
     try {
-      const rows = await query(`SELECT * FROM items WHERE id = ?`, [id]);
-      emailData = rows[0] ?? {};
+      const w = await getCore();
+      const item = await w.getItemById(id);
+      emailData = (item ?? {}) as Record<string, unknown>;
     } catch {
       emailData = {};
     }
@@ -260,7 +260,7 @@
                 <span
                   class="text-[0.65rem] text-muted-foreground/60 shrink-0 flex items-center gap-1"
                 >
-                  <Clock class="size-2.5" />{formatTime(evt.timestamp)}
+                  <Clock class="size-2.5" />{formatTime(evt.timestamp as number | null | undefined)}
                 </span>
               </div>
 
@@ -296,7 +296,7 @@
           >Action Paused</span
         >
         <span class="text-xs text-muted-foreground ml-auto"
-          >{formatTime(selected.timestamp)}</span
+          >{formatTime(selected.timestamp as number | null | undefined)}</span
         >
       </div>
 
@@ -403,7 +403,7 @@
             variant="destructive"
             class="flex-1 gap-2"
             disabled={st?.running}
-            onclick={() => reject(selected)}
+            onclick={() => selected && reject(selected)}
           >
             <XCircle class="size-4" />
             Reject
@@ -411,7 +411,7 @@
           <Button
             class="flex-1 gap-2"
             disabled={st?.running || st?.success === true}
-            onclick={() => execute(selected)}
+            onclick={() => selected != null && execute(selected)}
           >
             {#if st?.running}
               <Loader class="size-4 animate-spin" />

@@ -102,9 +102,11 @@ async function saveCategoriesMap(map: Record<string, EventCategory>): Promise<vo
 
 async function getEventTypesFromDB(): Promise<string[]> {
   try {
-    const { query } = await import("./store/db.js");
-    const rows = await query(`SELECT DISTINCT action FROM emailClassifications WHERE action IS NOT NULL`);
-    return rows.map((r) => (r as { action: string }).action).filter(Boolean).sort();
+    const { getCore } = await import("./core.js");
+    const w = await getCore();
+    const rows = (await w.getEmailClassifications()) as Array<{ action?: string | null }>;
+    const actions = new Set((rows ?? []).map((r) => r.action).filter(Boolean) as string[]);
+    return [...actions].sort();
   } catch {
     return [];
   }
@@ -218,14 +220,10 @@ export async function seedEventTypeFromLLM(
   }
 
   try {
-    const { query } = await import("./store/db.js");
+    const { getCore } = await import("./core.js");
+    const w = await getCore();
     const label = normalized.replace(/_/g, " ");
-    await query(
-      `INSERT INTO sm_event_types (name, label, category_name, auto_created)
-       VALUES (?, ?, ?, true)
-       ON CONFLICT (name) DO NOTHING`,
-      [normalized, label, cat]
-    );
+    await w.upsertEventType(normalized, label, cat, true);
   } catch (e) {
     console.warn("[events] Failed to persist event type in DB:", normalized, (e as Error)?.message ?? e);
   }

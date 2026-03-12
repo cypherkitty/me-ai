@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AuditLogEntry, EventCategory } from "$lib/types.js";
-  import { getEventStats } from "../lib/rules.js";
+  import { getEventStats, getPendingApprovals } from "../lib/rules.js";
   import { getAuditLog } from "../lib/store/audit.js";
-  import { query } from "../lib/store/db.js";
+  import { getCore } from "../lib/core.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
@@ -74,23 +74,7 @@
       // Fetch both executed events (auditLog) and pending/awaiting (emailClassifications)
       const [{ entries: auditEntries }, pendingRows, st] = await Promise.all([
         getAuditLog({ limit: 200 }),
-        query(`
-          SELECT
-            c.emailId as id,
-            COALESCE(i.subject, c.subject) as subject,
-            COALESCE(i."from", c."from") as sender,
-            c.action as eventType,
-            c.category as event_category,
-            c.reason,
-            c.status,
-            COALESCE(i.date, c.date) as timestamp,
-            i.sourceType as source_name
-          FROM emailClassifications c
-          LEFT JOIN items i ON c.emailId = i.id
-          WHERE c.status IN ('pending', 'escalated')
-          ORDER BY COALESCE(i.date, c.date) DESC
-          LIMIT 200
-        `),
+        getPendingApprovals({ limit: 200 }).then((r) => r ?? []),
         getEventStats(),
       ]);
 
@@ -171,8 +155,9 @@
     const id = evt.id ?? evt.emailId ?? "";
     let emailData: Record<string, unknown> = {};
     try {
-      const rows = await query(`SELECT * FROM items WHERE id = ?`, [id]);
-      emailData = (rows[0] as Record<string, unknown>) ?? {};
+      const w = await getCore();
+      const item = await w.getItemById(id);
+      emailData = (item ?? {}) as Record<string, unknown>;
     } catch {}
 
     execState[id] = { running: true, steps: [] };

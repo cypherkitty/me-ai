@@ -1,20 +1,23 @@
-//! me-ai-core: business logic and type-safe DuckDB queries (WASM).
+//! me-ai-core: business logic and IndexedDB persistence via Rexie (WASM).
 //!
-//! **Architecture: Rust owns SQL; JS is thin.**
-//! - All SQL is built here with sea-query (SQLite backend for DuckDB compatibility).
-//! - Rust passes each (sql, params) to the JS adapter via `query(sql, params)` or `exec(sql, params)`.
-//! - The adapter is execution-only: it runs the SQL and returns rows/nothing. No SQL lives in app JS.
+//! **Architecture: Rust owns all DB access; no JS adapter.**
+//! - Persistence is IndexedDB via the Rexie crate. No SQL; stores and indexes only.
+//! - TS calls core WASM methods only; no query/exec from the app layer.
 //!
 //! Error handling: [thiserror](https://docs.rs/thiserror) + [anyhow](https://docs.rs/anyhow) internally;
 //! errors are converted to JsValue at the WASM boundary.
 
 mod app;
 mod audit;
+mod classifications;
 mod db;
 mod error;
 mod events;
 mod items;
+mod pipelines;
+mod rexie_schema;
 mod rules;
+mod rules_data;
 mod schema;
 mod sync;
 
@@ -23,11 +26,9 @@ use wasm_bindgen::prelude::*;
 
 use crate::error::{to_js as error_to_js, CoreError};
 
-/// Initialize the core with the JS DB adapter.
-/// The adapter must expose: query(sql: string, params: unknown[]) => Promise<unknown[]>, exec(sql: string, params: unknown[]) => Promise<void>.
+/// Initialize the core. No adapter; Rexie opens IndexedDB on first use.
 #[wasm_bindgen(js_name = init)]
-pub fn init(db: JsValue) -> Result<(), JsValue> {
-    db::set_adapter(db);
+pub fn init() -> Result<(), JsValue> {
     Ok(())
 }
 
@@ -46,10 +47,23 @@ pub async fn get_event_types() -> Result<JsValue, JsValue> {
     wasm_result(events::get_event_types().await)
 }
 
-/// Fetch event categories (name, label, priority) from sm_event_categories. Requires init(adapter) first.
+/// Fetch event categories (name, label, priority, policy) from sm_event_categories. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getEventCategories)]
 pub async fn get_event_categories() -> Result<JsValue, JsValue> {
     wasm_result(events::get_event_categories().await)
+}
+
+/// Insert event type if not present (for LLM-seeded types).
+#[wasm_bindgen(js_name = upsertEventType)]
+pub async fn upsert_event_type_wasm(
+    name: &str,
+    label: &str,
+    category_name: &str,
+    auto_created: bool,
+) -> Result<(), JsValue> {
+    events::upsert_event_type(name, label, category_name, auto_created)
+        .await
+        .map_err(|e| error_to_js(&e))
 }
 
 /// Fetch sources from sm_sources. Requires init(adapter) first.
@@ -190,6 +204,120 @@ pub async fn clear_audit_log_wasm() -> Result<(), JsValue> {
     audit::clear_audit_log().await.map_err(|e| error_to_js(&e))
 }
 
+/// Audit stats: (completed count, failed count).
+#[wasm_bindgen(js_name = getAuditStats)]
+pub async fn get_audit_stats_wasm() -> Result<JsValue, JsValue> {
+    let (completed, failed) = audit::get_audit_stats().await.map_err(|e| error_to_js(&e))?;
+    #[derive(serde::Serialize)]
+    struct Out {
+        completed: u32,
+        failed: u32,
+    }
+    wasm_result(Ok(Out { completed, failed }))
+}
+
+// ── Pipelines / config ────────────────────────────────────────────────
+
+#[wasm_bindgen(js_name = getCategoryPipelineActions)]
+pub async fn get_category_pipeline_actions_wasm(category_name: &str) -> Result<JsValue, JsValue> {
+    wasm_result(pipelines::get_category_pipeline_actions(category_name).await)
+}
+
+#[wasm_bindgen(js_name = getTypePipelineActions)]
+pub async fn get_type_pipeline_actions_wasm(type_name: &str) -> Result<JsValue, JsValue> {
+    wasm_result(pipelines::get_type_pipeline_actions(type_name).await)
+}
+
+#[wasm_bindgen(js_name = getEventTypeCategory)]
+pub async fn get_event_type_category_wasm(type_name: &str) -> Result<JsValue, JsValue> {
+    let opt = pipelines::get_event_type_category(type_name)
+        .await
+        .map_err(|e| error_to_js(&e))?;
+    match opt {
+        Some(s) => Ok(JsValue::from_str(&s)),
+        None => Ok(JsValue::NULL),
+    }
+}
+
+#[wasm_bindgen(js_name = getEventCategoryPolicy)]
+pub async fn get_event_category_policy_wasm(category_name: &str) -> Result<JsValue, JsValue> {
+    let opt = pipelines::get_event_category_policy(category_name)
+        .await
+        .map_err(|e| error_to_js(&e))?;
+    match opt {
+        Some(s) => Ok(JsValue::from_str(&s)),
+        None => Ok(JsValue::NULL),
+    }
+}
+
+#[wasm_bindgen(js_name = updateCategoryPipeline)]
+pub async fn update_category_pipeline_wasm(
+    category_name: &str,
+    actions_js: JsValue,
+) -> Result<(), JsValue> {
+    let arr: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(actions_js)
+        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+    let actions: Vec<(String, String)> = arr
+        .iter()
+        .map(|a| {
+            let p = a.get("pluginId").and_then(|v| v.as_str()).unwrap_or("");
+            let c = a.get("commandId").and_then(|v| v.as_str()).unwrap_or("");
+            (p.to_string(), c.to_string())
+        })
+        .collect();
+    pipelines::update_category_pipeline(category_name, &actions)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = updateCategoryPolicy)]
+pub async fn update_category_policy_wasm(
+    category_name: &str,
+    policy: &str,
+) -> Result<(), JsValue> {
+    pipelines::update_category_policy(category_name, policy)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = updateEventTypeCategory)]
+pub async fn update_event_type_category_wasm(
+    type_name: &str,
+    category_name: &str,
+) -> Result<(), JsValue> {
+    pipelines::update_event_type_category(type_name, category_name)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = clearEventTypeCategory)]
+pub async fn clear_event_type_category_wasm(type_name: &str) -> Result<(), JsValue> {
+    pipelines::clear_event_type_category(type_name)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = deleteEventType)]
+pub async fn delete_event_type_wasm(type_name: &str) -> Result<(), JsValue> {
+    pipelines::delete_event_type(type_name)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = setSourceEnabled)]
+pub async fn set_source_enabled_wasm(name: &str, enabled: bool) -> Result<(), JsValue> {
+    pipelines::set_source_enabled(name, enabled)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = setPluginEnabled)]
+pub async fn set_plugin_enabled_wasm(name: &str, enabled: bool) -> Result<(), JsValue> {
+    pipelines::set_plugin_enabled(name, enabled)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
 // ── Sync / items / contacts (no SQL in JS) ─────────────────────────────
 
 #[wasm_bindgen(js_name = deleteSyncState)]
@@ -200,6 +328,11 @@ pub async fn delete_sync_state_wasm(source_type: &str) -> Result<(), JsValue> {
 #[wasm_bindgen(js_name = deleteItemsBySource)]
 pub async fn delete_items_by_source_wasm(source_type: &str) -> Result<(), JsValue> {
     sync::delete_items_by_source(source_type).await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = clearContacts)]
+pub async fn clear_contacts_wasm() -> Result<(), JsValue> {
+    sync::clear_contacts().await.map_err(|e| error_to_js(&e))
 }
 
 #[wasm_bindgen(js_name = clearItemsSyncContacts)]
@@ -281,6 +414,87 @@ pub async fn upsert_contact_wasm(
         .map_err(|e| error_to_js(&e))
 }
 
+#[wasm_bindgen(js_name = getPlugins)]
+pub async fn get_plugins_wasm() -> Result<JsValue, JsValue> {
+    wasm_result(rules::get_plugins().await)
+}
+
+#[wasm_bindgen(js_name = getRules)]
+pub async fn get_rules_wasm() -> Result<JsValue, JsValue> {
+    wasm_result(rules_data::get_rules().await)
+}
+
+#[wasm_bindgen(js_name = getRule)]
+pub async fn get_rule_wasm(id: &str) -> Result<JsValue, JsValue> {
+    let opt = rules_data::get_rule(id).await.map_err(|e| error_to_js(&e))?;
+    match opt {
+        Some(v) => serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string()))),
+        None => Ok(JsValue::NULL),
+    }
+}
+
+#[wasm_bindgen(js_name = saveRule)]
+pub async fn save_rule_wasm(payload: JsValue) -> Result<(), JsValue> {
+    let v: serde_json::Value = serde_wasm_bindgen::from_value(payload)
+        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+    rules_data::save_rule(v).await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = deleteRule)]
+pub async fn delete_rule_wasm(id: &str) -> Result<(), JsValue> {
+    rules_data::delete_rule(id).await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = getEvents)]
+pub async fn get_events_wasm(limit: u32, offset: u32) -> Result<JsValue, JsValue> {
+    wasm_result(rules_data::get_events(limit, offset).await)
+}
+
+#[wasm_bindgen(js_name = updateEventStatus)]
+pub async fn update_event_status_wasm(id: &str, status: &str) -> Result<(), JsValue> {
+    rules_data::update_event_status(id, status)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = clearEvents)]
+pub async fn clear_events_wasm() -> Result<(), JsValue> {
+    rules_data::clear_events().await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = insertEvent)]
+pub async fn insert_event_wasm(
+    id: &str,
+    content: Option<String>,
+    subject: Option<String>,
+    sender: Option<String>,
+    timestamp: f64,
+    status: Option<String>,
+    event_type: Option<String>,
+    event_category: Option<String>,
+    source_name: Option<String>,
+    rule_id: Option<String>,
+    actions_taken: Option<String>,
+    output: Option<String>,
+) -> Result<(), JsValue> {
+    rules_data::insert_event(
+        id,
+        content.as_deref(),
+        subject.as_deref(),
+        sender.as_deref(),
+        timestamp as i64,
+        status.as_deref(),
+        event_type.as_deref(),
+        event_category.as_deref(),
+        source_name.as_deref(),
+        rule_id.as_deref(),
+        actions_taken.as_deref(),
+        output.as_deref(),
+    )
+    .await
+    .map_err(|e| error_to_js(&e))
+}
+
 #[wasm_bindgen(js_name = getNewestSourceId)]
 pub async fn get_newest_source_id_wasm(source_type: &str) -> Result<JsValue, JsValue> {
     let opt = sync::get_newest_source_id(source_type).await.map_err(|e| error_to_js(&e))?;
@@ -288,6 +502,100 @@ pub async fn get_newest_source_id_wasm(source_type: &str) -> Result<JsValue, JsV
         Some(s) => Ok(JsValue::from_str(&s)),
         None => Ok(JsValue::NULL),
     }
+}
+
+// ── Items (single get) ─────────────────────────────────────────────────────
+
+#[wasm_bindgen(js_name = getItemById)]
+pub async fn get_item_by_id_wasm(id: &str) -> Result<JsValue, JsValue> {
+    let opt = sync::get_item_by_id(id).await.map_err(|e| error_to_js(&e))?;
+    match opt {
+        Some(row) => serialize_to_js(&row),
+        None => Ok(JsValue::NULL),
+    }
+}
+
+#[wasm_bindgen(js_name = getItemsGmailByDateDesc)]
+pub async fn get_items_gmail_by_date_desc_wasm(limit: u32) -> Result<JsValue, JsValue> {
+    wasm_result(sync::get_items_gmail_by_date_desc(limit).await)
+}
+
+#[wasm_bindgen(js_name = getItemsBySource)]
+pub async fn get_items_by_source_wasm(
+    source_type: &str,
+    limit: u32,
+    offset: u32,
+) -> Result<JsValue, JsValue> {
+    wasm_result(sync::get_items_by_source(source_type, limit, offset).await)
+}
+
+// ── Email classifications (for triage and views) ───────────────────────────
+
+#[wasm_bindgen(js_name = getEmailClassifications)]
+pub async fn get_email_classifications_wasm(
+    action_filter: Option<String>,
+    limit: Option<u32>,
+) -> Result<JsValue, JsValue> {
+    let filter = action_filter.as_deref();
+    wasm_result(classifications::get_classifications(filter, limit).await)
+}
+
+#[wasm_bindgen(js_name = updateEmailClassificationStatus)]
+pub async fn update_email_classification_status_wasm(
+    email_id: &str,
+    status: &str,
+) -> Result<(), JsValue> {
+    classifications::update_classification_status(email_id, status)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = clearEmailClassifications)]
+pub async fn clear_email_classifications_wasm() -> Result<(), JsValue> {
+    classifications::clear_classifications().await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = deleteEmailClassification)]
+pub async fn delete_email_classification_wasm(email_id: &str) -> Result<(), JsValue> {
+    classifications::delete_classification(email_id).await.map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = deleteEmailClassificationsByAction)]
+pub async fn delete_email_classifications_by_action_wasm(action: &str) -> Result<(), JsValue> {
+    classifications::delete_classifications_by_action(action)
+        .await
+        .map_err(|e| error_to_js(&e))
+}
+
+#[wasm_bindgen(js_name = putEmailClassification)]
+pub async fn put_email_classification_wasm(
+    email_id: &str,
+    action: Option<String>,
+    category: Option<String>,
+    reason: Option<String>,
+    summary: Option<String>,
+    tags: Option<String>,
+    subject: Option<String>,
+    from: Option<String>,
+    date: Option<f64>,
+    scanned_at: Option<f64>,
+    status: Option<String>,
+) -> Result<(), JsValue> {
+    classifications::put_classification(
+        email_id,
+        action.as_deref(),
+        category.as_deref(),
+        reason.as_deref(),
+        summary.as_deref(),
+        tags.as_deref(),
+        subject.as_deref(),
+        from.as_deref(),
+        date.map(|f| f as i64),
+        scanned_at.map(|f| f as i64),
+        status.as_deref(),
+    )
+    .await
+    .map_err(|e| error_to_js(&e))
 }
 
 #[cfg(test)]

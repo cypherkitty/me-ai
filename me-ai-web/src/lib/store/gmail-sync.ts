@@ -15,15 +15,7 @@
  */
 
 import { getCore } from "../core.js";
-import { checkpoint, makeItemId, toJson } from "./db.js";
-import {
-  idbPutItems,
-  idbDeleteItems,
-  idbClearItemsBySource,
-  idbPutSyncState,
-  idbDeleteSyncState,
-  idbPutContacts,
-} from "./idb.js";
+import { makeItemId, toJson } from "./db.js";
 import {
   getProfile,
   listMessages,
@@ -144,8 +136,6 @@ export async function clearGmailData(): Promise<void> {
   const w = await getCore();
   await w.deleteItemsBySource(SOURCE_TYPE);
   await w.deleteSyncState(SOURCE_TYPE);
-  await idbClearItemsBySource(SOURCE_TYPE);
-  await idbDeleteSyncState(SOURCE_TYPE);
 }
 
 export async function getGmailItemCount(): Promise<number> {
@@ -223,8 +213,6 @@ async function fullSync(
     oldestPageToken: nextPageAfterLimit ?? "",
   });
 
-  await checkpoint();
-
   onProgress({
     phase: "done",
     message: `Synced ${added} messages`,
@@ -286,8 +274,6 @@ async function continueFetch(
 
   const w = await getCore();
   await w.upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
-
-  await checkpoint();
 
   onProgress({
     phase: "done",
@@ -393,8 +379,6 @@ async function incrementalSync(
     totalItems,
     oldestPageToken: state.oldestPageToken ?? "",
   });
-
-  await checkpoint();
 
   onProgress({
     phase: "done",
@@ -532,20 +516,11 @@ async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
   }));
   const w = await getCore();
   await w.insertItemsBatch(rows);
-
-  await idbPutItems(
-    items.map((item) => ({
-      ...item,
-      labels: toJson(item.labels),
-      raw: toJson(item.raw),
-    }))
-  );
 }
 
 async function bulkDeleteItems(ids: string[]): Promise<void> {
   const w = await getCore();
   await w.deleteItemsByIds(ids);
-  await idbDeleteItems(ids);
 }
 
 // ── Contact extraction ──────────────────────────────────────────────
@@ -574,8 +549,6 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
     }
   }
 
-  const idbBatch: Array<{ email: string; name: string; firstSeen: number; lastSeen: number }> = [];
-
   const w = await getCore();
   for (const [email, { name, date }] of contactMap) {
     try {
@@ -588,23 +561,12 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
           Number(row.firstSeen) || date,
           Math.max(date, Number(row.lastSeen) || 0)
         );
-        idbBatch.push({
-          email,
-          name: (row.name as string) || name || "",
-          firstSeen: Number(row.firstSeen) || date,
-          lastSeen: Math.max(date, Number(row.lastSeen) || 0),
-        });
       } else {
         await w.upsertContact(email, name || "", date, date);
-        idbBatch.push({ email, name: name || "", firstSeen: date, lastSeen: date });
       }
     } catch (e) {
       console.debug("Contact upsert skipped:", email, (e as Error)?.message ?? e);
     }
-  }
-
-  if (idbBatch.length > 0) {
-    await idbPutContacts(idbBatch);
   }
 }
 
@@ -646,13 +608,6 @@ async function upsertSyncState({
 }: SyncState): Promise<void> {
   const w = await getCore();
   await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
-  await idbPutSyncState({
-    sourceType,
-    historyId,
-    lastSyncAt,
-    totalItems,
-    oldestPageToken,
-  });
 }
 
 // ── Utilities ───────────────────────────────────────────────────────

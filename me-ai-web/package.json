@@ -12,11 +12,9 @@
     "test:ci": "vitest run",
     "test:e2e": "playwright test",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "postinstall": "node scripts/ensure-tslib.cjs"
+    "postinstall": "node scripts/ensure-tslib.cjs && node scripts/ensure-core.cjs"
   },
   "dependencies": {
-    "me-ai-core": "file:../me-ai-core/pkg",
-    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "@huggingface/transformers": "4.0.0-next.5",
     "@xyflow/svelte": "^1.5.1",
     "dompurify": "^3.3.2",

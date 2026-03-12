@@ -1,16 +1,19 @@
-//! Event types and categories (sea-query + run_query).
+//! Event types and categories from Rexie stores.
 
 use serde::{Deserialize, Serialize};
-use sea_query::{Order, Query, SqliteQueryBuilder};
 
-use crate::db::PreparedQuery;
+use crate::db::store_get_all;
 use crate::error::CoreError;
-use crate::schema::{SmEventCategories, SmEventTypes};
+use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventTypeRow {
     pub name: String,
     pub label: Option<String>,
+    #[serde(rename = "category_name")]
+    pub category_name: Option<String>,
+    #[serde(rename = "auto_created")]
+    pub auto_created: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -18,41 +21,54 @@ pub struct EventCategoryRow {
     pub name: String,
     pub label: Option<String>,
     pub priority: Option<i64>,
+    pub policy: Option<String>,
 }
 
-/// SELECT name, label FROM sm_event_types ORDER BY name.
-fn select_event_types() -> PreparedQuery {
-    let stmt = Query::select()
-        .columns([
-            (SmEventTypes::Table, SmEventTypes::Name),
-            (SmEventTypes::Table, SmEventTypes::Label),
-        ])
-        .from(SmEventTypes::Table)
-        .order_by(SmEventTypes::Name, Order::Asc)
-        .to_owned();
-    stmt.build(SqliteQueryBuilder).into()
-}
-
-/// SELECT name, label, priority FROM sm_event_categories ORDER BY priority.
-fn select_event_categories() -> PreparedQuery {
-    let stmt = Query::select()
-        .columns([
-            (SmEventCategories::Table, SmEventCategories::Name),
-            (SmEventCategories::Table, SmEventCategories::Label),
-            (SmEventCategories::Table, SmEventCategories::Priority),
-        ])
-        .from(SmEventCategories::Table)
-        .order_by(SmEventCategories::Priority, Order::Asc)
-        .to_owned();
-    stmt.build(SqliteQueryBuilder).into()
-}
-
-/// Fetch event types from the DB (requires init() with adapter first).
+/// Fetch event types (name, label). Sorted by name in Rust.
 pub async fn get_event_types() -> Result<Vec<EventTypeRow>, CoreError> {
-    select_event_types().run().await
+    let mut rows: Vec<EventTypeRow> = store_get_all(store::SM_EVENT_TYPES, None, None).await?;
+    rows.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(rows)
 }
 
-/// Fetch event categories from the DB (requires init() with adapter first).
+/// Fetch event categories (name, label, priority, policy). Sorted by priority in Rust.
 pub async fn get_event_categories() -> Result<Vec<EventCategoryRow>, CoreError> {
-    select_event_categories().run().await
+    let mut rows: Vec<EventCategoryRow> =
+        store_get_all(store::SM_EVENT_CATEGORIES, None, None).await?;
+    rows.sort_by(|a, b| {
+        let pa = a.priority.unwrap_or(0);
+        let pb = b.priority.unwrap_or(0);
+        pa.cmp(&pb)
+    });
+    Ok(rows)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct EventTypeStoreRow {
+    name: String,
+    label: Option<String>,
+    #[serde(rename = "category_name")]
+    category_name: Option<String>,
+    #[serde(rename = "auto_created")]
+    auto_created: Option<bool>,
+}
+
+/// Insert event type if not present (for LLM-seeded types).
+pub async fn upsert_event_type(
+    name: &str,
+    label: &str,
+    category_name: &str,
+    auto_created: bool,
+) -> Result<(), CoreError> {
+    use crate::db::store_get;
+    if store_get::<EventTypeStoreRow>(store::SM_EVENT_TYPES, name).await?.is_some() {
+        return Ok(());
+    }
+    let row = EventTypeStoreRow {
+        name: name.to_string(),
+        label: Some(label.to_string()),
+        category_name: Some(category_name.to_string()),
+        auto_created: Some(auto_created),
+    };
+    crate::db::store_put(store::SM_EVENT_TYPES, &row, Some(name)).await
 }

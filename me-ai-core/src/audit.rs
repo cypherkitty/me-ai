@@ -1,10 +1,15 @@
-//! Audit log: log execution, sync after execution, list and clear.
-//! All SQL is built here; execution via JS adapter.
+//! Audit log: log execution, sync after execution, list and clear. Uses Rexie.
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{run_exec_raw, run_query_raw, int_param, str_param, CountRow, Param, ParamValue};
+use rexie::Direction;
+
+use crate::db::{
+    index_count, index_get_all, index_scan, key_range_only_bool, store_clear, store_count,
+    store_delete, store_get, store_put,
+};
 use crate::error::CoreError;
+use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuditLogRow {
@@ -23,7 +28,23 @@ pub struct AuditLogRow {
     pub steps: Option<String>,
 }
 
-/// Log one pipeline execution to auditLog.
+#[derive(Clone, Serialize, Deserialize)]
+struct AuditLogDoc {
+    id: String,
+    #[serde(rename = "emailId")]
+    email_id: String,
+    subject: String,
+    #[serde(rename = "from")]
+    from: String,
+    #[serde(rename = "eventType")]
+    event_type: String,
+    #[serde(rename = "executedAt")]
+    executed_at: i64,
+    success: bool,
+    error: String,
+    steps: String,
+}
+
 pub async fn log_execution(
     id: &str,
     email_id: &str,
@@ -35,35 +56,45 @@ pub async fn log_execution(
     error: &str,
     steps_json: &str,
 ) -> Result<(), CoreError> {
-    let params: Vec<Param> = vec![
-        str_param(id),
-        str_param(email_id),
-        str_param(subject),
-        str_param(from),
-        str_param(event_type),
-        int_param(executed_at),
-        Some(ParamValue::Bool(success)),
-        str_param(error),
-        str_param(steps_json),
-    ];
-    run_exec_raw(
-        r#"INSERT INTO auditLog (id, emailId, subject, "from", eventType, executedAt, success, error, steps)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-        params,
-    )
-    .await
+    let doc = AuditLogDoc {
+        id: id.to_string(),
+        email_id: email_id.to_string(),
+        subject: subject.to_string(),
+        from: from.to_string(),
+        event_type: event_type.to_string(),
+        executed_at,
+        success,
+        error: error.to_string(),
+        steps: steps_json.to_string(),
+    };
+    store_put(store::AUDIT_LOG, &doc, Some(id)).await
 }
 
-/// Mark email as executed; optionally delete item (for destructive/archiving actions).
+#[derive(Clone, Serialize, Deserialize)]
+struct EmailClassificationRow {
+    #[serde(rename = "emailId")]
+    email_id: String,
+    action: Option<String>,
+    category: Option<String>,
+    reason: Option<String>,
+    summary: Option<String>,
+    tags: Option<String>,
+    subject: Option<String>,
+    #[serde(rename = "from")]
+    from: Option<String>,
+    date: Option<i64>,
+    #[serde(rename = "scannedAt")]
+    scanned_at: Option<i64>,
+    status: Option<String>,
+}
+
 pub async fn sync_after_execution(email_id: &str, delete_item: bool) -> Result<(), CoreError> {
-    let eid = vec![str_param(email_id)];
-    run_exec_raw(
-        "UPDATE emailClassifications SET status = 'executed' WHERE emailId = ?",
-        eid.clone(),
-    )
-    .await?;
+    if let Some(mut row) = store_get::<EmailClassificationRow>(store::EMAIL_CLASSIFICATIONS, email_id).await? {
+        row.status = Some("executed".to_string());
+        store_put(store::EMAIL_CLASSIFICATIONS, &row, Some(email_id)).await?;
+    }
     if delete_item {
-        run_exec_raw("DELETE FROM items WHERE id = ?", eid).await?;
+        store_delete(store::ITEMS, email_id).await?;
     }
     Ok(())
 }
@@ -74,29 +105,61 @@ pub struct GetAuditLogResult {
     pub total: i64,
 }
 
-/// Count and page of audit log entries.
 pub async fn get_audit_log(
     limit: i64,
     offset: i64,
     failures_only: bool,
 ) -> Result<GetAuditLogResult, CoreError> {
-    let where_clause = if failures_only { "WHERE success = false" } else { "" };
-    let count_sql = format!("SELECT COUNT(*) AS cnt FROM auditLog {}", where_clause);
-    let count_rows = run_query_raw::<CountRow>(&count_sql, vec![]).await?;
-    let total = count_rows.first().and_then(|r| r.cnt).unwrap_or(0);
+    let total = if failures_only {
+        let range = key_range_only_bool(false)?;
+        index_count(store::AUDIT_LOG, "success", Some(range)).await? as i64
+    } else {
+        store_count(store::AUDIT_LOG, None).await? as i64
+    };
 
-    let list_sql = format!(
-        r#"SELECT id, emailId as email_id, subject, "from" as from_addr, eventType as event_type,
-           executedAt as executed_at, success, error, steps
-           FROM auditLog {} ORDER BY executedAt DESC LIMIT ? OFFSET ?"#,
-        where_clause
-    );
-    let params = vec![int_param(limit), int_param(offset)];
-    let rows = run_query_raw::<AuditLogRow>(&list_sql, params).await?;
-    Ok(GetAuditLogResult { entries: rows, total })
+    let entries = if failures_only {
+        let range = key_range_only_bool(false)?;
+        let all: Vec<AuditLogRow> =
+            index_get_all(store::AUDIT_LOG, "success", Some(range), Some(5000)).await?;
+        let mut sorted = all;
+        sorted.sort_by(|a, b| b.executed_at.cmp(&a.executed_at));
+        sorted
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect()
+    } else {
+        index_scan(
+            store::AUDIT_LOG,
+            "executedAt",
+            None,
+            Some(limit as u32),
+            Some(offset as u32),
+            Some(Direction::Prev),
+        )
+        .await?
+    };
+
+    Ok(GetAuditLogResult { entries, total })
 }
 
-/// Delete all audit log entries.
 pub async fn clear_audit_log() -> Result<(), CoreError> {
-    run_exec_raw("DELETE FROM auditLog", vec![]).await
+    store_clear(store::AUDIT_LOG).await
+}
+
+/// Count audit entries by success (for event stats).
+pub async fn get_audit_stats() -> Result<(u32, u32), CoreError> {
+    let completed = index_count(
+        store::AUDIT_LOG,
+        "success",
+        Some(key_range_only_bool(true)?),
+    )
+    .await?;
+    let failed = index_count(
+        store::AUDIT_LOG,
+        "success",
+        Some(key_range_only_bool(false)?),
+    )
+    .await?;
+    Ok((completed, failed))
 }
