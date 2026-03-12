@@ -8,6 +8,40 @@ alwaysApply: true
 **Browser-only AI assistant built on an event-stream model.** 
 No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, and Gmail uses client-side OAuth.
 
+## Project layout: core + web
+
+The repo is split into two main parts:
+
+- **me-ai-core** (Rust, WASM) — Business logic and type-safe SQL. All SQL is built in Rust with sea-query; the JS adapter only runs the prepared (sql, params). No SQL lives in app TypeScript for migrated paths. Exposes WASM API via `init(adapter)`, `getEventTypes`, `getSources`, etc. See `me-ai-core/REFERENCE.md` for patterns aligned with meta-secret-core.
+- **me-ai-web** (Svelte + TypeScript) — Frontend and app layer. Depends on `me-ai-core` as a local package (file link to `me-ai-core/pkg` after building with wasm-pack).
+
+**Building the project** uses [Task](https://taskfile.dev) (Taskfile in repo root). Do not run `npm install` or `npm run build` from the repo root; use `task` so core is built first and linked correctly.
+
+## Building with Taskfile
+
+All build, test, and deploy steps are defined in `Taskfile.yml` at the repo root. Use `task --list` to see available tasks.
+
+- `task build:core` — Build me-ai-core with wasm-pack (output: `me-ai-core/pkg`). Requires Rust + wasm32 target + wasm-pack.
+- `task install` — Build core, then `npm install` in me-ai-web (so `node_modules/me-ai-core` is the built pkg). **Run this first** before building the full app.
+- `task build` — Full product build: install (core + npm deps) then `npm run build` in me-ai-web.
+- `task build:web` — Build only me-ai-web (skip core). Use when core is already built or you are not touching Rust.
+- `task test` — Run unit tests (Vitest, `npm run test:ci`) in me-ai-web.
+- `task test:e2e` — Run E2E tests (Playwright); installs Chromium if needed.
+- `task check` — Run Svelte/TypeScript check in me-ai-web.
+- `task ci` — Full CI: install → unit tests → E2E tests. Same as GitHub Actions.
+- `task deploy-build` — Install then full build (for deploy/preview).
+
+**Typical local workflow:**
+
+```bash
+task install    # once: build core + npm install
+task build      # build full app (or task build:web if core unchanged)
+task test       # unit tests
+task test:e2e   # E2E (optional)
+```
+
+Requires: [Task](https://taskfile.dev/installation/) v3, Node 20, Rust (stable + `wasm32-unknown-unknown`), wasm-pack (for `build:core`).
+
 ## Three-Step User Flow
 
 The app is structured around three explicit steps that the user progresses through in order:

@@ -46,6 +46,8 @@ Core rules (non-negotiable):
 
 ## CI Pipeline
 
+Build and test use the **Taskfile** (see Architecture rule: "Building with Taskfile"). CI installs Rust, wasm-pack, and Task, then runs `task ci`.
+
 ### Test Workflow (`.github/workflows/ci.yml`)
 
 Runs on: **every PR** to `main` and **every push** to `main`.
@@ -53,9 +55,11 @@ Runs on: **every PR** to `main` and **every push** to `main`.
 ```yaml
 steps:
   - checkout
-  - setup node 20 + npm cache
-  - npm ci
-  - npm run test:ci
+  - setup node 20 + npm cache (me-ai-web/package.json)
+  - setup Rust (stable + wasm32-unknown-unknown)
+  - install wasm-pack
+  - setup Task
+  - run: task ci   # install (build:core + npm install) → unit tests → E2E tests
 ```
 
 ### Deploy Workflow (`.github/workflows/deploy.yml`)
@@ -65,11 +69,12 @@ Runs on: **push to `main`** only (and manual `workflow_dispatch`).
 ```yaml
 steps:
   - checkout
-  - setup node 20 + npm cache
-  - npm ci
-  - npm run build
-  - upload dist/ as pages artifact
-  - deploy to GitHub Pages
+  - setup node 20 + npm cache (me-ai-web/package.json)
+  - setup Rust (stable + wasm32-unknown-unknown)
+  - jetli/wasm-pack-action
+  - setup Task
+  - run: task deploy-build   # install (build:core + npm install) then npm run build
+  - peaceiris/actions-gh-pages (publish_dir: me-ai-web/dist)
 ```
 
 Both workflows are independent — tests gate PRs, deploy handles releases.
