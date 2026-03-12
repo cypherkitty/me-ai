@@ -121,68 +121,6 @@ export async function searchData(searchQuery, limit = 10) {
   return rows.map(r => formatItemForLLM(normaliseRow(r))).join("\n\n---\n\n");
 }
 
-/**
- * Get emails from a specific sender.
- */
-export async function getEmailsFrom(sender, limit = 10) {
-  const rows = await query(
-    `SELECT * FROM items
-     WHERE sourceType = 'gmail' AND "from" ILIKE ?
-     ORDER BY date DESC
-     LIMIT ?`,
-    [`%${sender}%`, limit]
-  );
-
-  if (rows.length === 0) return `No emails found from "${sender}".`;
-  return rows.map(r => formatItemForLLM(normaliseRow(r))).join("\n\n---\n\n");
-}
-
-/**
- * Get emails by label.
- * Labels are stored as a JSON array string, so we use a LIKE check.
- */
-export async function getEmailsByLabel(label, limit = 10) {
-  const rows = await query(
-    `SELECT * FROM items
-     WHERE sourceType = 'gmail' AND labels LIKE ?
-     ORDER BY date DESC
-     LIMIT ?`,
-    [`%${label}%`, limit]
-  );
-
-  if (rows.length === 0) return `No emails found with label "${label}".`;
-  return rows.map(r => formatItemForLLM(normaliseRow(r))).join("\n\n---\n\n");
-}
-
-/**
- * Get a full email thread by threadKey.
- */
-export async function getThread(threadKey) {
-  const rows = await query(
-    `SELECT * FROM items WHERE threadKey = ? ORDER BY date ASC`,
-    [threadKey]
-  );
-
-  if (rows.length === 0) return "Thread not found.";
-  return rows.map(r => formatItemForLLM(normaliseRow(r))).join("\n\n---\n\n");
-}
-
-/**
- * Get all known contacts.
- */
-export async function getContacts(limit = 50) {
-  const rows = await query(
-    `SELECT * FROM contacts ORDER BY lastSeen DESC LIMIT ?`,
-    [limit]
-  );
-
-  if (rows.length === 0) return "No contacts found.";
-
-  return rows
-    .map(c => `- ${c.name || "(no name)"} <${c.email}> — last seen ${new Date(Number(c.lastSeen)).toLocaleDateString()}`)
-    .join("\n");
-}
-
 // ── Pending actions ─────────────────────────────────────────────────
 
 /**

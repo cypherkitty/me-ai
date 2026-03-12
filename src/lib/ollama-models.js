@@ -180,26 +180,3 @@ export function getOllamaModelInfo(modelName) {
     m.name.startsWith(modelName + ":")
   );
 }
-
-/**
- * Group models by context window size
- */
-export function groupOllamaModelsByContext() {
-  const groups = {
-    "256k": [],
-    "128k": [],
-    "32-64k": [],
-  };
-
-  for (const model of OLLAMA_MODELS) {
-    if (model.contextWindow >= 200000) {
-      groups["256k"].push(model);
-    } else if (model.contextWindow >= 100000) {
-      groups["128k"].push(model);
-    } else {
-      groups["32-64k"].push(model);
-    }
-  }
-
-  return groups;
-}
