@@ -15,6 +15,7 @@
     "postinstall": "node scripts/ensure-tslib.cjs"
   },
   "dependencies": {
+    "me-ai-core": "file:../me-ai-core/pkg",
     "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
     "@huggingface/transformers": "4.0.0-next.5",
     "@xyflow/svelte": "^1.5.1",

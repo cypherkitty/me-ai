@@ -15,9 +15,6 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: me-ai-web
     steps:
       - uses: actions/checkout@v4
 
@@ -27,8 +24,15 @@ jobs:
           cache: npm
           cache-dependency-path: me-ai-web/package.json
 
-      - run: npm install
-      - run: npm run build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      - uses: arduino/setup-task@v2
+
+      - run: task deploy-build
 
       - uses: peaceiris/actions-gh-pages@v4
         with:
