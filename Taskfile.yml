@@ -4,7 +4,7 @@ version: "3"
 vars:
   WEB_DIR: me-ai-web
   CORE_DIR: me-ai-core
-  CORE_PKG: "{{.CORE_DIR}}/pkg"
+  CORE_PKG: '{{.CORE_DIR}}/pkg'
 
 tasks:
   default:
@@ -14,10 +14,10 @@ tasks:
 
   # --- Dependencies ---
   install:
-    desc: Build core then install npm deps (me-ai-core is file: link, so pkg must exist first)
+    desc: "Build core then install npm deps (me-ai-core is file: link, so pkg must exist first)"
     deps:
       - task: build:core
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npm install
 
@@ -32,26 +32,26 @@ tasks:
     desc: Build full product (core + web); needs install so node_modules/me-ai-core exists
     deps:
       - task: install
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npm run build
 
   build:web:
     desc: Build only me-ai-web (no Rust core; use when core is already built or not needed)
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npm run build
 
   # --- Tests ---
   test:
     desc: Run unit tests (Vitest, single run for CI)
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npm run test:ci
 
   test:e2e:
     desc: Run E2E tests (Playwright); installs Chromium if needed
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npx playwright install --with-deps chromium
       - npx playwright test
@@ -59,7 +59,7 @@ tasks:
   # --- Checks ---
   check:
     desc: Run Svelte/TypeScript check
-    dir: "{{.WEB_DIR}}"
+    dir: '{{.WEB_DIR}}'
     cmds:
       - npm run check
 
