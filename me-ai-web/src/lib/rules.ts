@@ -297,8 +297,11 @@ export async function getPendingApprovals({
     .slice(0, limit);
   const out: Record<string, unknown>[] = [];
   for (const r of pending) {
-    const emailId = r.emailId as string;
-    const item = await coreGetItemById(emailId);
+    const emailId = (r.emailId ?? r.id) as string | undefined;
+    let item: Record<string, unknown> | null = null;
+    if (emailId) {
+      item = await coreGetItemById(emailId) as Record<string, unknown> | null;
+    }
     const subject = (item?.subject ?? r.subject) as string;
     const from = (item?.from ?? r.from) as string;
     out.push({
@@ -358,11 +361,14 @@ export async function getPendingItemsByCategory(
     .slice(0, limit);
   const out: PendingItemByCategory[] = [];
   for (const r of filtered) {
-    const emailId = (r.emailId ?? r.id) as string;
-    const item = await coreGetItemById(emailId);
+    const emailId = (r.emailId ?? r.id) as string | undefined;
+    let item: Record<string, unknown> | null = null;
+    if (emailId) {
+      item = await coreGetItemById(emailId) as Record<string, unknown> | null;
+    }
     out.push({
-      id: emailId,
-      emailId,
+      id: emailId ?? "",
+      emailId: emailId ?? "",
       subject: (r.subject ?? (item as Record<string, unknown>)?.subject ?? "") as string,
       from: (r.from ?? (item as Record<string, unknown>)?.from ?? "") as string,
       eventType: (r.action ?? "UNKNOWN") as string,

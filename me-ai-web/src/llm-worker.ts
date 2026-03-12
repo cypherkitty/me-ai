@@ -12,9 +12,7 @@ import {
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
 
-const _fetch = env.fetch;
-env.fetch = (url: string | URL, options: RequestInit = {}) =>
-  _fetch(url, { ...options, cache: "no-store" });
+
 
 // WASM files are served from the site root (public/ in dev, copied in build).
 env.backends.onnx.wasm.wasmPaths = self.location.origin + "/";
