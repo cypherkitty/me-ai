@@ -29,18 +29,16 @@ flowchart LR
         Audit
     end
 
-    Gmail -->|"raw emails (IndexedDB)"| LLM
+    Gmail -->|"raw emails (DuckDB)"| LLM
     LLM --> Results
     Results -->|"NOISE: auto-execute"| Pipelines
     Results -->|"INFO: user triggers"| Pipelines
     Results -->|"CRITICAL: awaiting_user"| Approvals
 ```
 
-| Step | Route | Purpose |
-|------|-------|---------|
-| **Sources** | `#sources` | Connect accounts (Gmail, future: Telegram…), browse raw data |
-| **Scan** | `#scan` | Run the LLM classifier over synced emails; review grouped results |
-| **Control Plane** | `#pipelines`, `#approvals`, `#stream`, `#audit` | Configure rules/pipelines, review approvals, audit trail |
+- **Sources** — route `#sources`: connect accounts (Gmail, future: Telegram…), browse raw data
+- **Scan** — route `#scan`: run the LLM classifier over synced emails; review grouped results
+- **Control Plane** — routes `#pipelines`, `#approvals`, `#stream`, `#audit`: configure rules/pipelines, review approvals, audit trail
 
 Scan is the bridge between Sources and the Control Plane — it transforms raw data into typed events that the pipeline system can act on.
 
