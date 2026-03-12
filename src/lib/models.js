@@ -78,30 +78,3 @@ export const MODELS = MODEL_GROUPS.flatMap((g) => g.models);
 export function getModelInfo(modelId) {
   return MODELS.find((m) => m.id === modelId);
 }
-
-/** Get the group label for a model ID */
-export function getModelGroup(modelId) {
-  return MODEL_GROUPS.find((g) => g.models.some((m) => m.id === modelId));
-}
-
-/** Get recommendation message for email processing based on model */
-export function getEmailProcessingRecommendation(modelId) {
-  const model = getModelInfo(modelId);
-  if (!model) return null;
-
-  if (model.recommendedForEmailProcessing) {
-    return {
-      type: "ok",
-      message: `${model.name} (${(model.contextWindow / 1024).toFixed(0)}k context) is recommended for email processing`,
-    };
-  }
-
-  const recommended = MODELS.filter((m) => m.recommendedForEmailProcessing).map(
-    (m) => `${m.name} (${(m.contextWindow / 1024).toFixed(0)}k)`,
-  );
-
-  return {
-    type: "warning",
-    message: `${model.name} (${(model.contextWindow / 1024).toFixed(0)}k context) may struggle with very long emails. For best results, use: ${recommended.join(" or ")}`,
-  };
-}

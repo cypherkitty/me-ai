@@ -1,19 +1,3 @@
-import { getHeader } from "./gmail-api.js";
-
-/** Parse a Gmail API message into a flat display object */
-export function parseMessage(msg) {
-  return {
-    id: msg.id,
-    threadId: msg.threadId,
-    from: getHeader(msg, "From"),
-    to: getHeader(msg, "To"),
-    subject: getHeader(msg, "Subject") || "(no subject)",
-    date: getHeader(msg, "Date"),
-    snippet: msg.snippet || "",
-    body: null, // lazy-loaded on click
-  };
-}
-
 /** Format a date string for display */
 export function formatDate(dateStr) {
   if (!dateStr) return "";

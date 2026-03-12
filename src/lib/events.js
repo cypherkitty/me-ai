@@ -263,9 +263,6 @@ export async function getActionsForEvent(eventType) {
   }));
 }
 
-// Alias for backward compatibility
-export const getCommandsForEvent = getActionsForEvent;
-
 /**
  * Check if a user-defined event exists.
  * @param {string} eventType
@@ -276,9 +273,6 @@ export async function hasEvent(eventType) {
   const map = await loadUserMap();
   return normalized in map;
 }
-
-// Alias for backward compatibility
-export const hasUserOverride = hasEvent;
 
 // ── Event CRUD ──────────────────────────────────────────────────────
 
@@ -358,10 +352,6 @@ export async function deleteEventType(eventType) {
   await saveUserMap(map);
 }
 
-// Aliases for backward compatibility
-export const removeEventTypeOverride = deleteEventType;
-export const resetEventType = deleteEventType;
-
 // ── Action pipeline CRUD ────────────────────────────────────────────
 
 /**
@@ -376,8 +366,6 @@ export async function saveActionsForEvent(eventType, actions) {
   await saveUserMap(map);
 }
 
-export const saveCommandsForEvent = saveActionsForEvent;
-
 /**
  * Append a single action to an event's pipeline.
  * @param {string} eventType
@@ -388,8 +376,6 @@ export async function addActionToEvent(eventType, action) {
   await saveActionsForEvent(eventType, [...current, action]);
 }
 
-export const addCommandToEvent = addActionToEvent;
-
 /**
  * Remove an action from an event's pipeline by id.
  * @param {string} eventType
@@ -399,8 +385,6 @@ export async function removeActionFromEvent(eventType, actionId) {
   const current = await getActionsForEvent(eventType);
   await saveActionsForEvent(eventType, current.filter(a => a.id !== actionId));
 }
-
-export const removeCommandFromEvent = removeActionFromEvent;
 
 /**
  * Update a single action within an event's pipeline.
@@ -415,8 +399,6 @@ export async function updateActionInEvent(eventType, actionId, updates) {
     current.map(a => a.id === actionId ? { ...a, ...updates } : a),
   );
 }
-
-export const updateCommandInEvent = updateActionInEvent;
 
 // ── Chat message builders ───────────────────────────────────────────
 
