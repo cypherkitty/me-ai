@@ -18,6 +18,15 @@ pub struct DateRow {
     pub date: Option<i64>,
 }
 
+/// SELECT COUNT(*) AS cnt FROM items (all sources).
+fn select_items_count() -> PreparedQuery {
+    let stmt = Query::select()
+        .expr_as(Expr::cust("COUNT(*)"), Alias::new("cnt"))
+        .from(Items::Table)
+        .to_owned();
+    stmt.build(SqliteQueryBuilder).into()
+}
+
 /// SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'gmail'.
 fn select_items_count_gmail() -> PreparedQuery {
     let stmt = Query::select()
@@ -68,6 +77,12 @@ fn select_items_date_max() -> PreparedQuery {
         .limit(1)
         .to_owned();
     stmt.build(SqliteQueryBuilder).into()
+}
+
+/// Count of all items (any source). Used for post-schema init (e.g. fresh OPFS detection).
+pub async fn get_items_count() -> Result<i64, CoreError> {
+    let rows = select_items_count().run::<CountRow>().await?;
+    Ok(rows.first().and_then(|r| r.cnt).unwrap_or(0))
 }
 
 /// Count of items with sourceType = 'gmail'.

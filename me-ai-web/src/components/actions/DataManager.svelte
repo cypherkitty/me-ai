@@ -1,13 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { exec, nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
   import {
-    exec,
     getOpfsStats,
-    clearAllDuckDbData,
-    nukeAllLocalData,
-    wipeAllData,
-  } from "../../lib/store/db.js";
-  import {
+    clearAllDataAndCheckpoint,
     getItemsCountGmail,
     getContactsCount,
     getEmailClassificationsCount,
@@ -192,7 +188,7 @@
 
             <!-- DuckDB actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-duckdb", label: "Clear all DuckDB data", desc: "Reset pipelines, rules, events, emails and classifications from DuckDB.", action: () => run( () => clearAllDuckDbData(), ) }] as item}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-duckdb", label: "Clear all DuckDB data", desc: "Reset pipelines, rules, events, emails and classifications from DuckDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

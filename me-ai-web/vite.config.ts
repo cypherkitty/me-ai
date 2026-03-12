@@ -7,6 +7,8 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const ONNX_DIST = path.resolve("node_modules/onnxruntime-web/dist");
 const CORE_PKG = path.resolve("node_modules/me-ai-core");
+/** Fallback when me-ai-core is not installed (e.g. dev before task install) */
+const CORE_PKG_FALLBACK = path.resolve("..", "me-ai-core", "pkg");
 
 export default defineConfig({
   base: process.env.VITE_BASE ?? (process.env.GITHUB_ACTIONS ? "/me-ai/" : "/"),
@@ -26,10 +28,12 @@ export default defineConfig({
           const basename = path.basename(pathname);
           if (pathname.includes("/wasm/") && (basename === "me_ai_core.js" || basename === "me_ai_core_bg.wasm")) {
             const file = path.join(CORE_PKG, basename);
-            if (fs.existsSync(file)) {
+            const fallback = path.join(CORE_PKG_FALLBACK, basename);
+            const toServe = fs.existsSync(file) ? file : fs.existsSync(fallback) ? fallback : null;
+            if (toServe) {
               res.setHeader("Content-Type", basename.endsWith(".wasm") ? "application/wasm" : "application/javascript");
               res.setHeader("Cache-Control", "no-cache");
-              fs.createReadStream(file).pipe(res);
+              fs.createReadStream(toServe).pipe(res);
               return;
             }
           }
@@ -55,10 +59,12 @@ export default defineConfig({
           const basename = path.basename(pathname);
           if (pathname.includes("/wasm/") && (basename === "me_ai_core.js" || basename === "me_ai_core_bg.wasm")) {
             const file = path.join(CORE_PKG, basename);
-            if (fs.existsSync(file)) {
+            const fallback = path.join(CORE_PKG_FALLBACK, basename);
+            const toServe = fs.existsSync(file) ? file : fs.existsSync(fallback) ? fallback : null;
+            if (toServe) {
               res.setHeader("Content-Type", basename.endsWith(".wasm") ? "application/wasm" : "application/javascript");
               res.setHeader("Cache-Control", "no-cache");
-              fs.createReadStream(file).pipe(res);
+              fs.createReadStream(toServe).pipe(res);
               return;
             }
           }
