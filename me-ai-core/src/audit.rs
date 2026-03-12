@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{run_exec_raw, run_query_raw, Param, ParamValue};
+use crate::db::{run_exec_raw, run_query_raw, int_param, str_param, CountRow, Param, ParamValue};
 use crate::error::CoreError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -23,11 +23,6 @@ pub struct AuditLogRow {
     pub steps: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CountRow {
-    pub cnt: Option<i64>,
-}
-
 /// Log one pipeline execution to auditLog.
 pub async fn log_execution(
     id: &str,
@@ -41,15 +36,15 @@ pub async fn log_execution(
     steps_json: &str,
 ) -> Result<(), CoreError> {
     let params: Vec<Param> = vec![
-        Some(ParamValue::Str(id.to_string())),
-        Some(ParamValue::Str(email_id.to_string())),
-        Some(ParamValue::Str(subject.to_string())),
-        Some(ParamValue::Str(from.to_string())),
-        Some(ParamValue::Str(event_type.to_string())),
-        Some(ParamValue::Int(executed_at)),
+        str_param(id),
+        str_param(email_id),
+        str_param(subject),
+        str_param(from),
+        str_param(event_type),
+        int_param(executed_at),
         Some(ParamValue::Bool(success)),
-        Some(ParamValue::Str(error.to_string())),
-        Some(ParamValue::Str(steps_json.to_string())),
+        str_param(error),
+        str_param(steps_json),
     ];
     run_exec_raw(
         r#"INSERT INTO auditLog (id, emailId, subject, "from", eventType, executedAt, success, error, steps)
@@ -61,7 +56,7 @@ pub async fn log_execution(
 
 /// Mark email as executed; optionally delete item (for destructive/archiving actions).
 pub async fn sync_after_execution(email_id: &str, delete_item: bool) -> Result<(), CoreError> {
-    let eid = vec![Some(ParamValue::Str(email_id.to_string()))];
+    let eid = vec![str_param(email_id)];
     run_exec_raw(
         "UPDATE emailClassifications SET status = 'executed' WHERE emailId = ?",
         eid.clone(),
@@ -96,10 +91,7 @@ pub async fn get_audit_log(
            FROM auditLog {} ORDER BY executedAt DESC LIMIT ? OFFSET ?"#,
         where_clause
     );
-    let params = vec![
-        Some(ParamValue::Int(limit)),
-        Some(ParamValue::Int(offset)),
-    ];
+    let params = vec![int_param(limit), int_param(offset)];
     let rows = run_query_raw::<AuditLogRow>(&list_sql, params).await?;
     Ok(GetAuditLogResult { entries: rows, total })
 }

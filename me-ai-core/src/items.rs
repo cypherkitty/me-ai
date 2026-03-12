@@ -4,14 +4,9 @@
 use serde::{Deserialize, Serialize};
 use sea_query::{Alias, Expr, Order, Query, SqliteQueryBuilder};
 
-use crate::db::PreparedQuery;
+use crate::db::{CountRow, PreparedQuery};
 use crate::error::CoreError;
 use crate::schema::{Contacts, EmailClassifications, Items};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CountRow {
-    pub cnt: Option<i64>,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DateRow {

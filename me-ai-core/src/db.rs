@@ -2,9 +2,10 @@
 //! - Adapter state + single call_adapter(method, args) helper.
 //! - Params converted via Serde (Param type) to JS array; no large value_to_js match.
 //! - PreparedQuery + run; run_query/run_exec are thin wrappers.
+//! - Shared param helpers and CountRow for COUNT(*) queries.
 
 use js_sys::{Array, Reflect};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use serde_wasm_bindgen::{from_value, to_value};
 use wasm_bindgen::{JsCast, JsValue};
@@ -35,17 +36,46 @@ fn get_adapter() -> Result<JsValue, CoreError> {
     })
 }
 
+fn adapter_error(method: &str, kind: &str, detail: String) -> CoreError {
+    let is_query = method == "query";
+    match kind {
+        "missing" => {
+            if is_query {
+                CoreError::AdapterQueryMissing
+            } else {
+                CoreError::AdapterExecMissing
+            }
+        }
+        "not_promise" => {
+            if is_query {
+                CoreError::AdapterQueryNotPromise
+            } else {
+                CoreError::AdapterExecNotPromise
+            }
+        }
+        "call" => {
+            if is_query {
+                CoreError::QueryCall(detail)
+            } else {
+                CoreError::ExecCall(detail)
+            }
+        }
+        _ => {
+            if is_query {
+                CoreError::QueryAwait(detail)
+            } else {
+                CoreError::ExecAwait(detail)
+            }
+        }
+    }
+}
+
 /// Call adapter method with args and return the resolved JsValue (single place for Reflect/apply/Promise/await).
 async fn call_adapter(method: &str, args: &[JsValue]) -> Result<JsValue, CoreError> {
     let adapter = get_adapter()?;
     let method_js = JsValue::from_str(method);
-    let fn_val = Reflect::get(&adapter, &method_js).map_err(|_| {
-        if method == "query" {
-            CoreError::AdapterQueryMissing
-        } else {
-            CoreError::AdapterExecMissing
-        }
-    })?;
+    let fn_val = Reflect::get(&adapter, &method_js)
+        .map_err(|_| adapter_error(method, "missing", String::new()))?;
     let args_array = Array::new();
     for a in args {
         args_array.push(a);
@@ -55,29 +85,13 @@ async fn call_adapter(method: &str, args: &[JsValue]) -> Result<JsValue, CoreErr
         &adapter,
         &args_array,
     )
-    .map_err(|e| {
-        if method == "query" {
-            CoreError::QueryCall(format!("{e:?}"))
-        } else {
-            CoreError::ExecCall(format!("{e:?}"))
-        }
-    })?;
-    let promise = promise.dyn_into::<js_sys::Promise>().map_err(|_| {
-        if method == "query" {
-            CoreError::AdapterQueryNotPromise
-        } else {
-            CoreError::AdapterExecNotPromise
-        }
-    })?;
+    .map_err(|e| adapter_error(method, "call", format!("{e:?}")))?;
+    let promise = promise
+        .dyn_into::<js_sys::Promise>()
+        .map_err(|_| adapter_error(method, "not_promise", String::new()))?;
     let result = JsFuture::from(promise)
         .await
-        .map_err(|e| {
-            if method == "query" {
-                CoreError::QueryAwait(format!("{e:?}"))
-            } else {
-                CoreError::ExecAwait(format!("{e:?}"))
-            }
-        })?;
+        .map_err(|e| adapter_error(method, "await", format!("{e:?}")))?;
     Ok(result)
 }
 
@@ -96,27 +110,45 @@ pub enum ParamValue {
 /// One parameter for the adapter (None = SQL NULL).
 pub type Param = Option<ParamValue>;
 
+/// Shared row type for SELECT COUNT(*) AS cnt.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CountRow {
+    pub cnt: Option<i64>,
+}
+
+/// Empty param list for exec/query with no placeholders.
+pub fn empty_params() -> Vec<Param> {
+    vec![]
+}
+
+/// String parameter for raw SQL.
+pub fn str_param(s: &str) -> Param {
+    Some(ParamValue::Str(s.to_string()))
+}
+
+/// Integer parameter for raw SQL.
+pub fn int_param(n: i64) -> Param {
+    Some(ParamValue::Int(n))
+}
+
+/// Optional string parameter (None = SQL NULL).
+pub fn opt_str_param(s: Option<&str>) -> Param {
+    s.map(|x| ParamValue::Str(x.to_string()))
+}
+
+/// Map sea_query Value to adapter param. DuckDB-WASM only needs Int/Float/Str/Bool/None.
 fn value_to_param(v: &Value) -> Param {
     use sea_query::value::Value;
     match v {
         Value::Bool(Some(b)) => Some(ParamValue::Bool(*b)),
-        Value::Bool(None) => None,
         Value::TinyInt(Some(n)) => Some(ParamValue::Int(*n as i64)),
-        Value::TinyInt(None) => None,
         Value::SmallInt(Some(n)) => Some(ParamValue::Int(*n as i64)),
-        Value::SmallInt(None) => None,
         Value::Int(Some(n)) => Some(ParamValue::Int((*n).into())),
-        Value::Int(None) => None,
-        Value::BigInt(Some(n)) => Some(ParamValue::Float(*n as f64)),
-        Value::BigInt(None) => None,
+        Value::BigInt(Some(n)) => Some(ParamValue::Int(*n)),
         Value::Float(Some(n)) => Some(ParamValue::Float((*n).into())),
-        Value::Float(None) => None,
         Value::Double(Some(n)) => Some(ParamValue::Float(*n)),
-        Value::Double(None) => None,
         Value::String(Some(s)) => Some(ParamValue::Str(s.as_ref().to_string())),
-        Value::String(None) => None,
         Value::Char(Some(c)) => Some(ParamValue::Str(c.to_string())),
-        Value::Char(None) => None,
         _ => None,
     }
 }

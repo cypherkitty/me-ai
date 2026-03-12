@@ -4,7 +4,10 @@
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::from_value;
 
-use crate::db::{run_exec_batch, run_exec_raw, run_query_raw, Param, ParamValue};
+use crate::db::{
+    run_exec_batch, run_exec_raw, run_query_raw, int_param, opt_str_param, str_param, CountRow,
+    Param, ParamValue,
+};
 use crate::error::CoreError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -78,21 +81,6 @@ pub struct ContactInput {
     pub last_seen: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CountRow {
-    pub cnt: Option<i64>,
-}
-
-fn str_param(s: &str) -> Param {
-    Some(ParamValue::Str(s.to_string()))
-}
-fn int_param(n: i64) -> Param {
-    Some(ParamValue::Int(n))
-}
-fn opt_str_param(s: Option<&str>) -> Param {
-    s.map(|x| ParamValue::Str(x.to_string()))
-}
-
 /// DELETE FROM syncState WHERE sourceType = ?
 pub async fn delete_sync_state(source_type: &str) -> Result<(), CoreError> {
     run_exec_raw("DELETE FROM syncState WHERE sourceType = ?", vec![str_param(source_type)]).await
@@ -105,7 +93,7 @@ pub async fn delete_items_by_source(source_type: &str) -> Result<(), CoreError> 
 
 /// DELETE FROM items; DELETE FROM syncState; DELETE FROM contacts;
 pub async fn clear_items_sync_contacts() -> Result<(), CoreError> {
-    let empty: Vec<Param> = vec![];
+    let empty = crate::db::empty_params();
     run_exec_raw("DELETE FROM items", empty.clone()).await?;
     run_exec_raw("DELETE FROM syncState", empty.clone()).await?;
     run_exec_raw("DELETE FROM contacts", empty).await?;

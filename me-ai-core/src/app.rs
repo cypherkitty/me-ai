@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{run_exec_raw, run_query_raw, Param, ParamValue};
+use crate::db::{empty_params, run_exec_raw, run_query_raw, str_param, Param, ParamValue};
 use crate::error::CoreError;
 
 // ── Schema (DDL) ───────────────────────────────────────────────────────
@@ -219,7 +219,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_success    ON auditLog (success);
 
 /// Run all schema DDL and migrations. Call after init(adapter).
 pub async fn create_schema_and_migrations() -> Result<(), CoreError> {
-    let empty: Vec<Param> = vec![];
+    let empty = empty_params();
     run_exec_raw(SCHEMA_SIGNAL_MAP, empty.clone()).await?;
     run_exec_raw(SCHEMA_ITEMS, empty.clone()).await?;
     seed_signal_map().await?;
@@ -342,7 +342,7 @@ async fn migrate_event_categories_3tier() -> Result<(), CoreError> {
     if rows.is_empty() {
         return Ok(());
     }
-    let empty: Vec<Param> = vec![];
+    let empty = empty_params();
     run_exec_raw("UPDATE sm_event_types SET category_name = 'info' WHERE category_name = 'informational'", empty.clone()).await?;
     run_exec_raw("UPDATE sm_event_types SET category_name = 'critical' WHERE category_name IN ('important', 'urgent')", empty.clone()).await?;
     run_exec_raw("UPDATE emailClassifications SET category = 'info' WHERE UPPER(TRIM(category)) = 'INFORMATIONAL'", empty.clone()).await?;
@@ -355,7 +355,7 @@ async fn migrate_event_categories_3tier() -> Result<(), CoreError> {
 }
 
 async fn migrate_remove_supervised() -> Result<(), CoreError> {
-    let empty: Vec<Param> = vec![];
+    let empty = empty_params();
     let _ = run_exec_raw("UPDATE sm_event_categories SET policy = 'auto' WHERE policy = 'supervised'", empty.clone()).await;
     let _ = run_exec_raw("UPDATE sm_rule_policies SET policy_name = 'auto' WHERE policy_name = 'supervised'", empty.clone()).await;
     let _ = run_exec_raw("DELETE FROM sm_execution_policies WHERE name = 'supervised'", empty).await;
@@ -412,7 +412,7 @@ pub async fn clear_all_data() -> Result<(), CoreError> {
         "DELETE FROM settings",
         "DELETE FROM auditLog",
     ];
-    let empty: Vec<Param> = vec![];
+    let empty = empty_params();
     for sql in stmts {
         let _ = run_exec_raw(sql, empty.clone()).await;
     }
@@ -427,16 +427,13 @@ pub struct SettingRow {
 }
 
 pub async fn get_setting(key: &str) -> Result<Option<String>, CoreError> {
-    let params = vec![Some(ParamValue::Str(key.to_string()))];
+    let params = vec![str_param(key)];
     let rows = run_query_raw::<SettingRow>("SELECT value FROM settings WHERE key = ?", params).await?;
     Ok(rows.into_iter().next().and_then(|r| r.value))
 }
 
 pub async fn set_setting(key: &str, value: &str) -> Result<(), CoreError> {
-    let params = vec![
-        Some(ParamValue::Str(key.to_string())),
-        Some(ParamValue::Str(value.to_string())),
-    ];
+    let params = vec![str_param(key), str_param(value)];
     run_exec_raw(
         "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
         params,
@@ -445,5 +442,5 @@ pub async fn set_setting(key: &str, value: &str) -> Result<(), CoreError> {
 }
 
 pub async fn remove_setting(key: &str) -> Result<(), CoreError> {
-    run_exec_raw("DELETE FROM settings WHERE key = ?", vec![Some(ParamValue::Str(key.to_string()))]).await
+    run_exec_raw("DELETE FROM settings WHERE key = ?", vec![str_param(key)]).await
 }
