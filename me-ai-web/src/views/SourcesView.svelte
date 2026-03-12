@@ -39,7 +39,7 @@
     getTwitterSyncStatus,
     clearTwitterData,
   } from "../lib/store/twitter-sync.js";
-  import { getCore } from "../lib/core.js";
+  import { getItemsBySource, getItemsCountBySource } from "../lib/core.js";
   import { wipeAllData } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
@@ -525,10 +525,9 @@
   async function twLoadLocalMessages(append = false) {
     twLoadingMessages = true;
     try {
-      const w = await getCore();
       const offset = append ? twLocalOffset : 0;
       const fetchSize = twSearchQuery ? 2000 : TW_LOCAL_PAGE_SIZE + offset;
-      const rows = (await w.getItemsBySource("twitter", fetchSize, 0)) as Record<string, unknown>[];
+      const rows = (await getItemsBySource("twitter", fetchSize, 0)) as Record<string, unknown>[];
       let list = rows ?? [];
       if (twSearchQuery) {
         const q = twSearchQuery.toLowerCase();
@@ -539,7 +538,7 @@
             String(r.from ?? "").toLowerCase().includes(q)
         );
       }
-      const total = twSearchQuery ? list.length : Number(await w.getItemsCountBySource("twitter") ?? 0);
+      const total = twSearchQuery ? list.length : Number(await getItemsCountBySource("twitter") ?? 0);
       const page = list.slice(offset, offset + TW_LOCAL_PAGE_SIZE);
       twMessages = append ? [...twMessages, ...page] : page;
       twTotalMessages = total;

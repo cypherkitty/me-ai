@@ -3,7 +3,7 @@
   import type { AuditLogEntry, EventCategory } from "$lib/types.js";
   import { getEventStats, getPendingApprovals } from "../lib/rules.js";
   import { getAuditLog } from "../lib/store/audit.js";
-  import { getCore } from "../lib/core.js";
+  import { getItemById } from "../lib/core.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
@@ -155,8 +155,7 @@
     const id = evt.id ?? evt.emailId ?? "";
     let emailData: Record<string, unknown> = {};
     try {
-      const w = await getCore();
-      const item = await w.getItemById(id);
+      const item = await getItemById(id);
       emailData = (item ?? {}) as Record<string, unknown>;
     } catch {}
 

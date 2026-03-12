@@ -5,7 +5,36 @@
  * This layer is thin: it calls core; Rust builds queries and passes them to the JS adapter.
  */
 
-import { getCore, getEventTypes as coreGetEventTypes, getEventCategories as coreGetEventCategories, getSources as coreGetSources, getActions as coreGetActions } from "./core.js";
+import {
+  getEventTypes as coreGetEventTypes,
+  getEventCategories as coreGetEventCategories,
+  getSources as coreGetSources,
+  getActions as coreGetActions,
+  getPlugins as coreGetPlugins,
+  getRules as coreGetRules,
+  getRule as coreGetRule,
+  saveRule as coreSaveRule,
+  deleteRule as coreDeleteRule,
+  getEvents as coreGetEvents,
+  insertEvent as coreInsertEvent,
+  updateEventStatus as coreUpdateEventStatus,
+  clearEvents as coreClearEvents,
+  getEmailClassifications as coreGetEmailClassifications,
+  getAuditStats as coreGetAuditStats,
+  getItemById as coreGetItemById,
+  updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
+  getTypePipelineActions as coreGetTypePipelineActions,
+  getEventTypeCategory as coreGetEventTypeCategory,
+  getEventCategoryPolicy as coreGetEventCategoryPolicy,
+  getCategoryPipelineActions as coreGetCategoryPipelineActions,
+  updateCategoryPipeline as coreUpdateCategoryPipeline,
+  updateCategoryPolicy as coreUpdateCategoryPolicy,
+  updateEventTypeCategory as coreUpdateEventTypeCategory,
+  clearEventTypeCategory as coreClearEventTypeCategory,
+  deleteEventType as coreDeleteEventType,
+  setSourceEnabled as coreSetSourceEnabled,
+  setPluginEnabled as coreSetPluginEnabled,
+} from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
 import type { Rule, Action, Trigger } from "$lib/types";
 
@@ -36,16 +65,14 @@ export async function getActions(): Promise<Record<string, unknown>[]> {
 }
 
 export async function getPlugins(): Promise<Record<string, unknown>[]> {
-  const w = await getCore();
-  const plugins = (await w.getPlugins()) as Record<string, unknown>[];
+  const plugins = (await coreGetPlugins()) as Record<string, unknown>[];
   return Array.isArray(plugins) ? plugins : [];
 }
 
 // ── Rule queries ───────────────────────────────────────────────────────
 
 export async function getRules(): Promise<Rule[]> {
-  const w = await getCore();
-  const rules = (await w.getRules()) as Record<string, unknown>[];
+  const rules = (await coreGetRules()) as Record<string, unknown>[];
   return (rules ?? []).map((r) => ({
     ...r,
     enabled: Boolean(r.enabled),
@@ -55,8 +82,7 @@ export async function getRules(): Promise<Rule[]> {
 }
 
 export async function getRule(id: string): Promise<Rule | null> {
-  const w = await getCore();
-  const r = await w.getRule(id);
+  const r = await coreGetRule(id);
   if (r == null || r === undefined) return null;
   const row = r as Record<string, unknown>;
   return {
@@ -88,7 +114,6 @@ export async function createRule({
   triggers = [],
   actions = [],
 }: CreateRuleInput): Promise<string> {
-  const w = await getCore();
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = Date.now();
   const payload = {
@@ -108,12 +133,11 @@ export async function createRule({
       icon: a.icon ?? null,
     })),
   };
-  await w.saveRule(payload);
+  await coreSaveRule(payload);
   return id;
 }
 
 export async function updateRule(id: string, updates: Partial<Rule>): Promise<void> {
-  const w = await getCore();
   const existing = await getRule(id);
   if (!existing) return;
   const merged: Rule = {
@@ -139,7 +163,7 @@ export async function updateRule(id: string, updates: Partial<Rule>): Promise<vo
       icon: a.icon ?? null,
     })),
   };
-  await w.saveRule(payload);
+  await coreSaveRule(payload);
 }
 
 export async function setRuleEnabled(id: string, enabled: boolean): Promise<void> {
@@ -147,8 +171,7 @@ export async function setRuleEnabled(id: string, enabled: boolean): Promise<void
 }
 
 export async function deleteRule(id: string): Promise<void> {
-  const w = await getCore();
-  await w.deleteRule(id);
+  await coreDeleteRule(id);
 }
 
 // ── Event queries ──────────────────────────────────────────────────────
@@ -163,8 +186,7 @@ export interface GetEventsOptions {
 export async function getEvents({
   limit = 100,
 }: GetEventsOptions = {}): Promise<Record<string, unknown>[]> {
-  const w = await getCore();
-  const rows = (await w.getEvents(limit, 0)) as Record<string, unknown>[];
+  const rows = (await coreGetEvents(limit, 0)) as Record<string, unknown>[];
   return (rows ?? []).map((r) => ({
     ...r,
     actions_taken: fromJson(r.actions_taken as string, []),
@@ -188,9 +210,8 @@ export interface InsertEventInput {
 }
 
 export async function insertEvent(evt: InsertEventInput): Promise<void> {
-  const w = await getCore();
   const id = evt.id ?? `evt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  await w.insertEvent(
+  await coreInsertEvent(
     id,
     evt.content ?? null,
     evt.subject ?? null,
@@ -207,13 +228,11 @@ export async function insertEvent(evt: InsertEventInput): Promise<void> {
 }
 
 export async function updateEventStatus(id: string, status: string): Promise<void> {
-  const w = await getCore();
-  await w.updateEventStatus(id, status);
+  await coreUpdateEventStatus(id, status);
 }
 
 export async function clearAllEvents(): Promise<void> {
-  const w = await getCore();
-  await w.clearEvents();
+  await coreClearEvents();
 }
 
 export interface EventStats {
@@ -225,11 +244,10 @@ export interface EventStats {
 }
 
 export async function getEventStats(): Promise<EventStats> {
-  const w = await getCore();
   const [classifications, categories, auditStats] = await Promise.all([
-    w.getEmailClassifications(),
-    w.getEventCategories(),
-    w.getAuditStats(),
+    coreGetEmailClassifications(),
+    coreGetEventCategories(),
+    coreGetAuditStats(),
   ]);
   const rows = (classifications ?? []) as Record<string, unknown>[];
   const cats = (categories ?? []) as Record<string, unknown>[];
@@ -260,10 +278,9 @@ export async function getEventStats(): Promise<EventStats> {
 export async function getPendingApprovals({
   limit = 100,
 }: { limit?: number } = {}): Promise<Record<string, unknown>[]> {
-  const w = await getCore();
   const [classifications, categories] = await Promise.all([
-    w.getEmailClassifications(),
-    w.getEventCategories(),
+    coreGetEmailClassifications(),
+    coreGetEventCategories(),
   ]);
   const cats = (categories ?? []) as Record<string, unknown>[];
   const manualSet = new Set(
@@ -281,7 +298,7 @@ export async function getPendingApprovals({
   const out: Record<string, unknown>[] = [];
   for (const r of pending) {
     const emailId = r.emailId as string;
-    const item = await w.getItemById(emailId);
+    const item = await coreGetItemById(emailId);
     const subject = (item?.subject ?? r.subject) as string;
     const from = (item?.from ?? r.from) as string;
     out.push({
@@ -305,8 +322,7 @@ export async function getPendingApprovals({
 }
 
 export async function getPendingCountByCategory(categoryName: string): Promise<number> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const rows = (await coreGetEmailClassifications()) as Record<string, unknown>[];
   const want = categoryName.trim().toLowerCase();
   return (rows ?? []).filter((r) => {
     const cat = String(r.category ?? "").trim().toLowerCase();
@@ -330,8 +346,7 @@ export async function getPendingItemsByCategory(
   categoryName: string,
   { limit = 500 }: { limit?: number } = {}
 ): Promise<PendingItemByCategory[]> {
-  const w = await getCore();
-  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const rows = (await coreGetEmailClassifications()) as Record<string, unknown>[];
   const want = categoryName.trim().toLowerCase();
   const filtered = (rows ?? [])
     .filter((r) => {
@@ -344,7 +359,7 @@ export async function getPendingItemsByCategory(
   const out: PendingItemByCategory[] = [];
   for (const r of filtered) {
     const emailId = (r.emailId ?? r.id) as string;
-    const item = await w.getItemById(emailId);
+    const item = await coreGetItemById(emailId);
     out.push({
       id: emailId,
       emailId,
@@ -360,13 +375,11 @@ export async function getPendingItemsByCategory(
 }
 
 export async function approveClassification(id: string): Promise<void> {
-  const w = await getCore();
-  await w.updateEmailClassificationStatus(id, "approved");
+  await coreUpdateEmailClassificationStatus(id, "approved");
 }
 
 export async function rejectClassification(id: string): Promise<void> {
-  const w = await getCore();
-  await w.updateEmailClassificationStatus(id, "escalated");
+  await coreUpdateEmailClassificationStatus(id, "escalated");
 }
 
 // ── Matching ──────────────────────────────────────────────────────────
@@ -403,13 +416,12 @@ export interface PipelineForEvent {
 export async function getPipelineForEvent(eventType: string): Promise<PipelineForEvent | null> {
   const normalized =
     eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
-  const w = await getCore();
   const [typeActions, categoryName] = await Promise.all([
-    w.getTypePipelineActions(normalized),
-    w.getEventTypeCategory(normalized),
+    coreGetTypePipelineActions(normalized),
+    coreGetEventTypeCategory(normalized),
   ]);
   const category = categoryName ?? "critical";
-  const policy = await w.getEventCategoryPolicy(category);
+  const policy = await coreGetEventCategoryPolicy(category);
   const pol = policy ?? "manual";
   if (typeActions?.length > 0) {
     return {
@@ -423,7 +435,7 @@ export async function getPipelineForEvent(eventType: string): Promise<PipelineFo
       isOverride: true,
     };
   }
-  const catActions = (await w.getCategoryPipelineActions(category)) as Array<{
+  const catActions = (await coreGetCategoryPipelineActions(category)) as Array<{
     plugin_id: string;
     command_id: string;
     action_idx: number;
@@ -450,17 +462,16 @@ export interface CategoryPipelineDisplay {
 }
 
 export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {
-  const w = await getCore();
   const [categories, types] = await Promise.all([
-    w.getEventCategories(),
-    w.getEventTypes(),
+    coreGetEventCategories(),
+    coreGetEventTypes(),
   ]);
   const cats = (categories ?? []) as Record<string, unknown>[];
   const typeRows = (types ?? []) as Record<string, unknown>[];
   const result: CategoryPipelineDisplay[] = [];
   for (const c of cats) {
     const name = c.name as string;
-    const actions = (await w.getCategoryPipelineActions(name)) as Array<{
+    const actions = (await coreGetCategoryPipelineActions(name)) as Array<{
       plugin_id: string;
       command_id: string;
       action_idx: number;
@@ -491,44 +502,37 @@ export async function updateCategoryPipeline(
   categoryName: string,
   actions: Array<{ pluginId: string; commandId: string }>
 ): Promise<void> {
-  const w = await getCore();
-  await w.updateCategoryPipeline(categoryName, actions);
+  await coreUpdateCategoryPipeline(categoryName, actions);
 }
 
 export async function updateCategoryPolicy(
   categoryName: string,
   policy: string
 ): Promise<void> {
-  const w = await getCore();
-  await w.updateCategoryPolicy(categoryName, policy);
+  await coreUpdateCategoryPolicy(categoryName, policy);
 }
 
 export async function moveEventTypeToCategory(
   eventTypeName: string,
   newCategory: string
 ): Promise<void> {
-  const w = await getCore();
-  await w.updateEventTypeCategory(eventTypeName, newCategory);
+  await coreUpdateEventTypeCategory(eventTypeName, newCategory);
 }
 
 export async function unassignEventTypeFromCategory(eventTypeName: string): Promise<void> {
-  const w = await getCore();
-  await w.clearEventTypeCategory(eventTypeName);
+  await coreClearEventTypeCategory(eventTypeName);
 }
 
 export async function deleteEventType(eventTypeName: string): Promise<void> {
-  const w = await getCore();
-  await w.deleteEventType(eventTypeName);
+  await coreDeleteEventType(eventTypeName);
 }
 
 export async function setSourceEnabled(name: string, enabled: boolean): Promise<void> {
-  const w = await getCore();
-  await w.setSourceEnabled(name, enabled);
+  await coreSetSourceEnabled(name, enabled);
 }
 
 export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
-  const w = await getCore();
-  await w.setPluginEnabled(name, enabled);
+  await coreSetPluginEnabled(name, enabled);
 }
 
 export async function seedRuleForEventType(

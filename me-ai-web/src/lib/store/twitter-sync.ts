@@ -11,7 +11,14 @@
  * Stores syncState in the same `syncState` table.
  */
 
-import { getCore } from "../core.js";
+import {
+  deleteItemsBySource,
+  deleteSyncState,
+  insertItemsBatch,
+  getSyncState as getSyncStateRaw,
+  upsertSyncState,
+  getNewestSourceId,
+} from "../core.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
 import type { SyncState, SyncProgress } from "$lib/types";
 
@@ -101,9 +108,8 @@ export async function getTwitterSyncStatus(): Promise<TwitterSyncStatus> {
 }
 
 export async function clearTwitterData(): Promise<void> {
-  const w = await getCore();
-  await w.deleteItemsBySource("twitter");
-  await w.deleteSyncState("twitter");
+  await deleteItemsBySource("twitter");
+  await deleteSyncState("twitter");
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -166,7 +172,7 @@ async function fullSync(
     oldestPageToken = nextToken;
   }
 
-  await upsertSyncState({
+  await writeSyncState({
     sourceType: "twitter",
     historyId: newestId || "",
     lastSyncAt: Date.now(),
@@ -258,7 +264,7 @@ async function incrementalSync(
   const newestId =
     added > 0 ? (await getNewestTweetId()) || state.historyId : state.historyId;
 
-  await upsertSyncState({
+  await writeSyncState({
     sourceType: "twitter",
     historyId: newestId,
     lastSyncAt: Date.now(),
@@ -331,7 +337,7 @@ async function continueFetch(
     paginationToken = response?.meta?.next_token || null;
   }
 
-  await upsertSyncState({
+  await writeSyncState({
     sourceType: "twitter",
     historyId: state.historyId,
     lastSyncAt: Date.now(),
@@ -419,8 +425,7 @@ async function bulkUpsertItems(items: Array<Record<string, unknown>>): Promise<v
     syncedAt: item.syncedAt ?? null,
   }));
   try {
-    const w = await getCore();
-    await w.insertItemsBatch(rows);
+    await insertItemsBatch(rows);
   } catch {
     /* ignore */
   }
@@ -430,8 +435,7 @@ async function bulkUpsertItems(items: Array<Record<string, unknown>>): Promise<v
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
   try {
-    const w = await getCore();
-    const r = await w.getSyncState(sourceType);
+    const r = await getSyncStateRaw(sourceType);
     if (r == null) return null;
     const row = r as Record<string, unknown>;
     return {
@@ -446,21 +450,19 @@ async function getSyncState(sourceType: string): Promise<SyncState | null> {
   }
 }
 
-async function upsertSyncState({
+async function writeSyncState({
   sourceType,
   historyId,
   lastSyncAt,
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  const w = await getCore();
-  await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
+  await upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
 }
 
 async function getNewestTweetId(): Promise<string | null> {
   try {
-    const w = await getCore();
-    return (await w.getNewestSourceId("twitter")) ?? null;
+    return (await getNewestSourceId("twitter")) ?? null;
   } catch {
     return null;
   }

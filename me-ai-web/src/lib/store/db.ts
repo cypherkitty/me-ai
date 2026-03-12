@@ -2,27 +2,26 @@
  * Minimal DB helpers — no DuckDB. Persistence is IndexedDB via me-ai-core (Rexie).
  *
  * Exports: makeItemId, toJson, fromJson, wipeAllData, nukeAllLocalData, deleteDbAndReload.
- * All data operations go through core (getCore()).*. query/exec are deprecated stubs that throw.
+ * All data operations go through core (direct WASM exports). query/exec are deprecated stubs that throw.
  */
 
-import { getCore } from "../core.js";
+import { clearAllData } from "../core.js";
 
-/** @deprecated Use getCore() and core API. No SQL with Rexie. */
+/** @deprecated Use core API. No SQL with Rexie. */
 export async function query(_sql: string, _params: unknown[] = []): Promise<Record<string, unknown>[]> {
-  throw new Error("query() removed: use getCore() and core API instead. No SQL with Rexie.");
+  throw new Error("query() removed: use core API instead. No SQL with Rexie.");
 }
 
-/** @deprecated Use getCore() and core API. No SQL with Rexie. */
+/** @deprecated Use core API. No SQL with Rexie. */
 export async function exec(_sql: string, _params: unknown[] = []): Promise<void> {
-  throw new Error("exec() removed: use getCore() and core API instead. No SQL with Rexie.");
+  throw new Error("exec() removed: use core API instead. No SQL with Rexie.");
 }
 
 /**
  * Clear all user data via core (items, syncState, contacts, rules, events, etc.) and reload.
  */
 export async function wipeAllData(): Promise<void> {
-  const w = await getCore();
-  await w.clearAllData();
+  await clearAllData();
   if (typeof window !== "undefined") {
     window.location.reload();
   }

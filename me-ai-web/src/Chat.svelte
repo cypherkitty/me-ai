@@ -62,41 +62,47 @@
   let hasScanData = $state(false);
   let isScanning = $state(false);
   let greetingShown = false;
+  /** Set when IndexedDB/core is unavailable; settings are not persisted. */
+  let storageUnavailable = $state(false);
 
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(async () => {
-    // Restore saved backend, model, and options from DuckDB (settings)
-    const [
-      savedBackend,
-      savedModel,
-      savedEnableThinking,
-      savedLoadDtype,
-      savedLoadDevice,
-      savedMaxTokens,
-      savedDoSample,
-      savedTemperature,
-      savedRepetitionPenalty,
-    ] = await Promise.all([
-      getSetting("aiBackend"),
-      getSetting("selectedModel"),
-      getSetting("enableThinking"),
-      getSetting("loadDtype"),
-      getSetting("loadDevice"),
-      getSetting("maxTokens"),
-      getSetting("doSample"),
-      getSetting("temperature"),
-      getSetting("repetitionPenalty"),
-    ]);
-    if (savedBackend) backend = savedBackend;
-    if (savedModel) selectedModel = savedModel;
-    if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking;
-    if (savedLoadDtype) loadDtype = savedLoadDtype;
-    if (savedLoadDevice) loadDevice = savedLoadDevice;
-    if (savedMaxTokens != null) maxTokens = savedMaxTokens;
-    if (savedDoSample !== undefined) doSample = savedDoSample;
-    if (savedTemperature != null) temperature = savedTemperature;
-    if (savedRepetitionPenalty != null)
-      repetitionPenalty = savedRepetitionPenalty;
+    // Restore saved backend, model, and options from settings (IndexedDB)
+    try {
+      const [
+        savedBackend,
+        savedModel,
+        savedEnableThinking,
+        savedLoadDtype,
+        savedLoadDevice,
+        savedMaxTokens,
+        savedDoSample,
+        savedTemperature,
+        savedRepetitionPenalty,
+      ] = await Promise.all([
+        getSetting("aiBackend"),
+        getSetting("selectedModel"),
+        getSetting("enableThinking"),
+        getSetting("loadDtype"),
+        getSetting("loadDevice"),
+        getSetting("maxTokens"),
+        getSetting("doSample"),
+        getSetting("temperature"),
+        getSetting("repetitionPenalty"),
+      ]);
+      if (savedBackend) backend = savedBackend;
+      if (savedModel) selectedModel = savedModel;
+      if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking;
+      if (savedLoadDtype) loadDtype = savedLoadDtype;
+      if (savedLoadDevice) loadDevice = savedLoadDevice;
+      if (savedMaxTokens != null) maxTokens = savedMaxTokens;
+      if (savedDoSample !== undefined) doSample = savedDoSample;
+      if (savedTemperature != null) temperature = savedTemperature;
+      if (savedRepetitionPenalty != null)
+        repetitionPenalty = savedRepetitionPenalty;
+    } catch {
+      storageUnavailable = true;
+    }
 
     if (engine.status === "idle") {
       engine.check();
@@ -682,10 +688,14 @@
     status = "loading";
     error = null;
     loadInitiated = true;
-    await setSetting("selectedModel", selectedModel);
-    await setSetting("aiBackend", backend);
-    await setSetting("loadDtype", loadDtype);
-    await setSetting("loadDevice", loadDevice);
+    try {
+      await setSetting("selectedModel", selectedModel);
+      await setSetting("aiBackend", backend);
+      await setSetting("loadDtype", loadDtype);
+      await setSetting("loadDevice", loadDevice);
+    } catch {
+      storageUnavailable = true;
+    }
     // Clear gpuInfo when not using WebGPU
     if (backend !== "webgpu") {
       gpuInfo = null;
@@ -719,13 +729,24 @@
     }
   });
 
-  // Persist chat options when they change
+  // Persist chat options when they change (no-op when storage unavailable)
   $effect(() => {
-    setSetting("enableThinking", enableThinking);
-    setSetting("maxTokens", maxTokens);
-    setSetting("doSample", doSample);
-    setSetting("temperature", temperature);
-    setSetting("repetitionPenalty", repetitionPenalty);
+    const a = enableThinking;
+    const b = maxTokens;
+    const c = doSample;
+    const d = temperature;
+    const e = repetitionPenalty;
+    (async () => {
+      try {
+        await setSetting("enableThinking", a);
+        await setSetting("maxTokens", b);
+        await setSetting("doSample", c);
+        await setSetting("temperature", d);
+        await setSetting("repetitionPenalty", e);
+      } catch {
+        storageUnavailable = true;
+      }
+    })();
   });
 
   async function send(text) {
@@ -860,6 +881,14 @@
 </script>
 
 <div class="w-full h-full flex flex-col overflow-hidden">
+  {#if storageUnavailable}
+    <div
+      class="shrink-0 px-3 py-2 text-center text-sm bg-amber-500/20 text-amber-200 border-b border-amber-500/30"
+      role="alert"
+    >
+      Storage unavailable (e.g. private browsing). Settings and data are not persisted.
+    </div>
+  {/if}
 {#if status === null}
   <div class="w-full h-full overflow-y-auto flex justify-center">
     <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
