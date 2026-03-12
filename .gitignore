@@ -1,13 +1,6 @@
 .idea
 .env
 *.iml
-node_modules
-dist
-.vite
 *.local
 test-results
 playwright-report
-
-# Rust (me-ai-core)
-me-ai-core/target
-me-ai-core/pkg

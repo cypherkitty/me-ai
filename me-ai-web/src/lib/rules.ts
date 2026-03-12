@@ -11,9 +11,20 @@ import type { Rule, Action, Trigger } from "$lib/types";
 
 // ── Seed / static data queries ─────────────────────────────────────────
 
-export async function getEventTypes(): Promise<Record<string, unknown>[]> {
+async function getEventTypesFromDb(): Promise<Record<string, unknown>[]> {
   await import("./store/db.js").then((m) => m.getDb());
   return query(`SELECT name, label FROM sm_event_types ORDER BY name`);
+}
+
+/** Event types from DB; uses me-ai-core (WASM) when available, else TS query. */
+export async function getEventTypes(): Promise<Record<string, unknown>[]> {
+  try {
+    const core = await import("./core.js").then((m) => m.loadCore());
+    const rows = await core.getEventTypes();
+    return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : await getEventTypesFromDb();
+  } catch {
+    return getEventTypesFromDb();
+  }
 }
 
 export async function getEventCategories(): Promise<Record<string, unknown>[]> {

@@ -1,7 +1,8 @@
 node_modules
+package-lock.json
 dist
 .vite
-*.local
 .env
 test-results
 playwright-report
+*.local
