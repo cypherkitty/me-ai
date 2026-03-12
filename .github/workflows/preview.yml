@@ -13,8 +13,17 @@ concurrency: preview-${{ github.ref }}
 jobs:
   preview:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: me-ai-web
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: me-ai-web/package-lock.json
 
       - name: Install and Build
         if: github.event.action != 'closed'
@@ -27,7 +36,7 @@ jobs:
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1
         with:
-          source-dir: ./dist/
+          source-dir: me-ai-web/dist/
           preview-branch: gh-pages
           umbrella-dir: pr-preview
           action: auto

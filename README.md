@@ -4,6 +4,11 @@ A private AI chat and Gmail dashboard that runs **entirely in your browser** —
 
 **Live demo:** [https://cypherkitty.github.io/me-ai/](https://cypherkitty.github.io/me-ai/)
 
+## Repository structure
+
+- **`me-ai-web/`** — Svelte 5 + Vite app (UI, DuckDB-WASM + OPFS, auth, Gmail/Twitter APIs). Run `npm install` and `npm run dev` from this directory.
+- **`me-ai-core/`** — Rust WASM crate (business logic, type-safe queries via sea-query; calls into JS for DB execution). Build with `cargo build --target wasm32-unknown-unknown` or `wasm-pack build me-ai-core --target web`.
+
 ## Architecture
 
 The system is built on an **event-stream model**: all data (emails, messages, etc.) flows through as events, each classified into a type. Each event type maps to a list of **commands** — actions that can be taken. 

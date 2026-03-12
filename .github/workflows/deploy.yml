@@ -15,6 +15,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: me-ai-web
     steps:
       - uses: actions/checkout@v4
 
@@ -22,6 +25,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: me-ai-web/package-lock.json
 
       - run: npm ci
       - run: npm run build
@@ -29,6 +33,6 @@ jobs:
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
+          publish_dir: me-ai-web/dist
           # Keep pr-preview/ subdirectories intact when deploying production
           keep_files: true

@@ -1,9 +1,4 @@
-node_modules
-package-lock.json
-dist
-.vite
-*.local
-.env
 .idea
-test-results
-playwright-report
+.env
+*.iml
+

@@ -16,17 +16,6 @@ alwaysApply: true
 - **Only create a new PR after the previous one is merged.** When the user says "merge" / "ship it" / "let's merge", merge the current PR first (via the `merge-pr` skill), then create a new branch and PR for the next piece of work.
 - The **only** exception is if the user explicitly says "push to main without a PR" or explicitly asks for a separate PR.
 
-### Branch Naming
-
-```
-feature/*    — new functionality (feature/export-email-markdown)
-fix/*        — bug fixes (fix/html-entity-decoding)
-refactor/*   — code restructuring (refactor/extract-components)
-docs/*       — documentation (docs/update-cursor-rules)
-chore/*      — tooling, dependencies (chore/add-vitest)
-test/*       — test additions (test/markdown-export)
-```
-
 ### Commit Conventions
 
 - Use conventional commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, `test:`
@@ -100,34 +89,6 @@ npm test        # watch mode — re-runs on file changes (for development)
 npm run test:ci # single run — exits with code 0/1 (for CI)
 ```
 
-### Test Location
-
-Tests live next to the source they cover:
-
-```
-src/lib/
-  markdown-export.js
-  __tests__/
-    markdown-export.test.js       — pure logic tests (Node env)
-    html-to-markdown.test.js      — DOM-dependent tests (jsdom env)
-```
-
-Convention: `src/lib/__tests__/<module>.test.js`
-
-### Writing Tests
-
-```js
-import { describe, it, expect } from "vitest";
-import { myFunction } from "../my-module.js";
-
-describe("myFunction", () => {
-  it("does the expected thing", () => {
-    const result = myFunction(input);
-    expect(result).toBe(expected);
-  });
-});
-```
-
 **Guidelines:**
 - Test pure functions first — they're the easiest and highest-value targets
 - Use descriptive `it()` names that read like sentences
@@ -157,15 +118,6 @@ Priority order for adding tests:
 - **URL**: `https://cypherkitty.github.io/me-ai/`
 - **Repository**: `cypherkitty/me-ai` (public)
 - **Branch**: `main` (auto-deploys on push)
-
-### Vite Base Path
-
-```js
-// vite.config.js
-base: process.env.GITHUB_ACTIONS ? "/me-ai/" : "/",
-```
-
-Local dev serves at `/`, GitHub Pages at `/me-ai/`. This is set via the `GITHUB_ACTIONS` env var which is automatically present in CI.
 
 ### Deployment Checklist (for new features)
 
