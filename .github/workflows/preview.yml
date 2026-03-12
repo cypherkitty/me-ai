@@ -13,9 +13,6 @@ concurrency: preview-${{ github.ref }}
 jobs:
   preview:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: me-ai-web
     steps:
       - uses: actions/checkout@v4
 
@@ -25,13 +22,19 @@ jobs:
           cache: npm
           cache-dependency-path: me-ai-web/package.json
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      - uses: arduino/setup-task@v2
+
       - name: Install and Build
         if: github.event.action != 'closed'
-        run: |
-          npm install
-          npm run build
         env:
           VITE_BASE: "./"
+        run: task deploy-build
 
       - name: Deploy preview
         uses: rossjrw/pr-preview-action@v1
