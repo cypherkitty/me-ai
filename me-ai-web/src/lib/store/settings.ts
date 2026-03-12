@@ -1,26 +1,24 @@
 /**
  * Settings Store — key/value persistence via DuckDB (OPFS).
- *
- * API mirrors the old Dexie-based interface (now backed by DuckDB):
- *   getSetting(key, fallback?)  →  async get
- *   setSetting(key, value)      →  async set
- *   removeSetting(key)          →  async remove
- *   getSettings(keys[])         →  async bulk-get
- *
- * Values are JSON-encoded so any serialisable type is supported.
+ * All SQL runs in me-ai-core; this module calls the core.
  */
 
-import { query, exec, toJson, fromJson } from "./db.js";
+import { toJson, fromJson } from "./db.js";
+import { getWasm } from "../core.js";
+
+async function wasm() {
+  return getWasm();
+}
 
 /**
  * Get a setting value by key.
  */
 export async function getSetting<T>(key: string, fallback: T | null = null): Promise<T | null> {
   try {
-    const rows = await query(`SELECT value FROM settings WHERE key = ?`, [key]);
-    if (rows.length === 0) return fallback;
-    const raw = rows[0].value as string | undefined;
-    return fromJson(raw ?? "", fallback as T) as T | null;
+    const w = await wasm();
+    const raw = await w.getSetting(key);
+    if (raw == null || raw === undefined) return fallback;
+    return fromJson(String(raw), fallback as T) as T | null;
   } catch {
     return fallback;
   }
@@ -31,11 +29,8 @@ export async function getSetting<T>(key: string, fallback: T | null = null): Pro
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {
   try {
-    await exec(
-      `INSERT INTO settings (key, value) VALUES (?, ?)
-       ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
-      [key, toJson(value)]
-    );
+    const w = await wasm();
+    await w.setSetting(key, toJson(value));
   } catch (e) {
     console.error(`[settings] setSetting("${key}") failed:`, e);
   }
@@ -46,24 +41,21 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
  */
 export async function removeSetting(key: string): Promise<void> {
   try {
-    await exec(`DELETE FROM settings WHERE key = ?`, [key]);
+    const w = await wasm();
+    await w.removeSetting(key);
   } catch {
     /* ignore */
   }
 }
 
 /**
- * Get multiple settings at once.
+ * Get multiple settings at once (calls core getSetting per key).
  */
 export async function getSettings(keys: string[]): Promise<Record<string, unknown>> {
   if (keys.length === 0) return {};
-  const placeholders = keys.map(() => "?").join(", ");
-  const rows = await query(
-    `SELECT key, value FROM settings WHERE key IN (${placeholders})`,
-    keys
+  const w = await wasm();
+  const entries = await Promise.all(
+    keys.map(async (k) => [k, fromJson<unknown>(String(await w.getSetting(k) ?? ""), null)] as const)
   );
-  const map = Object.fromEntries(
-    rows.map((r) => [r.key as string, fromJson<unknown>(r.value as string, null)])
-  );
-  return Object.fromEntries(keys.map((k) => [k, map[k] ?? null]));
+  return Object.fromEntries(entries);
 }

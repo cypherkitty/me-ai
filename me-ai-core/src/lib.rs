@@ -8,6 +8,7 @@
 //! Error handling: [thiserror](https://docs.rs/thiserror) + [anyhow](https://docs.rs/anyhow) internally;
 //! errors are converted to JsValue at the WASM boundary.
 
+mod app;
 mod db;
 mod error;
 mod events;
@@ -60,6 +61,13 @@ pub async fn get_actions() -> Result<JsValue, JsValue> {
     serialize_to_js(&rows)
 }
 
+/// Count of all items (for post-schema init). Requires init(adapter) first.
+#[wasm_bindgen(js_name = getItemsCount)]
+pub async fn get_items_count() -> Result<JsValue, JsValue> {
+    let n = items::get_items_count().await.map_err(|e| error_to_js(&e))?;
+    serialize_to_js(&n)
+}
+
 /// Count of items with sourceType = 'gmail'. Requires init(adapter) first.
 #[wasm_bindgen(js_name = getItemsCountGmail)]
 pub async fn get_items_count_gmail() -> Result<JsValue, JsValue> {
@@ -93,6 +101,44 @@ pub async fn get_items_date_max() -> Result<JsValue, JsValue> {
 pub async fn get_email_classifications_count() -> Result<JsValue, JsValue> {
     let n = items::get_email_classifications_count().await.map_err(|e| error_to_js(&e))?;
     serialize_to_js(&n)
+}
+
+/// Create all tables, seed data, and run migrations. Call after init(adapter).
+#[wasm_bindgen(js_name = createSchemaAndMigrations)]
+pub async fn create_schema_and_migrations() -> Result<(), JsValue> {
+    app::create_schema_and_migrations().await.map_err(|e| error_to_js(&e))
+}
+
+/// Row count for a known table (for stats). Table must be in allowlist.
+#[wasm_bindgen(js_name = getTableCount)]
+pub async fn get_table_count(table: &str) -> Result<JsValue, JsValue> {
+    let n = app::get_table_count(table).await.map_err(|e| error_to_js(&e))?;
+    serialize_to_js(&n)
+}
+
+/// Clear all user-data tables (keeps schema and seed data).
+#[wasm_bindgen(js_name = clearAllData)]
+pub async fn clear_all_data() -> Result<(), JsValue> {
+    app::clear_all_data().await.map_err(|e| error_to_js(&e))
+}
+
+/// Get a setting value by key. Returns null if not found.
+#[wasm_bindgen(js_name = getSetting)]
+pub async fn get_setting(key: &str) -> Result<JsValue, JsValue> {
+    let v = app::get_setting(key).await.map_err(|e| error_to_js(&e))?;
+    serialize_to_js(&v)
+}
+
+/// Set a setting (insert or replace). Value must be JSON string.
+#[wasm_bindgen(js_name = setSetting)]
+pub async fn set_setting(key: &str, value: &str) -> Result<(), JsValue> {
+    app::set_setting(key, value).await.map_err(|e| error_to_js(&e))
+}
+
+/// Remove a setting by key.
+#[wasm_bindgen(js_name = removeSetting)]
+pub async fn remove_setting(key: &str) -> Result<(), JsValue> {
+    app::remove_setting(key).await.map_err(|e| error_to_js(&e))
 }
 
 #[cfg(test)]

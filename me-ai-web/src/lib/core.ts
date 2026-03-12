@@ -15,9 +15,17 @@ let wasm: {
   getItemsDateMin: () => Promise<unknown>;
   getItemsDateMax: () => Promise<unknown>;
   getEmailClassificationsCount: () => Promise<unknown>;
+  createSchemaAndMigrations: () => Promise<void>;
+  getItemsCount: () => Promise<number>;
+  getTableCount: (table: string) => Promise<number>;
+  clearAllData: () => Promise<void>;
+  getSetting: (key: string) => Promise<string | null | undefined>;
+  setSetting: (key: string, value: string) => Promise<void>;
+  removeSetting: (key: string) => Promise<void>;
 } | null = null;
 
-async function getWasm() {
+/** Used by store modules (settings, etc.) that call core SQL APIs. */
+export async function getWasm() {
   if (wasm) return wasm;
   await getDb();
   const adapter = createDbAdapter();
@@ -25,6 +33,10 @@ async function getWasm() {
   const mod = await import(/* @vite-ignore */ `${base}wasm/me_ai_core.js`);
   await mod.default();
   mod.init(adapter);
+  await mod.createSchemaAndMigrations();
+  const itemsCount = Number(await mod.getItemsCount() ?? 0);
+  const { postSchemaInit } = await import("./store/db.js");
+  await postSchemaInit(itemsCount);
   wasm = mod;
   return wasm;
 }
@@ -72,4 +84,38 @@ export async function getItemsDateMax(): Promise<unknown> {
 export async function getEmailClassificationsCount(): Promise<unknown> {
   const w = await getWasm();
   return w.getEmailClassificationsCount();
+}
+
+/** OPFS stats (table counts from core; file size from db helper). */
+export async function getOpfsStats(): Promise<{
+  supported: boolean;
+  fileBytes: number;
+  tables: Record<string, number>;
+}> {
+  const { getOpfsFileBytes } = await import("./store/db.js");
+  const w = await getWasm();
+  const tables: Record<string, number> = {};
+  for (const tbl of [
+    "sm_rules", "sm_rule_triggers", "sm_rule_commands", "sm_events",
+    "items", "emailClassifications", "contacts", "settings",
+  ]) {
+    try {
+      tables[tbl] = Number(await w.getTableCount(tbl)) ?? 0;
+    } catch {
+      tables[tbl] = 0;
+    }
+  }
+  const fileBytes = await getOpfsFileBytes();
+  const supported =
+    typeof navigator !== "undefined" &&
+    typeof navigator.storage?.getDirectory === "function";
+  return { supported, fileBytes, tables };
+}
+
+/** Clear all user-data tables (in core) then checkpoint (in db). */
+export async function clearAllDataAndCheckpoint(): Promise<void> {
+  const w = await getWasm();
+  await w.clearAllData();
+  const { checkpoint } = await import("./store/db.js");
+  await checkpoint();
 }

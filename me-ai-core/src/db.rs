@@ -83,17 +83,18 @@ async fn call_adapter(method: &str, args: &[JsValue]) -> Result<JsValue, CoreErr
 
 // --- Serde-based param conversion (replaces large value_to_js match) ---
 
-#[derive(Serialize)]
+/// Single query/exec parameter for raw SQL (serializes to number/string/bool/null in JS).
+#[derive(Clone, Serialize)]
 #[serde(untagged)]
-enum ParamValue {
+pub enum ParamValue {
     Int(i64),
     Float(f64),
     Str(String),
     Bool(bool),
 }
 
-/// One parameter for the adapter (serializes to number/string/bool/null in JS).
-type Param = Option<ParamValue>;
+/// One parameter for the adapter (None = SQL NULL).
+pub type Param = Option<ParamValue>;
 
 fn value_to_param(v: &Value) -> Param {
     use sea_query::value::Value;
@@ -163,10 +164,24 @@ where
     Ok(rows)
 }
 
-/// Run exec(sql, params) via the JS adapter. Reserved for future INSERT/UPDATE/DELETE.
-#[allow(dead_code)]
+/// Run exec(sql, params) via the JS adapter.
 pub async fn run_exec(sql: &str, params: &JsValue) -> Result<(), CoreError> {
     let args = [JsValue::from_str(sql), params.clone()];
     call_adapter("exec", &args).await?;
     Ok(())
+}
+
+/// Run query with raw SQL and a list of params (for app-layer queries built in Rust).
+pub async fn run_query_raw<T>(sql: &str, params: Vec<Param>) -> Result<Vec<T>, CoreError>
+where
+    T: DeserializeOwned,
+{
+    let params_js = to_value(&params).map_err(|e| CoreError::Serialize(e.to_string()))?;
+    run_query::<T>(sql, &params_js).await
+}
+
+/// Run exec with raw SQL and a list of params (for app-layer DML/DDL built in Rust).
+pub async fn run_exec_raw(sql: &str, params: Vec<Param>) -> Result<(), CoreError> {
+    let params_js = to_value(&params).map_err(|e| CoreError::Serialize(e.to_string()))?;
+    run_exec(sql, &params_js).await
 }
