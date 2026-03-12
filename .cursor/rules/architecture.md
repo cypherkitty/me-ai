@@ -31,8 +31,7 @@ flowchart LR
 
     Gmail -->|"raw emails (DuckDB)"| LLM
     LLM --> Results
-    Results -->|"NOISE: auto-execute"| Pipelines
-    Results -->|"INFO: user triggers"| Pipelines
+    Results -->|"NOISE / INFO: auto-execute"| Pipelines
     Results -->|"CRITICAL: awaiting_user"| Approvals
 ```
 
@@ -53,7 +52,7 @@ Rather than having a fixed, hardcoded set of rules, the LLM analyzes incoming da
 An **event** is any discrete piece of data that enters the system (e.g., an email message arriving via Gmail sync).
 When an event arrives, the LLM dynamically extracts:
 - `type` — the event type label (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`, `"PAY_BILL"`)
-- `category` — the execution policy tier (`NOISE`, `INFO`, `CRITICAL`)
+- `category` — the execution policy tier (`NOISE`, `INFO`, `CRITICAL`). Only two execution modes: **auto** (NOISE + INFO) and **manual** (CRITICAL).
 
 Pipelines are **not** suggested by the LLM; they come from category defaults and optional per-type overrides (see n8n-architecture). The `suggestedActions` field is no longer produced (kept as an empty array for API compatibility).
 
@@ -105,13 +104,10 @@ sequenceDiagram
     Triage->>Pipeline: event type → pipeline
     Pipeline->>Chat: flat text + typed event/command cards
 
-    Note over Chat,Pipeline: NOISE → execute automatically
-    Chat->>Pipeline: execute (NOISE)
+    Note over Chat,Pipeline: NOISE / INFO → execute automatically (policy: auto)
+    Chat->>Pipeline: execute (NOISE / INFO)
 
-    Note over Chat,Pipeline: INFO → Execute action triggers run
-    Chat->>Pipeline: execute (INFO)
-
-    Note over Chat,Pipeline: CRITICAL → Review → approval card → confirm → execute
+    Note over Chat,Pipeline: CRITICAL → Review → approval card → confirm → execute (policy: manual)
     Chat->>Chat: approval card (steps preview)
     Chat->>Pipeline: execute (CRITICAL after confirm)
 ```

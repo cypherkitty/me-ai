@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import CommandCard from "./CommandCard.svelte";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import TaskCard from "./TaskCard.svelte";
@@ -13,20 +13,26 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { cn } from "$lib/utils.js";
 
-  let { msg, oncommand, onexecuted, ondismiss } = $props();
+  interface Props {
+    msg: { type?: string; event?: unknown; [key: string]: unknown };
+    oncommand?: (cmd: { id: string }) => void;
+    onexecuted?: () => void;
+    ondismiss?: () => void;
+  }
+  let { msg, oncommand, onexecuted, ondismiss }: Props = $props();
 
-  let expandedCategories = $state({});
-  let executionState = $state({});
-  let approvalPending = $state({});
-  let executionCards = $state({});
+  let expandedCategories = $state<Record<string, boolean>>({});
+  let executionState = $state<Record<string, unknown>>({});
+  let approvalPending = $state<Record<string, boolean>>({});
+  let executionCards = $state<Record<string, unknown>>({});
 
-  function shortSender(from) {
+  function shortSender(from: string) {
     if (!from) return "—";
     const name = from.replace(/<.*>/, "").trim();
     return name.length > 40 ? name.slice(0, 38) + "…" : name;
   }
 
-  function shortDate(ts) {
+  function shortDate(ts: number | null | undefined) {
     if (!ts) return "";
     try {
       return new Date(ts).toLocaleDateString("en-US", {
@@ -40,7 +46,7 @@
     }
   }
 
-  function applyProgressToCard(key, progress, title) {
+  function applyProgressToCard(key: string, progress: Record<string, unknown>, title: string) {
     const card = executionCards[key] ?? {
       type: "task-card",
       role: "assistant",

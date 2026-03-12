@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import {
     getRules, getEventTypes, getEventCategories, getActions, getExecutionPolicies,
@@ -15,15 +15,15 @@
   import { cn }        from "$lib/utils.js";
   import { Plus, Pencil, Trash2, X, ArrowUp, ArrowDown, ChevronRight, GitBranch } from "lucide-svelte";
 
-  let rules      = $state([]);
-  let eventTypes = $state([]);
-  let eventCats  = $state([]);
-  let actions    = $state([]);
-  let policies   = $state([]);
+  let rules      = $state<unknown[]>([]);
+  let eventTypes = $state<unknown[]>([]);
+  let eventCats  = $state<unknown[]>([]);
+  let actions    = $state<unknown[]>([]);
+  let policies   = $state<unknown[]>([]);
   let loading    = $state(true);
 
-  function clone(obj) {
-    return JSON.parse(JSON.stringify(obj, (_, v) => typeof v === "bigint" ? Number(v) : v));
+  function clone(obj: unknown): unknown {
+    return JSON.parse(JSON.stringify(obj, (_: string, v: unknown) => typeof v === "bigint" ? Number(v) : v));
   }
 
   let editing    = $state(null);
@@ -34,15 +34,13 @@
   let deleteOpen = $state(false);
 
   const POLICY_META = {
-    auto:       { label: "Auto",       desc: "Executes immediately" },
-    supervised: { label: "Supervised", desc: "Executes + notifies" },
-    manual:     { label: "Manual",     desc: "Awaits user approval" },
+    auto:   { label: "Auto",   desc: "Executes immediately" },
+    manual: { label: "Manual", desc: "Awaits user approval" },
   };
 
   const POLICY_VARIANT = {
-    auto:       "default",
-    supervised: "secondary",
-    manual:     "outline",
+    auto:   "default",
+    manual: "outline",
   };
 
   const TRIGGER_VARIANT = {

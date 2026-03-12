@@ -1,4 +1,4 @@
-<script module>
+<script lang="ts" module>
 	import { tv } from "tailwind-variants";
 
 	export const badgeVariants = tv({
@@ -20,9 +20,18 @@
 	});
 </script>
 
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: unknown;
+		href?: string;
+		class?: string;
+		variant?: "default" | "secondary" | "destructive" | "outline";
+		children?: Snippet;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		href = undefined,
@@ -30,7 +39,7 @@
 		variant = "default",
 		children = undefined,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <svelte:element

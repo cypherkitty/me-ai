@@ -1,14 +1,21 @@
-<script>
+<script lang="ts">
 	import { Progress as ProgressPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		max?: number;
+		value?: number | null;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
 		max = 100,
 		value,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <ProgressPrimitive.Root

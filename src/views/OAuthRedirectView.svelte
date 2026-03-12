@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   /**
    * OAuth redirect landing page — handles the implicit-grant redirect from Google.
    *
@@ -16,14 +16,12 @@
 
   const TOKEN_KEY = "me-ai:oauth-token";
 
-  /** @type {"processing" | "success" | "error" | "idle"} */
-  let phase       = $state("idle");
+  let phase       = $state<"processing" | "success" | "error" | "idle">("idle");
   let errorMsg    = $state("");
   let tokenTTLMin = $state(0);
   let savedOk     = $state(false);
 
-  /** @returns {Record<string, string>} */
-  function parseOAuthFragment() {
+  function parseOAuthFragment(): Record<string, string> {
     // The raw URL looks like:  .../index.html#oauth-redirect#access_token=...
     // location.hash gives us:  #oauth-redirect  (only the first fragment)
     // We need to parse the raw href for the second fragment.

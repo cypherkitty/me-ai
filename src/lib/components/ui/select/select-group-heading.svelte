@@ -1,12 +1,20 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { Select as SelectPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
+
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		children?: Snippet;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
 		children,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <SelectPrimitive.GroupHeading

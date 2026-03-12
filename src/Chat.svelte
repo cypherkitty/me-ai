@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount, tick } from "svelte";
   import { getSetting, setSetting } from "./lib/store/settings.js";
   import { MODELS } from "./lib/models.js";

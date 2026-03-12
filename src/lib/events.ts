@@ -49,7 +49,7 @@ export const EVENT_CATEGORIES: Record<
   { name: string; label: string; priority: number; color: string; policy: string }
 > = {
   noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
-  info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "supervised" },
+  info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "auto" },
   critical: { name: "critical", label: "Critical", priority: 3, color: "#ef4444", policy: "manual" },
 };
 
@@ -59,13 +59,12 @@ export function categoryToPolicy(category: string): string {
 
 export function categoryTierToPolicy(category: EventCategory): string {
   if (category === "NOISE") return "auto";
-  if (category === "INFO") return "supervised";
+  if (category === "INFO") return "auto";
   return "manual";
 }
 
 export function policyToCategoryTier(policy: string): EventCategory {
   if (policy === "auto") return "NOISE";
-  if (policy === "supervised") return "INFO";
   return "CRITICAL";
 }
 

@@ -1,11 +1,19 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { cn } from "$lib/utils.js";
+
+	interface Props {
+		ref?: HTMLTableCellElement | null;
+		class?: string;
+		children?: Snippet;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className = undefined,
 		children = undefined,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <th

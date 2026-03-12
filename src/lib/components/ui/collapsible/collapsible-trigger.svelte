@@ -1,7 +1,11 @@
-<script>
+<script lang="ts">
 	import { Collapsible as CollapsiblePrimitive } from "bits-ui";
 
-	let { ref = $bindable(null), ...restProps } = $props();
+	interface Props {
+		ref?: unknown;
+		[key: string]: unknown;
+	}
+	let { ref = $bindable(null), ...restProps }: Props = $props();
 </script>
 
 <CollapsiblePrimitive.Trigger bind:ref data-slot="collapsible-trigger" {...restProps} />

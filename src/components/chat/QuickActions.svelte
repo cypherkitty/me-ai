@@ -1,10 +1,16 @@
-<script>
+<script lang="ts">
+  interface Props {
+    hasScanData?: boolean;
+    engineReady?: boolean;
+    isScanning?: boolean;
+    onscan?: () => void;
+  }
   let {
     hasScanData = false,
     engineReady = false,
     isScanning = false,
     onscan,
-  } = $props();
+  }: Props = $props();
 
   let showScanChip = $derived(engineReady && !hasScanData && !isScanning);
   let visible = $derived(showScanChip || isScanning);

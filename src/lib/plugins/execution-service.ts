@@ -82,7 +82,7 @@ export async function executePipeline(
           category = "CRITICAL";
         } else if (policy === "auto") {
           category = "NOISE";
-        } else if (policy === "supervised") {
+        } else {
           category = "INFO";
         }
         actions = (rule.actions || []).map((a, i) => ({
@@ -102,7 +102,7 @@ export async function executePipeline(
             category = "CRITICAL";
           } else if (policy === "auto") {
             category = "NOISE";
-          } else if (policy === "supervised") {
+          } else {
             category = "INFO";
           }
           actions = normaliseActions(pipeline.actions);
@@ -209,7 +209,7 @@ export async function executePipelineBatch(
         category = "CRITICAL";
       } else if (rule.policy === "auto") {
         category = "NOISE";
-      } else if (rule.policy === "supervised") {
+      } else {
         category = "INFO";
       }
       actions = rule.actions || [];

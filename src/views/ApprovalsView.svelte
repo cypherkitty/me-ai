@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import {
     getPendingApprovals,
@@ -14,6 +14,7 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { cn } from "$lib/utils.js";
+  import type { EventCategory } from "$lib/types.js";
   import {
     Clock,
     CheckCircle,
@@ -24,11 +25,25 @@
     Loader,
   } from "lucide-svelte";
 
-  let events = $state([]);
+  interface ApprovalEvent {
+    id: string;
+    event_type?: string;
+    event_category?: unknown;
+    subject?: string;
+    from?: string;
+    source_name?: string;
+    [key: string]: unknown;
+  }
+  interface ExecStep {
+    id?: string;
+    label?: string;
+    status?: string;
+    [key: string]: unknown;
+  }
+  let events = $state<ApprovalEvent[]>([]);
   let loading = $state(true);
-  let selected = $state(null);
-  /** @type {Record<string, { running: boolean, steps: any[], success?: boolean, error?: string }>} */
-  let execState = $state({});
+  let selected = $state<ApprovalEvent | null>(null);
+  let execState = $state<Record<string, { running: boolean; steps: ExecStep[]; success?: boolean; error?: string }>>({});
 
   async function load() {
     loading = true;
@@ -45,7 +60,7 @@
   onMount(load);
 
   /** Execute the selected event's pipeline right here in the dashboard */
-  async function execute(evt) {
+  async function execute(evt: { id: string; [key: string]: unknown }) {
     const id = evt.id;
     // Look up the full email data needed by executePipeline
     let emailData;
@@ -59,20 +74,20 @@
     execState[id] = { running: true, steps: [] };
 
     const event = {
-      type: evt.event_type || "UNKNOWN",
-      source: emailData.sourceType || "gmail",
+      type: (evt.event_type as string) || "UNKNOWN",
+      source: (emailData.sourceType as string) || "gmail",
       data: {
         id,
         emailId: id,
-        subject: emailData.subject ?? evt.subject,
-        from: emailData.from ?? evt.from ?? evt.source_name,
+        subject: (emailData.subject ?? evt.subject) as string | undefined,
+        from: (emailData.from ?? evt.from ?? evt.source_name) as string | undefined,
         ...emailData,
       },
-      metadata: { category: evt.event_category },
+      metadata: { category: evt.event_category as EventCategory | undefined },
     };
 
     // Use the same category pipeline as Pipelines view (e.g. Important → Star + Mark as Important)
-    const categoryName = (evt.event_category || "").toLowerCase().trim();
+    const categoryName = String(evt.event_category ?? "").toLowerCase().trim();
     const pipelines = await getCategoryPipelines();
     const cat = pipelines.find(
       (c) => c.category?.toLowerCase().trim() === categoryName
@@ -86,11 +101,14 @@
         if (progress.phase === "pipeline_loaded") {
           execState[id] = {
             ...st,
-            steps: progress.actions.map((a) => ({
-              label: a.name ?? a.commandId,
-              commandId: a.commandId,
-              status: "pending",
-            })),
+            steps: (progress.actions ?? []).map((a: unknown) => {
+              const act = a as { name?: string; commandId?: string };
+              return {
+                label: act.name ?? act.commandId,
+                commandId: act.commandId,
+                status: "pending",
+              };
+            }),
           };
         } else if (progress.phase === "action_start") {
           execState[id] = {
@@ -102,7 +120,8 @@
             ),
           };
         } else if (progress.phase === "action_complete") {
-          const ok = progress.result?.success !== false;
+          const result = progress.result as { success?: boolean; message?: string } | undefined;
+          const ok = result?.success !== false;
           execState[id] = {
             ...st,
             steps: st.steps.map((s) =>
@@ -110,7 +129,7 @@
                 ? {
                     ...s,
                     status: ok ? "done" : "error",
-                    message: progress.result?.message,
+                    message: result?.message,
                   }
                 : s,
             ),
@@ -142,7 +161,7 @@
     }
   }
 
-  async function reject(evt) {
+  async function reject(evt: ApprovalEvent) {
     try {
       await rejectClassification(evt.id);
       events = events.filter((e) => e.id !== evt.id);
@@ -152,10 +171,10 @@
     }
   }
 
-  function formatTime(ts) {
+  function formatTime(ts: number | null | undefined) {
     if (!ts) return "";
     const d = new Date(Number(ts));
-    const diffM = Math.round((Date.now() - d) / 60000);
+    const diffM = Math.round((Date.now() - d.getTime()) / 60000);
     if (diffM < 60) return `${diffM}m ago`;
     const diffH = Math.round(diffM / 60);
     if (diffH < 24) return `${diffH}h ago`;

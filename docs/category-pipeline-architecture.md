@@ -38,9 +38,8 @@ A coarse-grained bucket that carries a **default pipeline** and an **execution p
 | Category | Default Pipeline | Policy | Description |
 |----------|-----------------|--------|-------------|
 | 🗑 `noise` | `gmail:trash` | `auto` | Spam, mass marketing, social digests. Auto-deleted. |
-| 📋 `informational` | `gmail:mark_read` → `gmail:archive` | `supervised` | Newsletters, shipping updates, confirmations. Silently archived. |
-| ⭐ `important` | _(none)_ | `manual` | Personal messages, invoices, account changes. User must act. |
-| 🚨 `urgent` | _(none)_ | `manual` | Security alerts, payment failures, deadlines. Immediate action needed. |
+| 📋 `info` | `gmail:mark_read` → `gmail:archive` | `auto` | Newsletters, shipping updates, confirmations. Silently archived. |
+| ⭐ `critical` | _(none)_ | `manual` | Personal messages, invoices, security alerts. User must act. |
 
 ### Execution Policy
 Controls whether the agent acts autonomously or defers to the user.
@@ -48,7 +47,6 @@ Controls whether the agent acts autonomously or defers to the user.
 | Policy | Behavior |
 |--------|----------|
 | `auto` | Agent executes immediately, no user involvement |
-| `supervised` | Agent executes, then notifies user |
 | `manual` | Agent waits for explicit user approval |
 
 ### Pipeline Override
@@ -80,9 +78,8 @@ An optional per-event-type pipeline that **overrides** the category's default. U
        │
        ▼
 5. Execution policy from sm_event_categories:
-   - auto       → dispatch actions immediately
-   - supervised → dispatch actions, then notify user
-   - manual     → wait for user approval, then dispatch
+   - auto   → dispatch actions immediately
+   - manual → wait for user approval, then dispatch
        │
        ▼
 6. Actions dispatched via the Plugin that handles the source
@@ -98,10 +95,10 @@ An optional per-event-type pipeline that **overrides** the category's default. U
 ### sm_event_categories — Category definitions with policies
 ```sql
 CREATE TABLE sm_event_categories (
-  name     VARCHAR PRIMARY KEY,   -- 'noise', 'informational', 'important', 'urgent'
+  name     VARCHAR PRIMARY KEY,   -- 'noise', 'info', 'critical'
   label    VARCHAR,
-  priority INTEGER,               -- 1 (lowest) to 4 (highest)
-  policy   VARCHAR DEFAULT 'manual' -- 'auto' | 'supervised' | 'manual'
+  priority INTEGER,               -- 1 (lowest) to 3 (highest)
+  policy   VARCHAR DEFAULT 'manual' -- 'auto' | 'manual'
 );
 ```
 
@@ -110,7 +107,7 @@ CREATE TABLE sm_event_categories (
 CREATE TABLE sm_event_types (
   name          VARCHAR PRIMARY KEY,   -- 'PROMOTION', 'INVOICE', etc.
   label         VARCHAR,
-  category_name VARCHAR DEFAULT 'important',  -- FK to sm_event_categories
+  category_name VARCHAR DEFAULT 'critical',   -- FK to sm_event_categories
   auto_created  BOOLEAN DEFAULT false          -- true = created by AI
 );
 ```
@@ -178,7 +175,7 @@ The PipelinesView shows **4 category cards** (not individual rules):
 
 Each card displays:
 - Category icon, label, event type count
-- Execution policy selector (auto / supervised / manual)
+- Execution policy selector (auto / manual)
 - Default pipeline (editable: add/remove actions)
 - Expandable event types list (with drag-to-reassign)
 

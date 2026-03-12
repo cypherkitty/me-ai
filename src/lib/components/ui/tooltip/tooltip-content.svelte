@@ -1,7 +1,19 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { Tooltip as TooltipPrimitive } from "bits-ui";
 	import { cn } from "$lib/utils.js";
 	import TooltipPortal from "./tooltip-portal.svelte";
+
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		sideOffset?: number;
+		side?: "top" | "bottom" | "left" | "right";
+		children?: Snippet;
+		arrowClasses?: string;
+		portalProps?: Record<string, unknown>;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
@@ -11,7 +23,7 @@
 		arrowClasses,
 		portalProps,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <TooltipPortal {...portalProps}>

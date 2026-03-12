@@ -1,9 +1,14 @@
-<script>
+<script lang="ts">
+  import type { StoredItem } from "$lib/types.js";
   import { onMount } from "svelte";
   import { formatDate, extractName, initial } from "../../lib/email-utils.js";
   import { mountLog } from "../../lib/debug.js";
 
-  let { messages = [], onselect } = $props();
+  interface Props {
+    messages?: StoredItem[];
+    onselect?: (msg: StoredItem) => void;
+  }
+  let { messages = [], onselect }: Props = $props();
 
   onMount(() => mountLog("MessageList"));
 </script>

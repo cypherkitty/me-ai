@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { MODELS } from "./lib/models.js";

@@ -1,10 +1,18 @@
-<script>
+<script lang="ts">
   import { actionColor } from "../../lib/triage.js";
   import { getActionsForEvent, getCategoryForEventType } from "../../lib/events.js";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
 
+  interface Props {
+    pendingData?: unknown;
+    onmarkacted?: (id: string) => void;
+    ondismiss?: () => void;
+    onremove?: (id: string) => void;
+    onclearcategory?: (category: string) => void;
+    onaskai?: () => void;
+  }
   let {
     pendingData = null,
     onmarkacted,
@@ -12,14 +20,14 @@
     onremove,
     onclearcategory,
     onaskai,
-  } = $props();
+  }: Props = $props();
 
-  let activeCategory = $state(null);
-  let confirmClear = $state(null);
-  let activePipeline = $state([]);
-  let activeTier = $state(null);
+  let activeCategory = $state<string | null>(null);
+  let confirmClear = $state<string | null>(null);
+  let activePipeline = $state<unknown[]>([]);
+  let activeTier = $state<unknown>(null);
 
-  export function toggleCategory(action) {
+  export function toggleCategory(action: string) {
     activeCategory = activeCategory === action ? null : action;
     confirmClear = null;
   }
@@ -34,7 +42,7 @@
     }
   });
 
-  function fmt(str) {
+  function fmt(str: string) {
     return str.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
   }
 

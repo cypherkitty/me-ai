@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { Button }  from "$lib/components/ui/button/index.js";
   import { Badge }   from "$lib/components/ui/badge/index.js";
@@ -17,11 +17,9 @@
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
     || "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
 
-  /** @type {"idle" | "loading" | "success" | "error"} */
-  let status      = $state("idle");
+  let status      = $state<"idle" | "loading" | "success" | "error">("idle");
   let errorMsg    = $state("");
-  /** @type {{ emailAddress?: string } | null} */
-  let profile     = $state(null);
+  let profile     = $state<{ emailAddress?: string } | null>(null);
   let tokenTTLMin = $state(0);
   let initialized = $state(false);
 

@@ -1,9 +1,19 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from "svelte";
 	import { Dialog as DialogPrimitive } from "bits-ui";
 	import DialogPortal from "./dialog-portal.svelte";
 	import XIcon from "@lucide/svelte/icons/x";
 	import * as Dialog from "./index.js";
 	import { cn } from "$lib/utils.js";
+
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		portalProps?: Record<string, unknown>;
+		children?: Snippet;
+		showCloseButton?: boolean;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className = undefined,
@@ -11,7 +21,7 @@
 		children = undefined,
 		showCloseButton = true,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <DialogPortal {...portalProps}>

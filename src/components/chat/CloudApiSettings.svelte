@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { API_MODELS } from "../../lib/api-models.js";
   import { getSetting, setSetting } from "../../lib/store/settings.js";
@@ -9,11 +9,16 @@
   import { Tabs, TabsList, TabsTrigger, TabsContent } from "$lib/components/ui/tabs/index.js";
   import { cn } from "$lib/utils.js";
 
+  interface Props {
+    selectedModel?: string;
+    error?: string | null;
+    onload?: () => void;
+  }
   let {
     selectedModel = $bindable(),
     error = $bindable(null),
     onload
-  } = $props();
+  }: Props = $props();
 
   let activeProvider = $state("openai");
   let apiKeys = $state({ openai: "", anthropic: "", google: "", xai: "" });

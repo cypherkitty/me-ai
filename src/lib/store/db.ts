@@ -488,6 +488,7 @@ async function _createSchema(conn: DuckDBConnection): Promise<void> {
 
   await _seedSignalMap(conn);
   await _migrateEventCategoriesTo3Tier(conn);
+  await _migrateRemoveSupervisedPolicy(conn);
 
   await conn.query(`
     DELETE FROM sm_rule_commands WHERE plugin_id IS NULL AND action_id IS NULL
@@ -590,9 +591,8 @@ async function _seedSignalMap(conn: DuckDBConnection): Promise<void> {
 
   await conn.query(`
     INSERT INTO sm_execution_policies VALUES
-      ('auto',       'Automatic',  'Agent executes without human input'),
-      ('supervised', 'Supervised', 'Executes then notifies user'),
-      ('manual',     'Manual',     'Waits for explicit user approval');
+      ('auto',   'Automatic', 'Agent executes without human input'),
+      ('manual', 'Manual',    'Waits for explicit user approval');
 
     INSERT INTO sm_event_types (name, label, category_name, auto_created) VALUES
       ('ad',                   'Advertisement',         'noise',    false),
@@ -612,7 +612,7 @@ async function _seedSignalMap(conn: DuckDBConnection): Promise<void> {
 
     INSERT INTO sm_event_categories VALUES
       ('noise',    'Noise',    1, 'auto'),
-      ('info',     'Info',     2, 'supervised'),
+      ('info',     'Info',     2, 'auto'),
       ('critical', 'Critical', 3, 'manual');
 
     INSERT INTO sm_sources VALUES
@@ -694,11 +694,26 @@ async function _migrateEventCategoriesTo3Tier(conn: DuckDBConnection): Promise<v
     `);
     await conn.query(`
       DELETE FROM sm_event_categories WHERE name IN ('informational', 'important', 'urgent');
-      INSERT INTO sm_event_categories VALUES ('info', 'Info', 2, 'supervised'), ('critical', 'Critical', 3, 'manual');
+      INSERT INTO sm_event_categories VALUES ('info', 'Info', 2, 'auto'), ('critical', 'Critical', 3, 'manual');
     `);
   } catch (e) {
     console.warn(
       "[db] 4-tier→3-tier migration skipped or failed:",
+      (e as Error)?.message ?? e
+    );
+  }
+}
+
+async function _migrateRemoveSupervisedPolicy(conn: DuckDBConnection): Promise<void> {
+  try {
+    await conn.query(`
+      UPDATE sm_event_categories SET policy = 'auto' WHERE policy = 'supervised';
+      UPDATE sm_rules SET policy_name = 'auto' WHERE policy_name = 'supervised';
+      DELETE FROM sm_execution_policies WHERE name = 'supervised';
+    `);
+  } catch (e) {
+    console.warn(
+      "[db] remove-supervised migration skipped or failed:",
       (e as Error)?.message ?? e
     );
   }

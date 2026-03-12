@@ -1,12 +1,17 @@
-<script>
+<script lang="ts">
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import { cn } from "$lib/utils.js";
 
+	interface Props {
+		ref?: unknown;
+		class?: string;
+		[key: string]: unknown;
+	}
 	let {
 		ref = $bindable(null),
 		class: className,
 		...restProps
-	} = $props();
+	}: Props = $props();
 </script>
 
 <Separator

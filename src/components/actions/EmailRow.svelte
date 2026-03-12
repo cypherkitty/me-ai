@@ -1,6 +1,19 @@
-<script>
+<script lang="ts">
+  import type { StoredItem } from "$lib/types.js";
   import { tagColor } from "../../lib/triage.js";
 
+  interface EmailItem extends StoredItem {
+    status?: string;
+  }
+  interface Props {
+    item: EmailItem;
+    actionColor?: string;
+    dimmed?: boolean;
+    onexecute?: () => void;
+    onmarkacted?: (id: string) => void;
+    ondismiss?: () => void;
+    onremove?: () => void;
+  }
   let {
     item,
     actionColor = "#666",
@@ -9,9 +22,9 @@
     onmarkacted,
     ondismiss,
     onremove,
-  } = $props();
+  }: Props = $props();
 
-  function formatDate(timestamp) {
+  function formatDate(timestamp: number | null | undefined) {
     if (!timestamp) return "";
     try {
       return new Date(timestamp).toLocaleDateString("en-US", {

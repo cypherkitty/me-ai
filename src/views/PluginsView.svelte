@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { getPlugins, setPluginEnabled } from "../lib/rules.js";
   import { Badge }      from "$lib/components/ui/badge/index.js";
@@ -7,7 +7,12 @@
   import { cn }         from "$lib/utils.js";
   import { Info, Puzzle } from "lucide-svelte";
 
-  let plugins = $state([]);
+  interface PluginItem {
+    name: string;
+    enabled?: boolean;
+    [key: string]: unknown;
+  }
+  let plugins = $state<PluginItem[]>([]);
   let loading = $state(true);
 
   const PLUGIN_META = {
@@ -28,7 +33,7 @@
 
   onMount(load);
 
-  async function togglePlugin(plugin) {
+  async function togglePlugin(plugin: PluginItem) {
     if (plugin.name === "ai_classifier") return;
     await setPluginEnabled(plugin.name, !plugin.enabled);
     plugin.enabled = !plugin.enabled;

@@ -1,29 +1,52 @@
-<script>
+<script lang="ts">
+  import type { EventCategory } from "$lib/types.js";
   import { EVENT_CATEGORY_TIERS, DEFAULT_CATEGORY } from "../../lib/events.js";
   import { getAvailableActions } from "../../lib/plugins/execution-service.js";
 
+  interface CommandShape {
+    commandId?: string;
+    pluginId?: string;
+    name?: string;
+    description?: string;
+    icon?: string;
+    [key: string]: unknown;
+  }
+  interface Props {
+    eventType?: string;
+    eventTypes?: string[] | null;
+    category?: string;
+    commands?: CommandShape[];
+    onExecute?: (opts: { emailId: string; actionId: string; pluginId: string }) => void;
+    executionState?: Record<string, unknown> | null;
+    policy?: string;
+  }
   let {
     eventType,
     eventTypes = null,
     category,
     commands = [],
-    onExecute = undefined,
-    executionState = null,
+    onExecute: _onExecute = undefined,
+    executionState: _executionState = null,
     policy = "auto",
-  } = $props();
+  }: Props = $props();
 
   let categoryDef = $derived(
     category
-      ? EVENT_CATEGORY_TIERS[category] || EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY]
+      ? EVENT_CATEGORY_TIERS[category as EventCategory] || EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY]
       : EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY],
   );
 
-  const PLUGIN_ACTIONS = (() => {
-    const gmail = getAvailableActions("gmail");
+  interface ActionHandler {
+    actionId: string;
+    name?: string;
+    description?: string;
+  }
+  const PLUGIN_ACTIONS: { pluginId: string; pluginName: string; actions: ActionHandler[] }[] = (() => {
+    const gmail = getAvailableActions("gmail") as ActionHandler[];
     return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
   })();
 
-  const ACTION_ICONS = {
+  const ACTION_ICONS: Record<string, string> = {
     mark_read: "✓",
     mark_unread: "○",
     star: "★",
@@ -39,7 +62,7 @@
   };
 
   let enrichedCommands = $derived.by(() => {
-    return commands.map((c) => {
+    return commands.map((c: CommandShape) => {
       const clone = { ...c };
       if (
         clone.commandId &&
@@ -88,7 +111,6 @@
       <span
         class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-widest bg-secondary"
         class:text-green-400={policy === "auto"}
-        class:text-yellow-400={policy === "supervised"}
         class:text-red-400={policy === "manual"}
       >
         {policy}

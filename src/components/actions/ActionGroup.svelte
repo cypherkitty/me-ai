@@ -1,4 +1,5 @@
-<script>
+<script lang="ts">
+  import type { StoredItem } from "$lib/types.js";
   import EmailRow from "./EmailRow.svelte";
   import { cn } from "$lib/utils.js";
   import { ChevronDown } from "lucide-svelte";
@@ -8,6 +9,22 @@
     getCategoryForEventType,
   } from "../../lib/events.js";
 
+  interface ItemWithStatus extends StoredItem {
+    status?: string;
+  }
+  interface Props {
+    action: string;
+    color?: string;
+    count?: number;
+    items?: ItemWithStatus[];
+    expanded?: boolean;
+    ontoggle?: () => void;
+    onexecute?: () => void;
+    onmarkacted?: (id: string) => void;
+    ondismiss?: () => void;
+    onremove?: () => void;
+    onclearcategory?: () => void;
+  }
   let {
     action,
     color = "#888",
@@ -20,14 +37,14 @@
     ondismiss,
     onremove,
     onclearcategory,
-  } = $props();
+  }: Props = $props();
 
-  let pendingItems = $derived(items.filter((i) => i.status === "pending"));
-  let actedItems = $derived(items.filter((i) => i.status !== "pending"));
+  let pendingItems = $derived(items.filter((i: ItemWithStatus) => i.status === "pending"));
+  let actedItems = $derived(items.filter((i: ItemWithStatus) => i.status !== "pending"));
   let showClearConfirm = $state(false);
 
-  let activePipeline = $state([]);
-  let activeTier = $state(null);
+  let activePipeline = $state<unknown[]>([]);
+  let activeTier = $state<unknown>(null);
 
   $effect(() => {
     if (expanded && action) {
@@ -36,7 +53,7 @@
     }
   });
 
-  function formatLabel(str) {
+  function formatLabel(str: string) {
     return str
       .split("_")
       .map((w) => w.charAt(0) + w.slice(1).toLowerCase())

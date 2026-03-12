@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
   import { marked } from "marked";
   import DOMPurify from "dompurify";
   import { onMount } from "svelte";
@@ -9,6 +9,21 @@
   import { ChevronRight } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
 
+  interface ChatMessage {
+    role: string;
+    content?: string;
+    model?: string;
+    [key: string]: unknown;
+  }
+  interface Props {
+    msg: ChatMessage;
+    isLast?: boolean;
+    isRunning?: boolean;
+    generationPhase?: string | null;
+    numTokens?: number | null;
+    backend?: string | null;
+    showModelName?: boolean;
+  }
   let {
     msg,
     isLast = false,
@@ -17,7 +32,7 @@
     numTokens = null,
     backend = null,
     showModelName = false,
-  } = $props();
+  }: Props = $props();
 
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
 

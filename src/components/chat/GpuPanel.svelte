@@ -1,9 +1,19 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { formatBytes } from "../../lib/format.js";
   import { mountLog } from "../../lib/debug.js";
 
-  let { gpuInfo } = $props();
+  interface GpuInfo {
+    vendor?: string;
+    architecture?: string;
+    device?: string;
+    features?: string[];
+    limits?: { maxBufferSize?: number; maxComputeInvocationsPerWorkgroup?: number; maxComputeWorkgroupStorageSize?: number };
+  }
+  interface Props {
+    gpuInfo: GpuInfo;
+  }
+  let { gpuInfo }: Props = $props();
 
   onMount(() => mountLog("GpuPanel"));
 
