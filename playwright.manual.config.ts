@@ -1,6 +1,6 @@
 import { defineConfig } from "@playwright/test";
 
-/** Config for manual verification - no webServer, assumes dev server is already running */
+/** Config for manual verification — no webServer, assumes dev server is already running */
 export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
