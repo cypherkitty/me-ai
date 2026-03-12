@@ -4,19 +4,15 @@
  */
 
 import { toJson, fromJson } from "./db.js";
-import { getWasm } from "../core.js";
-
-async function wasm() {
-  return getWasm();
-}
+import { getCore } from "../core.js";
 
 /**
  * Get a setting value by key.
  */
 export async function getSetting<T>(key: string, fallback: T | null = null): Promise<T | null> {
   try {
-    const w = await wasm();
-    const raw = await w.getSetting(key);
+    const core = await getCore();
+    const raw = await core.getSetting(key);
     if (raw == null || raw === undefined) return fallback;
     return fromJson(String(raw), fallback as T) as T | null;
   } catch {
@@ -29,8 +25,8 @@ export async function getSetting<T>(key: string, fallback: T | null = null): Pro
  */
 export async function setSetting(key: string, value: unknown): Promise<void> {
   try {
-    const w = await wasm();
-    await w.setSetting(key, toJson(value));
+    const core = await getCore();
+    await core.setSetting(key, toJson(value));
   } catch (e) {
     console.error(`[settings] setSetting("${key}") failed:`, e);
   }
@@ -41,8 +37,8 @@ export async function setSetting(key: string, value: unknown): Promise<void> {
  */
 export async function removeSetting(key: string): Promise<void> {
   try {
-    const w = await wasm();
-    await w.removeSetting(key);
+    const core = await getCore();
+    await core.removeSetting(key);
   } catch {
     /* ignore */
   }
@@ -53,9 +49,9 @@ export async function removeSetting(key: string): Promise<void> {
  */
 export async function getSettings(keys: string[]): Promise<Record<string, unknown>> {
   if (keys.length === 0) return {};
-  const w = await wasm();
+  const core = await getCore();
   const entries = await Promise.all(
-    keys.map(async (k) => [k, fromJson<unknown>(String(await w.getSetting(k) ?? ""), null)] as const)
+    keys.map(async (k) => [k, fromJson<unknown>(String(await core.getSetting(k) ?? ""), null)] as const)
   );
   return Object.fromEntries(entries);
 }

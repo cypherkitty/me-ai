@@ -185,3 +185,12 @@ pub async fn run_exec_raw(sql: &str, params: Vec<Param>) -> Result<(), CoreError
     let params_js = to_value(&params).map_err(|e| CoreError::Serialize(e.to_string()))?;
     run_exec(sql, &params_js).await
 }
+
+/// Run multiple exec statements in sequence (e.g. bulk inserts). No transaction;
+/// each statement is executed via the adapter; checkpoint is handled per-call in JS.
+pub async fn run_exec_batch(statements: &[(String, Vec<Param>)]) -> Result<(), CoreError> {
+    for (sql, params) in statements {
+        run_exec_raw(sql, params.clone()).await?;
+    }
+    Ok(())
+}

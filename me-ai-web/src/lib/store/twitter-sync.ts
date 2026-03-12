@@ -11,7 +11,7 @@
  * Stores syncState in the same `syncState` table.
  */
 
-import { query, exec } from "./db.js";
+import { getCore } from "../core.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
 import { idbPutItems } from "./idb.js";
 import type { SyncState, SyncProgress } from "$lib/types";
@@ -101,8 +101,9 @@ export async function getTwitterSyncStatus(): Promise<TwitterSyncStatus> {
 }
 
 export async function clearTwitterData(): Promise<void> {
-  await exec(`DELETE FROM items WHERE sourceType = 'twitter'`);
-  await exec(`DELETE FROM syncState WHERE sourceType = 'twitter'`);
+  const w = await getCore();
+  await w.deleteItemsBySource("twitter");
+  await w.deleteSyncState("twitter");
   try {
     const { idbGetAllItems, idbDeleteItems } = await import("./idb.js");
     const all = await idbGetAllItems();
@@ -410,38 +411,32 @@ async function bulkUpsertItems(items: IdbItemRow[]): Promise<void> {
     /* ignore */
   }
 
-  for (const item of items) {
-    try {
-      await exec(
-        `INSERT INTO items (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
-          snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references", raw, syncedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO NOTHING`,
-        [
-          item.id,
-          item.sourceType,
-          item.sourceId,
-          item.threadKey,
-          item.type,
-          item.from,
-          item.to,
-          item.cc,
-          item.subject,
-          item.snippet,
-          item.body,
-          item.htmlBody,
-          item.date,
-          item.labels,
-          item.messageId,
-          item.inReplyTo,
-          item.references,
-          item.raw,
-          item.syncedAt,
-        ]
-      );
-    } catch {
-      /* ignore */
-    }
+  const rows = items.map((item) => ({
+    id: item.id,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId ?? null,
+    threadKey: item.threadKey ?? null,
+    type: item.type ?? null,
+    from: item.from ?? null,
+    to: item.to ?? null,
+    cc: item.cc ?? null,
+    subject: item.subject ?? null,
+    snippet: item.snippet ?? null,
+    body: item.body ?? null,
+    htmlBody: item.htmlBody ?? null,
+    date: item.date ?? null,
+    labels: typeof item.labels === "string" ? item.labels : JSON.stringify(item.labels ?? []),
+    messageId: item.messageId ?? null,
+    inReplyTo: item.inReplyTo ?? null,
+    references: item.references ?? null,
+    raw: typeof item.raw === "string" ? item.raw : JSON.stringify(item.raw ?? null),
+    syncedAt: item.syncedAt ?? null,
+  }));
+  try {
+    const w = await getCore();
+    await w.insertItemsBatch(rows);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -449,19 +444,16 @@ async function bulkUpsertItems(items: IdbItemRow[]): Promise<void> {
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
   try {
-    const rows = await query(
-      `SELECT sourceType, historyId, lastSyncAt, totalItems, oldestPageToken
-       FROM syncState WHERE sourceType = ?`,
-      [sourceType]
-    );
-    if (!rows.length) return null;
-    const r = rows[0] as Record<string, unknown>;
+    const w = await getCore();
+    const r = await w.getSyncState(sourceType);
+    if (r == null) return null;
+    const row = r as Record<string, unknown>;
     return {
-      sourceType: r.sourceType as string,
-      historyId: r.historyId as string,
-      lastSyncAt: Number(r.lastSyncAt),
-      totalItems: Number(r.totalItems),
-      oldestPageToken: (r.oldestPageToken as string) || "",
+      sourceType: row.sourceType as string,
+      historyId: row.historyId as string,
+      lastSyncAt: Number(row.lastSyncAt),
+      totalItems: Number(row.totalItems),
+      oldestPageToken: (row.oldestPageToken as string) || "",
     };
   } catch {
     return null;
@@ -475,16 +467,8 @@ async function upsertSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await exec(
-    `INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (sourceType) DO UPDATE SET
-       historyId = excluded.historyId,
-       lastSyncAt = excluded.lastSyncAt,
-       totalItems = excluded.totalItems,
-       oldestPageToken = excluded.oldestPageToken`,
-    [sourceType, historyId, lastSyncAt, totalItems, oldestPageToken || ""]
-  );
+  const w = await getCore();
+  await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
 
   try {
     const { idbPutSyncState } = await import("./idb.js");
@@ -502,10 +486,8 @@ async function upsertSyncState({
 
 async function getNewestTweetId(): Promise<string | null> {
   try {
-    const rows = await query(
-      `SELECT sourceId FROM items WHERE sourceType = 'twitter' ORDER BY date DESC LIMIT 1`
-    );
-    return (rows[0]?.sourceId as string) ?? null;
+    const w = await getCore();
+    return (await w.getNewestSourceId("twitter")) ?? null;
   } catch {
     return null;
   }

@@ -7,7 +7,7 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const ONNX_DIST = path.resolve("node_modules/onnxruntime-web/dist");
 const CORE_PKG = path.resolve("node_modules/me-ai-core");
-/** Fallback when me-ai-core is not installed (e.g. dev before task install) */
+/** Fallback when me-ai-core is not installed (e.g. dev before task install). Blueprint: duckdb-wasm-shell serves pkg JS + WASM unbundled. */
 const CORE_PKG_FALLBACK = path.resolve("..", "me-ai-core", "pkg");
 
 export default defineConfig({
