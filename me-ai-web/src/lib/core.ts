@@ -1,18 +1,18 @@
 /**
- * me-ai-core (Rust WASM). Blueprint: one init, then use module directly (shell-style).
+ * me-ai-core (Rust WASM). Persistence is IndexedDB via Rexie; no JS DB adapter.
  *
- * - initCore(): load WASM (default), set adapter (init), run schema + postSchemaInit. Call once at app bootstrap.
+ * - initCore(): load WASM, init(), create schema + seed. Call once at app bootstrap.
  * - getCore(): returns the core module (lazy-inits if needed). Use core.getEventTypes(), etc.
- * - Convenience wrappers (getEventTypes, getOpfsStats, …) call getCore() internally.
+ * - Convenience wrappers (getEventTypes, getStorageStats, …) call getCore() internally.
  */
 
 import type { CoreModule } from "./core-types.js";
 
 export type { CoreModule };
-import { getDb } from "./store/db.js";
-import { createDbAdapter } from "./db-adapter.js";
 
 let core: CoreModule | null = null;
+/** Single init promise so concurrent getCore()/initCore() callers all await the same init. */
+let initPromise: Promise<CoreModule> | null = null;
 
 /** Base URL for WASM assets (same as Vite middleware and static copy). */
 function wasmBase(): string {
@@ -29,26 +29,23 @@ export async function loadCoreModule(): Promise<CoreModule> {
 }
 
 /**
- * Initialize the core (shell-style): load WASM, set DB adapter, create schema, rehydrate from IDB.
- * Call once at app startup. Returns the core module for direct use (e.g. core.getEventTypes()).
+ * Initialize the core: load WASM, init(), create schema + seed. No adapter; Rexie uses IndexedDB.
+ * Call once at app startup. Returns the core module for direct use.
  */
 export async function initCore(): Promise<CoreModule> {
   if (core) return core;
+  if (initPromise) return initPromise;
 
-  await getDb();
-  const adapter = createDbAdapter();
-  const mod = await loadCoreModule();
+  initPromise = (async (): Promise<CoreModule> => {
+    const mod = await loadCoreModule();
+    await mod.default();
+    mod.init();
+    await mod.createSchemaAndMigrations();
+    core = mod;
+    return mod;
+  })();
 
-  await mod.default();
-  mod.init(adapter);
-  await mod.createSchemaAndMigrations();
-
-  const itemsCount = Number((await mod.getItemsCount()) ?? 0);
-  const { postSchemaInit } = await import("./store/db.js");
-  await postSchemaInit(itemsCount);
-
-  core = mod;
-  return core;
+  return initPromise;
 }
 
 /**
@@ -106,12 +103,11 @@ export async function getEmailClassificationsCount(): Promise<unknown> {
   return w.getEmailClassificationsCount();
 }
 
-export async function getOpfsStats(): Promise<{
+export async function getStorageStats(): Promise<{
   supported: boolean;
-  fileBytes: number;
+  usageBytes: number;
   tables: Record<string, number>;
 }> {
-  const { getOpfsFileBytes } = await import("./store/db.js");
   const w = await getCore();
   const tables: Record<string, number> = {};
   for (const tbl of [
@@ -124,16 +120,30 @@ export async function getOpfsStats(): Promise<{
       tables[tbl] = 0;
     }
   }
-  const fileBytes = await getOpfsFileBytes();
-  const supported =
-    typeof navigator !== "undefined" &&
-    typeof navigator.storage?.getDirectory === "function";
-  return { supported, fileBytes, tables };
+  let usageBytes = 0;
+  const supported = typeof navigator !== "undefined" && "storage" in navigator && "estimate" in navigator.storage;
+  if (supported) {
+    try {
+      const est = await navigator.storage.estimate();
+      usageBytes = est.usage ?? 0;
+    } catch {
+      /* ignore */
+    }
+  }
+  return { supported, usageBytes, tables };
+}
+
+/** @deprecated Use getStorageStats. */
+export async function getOpfsStats(): Promise<{
+  supported: boolean;
+  fileBytes: number;
+  tables: Record<string, number>;
+}> {
+  const s = await getStorageStats();
+  return { supported: s.supported, fileBytes: s.usageBytes, tables: s.tables };
 }
 
 export async function clearAllDataAndCheckpoint(): Promise<void> {
   const w = await getCore();
   await w.clearAllData();
-  const { checkpoint } = await import("./store/db.js");
-  await checkpoint();
 }

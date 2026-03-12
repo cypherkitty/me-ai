@@ -1,14 +1,14 @@
-//! Items, syncState, contacts: CRUD and batch operations.
-//! All SQL is built here; execution via JS adapter.
+//! Items, syncState, contacts: CRUD and batch operations via Rexie.
 
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::from_value;
 
 use crate::db::{
-    run_exec_batch, run_exec_raw, run_query_raw, int_param, opt_str_param, str_param, CountRow,
-    Param, ParamValue,
+    index_count, index_get_all, key_range_only, store_clear, store_delete, store_get,
+    store_put, store_put_all,
 };
 use crate::error::CoreError;
+use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncStateRow {
@@ -34,26 +34,37 @@ pub struct ContactRow {
     pub last_seen: Option<i64>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemRow {
     pub id: String,
+    #[serde(rename = "sourceType")]
     pub source_type: String,
+    #[serde(rename = "sourceId")]
     pub source_id: Option<String>,
+    #[serde(rename = "threadKey")]
     pub thread_key: Option<String>,
+    #[serde(rename = "type")]
     pub r#type: Option<String>,
+    #[serde(rename = "from")]
     pub from: Option<String>,
+    #[serde(rename = "to")]
     pub to: Option<String>,
     pub cc: Option<String>,
     pub subject: Option<String>,
     pub snippet: Option<String>,
     pub body: Option<String>,
+    #[serde(rename = "htmlBody")]
     pub html_body: Option<String>,
     pub date: Option<i64>,
     pub labels: Option<String>,
+    #[serde(rename = "messageId")]
     pub message_id: Option<String>,
+    #[serde(rename = "inReplyTo")]
     pub in_reply_to: Option<String>,
+    #[serde(rename = "references")]
     pub references: Option<String>,
     pub raw: Option<String>,
+    #[serde(rename = "syncedAt")]
     pub synced_at: Option<i64>,
 }
 
@@ -71,6 +82,20 @@ pub struct SyncStateInput {
     pub oldest_page_token: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct SyncStateDoc {
+    #[serde(rename = "sourceType")]
+    source_type: String,
+    #[serde(rename = "historyId")]
+    history_id: String,
+    #[serde(rename = "lastSyncAt")]
+    last_sync_at: i64,
+    #[serde(rename = "totalItems")]
+    total_items: i64,
+    #[serde(rename = "oldestPageToken")]
+    oldest_page_token: String,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct ContactInput {
     pub email: String,
@@ -81,66 +106,50 @@ pub struct ContactInput {
     pub last_seen: i64,
 }
 
-/// DELETE FROM syncState WHERE sourceType = ?
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct ContactDoc {
+    email: String,
+    name: String,
+    #[serde(rename = "firstSeen")]
+    first_seen: i64,
+    #[serde(rename = "lastSeen")]
+    last_seen: i64,
+}
+
 pub async fn delete_sync_state(source_type: &str) -> Result<(), CoreError> {
-    run_exec_raw("DELETE FROM syncState WHERE sourceType = ?", vec![str_param(source_type)]).await
+    store_delete(store::SYNC_STATE, source_type).await
 }
 
-/// DELETE FROM items WHERE sourceType = ?
 pub async fn delete_items_by_source(source_type: &str) -> Result<(), CoreError> {
-    run_exec_raw("DELETE FROM items WHERE sourceType = ?", vec![str_param(source_type)]).await
-}
-
-/// DELETE FROM items; DELETE FROM syncState; DELETE FROM contacts;
-pub async fn clear_items_sync_contacts() -> Result<(), CoreError> {
-    let empty = crate::db::empty_params();
-    run_exec_raw("DELETE FROM items", empty.clone()).await?;
-    run_exec_raw("DELETE FROM syncState", empty.clone()).await?;
-    run_exec_raw("DELETE FROM contacts", empty).await?;
+    let range = key_range_only(source_type)?;
+    let items: Vec<ItemRow> = index_get_all(store::ITEMS, "sourceType", Some(range), None).await?;
+    for item in items {
+        store_delete(store::ITEMS, &item.id).await?;
+    }
     Ok(())
 }
 
-/// SELECT COUNT(*) AS cnt FROM items WHERE sourceType = ?
+pub async fn clear_contacts() -> Result<(), CoreError> {
+    store_clear(store::CONTACTS).await
+}
+
+pub async fn clear_items_sync_contacts() -> Result<(), CoreError> {
+    store_clear(store::ITEMS).await?;
+    store_clear(store::SYNC_STATE).await?;
+    store_clear(store::CONTACTS).await?;
+    Ok(())
+}
+
 pub async fn get_items_count_by_source(source_type: &str) -> Result<i64, CoreError> {
-    let rows = run_query_raw::<CountRow>(
-        "SELECT COUNT(*) AS cnt FROM items WHERE sourceType = ?",
-        vec![str_param(source_type)],
-    )
-    .await?;
-    Ok(rows.first().and_then(|r| r.cnt).unwrap_or(0))
+    let range = key_range_only(source_type)?;
+    let n = index_count(store::ITEMS, "sourceType", Some(range)).await?;
+    Ok(n as i64)
 }
 
-/// SELECT * FROM syncState WHERE sourceType = ?
 pub async fn get_sync_state(source_type: &str) -> Result<Option<SyncStateRow>, CoreError> {
-    #[derive(Deserialize)]
-    struct Row {
-        source_type: Option<String>,
-        history_id: Option<String>,
-        last_sync_at: Option<i64>,
-        total_items: Option<i64>,
-        oldest_page_token: Option<String>,
-    }
-    let rows = run_query_raw::<Row>(
-        r#"SELECT sourceType as source_type, historyId as history_id, lastSyncAt as last_sync_at,
-           totalItems as total_items, oldestPageToken as oldest_page_token
-           FROM syncState WHERE sourceType = ?"#,
-        vec![str_param(source_type)],
-    )
-    .await?;
-    let r = match rows.into_iter().next() {
-        Some(x) => x,
-        None => return Ok(None),
-    };
-    Ok(Some(SyncStateRow {
-        source_type: r.source_type,
-        history_id: r.history_id,
-        last_sync_at: r.last_sync_at,
-        total_items: r.total_items,
-        oldest_page_token: r.oldest_page_token,
-    }))
+    store_get::<SyncStateRow>(store::SYNC_STATE, source_type).await
 }
 
-/// INSERT INTO syncState ... ON CONFLICT DO UPDATE
 pub async fn upsert_sync_state(
     source_type: &str,
     history_id: &str,
@@ -148,106 +157,45 @@ pub async fn upsert_sync_state(
     total_items: i64,
     oldest_page_token: &str,
 ) -> Result<(), CoreError> {
-    let params = vec![
-        str_param(source_type),
-        str_param(history_id),
-        int_param(last_sync_at),
-        int_param(total_items),
-        str_param(oldest_page_token),
-    ];
-    run_exec_raw(
-        r#"INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT (sourceType) DO UPDATE SET
-             historyId = excluded.historyId,
-             lastSyncAt = excluded.lastSyncAt,
-             totalItems = excluded.totalItems,
-             oldestPageToken = excluded.oldestPageToken"#,
-        params,
-    )
-    .await
+    let doc = SyncStateDoc {
+        source_type: source_type.to_string(),
+        history_id: history_id.to_string(),
+        last_sync_at,
+        total_items,
+        oldest_page_token: oldest_page_token.to_string(),
+    };
+    store_put(store::SYNC_STATE, &doc, Some(source_type)).await
 }
 
-/// Build (sql, params) for one item insert/upsert. DuckDB uses ? placeholders.
-fn item_statement(row: &ItemRow) -> (String, Vec<Param>) {
-    let sql = r#"INSERT INTO items
-       (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
-        snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
-        raw, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET
-       sourceType = excluded.sourceType,
-       sourceId = excluded.sourceId,
-       threadKey = excluded.threadKey,
-       type = excluded.type,
-       "from" = excluded."from",
-       "to" = excluded."to",
-       cc = excluded.cc,
-       subject = excluded.subject,
-       snippet = excluded.snippet,
-       body = excluded.body,
-       htmlBody = excluded.htmlBody,
-       date = excluded.date,
-       labels = excluded.labels,
-       messageId = excluded.messageId,
-       inReplyTo = excluded.inReplyTo,
-       "references" = excluded."references",
-       raw = excluded.raw,
-       syncedAt = excluded.syncedAt"#
-        .to_string();
-    let params = vec![
-        str_param(&row.id),
-        str_param(&row.source_type),
-        opt_str_param(row.source_id.as_deref()),
-        opt_str_param(row.thread_key.as_deref()),
-        opt_str_param(row.r#type.as_deref()),
-        opt_str_param(row.from.as_deref()),
-        opt_str_param(row.to.as_deref()),
-        opt_str_param(row.cc.as_deref()),
-        opt_str_param(row.subject.as_deref()),
-        opt_str_param(row.snippet.as_deref()),
-        opt_str_param(row.body.as_deref()),
-        opt_str_param(row.html_body.as_deref()),
-        row.date.map(ParamValue::Int).into(),
-        opt_str_param(row.labels.as_deref()),
-        opt_str_param(row.message_id.as_deref()),
-        opt_str_param(row.in_reply_to.as_deref()),
-        opt_str_param(row.references.as_deref()),
-        opt_str_param(row.raw.as_deref()),
-        row.synced_at.map(ParamValue::Int).into(),
-    ];
-    (sql, params)
+#[derive(Deserialize)]
+#[allow(non_snake_case)]
+struct JsItem {
+    id: String,
+    sourceType: String,
+    sourceId: Option<String>,
+    threadKey: Option<String>,
+    r#type: Option<String>,
+    from: Option<String>,
+    to: Option<String>,
+    cc: Option<String>,
+    subject: Option<String>,
+    snippet: Option<String>,
+    body: Option<String>,
+    htmlBody: Option<String>,
+    date: Option<i64>,
+    labels: Option<String>,
+    messageId: Option<String>,
+    inReplyTo: Option<String>,
+    references: Option<String>,
+    raw: Option<String>,
+    syncedAt: Option<i64>,
 }
 
-/// Insert or update items in batch. rows: JsValue = array of item objects (camelCase from JS).
 pub async fn insert_items_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    #[derive(Deserialize)]
-    #[allow(non_snake_case)]
-    struct JsItem {
-        id: String,
-        sourceType: String,
-        sourceId: Option<String>,
-        threadKey: Option<String>,
-        r#type: Option<String>,
-        from: Option<String>,
-        to: Option<String>,
-        cc: Option<String>,
-        subject: Option<String>,
-        snippet: Option<String>,
-        body: Option<String>,
-        htmlBody: Option<String>,
-        date: Option<i64>,
-        labels: Option<String>,
-        messageId: Option<String>,
-        inReplyTo: Option<String>,
-        references: Option<String>,
-        raw: Option<String>,
-        syncedAt: Option<i64>,
-    }
     let arr: Vec<JsItem> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-    let mut statements = Vec::with_capacity(arr.len());
-    for r in arr {
-        let row = ItemRow {
+    let docs: Vec<ItemRow> = arr
+        .into_iter()
+        .map(|r| ItemRow {
             id: r.id,
             source_type: r.sourceType,
             source_id: r.sourceId,
@@ -267,124 +215,130 @@ pub async fn insert_items_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreE
             references: r.references,
             raw: r.raw,
             synced_at: r.syncedAt,
-        };
-        statements.push(item_statement(&row));
-    }
-    run_exec_batch(&statements).await
+        })
+        .collect();
+    store_put_all(store::ITEMS, &docs).await
 }
 
-/// INSERT syncState rows (ON CONFLICT DO NOTHING). rows: array of { sourceType, historyId, ... }.
 pub async fn insert_sync_state_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
     let arr: Vec<SyncStateInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-    let sql = r#"INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
-                 VALUES (?, ?, ?, ?, ?) ON CONFLICT (sourceType) DO NOTHING"#;
-    let mut statements = Vec::with_capacity(arr.len());
     for r in arr {
-        let params = vec![
-            str_param(&r.source_type),
-            str_param(&r.history_id),
-            int_param(r.last_sync_at),
-            int_param(r.total_items),
-            str_param(&r.oldest_page_token),
-        ];
-        statements.push((sql.to_string(), params));
-    }
-    run_exec_batch(&statements).await
-}
-
-/// INSERT contacts (ON CONFLICT DO NOTHING). rows: array of { email, name, firstSeen, lastSeen }.
-pub async fn insert_contacts_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<ContactInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-    let sql = "INSERT INTO contacts (email, name, firstSeen, lastSeen) VALUES (?, ?, ?, ?) ON CONFLICT (email) DO NOTHING";
-    let mut statements = Vec::with_capacity(arr.len());
-    for r in arr {
-        let params = vec![
-            str_param(&r.email),
-            str_param(&r.name),
-            int_param(r.first_seen),
-            int_param(r.last_seen),
-        ];
-        statements.push((sql.to_string(), params));
-    }
-    run_exec_batch(&statements).await
-}
-
-/// DELETE FROM items WHERE id = ? for each id.
-pub async fn delete_items_by_ids(ids: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<String> = from_value(ids).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-    let sql = "DELETE FROM items WHERE id = ?".to_string();
-    let statements: Vec<(String, Vec<Param>)> = arr
-        .iter()
-        .map(|id| (sql.clone(), vec![str_param(id)]))
-        .collect();
-    run_exec_batch(&statements).await
-}
-
-/// SELECT * FROM contacts WHERE email = ?
-pub async fn get_contact_by_email(email: &str) -> Result<Option<ContactRow>, CoreError> {
-    #[derive(Deserialize)]
-    struct Row {
-        email: Option<String>,
-        name: Option<String>,
-        first_seen: Option<i64>,
-        last_seen: Option<i64>,
-    }
-    let rows = run_query_raw::<Row>(
-        "SELECT email, name, firstSeen as first_seen, lastSeen as last_seen FROM contacts WHERE email = ?",
-        vec![str_param(email)],
-    )
-    .await?;
-    let r = match rows.into_iter().next() {
-        Some(x) => x,
-        None => return Ok(None),
-    };
-    Ok(Some(ContactRow {
-        email: r.email,
-        name: r.name,
-        first_seen: r.first_seen,
-        last_seen: r.last_seen,
-    }))
-}
-
-/// UPDATE or INSERT contact.
-pub async fn upsert_contact(email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
-    let existing = get_contact_by_email(email).await?;
-    if let Some(row) = existing {
-        let mut updates = Vec::new();
-        let mut params: Vec<Param> = vec![];
-        if !name.is_empty() && row.name.as_deref().unwrap_or("").is_empty() {
-            updates.push("name = ?");
-            params.push(str_param(name));
+        let key = r.source_type.clone();
+        let existing = store_get::<SyncStateRow>(store::SYNC_STATE, &key).await?;
+        if existing.is_none() {
+            let doc = SyncStateDoc {
+                source_type: r.source_type,
+                history_id: r.history_id,
+                last_sync_at: r.last_sync_at,
+                total_items: r.total_items,
+                oldest_page_token: r.oldest_page_token,
+            };
+            store_put(store::SYNC_STATE, &doc, Some(&key)).await?;
         }
-        if last_seen > row.last_seen.unwrap_or(0) {
-            updates.push("lastSeen = ?");
-            params.push(int_param(last_seen));
-        }
-        if !updates.is_empty() {
-            params.push(str_param(email));
-            let sql = format!("UPDATE contacts SET {} WHERE email = ?", updates.join(", "));
-            run_exec_raw(&sql, params).await?;
-        }
-    } else {
-        run_exec_raw(
-            "INSERT INTO contacts (email, name, firstSeen, lastSeen) VALUES (?, ?, ?, ?)",
-            vec![str_param(email), str_param(name), int_param(first_seen), int_param(last_seen)],
-        )
-        .await?;
     }
     Ok(())
 }
 
-/// SELECT sourceId FROM items WHERE sourceType = ? ORDER BY date DESC LIMIT 1
-pub async fn get_newest_source_id(source_type: &str) -> Result<Option<String>, CoreError> {
-    #[derive(Deserialize)]
-    struct Row {
-        source_id: Option<String>,
+pub async fn insert_contacts_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+    let arr: Vec<ContactInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+    for r in arr {
+        let doc = ContactDoc {
+            email: r.email.clone(),
+            name: r.name,
+            first_seen: r.first_seen,
+            last_seen: r.last_seen,
+        };
+        let existing = store_get::<ContactRow>(store::CONTACTS, &r.email).await?;
+        if existing.is_none() {
+            store_put(store::CONTACTS, &doc, Some(&r.email)).await?;
+        }
     }
-    let rows = run_query_raw::<Row>(
-        "SELECT sourceId as source_id FROM items WHERE sourceType = ? ORDER BY date DESC LIMIT 1",
-        vec![str_param(source_type)],
-    )
-    .await?;
-    Ok(rows.into_iter().next().and_then(|r| r.source_id))
+    Ok(())
+}
+
+pub async fn delete_items_by_ids(ids: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+    let arr: Vec<String> = from_value(ids).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+    for id in arr {
+        store_delete(store::ITEMS, &id).await?;
+    }
+    Ok(())
+}
+
+pub async fn get_contact_by_email(email: &str) -> Result<Option<ContactRow>, CoreError> {
+    store_get(store::CONTACTS, email).await
+}
+
+pub async fn upsert_contact(email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
+    let existing = get_contact_by_email(email).await?;
+    if let Some(row) = existing {
+        let mut updated = ContactDoc {
+            email: email.to_string(),
+            name: row.name.unwrap_or_default(),
+            first_seen: row.first_seen.unwrap_or(0),
+            last_seen: row.last_seen.unwrap_or(0),
+        };
+        if !name.is_empty() && updated.name.is_empty() {
+            updated.name = name.to_string();
+        }
+        if last_seen > updated.last_seen {
+            updated.last_seen = last_seen;
+        }
+        store_put(store::CONTACTS, &updated, Some(email)).await?;
+    } else {
+        let doc = ContactDoc {
+            email: email.to_string(),
+            name: name.to_string(),
+            first_seen,
+            last_seen,
+        };
+        store_put(store::CONTACTS, &doc, Some(email)).await?;
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct ItemSourceId {
+    #[serde(rename = "sourceId")]
+    source_id: Option<String>,
+    date: Option<i64>,
+}
+
+pub async fn get_item_by_id(id: &str) -> Result<Option<ItemRow>, CoreError> {
+    store_get(store::ITEMS, id).await
+}
+
+/// Get items for gmail source, sorted by date desc, with limit (for scan).
+pub async fn get_items_gmail_by_date_desc(limit: u32) -> Result<Vec<ItemRow>, CoreError> {
+    let range = key_range_only("gmail")?;
+    let mut rows: Vec<ItemRow> =
+        index_get_all(store::ITEMS, "sourceType", Some(range), Some(limit)).await?;
+    rows.sort_by(|a, b| b.date.unwrap_or(0).cmp(&a.date.unwrap_or(0)));
+    Ok(rows)
+}
+
+/// Get items for a source type, sorted by date desc, with limit and offset (for UI pagination).
+pub async fn get_items_by_source(
+    source_type: &str,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<ItemRow>, CoreError> {
+    let range = key_range_only(source_type)?;
+    let fetch = limit.saturating_add(offset).min(5000);
+    let mut rows: Vec<ItemRow> =
+        index_get_all(store::ITEMS, "sourceType", Some(range), Some(fetch)).await?;
+    rows.sort_by(|a, b| b.date.unwrap_or(0).cmp(&a.date.unwrap_or(0)));
+    let start = offset as usize;
+    let end = start.saturating_add(limit as usize).min(rows.len());
+    Ok(rows.get(start..end).unwrap_or(&[]).to_vec())
+}
+
+pub async fn get_newest_source_id(source_type: &str) -> Result<Option<String>, CoreError> {
+    let range = key_range_only(source_type)?;
+    let items: Vec<ItemSourceId> =
+        index_get_all(store::ITEMS, "sourceType", Some(range), Some(1000)).await?;
+    let best = items
+        .into_iter()
+        .filter_map(|i| i.date.map(|d| (i.source_id, d)))
+        .max_by_key(|(_, d)| *d);
+    Ok(best.and_then(|(sid, _)| sid))
 }

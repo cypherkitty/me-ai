@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { exec, nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
+  import { getCore } from "../../lib/core.js";
+  import { nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
   import {
     getOpfsStats,
     clearAllDataAndCheckpoint,
@@ -307,11 +308,11 @@
 
           <!-- Bulk actions -->
           <div class="flex flex-col gap-1">
-            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from DuckDB (OPFS) and IDB cache, then reloads.", action: () => {
+            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from IndexedDB (Rexie), then reloads.", action: () => {
                     confirm = null;
                     busy = true;
                     wipeAllData();
-                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( () => exec(`DELETE FROM contacts`), ) }] as item}
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { const w = await getCore(); await w.clearContacts(); }, ) }] as item}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

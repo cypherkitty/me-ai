@@ -13,9 +13,7 @@
 
 import { getCore } from "../core.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
-import { idbPutItems } from "./idb.js";
 import type { SyncState, SyncProgress } from "$lib/types";
-import type { IdbItemRow } from "./idb.js";
 
 const DEFAULT_SYNC_LIMIT = 50;
 
@@ -58,8 +56,9 @@ export async function syncTwitter(
   throwIfAborted(signal);
 
   const me = await getMe(token);
-  const userId = me.data.id;
-  const username = me.data.username;
+  const userId = me.data?.id;
+  const username = me.data?.username;
+  if (!userId || !username) throw new Error("Twitter me.data missing");
 
   const state = await getSyncState("twitter");
 
@@ -76,8 +75,9 @@ export async function syncTwitterMore(
   throwIfAborted(signal);
 
   const me = await getMe(token);
-  const userId = me.data.id;
-  const username = me.data.username;
+  const userId = me.data?.id;
+  const username = me.data?.username;
+  if (!userId || !username) throw new Error("Twitter me.data missing");
 
   const state = await getSyncState("twitter");
   if (!state?.oldestPageToken) {
@@ -104,14 +104,6 @@ export async function clearTwitterData(): Promise<void> {
   const w = await getCore();
   await w.deleteItemsBySource("twitter");
   await w.deleteSyncState("twitter");
-  try {
-    const { idbGetAllItems, idbDeleteItems } = await import("./idb.js");
-    const all = await idbGetAllItems();
-    const twitterIds = all.filter((r) => r.sourceType === "twitter").map((r) => r.id);
-    if (twitterIds.length > 0) await idbDeleteItems(twitterIds);
-  } catch {
-    /* ignore */
-  }
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -402,14 +394,8 @@ function normalizeTweet(
 
 // ── Bulk DB helpers ─────────────────────────────────────────────────
 
-async function bulkUpsertItems(items: IdbItemRow[]): Promise<void> {
+async function bulkUpsertItems(items: Array<Record<string, unknown>>): Promise<void> {
   if (!items.length) return;
-
-  try {
-    await idbPutItems(items);
-  } catch {
-    /* ignore */
-  }
 
   const rows = items.map((item) => ({
     id: item.id,
@@ -469,19 +455,6 @@ async function upsertSyncState({
 }: SyncState): Promise<void> {
   const w = await getCore();
   await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
-
-  try {
-    const { idbPutSyncState } = await import("./idb.js");
-    await idbPutSyncState({
-      sourceType,
-      historyId,
-      lastSyncAt,
-      totalItems,
-      oldestPageToken: oldestPageToken ?? "",
-    });
-  } catch {
-    /* ignore */
-  }
 }
 
 async function getNewestTweetId(): Promise<string | null> {

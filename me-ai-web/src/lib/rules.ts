@@ -5,8 +5,8 @@
  * This layer is thin: it calls core; Rust builds queries and passes them to the JS adapter.
  */
 
-import { getEventTypes as coreGetEventTypes, getEventCategories as coreGetEventCategories, getSources as coreGetSources, getActions as coreGetActions } from "./core.js";
-import { query, exec, toJson, fromJson } from "./store/db.js";
+import { getCore, getEventTypes as coreGetEventTypes, getEventCategories as coreGetEventCategories, getSources as coreGetSources, getActions as coreGetActions } from "./core.js";
+import { toJson, fromJson } from "./store/db.js";
 import type { Rule, Action, Trigger } from "$lib/types";
 
 // ── Seed / static data (WASM core builds SQL and passes to adapter) ────────
@@ -27,7 +27,6 @@ export async function getSources(): Promise<Record<string, unknown>[]> {
 }
 
 export async function getExecutionPolicies(): Promise<unknown[]> {
-  await import("./store/db.js").then((m) => m.getDb());
   return [];
 }
 
@@ -37,95 +36,38 @@ export async function getActions(): Promise<Record<string, unknown>[]> {
 }
 
 export async function getPlugins(): Promise<Record<string, unknown>[]> {
-  await import("./store/db.js").then((m) => m.getDb());
-  const plugins = await query(`SELECT name, label, version, enabled FROM sm_plugins ORDER BY name`);
-  return Promise.all(
-    plugins.map(async (p) => {
-      const name = p.name as string;
-      return {
-        ...p,
-        actions: await query(
-          `SELECT a.name, a.label FROM sm_plugin_actions pa
-           JOIN sm_actions a ON a.name = pa.action_name
-           WHERE pa.plugin_name = ?`,
-          [name]
-        ),
-        sources: await query(
-          `SELECT s.name, s.label FROM sm_plugin_sources ps
-           JOIN sm_sources s ON s.name = ps.source_name
-           WHERE ps.plugin_name = ?`,
-          [name]
-        ),
-      };
-    })
-  );
+  const w = await getCore();
+  const plugins = (await w.getPlugins()) as Record<string, unknown>[];
+  return Array.isArray(plugins) ? plugins : [];
 }
 
 // ── Rule queries ───────────────────────────────────────────────────────
 
 export async function getRules(): Promise<Rule[]> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const rules = await query(
-    `SELECT id, name, description, enabled, priority, created_at
-     FROM sm_rules ORDER BY priority DESC`
-  );
-
-  return Promise.all(
-    rules.map(async (r) => {
-      const id = r.id as string;
-      const triggers = await query(
-        `SELECT trigger_type as type, trigger_name as name
-         FROM sm_rule_triggers WHERE rule_id = ?`,
-        [id]
-      );
-      const actions = await query(
-        `SELECT command_id as id, plugin_id as pluginId, action_id as commandId, 
-                name, description, icon 
-         FROM sm_rule_commands
-         WHERE rule_id = ? ORDER BY order_idx`,
-        [id]
-      );
-      return {
-        ...r,
-        enabled: Boolean(r.enabled),
-        triggers: triggers as unknown as Trigger[],
-        actions: actions as unknown as Action[],
-      } as Rule;
-    })
-  );
+  const w = await getCore();
+  const rules = (await w.getRules()) as Record<string, unknown>[];
+  return (rules ?? []).map((r) => ({
+    ...r,
+    enabled: Boolean(r.enabled),
+    triggers: (r.triggers as Trigger[]) ?? [],
+    actions: (r.actions as Action[]) ?? [],
+  })) as Rule[];
 }
 
 export async function getRule(id: string): Promise<Rule | null> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const rows = await query(
-    `SELECT id, name, description, enabled, priority, created_at
-     FROM sm_rules WHERE id = ?`,
-    [id]
-  );
-  if (!rows.length) return null;
-  const r = rows[0];
-
-  const triggers = await query(
-    `SELECT trigger_type as type, trigger_name as name
-     FROM sm_rule_triggers WHERE rule_id = ?`,
-    [id]
-  );
-  const actions = await query(
-    `SELECT command_id as id, plugin_id as pluginId, action_id as commandId, 
-            name, description, icon 
-     FROM sm_rule_commands
-     WHERE rule_id = ? ORDER BY order_idx`,
-    [id]
-  );
+  const w = await getCore();
+  const r = await w.getRule(id);
+  if (r == null || r === undefined) return null;
+  const row = r as Record<string, unknown>;
   return {
-    ...r,
-    enabled: Boolean(r.enabled),
-    triggers: triggers as unknown as Trigger[],
-    actions: actions as unknown as Action[],
+    id: row.id as string,
+    name: row.name as string,
+    description: (row.description as string) ?? "",
+    enabled: Boolean(row.enabled),
+    priority: (row.priority as number) ?? 5,
+    created_at: row.created_at as number | undefined,
+    triggers: (row.triggers as Trigger[]) ?? [],
+    actions: (row.actions as Action[]) ?? [],
   } as Rule;
 }
 
@@ -146,97 +88,67 @@ export async function createRule({
   triggers = [],
   actions = [],
 }: CreateRuleInput): Promise<string> {
+  const w = await getCore();
   const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const now = Date.now();
-
-  await exec(`INSERT INTO sm_rules VALUES (?, ?, ?, ?, ?, ?)`, [
+  const payload = {
     id,
     name,
-    description ?? "",
+    description: description ?? "",
     enabled,
     priority,
-    now,
-  ]);
-
-  for (const t of triggers) {
-    await exec(`INSERT INTO sm_rule_triggers VALUES (?, ?, ?)`, [id, t.type, t.name]);
-  }
-
-  for (let i = 0; i < actions.length; i++) {
-    const a = actions[i];
-    await exec(`INSERT INTO sm_rule_commands VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
-      id,
-      a.id,
-      a.pluginId,
-      a.commandId,
-      a.name,
-      a.description,
-      a.icon ?? null,
-      i + 1,
-    ]);
-  }
-
+    created_at: now,
+    triggers: triggers.map((t) => ({ type: t.type, name: t.name })),
+    actions: actions.map((a) => ({
+      id: a.id,
+      pluginId: a.pluginId,
+      commandId: a.commandId,
+      name: a.name,
+      description: a.description,
+      icon: a.icon ?? null,
+    })),
+  };
+  await w.saveRule(payload);
   return id;
 }
 
 export async function updateRule(id: string, updates: Partial<Rule>): Promise<void> {
-  const fields: string[] = [];
-  const params: unknown[] = [];
-
-  if (updates.name !== undefined) {
-    fields.push("name = ?");
-    params.push(updates.name);
-  }
-  if (updates.description !== undefined) {
-    fields.push("description = ?");
-    params.push(updates.description);
-  }
-  if (updates.enabled !== undefined) {
-    fields.push("enabled = ?");
-    params.push(updates.enabled);
-  }
-  if (updates.priority !== undefined) {
-    fields.push("priority = ?");
-    params.push(updates.priority);
-  }
-
-  if (fields.length > 0) {
-    await exec(`UPDATE sm_rules SET ${fields.join(", ")} WHERE id = ?`, [...params, id]);
-  }
-
-  if (updates.triggers !== undefined) {
-    await exec(`DELETE FROM sm_rule_triggers WHERE rule_id = ?`, [id]);
-    for (const t of updates.triggers) {
-      await exec(`INSERT INTO sm_rule_triggers VALUES (?, ?, ?)`, [id, t.type, t.name]);
-    }
-  }
-
-  if (updates.actions !== undefined) {
-    await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
-    for (let i = 0; i < updates.actions.length; i++) {
-      const a = updates.actions[i];
-      await exec(`INSERT INTO sm_rule_commands VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
-        id,
-        a.id,
-        a.pluginId,
-        a.commandId,
-        a.name,
-        a.description,
-        a.icon ?? null,
-        i + 1,
-      ]);
-    }
-  }
+  const w = await getCore();
+  const existing = await getRule(id);
+  if (!existing) return;
+  const merged: Rule = {
+    ...existing,
+    ...updates,
+    triggers: updates.triggers ?? existing.triggers,
+    actions: updates.actions ?? existing.actions,
+  };
+  const payload = {
+    id,
+    name: merged.name,
+    description: merged.description ?? "",
+    enabled: merged.enabled,
+    priority: merged.priority ?? 5,
+    created_at: merged.created_at,
+    triggers: merged.triggers.map((t) => ({ type: t.type, name: t.name })),
+    actions: merged.actions.map((a) => ({
+      id: a.id,
+      pluginId: a.pluginId,
+      commandId: a.commandId,
+      name: a.name,
+      description: a.description,
+      icon: a.icon ?? null,
+    })),
+  };
+  await w.saveRule(payload);
 }
 
 export async function setRuleEnabled(id: string, enabled: boolean): Promise<void> {
-  await exec(`UPDATE sm_rules SET enabled = ? WHERE id = ?`, [enabled, id]);
+  await updateRule(id, { enabled });
 }
 
 export async function deleteRule(id: string): Promise<void> {
-  await exec(`DELETE FROM sm_rules WHERE id = ?`, [id]);
-  await exec(`DELETE FROM sm_rule_triggers WHERE rule_id = ?`, [id]);
-  await exec(`DELETE FROM sm_rule_commands WHERE rule_id = ?`, [id]);
+  const w = await getCore();
+  await w.deleteRule(id);
 }
 
 // ── Event queries ──────────────────────────────────────────────────────
@@ -249,30 +161,11 @@ export interface GetEventsOptions {
 }
 
 export async function getEvents({
-  status,
-  eventType,
-  source,
   limit = 100,
 }: GetEventsOptions = {}): Promise<Record<string, unknown>[]> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const conditions: string[] = [];
-  if (status) conditions.push(`status = '${status}'`);
-  if (eventType) conditions.push(`event_type = '${eventType}'`);
-  if (source) conditions.push(`source_name = '${source}'`);
-
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const rows = await query(
-    `SELECT e.*, r.name as rule_name, r.priority as rule_priority
-     FROM sm_events e
-     LEFT JOIN sm_rules r ON r.id = e.rule_id
-     ${where}
-     ORDER BY e.timestamp DESC
-     LIMIT ${limit}`
-  );
-
-  return rows.map((r) => ({
+  const w = await getCore();
+  const rows = (await w.getEvents(limit, 0)) as Record<string, unknown>[];
+  return (rows ?? []).map((r) => ({
     ...r,
     actions_taken: fromJson(r.actions_taken as string, []),
     output: fromJson(r.output as string, null),
@@ -295,34 +188,32 @@ export interface InsertEventInput {
 }
 
 export async function insertEvent(evt: InsertEventInput): Promise<void> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  await exec(
-    `INSERT INTO sm_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      evt.id,
-      evt.content ?? "",
-      evt.subject ?? "",
-      evt.sender ?? "",
-      evt.timestamp ?? Date.now(),
-      evt.status ?? "completed",
-      evt.event_type ?? "",
-      evt.event_category ?? "",
-      evt.source_name ?? "",
-      evt.rule_id ?? null,
-      toJson(evt.actions_taken ?? []),
-      toJson(evt.output ?? null),
-    ]
+  const w = await getCore();
+  const id = evt.id ?? `evt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  await w.insertEvent(
+    id,
+    evt.content ?? null,
+    evt.subject ?? null,
+    evt.sender ?? null,
+    evt.timestamp ?? Date.now(),
+    evt.status ?? "completed",
+    evt.event_type ?? null,
+    evt.event_category ?? null,
+    evt.source_name ?? null,
+    evt.rule_id ?? null,
+    toJson(evt.actions_taken ?? []),
+    evt.output != null ? toJson(evt.output) : null
   );
 }
 
 export async function updateEventStatus(id: string, status: string): Promise<void> {
-  await exec(`UPDATE sm_events SET status = ? WHERE id = ?`, [status, id]);
+  const w = await getCore();
+  await w.updateEventStatus(id, status);
 }
 
 export async function clearAllEvents(): Promise<void> {
-  await exec(`DELETE FROM sm_events`);
+  const w = await getCore();
+  await w.clearEvents();
 }
 
 export interface EventStats {
@@ -334,34 +225,34 @@ export interface EventStats {
 }
 
 export async function getEventStats(): Promise<EventStats> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const [pendingStats] = await query(`
-    SELECT 
-      COUNT(*) FILTER (WHERE status = 'pending' AND LOWER(category) IN (SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual')) as awaiting_user,
-      COUNT(*) FILTER (WHERE status = 'escalated') as escalated
-    FROM emailClassifications
-  `);
-
-  const [auditStats] = await query(`
-    SELECT
-      COUNT(*) FILTER (WHERE success = true) as completed,
-      COUNT(*) FILTER (WHERE success = false) as failed,
-      COUNT(*) as total_audit
-    FROM auditLog
-  `);
-
-  const stats = {
-    awaiting_user: Number((pendingStats as Record<string, unknown>)?.awaiting_user || 0),
-    escalated: Number((pendingStats as Record<string, unknown>)?.escalated || 0),
-    completed: Number((auditStats as Record<string, unknown>)?.completed || 0),
-    failed: Number((auditStats as Record<string, unknown>)?.failed || 0),
+  const w = await getCore();
+  const [classifications, categories, auditStats] = await Promise.all([
+    w.getEmailClassifications(),
+    w.getEventCategories(),
+    w.getAuditStats(),
+  ]);
+  const rows = (classifications ?? []) as Record<string, unknown>[];
+  const cats = (categories ?? []) as Record<string, unknown>[];
+  const manualSet = new Set(
+    cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
+  );
+  let awaiting_user = 0;
+  let escalated = 0;
+  for (const r of rows) {
+    const status = String(r.status ?? "");
+    const cat = String(r.category ?? "").toLowerCase();
+    if (status === "pending" && manualSet.has(cat)) awaiting_user += 1;
+    else if (status === "escalated") escalated += 1;
+  }
+  const completed = Number((auditStats as { completed?: number })?.completed ?? 0);
+  const failed = Number((auditStats as { failed?: number })?.failed ?? 0);
+  return {
+    awaiting_user,
+    escalated,
+    completed,
+    failed,
+    total: awaiting_user + escalated + completed + failed,
   };
-  (stats as EventStats).total =
-    stats.awaiting_user + stats.escalated + stats.completed + stats.failed;
-
-  return stats as EventStats;
 }
 
 // ── Approvals & Manual Execution ───────────────────────────────────────
@@ -369,52 +260,59 @@ export async function getEventStats(): Promise<EventStats> {
 export async function getPendingApprovals({
   limit = 100,
 }: { limit?: number } = {}): Promise<Record<string, unknown>[]> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const rows = await query(
-    `
-    SELECT 
-      c.emailId as id,
-      COALESCE(i.subject, c.subject) as subject,
-      COALESCE(i."from", c."from") as source_name,
-      i.body as content,
-      COALESCE(i.date, c.date) as timestamp,
-      c.category as event_category,
-      c.action as event_type,
-      c.reason,
-      c.summary,
-      c.status
-    FROM emailClassifications c
-    LEFT JOIN items i ON c.emailId = i.id
-    WHERE c.status = 'pending'
-      AND LOWER(c.category) IN (
-        SELECT LOWER(name) FROM sm_event_categories WHERE policy = 'manual'
-      )
-    ORDER BY COALESCE(i.date, c.date) DESC
-    LIMIT ?
-  `,
-    [limit]
+  const w = await getCore();
+  const [classifications, categories] = await Promise.all([
+    w.getEmailClassifications(),
+    w.getEventCategories(),
+  ]);
+  const cats = (categories ?? []) as Record<string, unknown>[];
+  const manualSet = new Set(
+    cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
   );
-
-  return rows.map((r) => ({
-    ...r,
-    sender: (r as Record<string, unknown>).source_name,
-    from: (r as Record<string, unknown>).source_name,
-    actions_taken: [],
-    rule_name: `Manual Review: ${(r as Record<string, unknown>).event_category}`,
-  }));
+  const rows = (classifications ?? []) as Record<string, unknown>[];
+  const pending = rows
+    .filter(
+      (r) =>
+        r.status === "pending" &&
+        manualSet.has(String(r.category ?? "").toLowerCase())
+    )
+    .sort((a, b) => Number(b.date ?? 0) - Number(a.date ?? 0))
+    .slice(0, limit);
+  const out: Record<string, unknown>[] = [];
+  for (const r of pending) {
+    const emailId = r.emailId as string;
+    const item = await w.getItemById(emailId);
+    const subject = (item?.subject ?? r.subject) as string;
+    const from = (item?.from ?? r.from) as string;
+    out.push({
+      id: emailId,
+      subject,
+      source_name: from,
+      content: (item as Record<string, unknown>)?.body ?? "",
+      timestamp: r.date ?? (item as Record<string, unknown>)?.date ?? 0,
+      event_category: r.category,
+      event_type: r.action,
+      reason: r.reason,
+      summary: r.summary,
+      status: r.status,
+      sender: from,
+      from,
+      actions_taken: [],
+      rule_name: `Manual Review: ${r.category}`,
+    });
+  }
+  return out;
 }
 
 export async function getPendingCountByCategory(categoryName: string): Promise<number> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-  const rows = await query(
-    `SELECT COUNT(*) as n FROM emailClassifications
-     WHERE LOWER(TRIM(category)) = LOWER(TRIM(?)) AND status IN ('pending', 'escalated')`,
-    [categoryName]
-  );
-  return Number((rows[0] as Record<string, unknown>)?.n ?? 0);
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const want = categoryName.trim().toLowerCase();
+  return (rows ?? []).filter((r) => {
+    const cat = String(r.category ?? "").trim().toLowerCase();
+    const status = String(r.status ?? "");
+    return cat === want && (status === "pending" || status === "escalated");
+  }).length;
 }
 
 export interface PendingItemByCategory {
@@ -432,52 +330,43 @@ export async function getPendingItemsByCategory(
   categoryName: string,
   { limit = 500 }: { limit?: number } = {}
 ): Promise<PendingItemByCategory[]> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-
-  const rows = await query(
-    `SELECT
-       c.emailId as id,
-       COALESCE(i.subject, c.subject) as subject,
-       COALESCE(i."from", c."from") as "from",
-       c.action as eventType,
-       c.category as event_category,
-       c.status,
-       i.sourceType as sourceType
-     FROM emailClassifications c
-     LEFT JOIN items i ON c.emailId = i.id
-     WHERE LOWER(TRIM(c.category)) = LOWER(TRIM(?))
-       AND c.status IN ('pending', 'escalated')
-     ORDER BY COALESCE(i.date, c.date) DESC
-     LIMIT ?`,
-    [categoryName, limit]
-  );
-
-  return rows.map((r) => {
-    const row = r as Record<string, unknown>;
-    return {
-      id: row.id as string,
-      emailId: row.id as string,
-      subject: (row.subject ?? "") as string,
-      from: (row.from ?? "") as string,
-      eventType: (row.eventType ?? "UNKNOWN") as string,
-      event_category: (row.event_category ?? categoryName) as string,
-      sourceType: (row.sourceType ?? "gmail") as string,
-      status: (row.status ?? "pending") as string,
-    };
-  });
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const want = categoryName.trim().toLowerCase();
+  const filtered = (rows ?? [])
+    .filter((r) => {
+      const cat = String(r.category ?? "").trim().toLowerCase();
+      const status = String(r.status ?? "");
+      return cat === want && (status === "pending" || status === "escalated");
+    })
+    .sort((a, b) => Number(b.date ?? 0) - Number(a.date ?? 0))
+    .slice(0, limit);
+  const out: PendingItemByCategory[] = [];
+  for (const r of filtered) {
+    const emailId = (r.emailId ?? r.id) as string;
+    const item = await w.getItemById(emailId);
+    out.push({
+      id: emailId,
+      emailId,
+      subject: (r.subject ?? (item as Record<string, unknown>)?.subject ?? "") as string,
+      from: (r.from ?? (item as Record<string, unknown>)?.from ?? "") as string,
+      eventType: (r.action ?? "UNKNOWN") as string,
+      event_category: (r.category ?? categoryName) as string,
+      sourceType: ((item as Record<string, unknown>)?.sourceType ?? "gmail") as string,
+      status: (r.status ?? "pending") as string,
+    });
+  }
+  return out;
 }
 
 export async function approveClassification(id: string): Promise<void> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-  await exec(`UPDATE emailClassifications SET status = 'approved' WHERE emailId = ?`, [id]);
+  const w = await getCore();
+  await w.updateEmailClassificationStatus(id, "approved");
 }
 
 export async function rejectClassification(id: string): Promise<void> {
-  const { getDb } = await import("./store/db.js");
-  await getDb();
-  await exec(`UPDATE emailClassifications SET status = 'escalated' WHERE emailId = ?`, [id]);
+  const w = await getCore();
+  await w.updateEmailClassificationStatus(id, "escalated");
 }
 
 // ── Matching ──────────────────────────────────────────────────────────
@@ -514,55 +403,38 @@ export interface PipelineForEvent {
 export async function getPipelineForEvent(eventType: string): Promise<PipelineForEvent | null> {
   const normalized =
     eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
-
-  const typeOverride = await query(
-    `SELECT plugin_id, command_id, action_idx
-    FROM sm_type_pipeline
-    WHERE type_name = ?
-    ORDER BY action_idx`,
-    [normalized]
-  );
-
-  const typeRow = await query(
-    `SELECT category_name FROM sm_event_types WHERE UPPER(name) = ?`,
-    [normalized]
-  );
-  const category = ((typeRow?.[0] as Record<string, unknown>)?.category_name as string) || "critical";
-
-  const catRow = await query(
-    `SELECT policy FROM sm_event_categories WHERE name = ?`,
-    [category]
-  );
-  const policy = ((catRow?.[0] as Record<string, unknown>)?.policy as string) || "manual";
-
-  if (typeOverride?.length > 0) {
+  const w = await getCore();
+  const [typeActions, categoryName] = await Promise.all([
+    w.getTypePipelineActions(normalized),
+    w.getEventTypeCategory(normalized),
+  ]);
+  const category = categoryName ?? "critical";
+  const policy = await w.getEventCategoryPolicy(category);
+  const pol = policy ?? "manual";
+  if (typeActions?.length > 0) {
     return {
-      actions: typeOverride.map((r) => ({
-        pluginId: (r as Record<string, unknown>).plugin_id as string,
-        commandId: (r as Record<string, unknown>).command_id as string,
-        order: (r as Record<string, unknown>).action_idx as number,
+      actions: (typeActions as Array<{ plugin_id: string; command_id: string; action_idx: number }>).map((r) => ({
+        pluginId: r.plugin_id,
+        commandId: r.command_id,
+        order: r.action_idx,
       })),
-      policy,
+      policy: pol,
       category,
       isOverride: true,
     };
   }
-
-  const catPipeline = await query(
-    `SELECT plugin_id, command_id, action_idx
-    FROM sm_category_pipeline
-    WHERE category_name = ?
-    ORDER BY action_idx`,
-    [category]
-  );
-
+  const catActions = (await w.getCategoryPipelineActions(category)) as Array<{
+    plugin_id: string;
+    command_id: string;
+    action_idx: number;
+  }>;
   return {
-    actions: (catPipeline || []).map((r) => ({
-      pluginId: (r as Record<string, unknown>).plugin_id as string,
-      commandId: (r as Record<string, unknown>).command_id as string,
-      order: (r as Record<string, unknown>).action_idx as number,
+    actions: (catActions ?? []).map((r) => ({
+      pluginId: r.plugin_id,
+      commandId: r.command_id,
+      order: r.action_idx,
     })),
-    policy,
+    policy: pol,
     category,
     isOverride: false,
   };
@@ -578,97 +450,85 @@ export interface CategoryPipelineDisplay {
 }
 
 export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {
-  const categories = await query(
-    `SELECT name, label, priority, policy FROM sm_event_categories ORDER BY priority`
-  );
-
-  const pipelines = await query(
-    `SELECT category_name, plugin_id, command_id, action_idx
-    FROM sm_category_pipeline
-    ORDER BY category_name, action_idx`
-  );
-
-  const types = await query(
-    `SELECT name, label, category_name, auto_created FROM sm_event_types ORDER BY name`
-  );
-
-  return (categories || []).map((cat) => {
-    const c = cat as Record<string, unknown>;
+  const w = await getCore();
+  const [categories, types] = await Promise.all([
+    w.getEventCategories(),
+    w.getEventTypes(),
+  ]);
+  const cats = (categories ?? []) as Record<string, unknown>[];
+  const typeRows = (types ?? []) as Record<string, unknown>[];
+  const result: CategoryPipelineDisplay[] = [];
+  for (const c of cats) {
     const name = c.name as string;
-    return {
+    const actions = (await w.getCategoryPipelineActions(name)) as Array<{
+      plugin_id: string;
+      command_id: string;
+      action_idx: number;
+    }>;
+    result.push({
       category: name,
-      label: c.label as string,
-      priority: c.priority as number,
-      policy: c.policy as string,
-      actions: (pipelines || [])
-        .filter((p) => (p as Record<string, unknown>).category_name === name)
-        .map((p) => ({
-          pluginId: (p as Record<string, unknown>).plugin_id as string,
-          commandId: (p as Record<string, unknown>).command_id as string,
-          order: (p as Record<string, unknown>).action_idx as number,
-        })),
-      eventTypes: (types || [])
-        .filter((t) => (t as Record<string, unknown>).category_name === name)
+      label: (c.label ?? name) as string,
+      priority: (c.priority ?? 0) as number,
+      policy: (c.policy ?? "manual") as string,
+      actions: (actions ?? []).map((r) => ({
+        pluginId: r.plugin_id,
+        commandId: r.command_id,
+        order: r.action_idx,
+      })),
+      eventTypes: typeRows
+        .filter((t) => String(t.category_name ?? "") === name)
         .map((t) => ({
-          name: (t as Record<string, unknown>).name as string,
-          label: (t as Record<string, unknown>).label as string,
-          autoCreated: (t as Record<string, unknown>).auto_created as boolean,
+          name: t.name as string,
+          label: (t.label ?? t.name) as string,
+          autoCreated: (t.auto_created ?? false) as boolean,
         })),
-    };
-  });
+    });
+  }
+  return result;
 }
 
 export async function updateCategoryPipeline(
   categoryName: string,
   actions: Array<{ pluginId: string; commandId: string }>
 ): Promise<void> {
-  await query(`DELETE FROM sm_category_pipeline WHERE category_name = ?`, [categoryName]);
-  for (let i = 0; i < actions.length; i++) {
-    await query(
-      `INSERT INTO sm_category_pipeline (category_name, action_idx, plugin_id, command_id)
-      VALUES (?, ?, ?, ?)`,
-      [categoryName, i, actions[i].pluginId, actions[i].commandId]
-    );
-  }
+  const w = await getCore();
+  await w.updateCategoryPipeline(categoryName, actions);
 }
 
 export async function updateCategoryPolicy(
   categoryName: string,
   policy: string
 ): Promise<void> {
-  await query(`UPDATE sm_event_categories SET policy = ? WHERE name = ?`, [
-    policy,
-    categoryName,
-  ]);
+  const w = await getCore();
+  await w.updateCategoryPolicy(categoryName, policy);
 }
 
 export async function moveEventTypeToCategory(
   eventTypeName: string,
   newCategory: string
 ): Promise<void> {
-  await query(`UPDATE sm_event_types SET category_name = ? WHERE name = ?`, [
-    newCategory,
-    eventTypeName,
-  ]);
+  const w = await getCore();
+  await w.updateEventTypeCategory(eventTypeName, newCategory);
 }
 
 export async function unassignEventTypeFromCategory(eventTypeName: string): Promise<void> {
-  await query(`UPDATE sm_event_types SET category_name = NULL WHERE name = ?`, [
-    eventTypeName,
-  ]);
+  const w = await getCore();
+  await w.clearEventTypeCategory(eventTypeName);
 }
 
 export async function deleteEventType(eventTypeName: string): Promise<void> {
-  await query(`DELETE FROM sm_type_pipeline WHERE type_name = ?`, [eventTypeName]);
-  await query(`DELETE FROM sm_event_types WHERE name = ?`, [eventTypeName]);
+  const w = await getCore();
+  await w.deleteEventType(eventTypeName);
 }
 
 export async function setSourceEnabled(name: string, enabled: boolean): Promise<void> {
-  await exec(`UPDATE sm_sources SET enabled = ? WHERE name = ?`, [enabled, name]);
+  const w = await getCore();
+  await w.setSourceEnabled(name, enabled);
 }
 
 export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
-  await exec(`UPDATE sm_plugins SET enabled = ? WHERE name = ?`, [enabled, name]);
+  const w = await getCore();
+  await w.setPluginEnabled(name, enabled);
 }
 
 export async function seedRuleForEventType(

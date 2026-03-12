@@ -5,8 +5,8 @@
  * results. Rust builds queries and passes them to the JS adapter for execution.
  */
 
-import { getItemsCountGmail, getContactsCount, getItemsDateMin, getItemsDateMax } from "../core.js";
-import { query, fromJson } from "./db.js";
+import { getCore, getItemsCountGmail, getContactsCount, getItemsDateMin, getItemsDateMax } from "../core.js";
+import { fromJson } from "./db.js";
 import { truncate } from "../format.js";
 import { groupByAction } from "../email-utils.js";
 import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
@@ -70,16 +70,11 @@ export async function getDetailedSummary(): Promise<string> {
  * Get recent emails formatted for LLM context.
  */
 export async function getRecentEmails(limit = 10): Promise<string> {
-  const items = await query(
-    `SELECT * FROM items WHERE sourceType = 'gmail'
-     ORDER BY date DESC
-     LIMIT ?`,
-    [limit]
-  );
-
-  if (items.length === 0) return "No emails stored locally.";
+  const w = await getCore();
+  const items = (await w.getItemsGmailByDateDesc(limit)) as Record<string, unknown>[];
+  if (!items?.length) return "No emails stored locally.";
   return items
-    .map((r) => formatItemForLLM(normaliseRow(r as Record<string, unknown>)))
+    .map((r) => formatItemForLLM(normaliseRow(r)))
     .join("\n\n---\n\n");
 }
 
@@ -88,27 +83,20 @@ export async function getRecentEmails(limit = 10): Promise<string> {
  */
 export async function searchData(searchQuery: string, limit = 10): Promise<string> {
   if (!searchQuery) return "No search query provided.";
-
-  const q = `%${searchQuery}%`;
-  const rows = await query(
-    `SELECT *,
-       (CASE WHEN subject ILIKE ? THEN 3 ELSE 0 END +
-        CASE WHEN "from"  ILIKE ? THEN 2 ELSE 0 END +
-        CASE WHEN "to"    ILIKE ? THEN 2 ELSE 0 END +
-        CASE WHEN snippet ILIKE ? THEN 1 ELSE 0 END +
-        CASE WHEN body    ILIKE ? THEN 1 ELSE 0 END) AS score
-     FROM items
-     WHERE sourceType = 'gmail'
-       AND (subject ILIKE ? OR "from" ILIKE ? OR "to" ILIKE ?
-            OR snippet ILIKE ? OR body ILIKE ?)
-     ORDER BY score DESC, date DESC
-     LIMIT ?`,
-    [q, q, q, q, q, q, q, q, q, q, limit]
-  );
-
-  if (rows.length === 0) return `No results found for "${searchQuery}".`;
-  return rows
-    .map((r) => formatItemForLLM(normaliseRow(r as Record<string, unknown>)))
+  const w = await getCore();
+  const rows = (await w.getItemsGmailByDateDesc(limit * 5)) as Record<string, unknown>[];
+  const q = searchQuery.toLowerCase();
+  const scored = (rows ?? []).filter((r) => {
+    const subj = String(r.subject ?? "").toLowerCase();
+    const from = String(r.from ?? "").toLowerCase();
+    const to = String(r.to ?? "").toLowerCase();
+    const snippet = String(r.snippet ?? "").toLowerCase();
+    const body = String(r.body ?? "").toLowerCase();
+    return subj.includes(q) || from.includes(q) || to.includes(q) || snippet.includes(q) || body.includes(q);
+  }).slice(0, limit);
+  if (scored.length === 0) return "No matching emails found.";
+  return scored
+    .map((r) => formatItemForLLM(normaliseRow(r)))
     .join("\n\n---\n\n");
 }
 
@@ -119,12 +107,11 @@ export async function searchData(searchQuery: string, limit = 10): Promise<strin
  * Returns null if there are no pending items.
  */
 export async function getPendingActions(): Promise<PendingActionsResult | null> {
-  const rows = await query(
-    `SELECT * FROM emailClassifications WHERE status = 'pending'`
-  );
-  if (rows.length === 0) return null;
-
-  const all = rows.map((r) => ({ ...r, tags: fromJson<unknown[]>(r.tags as string, []) }));
+  const w = await getCore();
+  const rows = (await w.getEmailClassifications()) as Record<string, unknown>[];
+  const pending = (rows ?? []).filter((r) => r.status === "pending");
+  if (pending.length === 0) return null;
+  const all = pending.map((r) => ({ ...r, tags: fromJson<unknown[]>(r.tags as string, []) }));
   const { categories, order } = groupByAction(all);
   return { categories, order, total: all.length };
 }
@@ -139,38 +126,25 @@ export async function getStoredEmails({
   limit = 50,
   offset = 0,
 }: GetStoredEmailsOptions = {}): Promise<GetStoredEmailsResult> {
+  const w = await getCore();
+  const fetchSize = searchQuery ? 2000 : limit + offset;
+  const rows = (await w.getItemsGmailByDateDesc(fetchSize)) as Record<string, unknown>[];
+
+  let items = rows ?? [];
   if (searchQuery) {
-    const q = `%${searchQuery}%`;
-    const [countRow] = await query(
-      `SELECT COUNT(*) AS cnt FROM items
-       WHERE sourceType = 'gmail'
-         AND (subject ILIKE ? OR "from" ILIKE ? OR "to" ILIKE ? OR snippet ILIKE ?)`,
-      [q, q, q, q]
-    );
-    const total = Number(countRow?.cnt ?? 0);
-
-    const rows = await query(
-      `SELECT * FROM items
-       WHERE sourceType = 'gmail'
-         AND (subject ILIKE ? OR "from" ILIKE ? OR "to" ILIKE ? OR snippet ILIKE ?)
-       ORDER BY date DESC
-       LIMIT ? OFFSET ?`,
-      [q, q, q, q, limit, offset]
-    );
-
-    return { items: rows.map((r) => normaliseRow(r as Record<string, unknown>)), total };
+    const q = searchQuery.toLowerCase();
+    items = items.filter((r) => {
+      const subj = String(r.subject ?? "").toLowerCase();
+      const from = String(r.from ?? "").toLowerCase();
+      const to = String(r.to ?? "").toLowerCase();
+      const snippet = String(r.snippet ?? "").toLowerCase();
+      return subj.includes(q) || from.includes(q) || to.includes(q) || snippet.includes(q);
+    });
   }
 
-  const total = Number(await getItemsCountGmail() ?? 0);
-
-  const rows = await query(
-    `SELECT * FROM items WHERE sourceType = 'gmail'
-     ORDER BY date DESC
-     LIMIT ? OFFSET ?`,
-    [limit, offset]
-  );
-
-  return { items: rows.map((r) => normaliseRow(r as Record<string, unknown>)), total };
+  const total = searchQuery ? items.length : Number(await getItemsCountGmail() ?? 0);
+  const page = items.slice(offset, offset + limit);
+  return { items: page.map((r) => normaliseRow(r)), total };
 }
 
 // ── Internal helpers (core builds SQL and passes to adapter) ────────────────

@@ -39,7 +39,8 @@
     getTwitterSyncStatus,
     clearTwitterData,
   } from "../lib/store/twitter-sync.js";
-  import { query, wipeAllData } from "../lib/store/db.js";
+  import { getCore } from "../lib/core.js";
+  import { wipeAllData } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -517,18 +518,24 @@
   async function twLoadLocalMessages(append = false) {
     twLoadingMessages = true;
     try {
+      const w = await getCore();
       const offset = append ? twLocalOffset : 0;
-      const rows = await query(
-        `SELECT * FROM items WHERE sourceType = 'twitter'
-         ${twSearchQuery ? `AND (subject ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR body ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR "from" ILIKE '%${twSearchQuery.replace(/'/g, "''")}%')` : ""}
-         ORDER BY date DESC LIMIT ${TW_LOCAL_PAGE_SIZE} OFFSET ${offset}`,
-      );
-      const countRows = await query(
-        `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = 'twitter'
-         ${twSearchQuery ? `AND (subject ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR body ILIKE '%${twSearchQuery.replace(/'/g, "''")}%' OR "from" ILIKE '%${twSearchQuery.replace(/'/g, "''")}%')` : ""}`,
-      );
-      twMessages = append ? [...twMessages, ...rows] : rows;
-      twTotalMessages = Number(countRows[0]?.cnt ?? 0);
+      const fetchSize = twSearchQuery ? 2000 : TW_LOCAL_PAGE_SIZE + offset;
+      const rows = (await w.getItemsBySource("twitter", fetchSize, 0)) as Record<string, unknown>[];
+      let list = rows ?? [];
+      if (twSearchQuery) {
+        const q = twSearchQuery.toLowerCase();
+        list = list.filter(
+          (r) =>
+            String(r.subject ?? "").toLowerCase().includes(q) ||
+            String(r.body ?? "").toLowerCase().includes(q) ||
+            String(r.from ?? "").toLowerCase().includes(q)
+        );
+      }
+      const total = twSearchQuery ? list.length : Number(await w.getItemsCountBySource("twitter") ?? 0);
+      const page = list.slice(offset, offset + TW_LOCAL_PAGE_SIZE);
+      twMessages = append ? [...twMessages, ...page] : page;
+      twTotalMessages = total;
       twLocalOffset = twMessages.length;
     } catch (e) {
       twError = `Failed to load tweets: ${e.message}`;

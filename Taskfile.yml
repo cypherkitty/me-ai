@@ -1,6 +1,10 @@
 # https://taskfile.dev
 version: "3"
 
+# build:core writes to me-ai-core/pkg. install runs build:core then npm install;
+# package.json has "me-ai-core": "file:../me-ai-core/pkg", so node_modules/me-ai-core
+# is a symlink to that pkg. Vite and static-copy consume from node_modules/me-ai-core.
+
 vars:
   WEB_DIR: me-ai-web
   CORE_DIR: me-ai-core
@@ -14,18 +18,25 @@ tasks:
 
   # --- Dependencies ---
   install:
-    desc: "Build core then install npm deps (me-ai-core is file: link, so pkg must exist first)"
+    desc: "Build core, npm install, then copy pkg to node_modules/me-ai-core"
     deps:
       - task: build:core
     dir: '{{.WEB_DIR}}'
     cmds:
       - npm install
+      - task copy:core
 
   # --- me-ai-core (Rust WASM, blueprint: duckdb-wasm-shell style) ---
   build:core:
-    desc: Build me-ai-core with wasm-pack --target web (output in me-ai-core/pkg; no custom bindings)
+    desc: Build me-ai-core with wasm-pack --target web (output in me-ai-core/pkg)
     cmds:
       - wasm-pack build {{.CORE_DIR}} --target web --out-dir {{.CORE_PKG}}
+
+  copy:core:
+    desc: Copy me-ai-core/pkg into me-ai-web/node_modules/me-ai-core (run after build:core)
+    cmds:
+      - rm -rf {{.WEB_DIR}}/node_modules/me-ai-core
+      - cp -r {{.CORE_PKG}} {{.WEB_DIR}}/node_modules/me-ai-core
 
   # --- Full product build ---
   build:
