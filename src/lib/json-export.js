@@ -6,7 +6,7 @@ import { exportFilename } from "./email-utils.js";
  * Returns the exact response from GET /gmail/v1/users/me/messages/{id},
  * as received from the Gmail API. This is the unmodified source-of-truth.
  *
- * @param {object} message - Stored message from IndexedDB
+ * @param {object} message - Stored message from DuckDB
  * @returns {object|null} Raw Gmail API response, or null if not available
  */
 export function emailToJson(message) {
@@ -16,7 +16,7 @@ export function emailToJson(message) {
 /**
  * Serialize the raw Gmail API JSON to a pretty-printed string.
  *
- * @param {object} message - Stored message from IndexedDB
+ * @param {object} message - Stored message from DuckDB
  * @returns {string} Pretty-printed JSON of the raw Gmail API response
  */
 export function emailToJsonString(message) {

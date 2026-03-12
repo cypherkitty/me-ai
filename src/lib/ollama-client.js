@@ -28,14 +28,14 @@ function getDefaultOllamaUrl() {
 /**
  * Get Ollama base URL from settings or auto-detect based on environment.
  * Returns the default synchronously; call getOllamaUrlAsync() to get the
- * user-saved value from IndexedDB.
+ * user-saved value from DuckDB (settings).
  */
 export function getOllamaUrl() {
   return getDefaultOllamaUrl();
 }
 
 /**
- * Get Ollama base URL from IndexedDB settings, falling back to auto-detect.
+ * Get Ollama base URL from DuckDB settings, falling back to auto-detect.
  * @returns {Promise<string>}
  */
 export async function getOllamaUrlAsync() {
@@ -44,7 +44,7 @@ export async function getOllamaUrlAsync() {
 }
 
 /**
- * Set Ollama base URL in IndexedDB.
+ * Set Ollama base URL in DuckDB (settings).
  * @param {string} url
  */
 export async function setOllamaUrl(url) {

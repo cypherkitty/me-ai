@@ -20,7 +20,7 @@ flowchart LR
     end
     subgraph step2 [Step 2 — Scan]
         LLM["LLM Classifier"]
-        Results["Grouped Results\n(delete / archive / reply…)"]
+        Results["Categorized Results\n(delete / archive / reply…)"]
     end
     subgraph step3 [Step 3 — Control Plane]
         Pipelines
@@ -37,7 +37,7 @@ flowchart LR
 ```
 
 - **Sources** — route `#sources`: connect accounts (Gmail, future: Telegram…), browse raw data
-- **Scan** — route `#scan`: run the LLM classifier over synced emails; review grouped results
+- **Scan** — route `#scan`: run the LLM classifier over synced emails; review categorized results
 - **Control Plane** — routes `#pipelines`, `#approvals`, `#stream`, `#audit`: configure rules/pipelines, review approvals, audit trail
 
 Scan is the bridge between Sources and the Control Plane — it transforms raw data into typed events that the pipeline system can act on.
@@ -53,8 +53,9 @@ Rather than having a fixed, hardcoded set of rules, the LLM analyzes incoming da
 An **event** is any discrete piece of data that enters the system (e.g., an email message arriving via Gmail sync).
 When an event arrives, the LLM dynamically extracts:
 - `type` — the event type label (e.g. `"REPLY"`, `"DELETE"`, `"TRACK_DELIVERY"`, `"PAY_BILL"`)
-- `group` — the execution policy tier (`NOISE`, `INFO`, `CRITICAL`)
-- `suggestedActions` — a dynamically generated list of steps to handle this event
+- `category` — the execution policy tier (`NOISE`, `INFO`, `CRITICAL`)
+
+Pipelines are **not** suggested by the LLM; they come from category defaults and optional per-type overrides (see n8n-architecture). The `suggestedActions` field is no longer produced (kept as an empty array for API compatibility).
 
 ### Plugin Architecture
 
@@ -70,7 +71,7 @@ src/lib/plugins/
                          Exports: pluginRegistry
   execution-service.js — High-level API consumed by UI components
                          Exports: executePipeline, executePipelineBatch, getAvailableActions,
-                                  isAuthenticated, getRequiredScopes, EVENT_GROUPS
+                                  isAuthenticated, getRequiredScopes, EVENT_GROUPS (event categories: NOISE/INFO/CRITICAL)
 ```
 
 ### Chat as Control Interface
@@ -78,13 +79,13 @@ The **chat is the control interface** on top of the event stream. Chat messages 
 
 1. **Flat/regular** — plain text string (e.g. user questions, LLM text replies)
 2. **Typed** — structured message containing:
-   - An **event** (or list of events grouped by event type)
+   - An **event** (or list of events grouped by event type / category)
    - A **pipeline** of actions associated with the event type
    - Visual components rendered inline in the chat (approval cards for CRITICAL)
 
 **Invisible LLM Interceptors (Control Tags):**
 The LLM can trigger actions in the UI by appending hidden text tags to its responses:
-- `[EXECUTE:GROUP:{EventType}]` — The UI strips this tag and automatically executes the pipeline batch for the specified pending event type.
+- `[EXECUTE:GROUP:{EventType}]` — The UI strips this tag and automatically executes the pipeline batch for the specified pending event category/type.
 - `[SHOW:DASHBOARD]` — The UI strips this tag and automatically renders the interactive `events-grouped` visual dashboard inline within the chat.
 
 CRITICAL event types show an amber **approval card** in the chat instead of a direct execute button. 

@@ -65,7 +65,7 @@
 
   // ── Shared engine listener ─────────────────────────────────────────
   onMount(async () => {
-    // Restore saved backend, model, and options from IndexedDB
+    // Restore saved backend, model, and options from DuckDB (settings)
     const [
       savedBackend,
       savedModel,

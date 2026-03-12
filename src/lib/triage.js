@@ -373,7 +373,7 @@ export async function getClassifications({ action } = {}) {
 /**
  * Get classifications grouped by action type (dynamic — groups emerge from data).
  * Returns an object: action -> array of classifications, sorted by date desc.
- * Also returns the group order sorted by count descending.
+ * Also returns the category order sorted by count descending.
  *
  * @param {{ pendingOnly?: boolean }} [opts] - If pendingOnly: true, only include
  *   status IN ('pending', 'escalated'); exclude already executed/handled.

@@ -5,7 +5,7 @@
  * Category names in DB and rules use lowercase: noise, info, critical.
  *
  *   EventType     — what kind of content (ad, newsletter, invoice, …)
- *   EventGroup    — NOISE | INFO | CRITICAL (execution policy)
+ *   Event category — NOISE | INFO | CRITICAL (execution policy tier)
  *   category_name — noise | info | critical (stored in DB, used by rules)
  */
 
@@ -24,15 +24,16 @@
  * @property {string} type     — event type (e.g. "REVIEW", "DELETE")
  * @property {string} source   — origin (e.g. "gmail")
  * @property {Object} data     — email payload
- * @property {Object} metadata — scan metadata (group, summary, reason, tags, etc.)
+ * @property {Object} metadata — scan metadata (category, summary, reason, tags, etc.)
  */
 
 /**
  * @typedef {"NOISE"|"INFO"|"CRITICAL"} EventGroup
+ * Event category (execution policy tier). Stored in DB as category_name: noise | info | critical.
  */
 
 /**
- * Event groups (3 tiers). Stored in DB as category_name: noise | info | critical.
+ * Event categories (3 tiers). Stored in DB as category_name: noise | info | critical.
  * NOISE    — auto-execute pipeline
  * INFO     — supervised (execute then notify)
  * CRITICAL — require explicit user approval
@@ -68,7 +69,7 @@ export const DEFAULT_GROUP = "CRITICAL";
 
 /**
  * Category names used in DB (sm_event_types.category_name, sm_event_categories).
- * One-to-one with groups: noise ↔ NOISE, info ↔ INFO, critical ↔ CRITICAL.
+ * One-to-one with tiers: noise ↔ NOISE, info ↔ INFO, critical ↔ CRITICAL.
  */
 export const EVENT_CATEGORIES = {
   noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
@@ -86,7 +87,7 @@ export function categoryToPolicy(category) {
 }
 
 /**
- * Map event group → ExecutionPolicy name.
+ * Map event category (tier) → ExecutionPolicy name.
  * @param {string} group — NOISE | INFO | CRITICAL
  * @returns {string} policy name
  */
@@ -97,9 +98,9 @@ export function groupToPolicy(group) {
 }
 
 /**
- * Map ExecutionPolicy → event group.
+ * Map ExecutionPolicy → event category (tier).
  * @param {string} policy — auto | supervised | manual
- * @returns {string} group
+ * @returns {string} NOISE | INFO | CRITICAL
  */
 export function policyToGroup(policy) {
   if (policy === "auto") return "NOISE";
@@ -108,7 +109,7 @@ export function policyToGroup(policy) {
 }
 
 /**
- * Map event group → category name (for DB and rules).
+ * Map event category tier → category name (for DB and rules).
  * @param {string} group — NOISE | INFO | CRITICAL
  * @returns {string} noise | info | critical
  */
@@ -173,10 +174,10 @@ export async function getAllEventTypes() {
   return [...all].sort();
 }
 
-// ── Event group management ──────────────────────────────────────────
+// ── Event category (tier) management ─────────────────────────────────
 
 /**
- * Normalize stored group to 3-tier (NOISE | INFO | CRITICAL).
+ * Normalize stored category tier to 3-tier (NOISE | INFO | CRITICAL).
  * @param {string} [stored]
  * @returns {EventGroup}
  */
@@ -189,7 +190,7 @@ function normalizeGroup(stored) {
 }
 
 /**
- * Get the group for an event type.
+ * Get the event category (tier) for an event type.
  * @param {string} eventType
  * @returns {Promise<EventGroup>}
  */
@@ -200,20 +201,20 @@ export async function getGroupForEventType(eventType) {
 }
 
 /**
- * Set the group for an event type.
+ * Set the event category (tier) for an event type.
  * @param {string} eventType
  * @param {EventGroup} group
  */
 export async function setGroupForEventType(eventType, group) {
   const normalized = eventType.toUpperCase();
-  if (!EVENT_GROUPS[group]) throw new Error(`Unknown group: ${group}`);
+  if (!EVENT_GROUPS[group]) throw new Error(`Unknown category: ${group}`);
   const map = await loadGroupsMap();
   map[normalized] = group;
   await saveGroupsMap(map);
 }
 
 /**
- * Get groups for all known event types.
+ * Get event categories (tiers) for all known event types.
  * @returns {Promise<Record<string, EventGroup>>}
  */
 export async function getAllEventTypeGroups() {
@@ -221,7 +222,7 @@ export async function getAllEventTypeGroups() {
 }
 
 /**
- * Get the execution policy for an event type based on its group.
+ * Get the execution policy for an event type based on its category (tier).
  * @param {string} eventType
  * @returns {Promise<{ autoExecute: boolean, requiresApproval: boolean }>}
  */

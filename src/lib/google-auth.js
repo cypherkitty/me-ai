@@ -193,7 +193,7 @@ export async function initGoogleAuth(clientId) {
 
 /**
  * Opens the Google OAuth consent popup and returns the token response.
- * The token is automatically saved to IndexedDB for persistence.
+ * The token is automatically saved to DuckDB (and localStorage) for persistence.
  * Resolves with { access_token, expires_in } on success.
  */
 export function requestAccessToken() {

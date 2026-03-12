@@ -227,11 +227,11 @@
 
         <div class="border-t border-border/40"></div>
 
-        <!-- ── IndexedDB ─────────────────────────────────────────────── -->
+        <!-- ── DuckDB · local cache ───────────────────────────────────── -->
         <section class="flex flex-col gap-4">
           <div class="flex items-center gap-2">
             <h2 class="text-xs font-semibold tracking-tight text-foreground">
-              IndexedDB
+              DuckDB · local cache
             </h2>
             <span
               class="text-[0.6rem] text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded font-mono"
@@ -257,19 +257,19 @@
             </div>
             {#if idb.idbBytes > 0}
               <p class="text-[0.65rem] text-muted-foreground/40">
-                Origin storage (IndexedDB + OPFS + browser caches): <span
+                Origin storage (DuckDB/OPFS + IDB cache + browser caches): <span
                   class="font-mono">{fmt(idb.idbBytes)}</span
                 >
               </p>
             {/if}
           {/if}
 
-          <!-- Per-group clear -->
+          <!-- Per-category clear -->
           {#if groupOrder.length > 0}
             <div class="flex flex-col gap-2">
               <span
                 class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40"
-                >Clear by group</span
+                >Clear by category</span
               >
               <div class="flex flex-wrap gap-1.5">
                 {#each groupOrder as action}
@@ -307,7 +307,7 @@
 
           <!-- Bulk actions -->
           <div class="flex flex-col gap-1">
-            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from OPFS (DuckDB) and IndexedDB, then reloads.", action: () => {
+            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from DuckDB (OPFS) and IDB cache, then reloads.", action: () => {
                     confirm = null;
                     busy = true;
                     wipeAllData();
@@ -366,7 +366,7 @@
                 <strong class="text-destructive/80 font-semibold"
                   >This cannot be undone.</strong
                 >
-                Deletes OPFS files (DuckDB), all IndexedDB databases, all cached
+                Deletes DuckDB (OPFS) and IDB cache, all cached
                 model weights (Cache API), and localStorage. The page will reload
                 fresh.
               </span>
@@ -409,7 +409,7 @@
                 >Wipe everything</span
               >
               <span class="text-[0.65rem] text-muted-foreground/40"
-                >OPFS · IndexedDB · model cache · localStorage — full reset.</span
+                >DuckDB (OPFS) · IDB cache · model cache · localStorage — full reset.</span
               >
             </button>
           {/if}

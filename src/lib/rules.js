@@ -60,7 +60,7 @@ export async function getSources() {
 
 export async function getExecutionPolicies() {
   await import("./store/db.js").then(m => m.getDb());
-  /* DEPRECATED: execution policies are hardcoded to NOISE/CRITICAL groups */
+  /* DEPRECATED: execution policies are hardcoded to NOISE/CRITICAL categories */
   return [];
 }
 

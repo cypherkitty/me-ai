@@ -3,7 +3,7 @@
  *
  * High-level service for executing action pipelines.
  * Handles authentication, progress tracking, result formatting,
- * and group-based execution policies (NOISE / INFO / CRITICAL).
+ * and category-based execution policies (NOISE / INFO / CRITICAL).
  */
 
 import { pluginRegistry } from "./plugin-registry.js";
@@ -19,7 +19,7 @@ import { logExecution, syncAfterExecution } from "../store/audit.js";
  * @property {string} [actionName] - Current action name
  * @property {Object} [result] - Action result
  * @property {string} [error] - Error message if failed
- * @property {string} [group] - Event group (NOISE/INFO/CRITICAL)
+ * @property {string} [group] - Event category tier (NOISE/INFO/CRITICAL)
  * @property {number} [eventIndex] - Current event index (for batch)
  * @property {number} [totalEvents] - Total events (for batch)
  */
@@ -41,7 +41,7 @@ function normaliseActions(rawActions) {
 
 /**
  * Execute an action pipeline for a single event.
- * Respects the event type's group execution policy:
+ * Respects the event type's category execution policy:
  *   NOISE    — executes without any prompt
  *   INFO     — executes on user request (caller decides when to call)
  *   CRITICAL — returns { requiresApproval: true } until caller passes approved=true
