@@ -21,9 +21,9 @@ tasks:
     cmds:
       - npm install
 
-  # --- me-ai-core (Rust WASM) ---
+  # --- me-ai-core (Rust WASM, blueprint: duckdb-wasm-shell style) ---
   build:core:
-    desc: Build me-ai-core with wasm-pack (output in me-ai-core/pkg; npm install links it as me-ai-core)
+    desc: Build me-ai-core with wasm-pack --target web (output in me-ai-core/pkg; no custom bindings)
     cmds:
       - wasm-pack build {{.CORE_DIR}} --target web --out-dir {{.CORE_PKG}}
 
@@ -41,6 +41,13 @@ tasks:
     dir: '{{.WEB_DIR}}'
     cmds:
       - npm run build
+
+  # --- Dev server (use stable Rust for build:core if needed) ---
+  dev:
+    desc: Run Vite dev server (core must be built first; use task install once)
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run dev
 
   # --- Tests ---
   test:

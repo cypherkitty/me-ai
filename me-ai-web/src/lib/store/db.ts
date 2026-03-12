@@ -182,7 +182,7 @@ async function _init(): Promise<InstanceType<typeof duckdb.AsyncDuckDB>> {
   }
 
   // Schema and migrations run from me-ai-core when the core is first used (createSchemaAndMigrations).
-  // Post-schema steps (items count, rehydrate) run from core.ts getWasm() via postSchemaInit().
+  // Post-schema steps (items count, rehydrate) run from core.ts getCore() via postSchemaInit().
 
   return _db;
 }
@@ -205,10 +205,11 @@ export async function postSchemaInit(itemsCount: number): Promise<void> {
   await _rehydrateFromIdb(_conn);
 }
 
-async function _rehydrateFromIdb(conn: DuckDBConnection): Promise<void> {
+async function _rehydrateFromIdb(_conn: DuckDBConnection): Promise<void> {
   try {
     const { idbGetAllItems, idbGetAllSyncStates, idbGetAllContacts } =
       await import("./idb.js");
+    const { getCore } = await import("../core.js");
 
     const [items, syncStates, contacts] = await Promise.all([
       idbGetAllItems(),
@@ -216,74 +217,62 @@ async function _rehydrateFromIdb(conn: DuckDBConnection): Promise<void> {
       idbGetAllContacts(),
     ]);
 
+    const w = (await getCore())!;
+
     if (items.length > 0) {
       console.info(`[db] Rehydrating ${items.length} emails from IDB cache`);
-      const sql = `INSERT INTO items
-         (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
-          snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
-          raw, syncedAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO NOTHING`;
-      for (const item of items) {
-        try {
-          const stmt = await conn.prepare(sql);
-          await stmt.query(
-            item.id,
-            item.sourceType,
-            item.sourceId,
-            item.threadKey,
-            item.type,
-            item.from,
-            item.to,
-            item.cc,
-            item.subject,
-            item.snippet,
-            item.body,
-            item.htmlBody,
-            item.date,
-            item.labels,
-            item.messageId,
-            item.inReplyTo,
-            item.references,
-            item.raw,
-            item.syncedAt
-          );
-          await stmt.close();
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-
-    for (const s of syncStates) {
+      const rows = items.map((item) => ({
+        id: item.id,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId ?? null,
+        threadKey: item.threadKey ?? null,
+        type: item.type ?? null,
+        from: item.from ?? null,
+        to: item.to ?? null,
+        cc: item.cc ?? null,
+        subject: item.subject ?? null,
+        snippet: item.snippet ?? null,
+        body: item.body ?? null,
+        htmlBody: item.htmlBody ?? null,
+        date: item.date ?? null,
+        labels: item.labels ?? "[]",
+        messageId: item.messageId ?? null,
+        inReplyTo: item.inReplyTo ?? null,
+        references: item.references ?? null,
+        raw: item.raw ?? null,
+        syncedAt: item.syncedAt ?? null,
+      }));
       try {
-        const stmt = await conn.prepare(
-          `INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT (sourceType) DO NOTHING`
-        );
-        await stmt.query(
-          s.sourceType,
-          s.historyId,
-          s.lastSyncAt,
-          s.totalItems,
-          s.oldestPageToken
-        );
-        await stmt.close();
+        await w.insertItemsBatch(rows);
       } catch {
         /* ignore */
       }
     }
 
-    for (const c of contacts) {
+    if (syncStates.length > 0) {
+      const rows = syncStates.map((s) => ({
+        sourceType: s.sourceType,
+        historyId: s.historyId,
+        lastSyncAt: s.lastSyncAt ?? 0,
+        totalItems: s.totalItems ?? 0,
+        oldestPageToken: s.oldestPageToken ?? "",
+      }));
       try {
-        const stmt = await conn.prepare(
-          `INSERT INTO contacts (email, name, firstSeen, lastSeen)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT (email) DO NOTHING`
-        );
-        await stmt.query(c.email, c.name, c.firstSeen, c.lastSeen);
-        await stmt.close();
+        await w.insertSyncStateBatch(rows);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (contacts.length > 0) {
+      const rows = contacts.map((c) => ({
+        email: c.email,
+        name: c.name ?? "",
+        firstSeen: c.firstSeen ?? 0,
+        lastSeen: c.lastSeen ?? 0,
+      }));
+      try {
+        await w.insertContactsBatch(rows);
       } catch {
         /* ignore */
       }
@@ -315,16 +304,13 @@ export function getDb(): Promise<InstanceType<typeof duckdb.AsyncDuckDB>> {
 export async function wipeAllData(): Promise<void> {
   const { idbWipeAll } = await import("./idb.js");
 
-  if (_conn) {
-    try {
-      await _conn.query(`DELETE FROM items`);
-    } catch {}
-    try {
-      await _conn.query(`DELETE FROM syncState`);
-    } catch {}
-    try {
-      await _conn.query(`DELETE FROM contacts`);
-    } catch {}
+  try {
+    await getDb();
+    const { getCore } = await import("../core.js");
+    const w = (await getCore())!;
+    await w.clearItemsSyncContacts();
+  } catch {
+    /* ignore */
   }
 
   if (_conn) {

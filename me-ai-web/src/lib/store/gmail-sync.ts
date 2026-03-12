@@ -14,7 +14,8 @@
  * - totalItems      — count of locally stored items
  */
 
-import { query, exec, execBatch, checkpoint, makeItemId, toJson } from "./db.js";
+import { getCore } from "../core.js";
+import { checkpoint, makeItemId, toJson } from "./db.js";
 import {
   idbPutItems,
   idbDeleteItems,
@@ -97,7 +98,8 @@ export async function syncGmail(
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
-        await exec(`DELETE FROM syncState WHERE sourceType = ?`, [SOURCE_TYPE]);
+        const w = await getCore();
+        await w.deleteSyncState(SOURCE_TYPE);
       } else {
         throw e;
       }
@@ -139,18 +141,16 @@ export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
 }
 
 export async function clearGmailData(): Promise<void> {
-  await exec(`DELETE FROM items WHERE sourceType = ?`, [SOURCE_TYPE]);
-  await exec(`DELETE FROM syncState WHERE sourceType = ?`, [SOURCE_TYPE]);
+  const w = await getCore();
+  await w.deleteItemsBySource(SOURCE_TYPE);
+  await w.deleteSyncState(SOURCE_TYPE);
   await idbClearItemsBySource(SOURCE_TYPE);
   await idbDeleteSyncState(SOURCE_TYPE);
 }
 
 export async function getGmailItemCount(): Promise<number> {
-  const [row] = await query(
-    `SELECT COUNT(*) AS cnt FROM items WHERE sourceType = ?`,
-    [SOURCE_TYPE]
-  );
-  return Number(row?.cnt ?? 0);
+  const w = await getCore();
+  return Number(await w.getItemsCountBySource(SOURCE_TYPE) ?? 0);
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -275,10 +275,8 @@ async function continueFetch(
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await exec(
-      `UPDATE syncState SET oldestPageToken = '', lastSyncAt = ? WHERE sourceType = ?`,
-      [Date.now(), SOURCE_TYPE]
-    );
+    const w = await getCore();
+    await w.upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
@@ -286,11 +284,8 @@ async function continueFetch(
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
   const totalItems = await getGmailItemCount();
 
-  await exec(
-    `UPDATE syncState SET totalItems = ?, lastSyncAt = ?, oldestPageToken = ?
-     WHERE sourceType = ?`,
-    [totalItems, Date.now(), nextPageAfterLimit ?? "", SOURCE_TYPE]
-  );
+  const w = await getCore();
+  await w.upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
 
   await checkpoint();
 
@@ -514,57 +509,29 @@ function normalizeGmailMessage(msg: GmailMessage): StoredItem {
 // ── Bulk DB helpers ─────────────────────────────────────────────────
 
 async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
-  const sql = `INSERT INTO items
-       (id, sourceType, sourceId, threadKey, type, "from", "to", cc, subject,
-        snippet, body, htmlBody, date, labels, messageId, inReplyTo, "references",
-        raw, syncedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (id) DO UPDATE SET
-       sourceType   = excluded.sourceType,
-       sourceId     = excluded.sourceId,
-       threadKey    = excluded.threadKey,
-       type         = excluded.type,
-       "from"       = excluded."from",
-       "to"         = excluded."to",
-       cc           = excluded.cc,
-       subject      = excluded.subject,
-       snippet      = excluded.snippet,
-       body         = excluded.body,
-       htmlBody     = excluded.htmlBody,
-       date         = excluded.date,
-       labels       = excluded.labels,
-       messageId    = excluded.messageId,
-       inReplyTo    = excluded.inReplyTo,
-       "references" = excluded."references",
-       raw          = excluded.raw,
-       syncedAt     = excluded.syncedAt`;
-
-  await execBatch(
-    items.map((item) => ({
-      sql,
-      params: [
-        item.id,
-        item.sourceType,
-        item.sourceId,
-        item.threadKey,
-        item.type,
-        item.from,
-        item.to,
-        item.cc,
-        item.subject,
-        item.snippet,
-        item.body,
-        item.htmlBody,
-        item.date,
-        toJson(item.labels),
-        item.messageId,
-        item.inReplyTo,
-        item.references,
-        toJson(item.raw),
-        item.syncedAt,
-      ],
-    }))
-  );
+  const rows = items.map((item) => ({
+    id: item.id,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId ?? null,
+    threadKey: item.threadKey ?? null,
+    type: item.type ?? null,
+    from: item.from ?? null,
+    to: item.to ?? null,
+    cc: item.cc ?? null,
+    subject: item.subject ?? null,
+    snippet: item.snippet ?? null,
+    body: item.body ?? null,
+    htmlBody: item.htmlBody ?? null,
+    date: item.date ?? null,
+    labels: toJson(item.labels),
+    messageId: item.messageId ?? null,
+    inReplyTo: item.inReplyTo ?? null,
+    references: item.references ?? null,
+    raw: toJson(item.raw),
+    syncedAt: item.syncedAt ?? null,
+  }));
+  const w = await getCore();
+  await w.insertItemsBatch(rows);
 
   await idbPutItems(
     items.map((item) => ({
@@ -576,7 +543,8 @@ async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
 }
 
 async function bulkDeleteItems(ids: string[]): Promise<void> {
-  await execBatch(ids.map((id) => ({ sql: `DELETE FROM items WHERE id = ?`, params: [id] })));
+  const w = await getCore();
+  await w.deleteItemsByIds(ids);
   await idbDeleteItems(ids);
 }
 
@@ -608,28 +576,18 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
 
   const idbBatch: Array<{ email: string; name: string; firstSeen: number; lastSeen: number }> = [];
 
+  const w = await getCore();
   for (const [email, { name, date }] of contactMap) {
     try {
-      const existing = await query(`SELECT * FROM contacts WHERE email = ?`, [email]);
-
-      if (existing.length > 0) {
-        const row = existing[0] as Record<string, unknown>;
-        const updates: string[] = [];
-        const vals: unknown[] = [];
-        if (name && !row.name) {
-          updates.push(`name = ?`);
-          vals.push(name);
-        }
-        if (date > (Number(row.lastSeen) || 0)) {
-          updates.push(`lastSeen = ?`);
-          vals.push(date);
-        }
-        if (updates.length > 0) {
-          await exec(
-            `UPDATE contacts SET ${updates.join(", ")} WHERE email = ?`,
-            [...vals, email]
-          );
-        }
+      const existing = await w.getContactByEmail(email);
+      if (existing != null) {
+        const row = existing as Record<string, unknown>;
+        await w.upsertContact(
+          email,
+          (row.name as string) || name || "",
+          Number(row.firstSeen) || date,
+          Math.max(date, Number(row.lastSeen) || 0)
+        );
         idbBatch.push({
           email,
           name: (row.name as string) || name || "",
@@ -637,10 +595,7 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
           lastSeen: Math.max(date, Number(row.lastSeen) || 0),
         });
       } else {
-        await exec(
-          `INSERT INTO contacts (email, name, firstSeen, lastSeen) VALUES (?, ?, ?, ?)`,
-          [email, name || "", date, date]
-        );
+        await w.upsertContact(email, name || "", date, date);
         idbBatch.push({ email, name: name || "", firstSeen: date, lastSeen: date });
       }
     } catch (e) {
@@ -669,18 +624,16 @@ function parseEmailAddress(str: string): ParsedEmail | null {
 // ── syncState helpers ───────────────────────────────────────────────
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
-  const rows = await query(
-    `SELECT * FROM syncState WHERE sourceType = ?`,
-    [sourceType]
-  );
-  if (rows.length === 0) return null;
-  const r = rows[0] as Record<string, unknown>;
+  const w = await getCore();
+  const r = await w.getSyncState(sourceType);
+  if (r == null) return null;
+  const row = r as Record<string, unknown>;
   return {
-    sourceType: r.sourceType as string,
-    historyId: r.historyId as string,
-    lastSyncAt: r.lastSyncAt != null ? Number(r.lastSyncAt) : null,
-    totalItems: r.totalItems != null ? Number(r.totalItems) : 0,
-    oldestPageToken: (r.oldestPageToken as string) ?? "",
+    sourceType: row.sourceType as string,
+    historyId: row.historyId as string,
+    lastSyncAt: row.lastSyncAt != null ? Number(row.lastSyncAt) : null,
+    totalItems: row.totalItems != null ? Number(row.totalItems) : 0,
+    oldestPageToken: (row.oldestPageToken as string) ?? "",
   };
 }
 
@@ -691,16 +644,8 @@ async function upsertSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await exec(
-    `INSERT INTO syncState (sourceType, historyId, lastSyncAt, totalItems, oldestPageToken)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (sourceType) DO UPDATE SET
-       historyId       = excluded.historyId,
-       lastSyncAt      = excluded.lastSyncAt,
-       totalItems      = excluded.totalItems,
-       oldestPageToken = excluded.oldestPageToken`,
-    [sourceType, historyId, lastSyncAt, totalItems, oldestPageToken]
-  );
+  const w = await getCore();
+  await w.upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
   await idbPutSyncState({
     sourceType,
     historyId,

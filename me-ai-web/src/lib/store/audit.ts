@@ -3,9 +3,11 @@
  *
  * Records every pipeline execution and its effects on local data.
  * Used for the audit log UI and to keep the local DB in sync after actions run.
+ * All SQL runs in me-ai-core (Rust); this module calls the core.
  */
 
-import { query, exec, toJson, fromJson } from "./db.js";
+import { getCore } from "../core.js";
+import { toJson, fromJson } from "./db.js";
 import type { PipelineAction, ActionExecutionResult, AuditStep } from "$lib/types";
 
 const DESTRUCTIVE_COMMAND_IDS = new Set(["trash", "delete", "mark_spam"]);
@@ -44,20 +46,17 @@ export async function logExecution({
     message: (r.message ?? "") as string,
   }));
 
-  await exec(
-    `INSERT INTO auditLog (id, emailId, subject, "from", eventType, executedAt, success, error, steps)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      crypto.randomUUID(),
-      emailId,
-      subject ?? "(no subject)",
-      from ?? "",
-      eventType,
-      Date.now(),
-      !!success,
-      error ?? "",
-      toJson(steps),
-    ]
+  const w = await getCore();
+  await w.logAuditExecution(
+    crypto.randomUUID(),
+    emailId,
+    subject ?? "(no subject)",
+    from ?? "",
+    eventType,
+    Date.now(),
+    !!success,
+    error ?? "",
+    toJson(steps)
   );
 }
 
@@ -75,17 +74,12 @@ export async function syncAfterExecution(
     .map((r) => r.commandId)
     .filter(Boolean) as string[];
 
-  await exec(
-    `UPDATE emailClassifications SET status = 'executed' WHERE emailId = ?`,
-    [emailId]
-  );
-
   const isDestructive = successfulCommandIds.some((id) => DESTRUCTIVE_COMMAND_IDS.has(id));
   const isArchiving = successfulCommandIds.some((id) => ARCHIVING_COMMAND_IDS.has(id));
+  const deleteItem = isDestructive || isArchiving;
 
-  if (isDestructive || isArchiving) {
-    await exec(`DELETE FROM items WHERE id = ?`, [emailId]);
-  }
+  const w = await getCore();
+  await w.syncAfterAuditExecution(emailId, deleteItem);
 }
 
 export interface GetAuditLogOptions {
@@ -107,32 +101,20 @@ export async function getAuditLog({
   offset = 0,
   failuresOnly = false,
 }: GetAuditLogOptions = {}): Promise<GetAuditLogResult> {
-  const whereClause = failuresOnly ? "WHERE success = false" : "";
-
-  const [countRow] = await query(
-    `SELECT COUNT(*) AS cnt FROM auditLog ${whereClause}`
-  );
-  const total = Number(countRow?.cnt ?? 0);
-
-  const rows = await query(
-    `SELECT * FROM auditLog ${whereClause}
-     ORDER BY executedAt DESC
-     LIMIT ? OFFSET ?`,
-    [limit, offset]
-  );
-
-  const entries = rows.map((r) => ({
+  const w = await getCore();
+  const result = await w.getAuditLog(limit, offset, failuresOnly) as { entries: Record<string, unknown>[]; total: number };
+  const entries = (result.entries ?? []).map((r) => ({
     ...r,
     steps: fromJson<AuditStep[]>(r.steps as string, []),
     success: Boolean(r.success),
   }));
-
-  return { entries, total };
+  return { entries, total: result.total ?? 0 };
 }
 
 /**
  * Delete all audit log entries.
  */
 export async function clearAuditLog(): Promise<void> {
-  await exec(`DELETE FROM auditLog`);
+  const w = await getCore();
+  await w.clearAuditLog();
 }
