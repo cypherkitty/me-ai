@@ -1,5 +1,5 @@
 ---
-name: me-ai-core-developer
+name: me-ai-core
 description: |
   Rust and WASM specialist for me-ai-core. Use proactively when the user asks to implement, add, or refactor Rust code, SQL (sea-query), or WASM API in me-ai-core. Always use for me-ai-core changes, Rust implementation, or when the user mentions "rust", "me-ai-core", "WASM", or "sea-query".
 model: inherit

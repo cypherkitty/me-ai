@@ -13,6 +13,8 @@ export type { CoreModule };
 let core: CoreModule | null = null;
 /** Single init promise so concurrent getCore()/initCore() callers all await the same init. */
 let initPromise: Promise<CoreModule> | null = null;
+/** True after init has failed (e.g. IndexedDB unavailable). Callers should fail explicitly; no fallbacks. */
+let coreInitFailed = false;
 
 /** Base URL for WASM assets (same as Vite middleware and static copy). */
 function wasmBase(): string {
@@ -37,15 +39,27 @@ export async function initCore(): Promise<CoreModule> {
   if (initPromise) return initPromise;
 
   initPromise = (async (): Promise<CoreModule> => {
-    const mod = await loadCoreModule();
-    await mod.default();
-    mod.init();
-    await mod.createSchemaAndMigrations();
-    core = mod;
-    return mod;
+    try {
+      const mod = await loadCoreModule();
+      await mod.default();
+      mod.init();
+      await mod.createSchemaAndMigrations();
+      core = mod;
+      return mod;
+    } catch (e) {
+      coreInitFailed = true;
+      throw e;
+    }
   })();
 
   return initPromise;
+}
+
+/**
+ * True if core init has already failed (e.g. IndexedDB unavailable). For UI/guards only; do not use for fallback paths.
+ */
+export function isCoreInitFailed(): boolean {
+  return coreInitFailed;
 }
 
 /**

@@ -9,7 +9,10 @@ if (!el) throw new Error("Missing #app element");
 const app = mount(App, { target: el });
 
 // Eager-init core (shell-style): load WASM and schema in background so first use is fast.
-initCore().catch((e) => console.error("[core] init failed", e));
+initCore().catch((e) => {
+  console.error("[core] init failed", e);
+  console.warn("[core] IndexedDB may be unavailable (e.g. private browsing). Settings will use localStorage.");
+});
 
 // Expose DB helpers on window for Playwright E2E tests.
 // These are no-ops in production but harmless.

@@ -4,6 +4,7 @@
 *.local
 test-results
 playwright-report
+node_modules
 
 # Built artifacts (not committed)
 me-ai-core/pkg
