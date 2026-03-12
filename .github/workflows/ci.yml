@@ -18,6 +18,13 @@ jobs:
           cache: npm
           cache-dependency-path: me-ai-web/package.json
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - uses: arduino/setup-task@v2
 
       - run: task ci
