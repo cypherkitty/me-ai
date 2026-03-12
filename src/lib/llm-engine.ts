@@ -55,7 +55,7 @@ function ensureWorker(): Promise<WorkerHandle> {
   if (!_workerPromise) {
     _workerPromise = (async () => {
       const worker = new Worker(
-        new URL("../llm-worker.js", import.meta.url),
+        new URL("../llm-worker.ts", import.meta.url),
         { type: "module" },
       );
 
