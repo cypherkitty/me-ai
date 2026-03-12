@@ -5,7 +5,6 @@ vars:
   WEB_DIR: me-ai-web
   CORE_DIR: me-ai-core
   CORE_PKG: "{{.CORE_DIR}}/pkg"
-  WASM_DEST: "{{.WEB_DIR}}/public/wasm"
 
 tasks:
   default:
@@ -15,24 +14,24 @@ tasks:
 
   # --- Dependencies ---
   install:
-    desc: Install npm dependencies for me-ai-web
+    desc: Build core then install npm deps (me-ai-core is file: link, so pkg must exist first)
+    deps:
+      - task: build:core
     dir: "{{.WEB_DIR}}"
     cmds:
       - npm install
 
   # --- me-ai-core (Rust WASM) ---
   build:core:
-    desc: Build me-ai-core with wasm-pack and copy JS/WASM to me-ai-web/public/wasm
+    desc: Build me-ai-core with wasm-pack (output in me-ai-core/pkg; npm install links it as me-ai-core)
     cmds:
       - wasm-pack build {{.CORE_DIR}} --target web --out-dir {{.CORE_PKG}}
-      - mkdir -p {{.WASM_DEST}}
-      - cp {{.CORE_PKG}}/me_ai_core.js {{.CORE_PKG}}/me_ai_core_bg.wasm {{.WASM_DEST}}/
 
   # --- Full product build ---
   build:
-    desc: Build full product (me-ai-core + me-ai-web)
+    desc: Build full product (core + web); needs install so node_modules/me-ai-core exists
     deps:
-      - task: build:core
+      - task: install
     dir: "{{.WEB_DIR}}"
     cmds:
       - npm run build
@@ -64,21 +63,19 @@ tasks:
     cmds:
       - npm run check
 
-  # --- CI: build core (for npm dep) + install + unit + e2e ---
+  # --- CI: install (core + npm) then unit + e2e ---
   ci:
-    desc: Full CI run (install, unit tests, E2E tests)
+    desc: Full CI run (build:core → install → unit tests → E2E tests)
     deps:
-      - build:core
-      - install
+      - task: install
     cmds:
       - task: test
       - task: test:e2e
 
-  # --- Deploy: build core (for npm dep) + install + full build ---
+  # --- Deploy: install then full build ---
   deploy-build:
-    desc: Install deps and build full product for deploy/preview
+    desc: Build core, install deps, then build web for deploy/preview
     deps:
-      - build:core
-      - install
+      - task: install
     cmds:
       - task: build

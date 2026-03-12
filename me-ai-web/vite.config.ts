@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
 const ONNX_DIST = path.resolve("node_modules/onnxruntime-web/dist");
+const CORE_PKG = path.resolve("node_modules/me-ai-core");
 
 export default defineConfig({
   base: process.env.VITE_BASE ?? (process.env.GITHUB_ACTIONS ? "/me-ai/" : "/"),
@@ -23,6 +24,15 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const pathname = (req.url ?? "").split("?")[0];
           const basename = path.basename(pathname);
+          if (pathname.includes("/wasm/") && (basename === "me_ai_core.js" || basename === "me_ai_core_bg.wasm")) {
+            const file = path.join(CORE_PKG, basename);
+            if (fs.existsSync(file)) {
+              res.setHeader("Content-Type", basename.endsWith(".wasm") ? "application/wasm" : "application/javascript");
+              res.setHeader("Cache-Control", "no-cache");
+              fs.createReadStream(file).pipe(res);
+              return;
+            }
+          }
           if (basename.startsWith("ort-wasm") && (basename.endsWith(".mjs") || basename.endsWith(".wasm"))) {
             const file = path.join(ONNX_DIST, basename);
             if (fs.existsSync(file)) {
@@ -43,6 +53,15 @@ export default defineConfig({
         server.middlewares.use((req, res, next) => {
           const pathname = (req.url ?? "").split("?")[0];
           const basename = path.basename(pathname);
+          if (pathname.includes("/wasm/") && (basename === "me_ai_core.js" || basename === "me_ai_core_bg.wasm")) {
+            const file = path.join(CORE_PKG, basename);
+            if (fs.existsSync(file)) {
+              res.setHeader("Content-Type", basename.endsWith(".wasm") ? "application/wasm" : "application/javascript");
+              res.setHeader("Cache-Control", "no-cache");
+              fs.createReadStream(file).pipe(res);
+              return;
+            }
+          }
           if (basename.startsWith("ort-wasm") && (basename.endsWith(".mjs") || basename.endsWith(".wasm"))) {
             const file = path.join(ONNX_DIST, basename);
             if (fs.existsSync(file)) {
@@ -64,6 +83,8 @@ export default defineConfig({
       targets: [
         { src: "node_modules/onnxruntime-web/dist/ort-wasm*.wasm", dest: "." },
         { src: "node_modules/onnxruntime-web/dist/ort-wasm*.mjs", dest: "." },
+        { src: "node_modules/me-ai-core/me_ai_core.js", dest: "wasm" },
+        { src: "node_modules/me-ai-core/me_ai_core_bg.wasm", dest: "wasm" },
       ],
     }),
   ],
