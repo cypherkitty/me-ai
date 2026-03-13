@@ -155,8 +155,10 @@
     const id = evt.id ?? evt.emailId ?? "";
     let emailData: Record<string, unknown> = {};
     try {
-      const item = await getItemById(id);
-      emailData = (item ?? {}) as Record<string, unknown>;
+      if (id && typeof id === "string" && id.trim().length > 0) {
+        const item = await getItemById(id);
+        emailData = (item ?? {}) as Record<string, unknown>;
+      }
     } catch {}
 
     execState[id] = { running: true, steps: [] };
