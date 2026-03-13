@@ -15,7 +15,7 @@ import {
 
 
 // WASM files are served from the site root (public/ in dev, copied in build).
-env.backends.onnx.wasm.wasmPaths = self.location.origin + "/";
+env.backends.onnx.wasm.wasmPaths = import.meta.env.BASE_URL;
 
 function isImageTextToTextModel(model_id: string): boolean {
   return /Qwen3\.5/i.test(model_id);
