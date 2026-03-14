@@ -51,8 +51,8 @@
         <span class="tracking-tight">Home</span>
       </a>
       <div class="w-px h-4 bg-border shrink-0"></div>
-      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <Zap class="size-3.5 text-primary-foreground" />
+      <div class="size-6 rounded overflow-hidden flex items-center justify-center shrink-0">
+        <img src="/logo.png" alt="me-ai logo" class="size-full object-cover" />
       </div>
       <span class="text-sm font-semibold tracking-tight text-foreground">Sources</span>
     </header>
@@ -71,8 +71,8 @@
         <span class="tracking-tight">Home</span>
       </a>
       <div class="w-px h-4 bg-border shrink-0"></div>
-      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <ScanSearch class="size-3.5 text-primary-foreground" />
+      <div class="size-6 rounded overflow-hidden flex items-center justify-center shrink-0">
+        <img src="/logo.png" alt="me-ai logo" class="size-full object-cover" />
       </div>
       <span class="text-sm font-semibold tracking-tight text-foreground">Scan</span>
     </header>
@@ -90,8 +90,8 @@
         <span class="tracking-tight">Home</span>
       </a>
       <div class="w-px h-4 bg-border shrink-0"></div>
-      <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-        <ShieldCheck class="size-3.5 text-primary-foreground" />
+      <div class="size-6 rounded overflow-hidden flex items-center justify-center shrink-0">
+        <img src="/logo.png" alt="me-ai logo" class="size-full object-cover" />
       </div>
       <span class="text-sm font-semibold tracking-tight text-foreground">Admin</span>
     </header>
@@ -110,8 +110,8 @@
           <span class="tracking-tight">Home</span>
         </a>
         <div class="w-px h-4 bg-sidebar-border shrink-0"></div>
-        <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
-          <Zap class="size-3.5 text-primary-foreground" />
+        <div class="size-6 rounded overflow-hidden flex items-center justify-center shrink-0">
+          <img src="/logo.png" alt="me-ai logo" class="size-full object-cover" />
         </div>
         <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
       </div>

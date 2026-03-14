@@ -13,18 +13,28 @@ fn rexie_err(e: rexie::Error) -> CoreError {
     crate::error::rexie_to_core(e)
 }
 
+fn is_invalid_key_str(key: &str) -> bool {
+    let trimmed = key.trim();
+    trimmed.is_empty() || trimmed == "null" || trimmed == "undefined"
+}
+
 /// Get one value by key from a store.
 pub async fn store_get<T>(store_name: &str, key: &str) -> Result<Option<T>, CoreError>
 where
     T: DeserializeOwned,
 {
+    if is_invalid_key_str(key) {
+        return Ok(None);
+    }
     let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
     let s = tx.store(store_name).map_err(rexie_err)?;
     let key_js = JsValue::from_str(key);
-    let opt = s.get(key_js).await.map_err(rexie_err)?;
+    let opt = s.get(key_js).await.map_err(|e| {
+        CoreError::Rexie(format!("store_get failed for store '{}' key '{}': {}", store_name, key, e))
+    })?;
     tx.done().await.map_err(rexie_err)?;
     let Some(val) = opt else {
         return Ok(None);
@@ -161,12 +171,17 @@ where
 
 /// Delete one key from a store.
 pub async fn store_delete(store_name: &str, key: &str) -> Result<(), CoreError> {
+    if is_invalid_key_str(key) {
+        return Ok(());
+    }
     let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
     let s = tx.store(store_name).map_err(rexie_err)?;
-    s.delete(JsValue::from_str(key)).await.map_err(rexie_err)?;
+    s.delete(JsValue::from_str(key)).await.map_err(|e| {
+        CoreError::Rexie(format!("store_delete failed for store '{}' key '{}': {}", store_name, key, e))
+    })?;
     tx.done().await.map_err(rexie_err)?;
     Ok(())
 }
@@ -318,12 +333,19 @@ where
 
 /// Build KeyRange::only(key) for string key.
 pub fn key_range_only(key: &str) -> Result<KeyRange, CoreError> {
+    if is_invalid_key_str(key) {
+        return Err(CoreError::Rexie("failed to create key range: key is empty or invalid".to_string()));
+    }
     let k = JsValue::from_str(key);
-    KeyRange::only(&k).map_err(|e| CoreError::Rexie(e.to_string()))
+    KeyRange::only(&k).map_err(|e| {
+        CoreError::Rexie(format!("IDBKeyRange.only failed for string key '{}': {}", key, e))
+    })
 }
 
 /// Build KeyRange::only for boolean key (e.g. index on "success").
 pub fn key_range_only_bool(b: bool) -> Result<KeyRange, CoreError> {
     let k = JsValue::from_bool(b);
-    KeyRange::only(&k).map_err(|e| CoreError::Rexie(e.to_string()))
+    KeyRange::only(&k).map_err(|e| {
+        CoreError::Rexie(format!("IDBKeyRange.only failed for boolean key '{}' (booleans are often NOT valid IDB keys): {}", b, e))
+    })
 }

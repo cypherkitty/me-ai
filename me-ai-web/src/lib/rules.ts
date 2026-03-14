@@ -299,7 +299,7 @@ export async function getPendingApprovals({
   for (const r of pending) {
     const emailId = (r.emailId ?? r.id) as string | undefined;
     let item: Record<string, unknown> | null = null;
-    if (emailId && typeof emailId === "string" && emailId.trim().length > 0) {
+    if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
       item = await coreGetItemById(emailId) as Record<string, unknown> | null;
     }
     const subject = (item?.subject ?? r.subject) as string;
@@ -363,7 +363,7 @@ export async function getPendingItemsByCategory(
   for (const r of filtered) {
     const emailId = (r.emailId ?? r.id) as string | undefined;
     let item: Record<string, unknown> | null = null;
-    if (emailId && typeof emailId === "string" && emailId.trim().length > 0) {
+    if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
       item = await coreGetItemById(emailId) as Record<string, unknown> | null;
     }
     out.push({
