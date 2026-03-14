@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
+  import FilesystemPluginSettings from "../plugins/FilesystemPluginSettings.svelte";
 
   interface Props {
     open?: boolean;
@@ -37,18 +38,23 @@
 
   // Icons for well-known action IDs (same map as ActionEditor)
   const ACTION_ICONS = {
-    mark_read:          "✓",
-    mark_unread:        "○",
-    star:               "★",
-    unstar:             "☆",
-    trash:              "🗑",
-    delete:             "✕",
-    mark_spam:          "⚠",
-    archive:            "↓",
-    apply_label:        "🏷",
-    remove_label:       "🏷",
-    mark_important:     "!",
+    mark_read: "✓",
+    mark_unread: "○",
+    star: "★",
+    unstar: "☆",
+    trash: "🗑",
+    delete: "✕",
+    mark_spam: "⚠",
+    archive: "↓",
+    apply_label: "🏷",
+    remove_label: "🏷",
+    mark_important: "!",
     mark_not_important: "–",
+    read_file: "📄",
+    write_file: "✏",
+    list_dir: "📁",
+    create_file: "➕",
+    delete_file: "🗑",
   };
 
   // Total action count across all plugins
@@ -148,6 +154,11 @@
                 </div>
               {/each}
             </div>
+
+            <!-- Plugin-specific settings -->
+            {#if plugin.id === "filesystem"}
+              <FilesystemPluginSettings />
+            {/if}
           </div>
         {/each}
 

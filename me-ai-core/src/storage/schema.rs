@@ -255,17 +255,6 @@ async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
     Ok(())
 }
 
-const ALLOWED_TABLES: &[&str] = &[
-    "sm_rules",
-    "sm_rule_triggers",
-    "sm_rule_commands",
-    "sm_events",
-    "items",
-    "emailClassifications",
-    "contacts",
-    "settings",
-];
-
 fn table_to_store(table: &str) -> Option<&'static str> {
     match table {
         "sm_rules" => Some(store::SM_RULES),

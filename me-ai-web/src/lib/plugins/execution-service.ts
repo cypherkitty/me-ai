@@ -4,20 +4,28 @@
  * High-level service for executing action pipelines.
  * Handles authentication, progress tracking, result formatting,
  * and category-based execution policies (NOISE / INFO / CRITICAL).
+ * Splits pipelines: core (gmail, twitter) runs in WASM; filesystem runs in web.
  */
 
 import {
   getAvailableActions as coreGetAvailableActions,
   getRequiredScopes as coreGetRequiredScopes,
   executePipeline as coreExecutePipeline,
-  executePipelineBatch as coreExecutePipelineBatch,
 } from "../core.js";
 import { findMatchingRules, getPipelineForEvent } from "../rules.js";
 import { EVENT_CATEGORY_TIERS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
 import { logExecution, syncAfterExecution } from "../store/audit.js";
+import { getDirectoryHandle } from "./filesystem-store.js";
+import { executeFilesystemAction } from "./filesystem-executor.js";
 import type { EmailEvent, ExecutionProgress, ActionExecutionResult } from "$lib/types";
 import type { Rule, Action } from "$lib/types";
+
+type NormalisedAction = { id: string; pluginId: string; commandId: string; name: string };
+
+function isFilesystemAction(a: { pluginId?: string }): boolean {
+  return (a.pluginId ?? "").toLowerCase().trim() === "filesystem";
+}
 
 interface RawAction {
   id?: string;
@@ -40,6 +48,90 @@ function normaliseActions(
 
 export interface ExecutePipelineOptions {
   actionsOverride?: Array<{ pluginId: string; commandId: string }>;
+}
+
+/** Run a pipeline with split: core actions → WASM, filesystem actions → web executor. */
+async function runPipelineWithSplit(
+  actions: NormalisedAction[],
+  event: EmailEvent,
+  onProgress?: (p: ExecutionProgress) => void
+): Promise<{ success: boolean; results: ActionExecutionResult[]; message: string }> {
+  const coreActions = actions.filter((a) => !isFilesystemAction(a));
+  const fsActions = actions.filter((a) => isFilesystemAction(a));
+
+  if (coreActions.length > 0) {
+    const tokenData = await getSavedToken();
+    if (!tokenData?.access_token) {
+      throw new Error("Not authenticated. Please sign in to Gmail first.");
+    }
+  }
+
+  if (fsActions.length > 0) {
+    const handle = await getDirectoryHandle();
+    if (!handle) {
+      throw new Error("Choose a directory in Filesystem plugin settings.");
+    }
+  }
+
+  const coreResults: ActionExecutionResult[] = [];
+  const fsResultsByIndex: Map<number, ActionExecutionResult> = new Map();
+
+  if (coreActions.length > 0) {
+    const tokenData = await getSavedToken();
+    const token = tokenData!.access_token as string;
+    const coreResult = await coreExecutePipeline(
+      coreActions,
+      event,
+      token,
+      onProgress as (p: unknown) => void
+    );
+    coreResults.push(...((coreResult.results ?? []) as ActionExecutionResult[]));
+  }
+
+  if (fsActions.length > 0) {
+    const handle = await getDirectoryHandle();
+    if (handle) {
+      for (let i = 0; i < actions.length; i++) {
+        const a = actions[i]!;
+        if (!isFilesystemAction(a)) continue;
+        const r = await executeFilesystemAction(a.commandId, event, handle);
+        fsResultsByIndex.set(i, {
+          actionId: a.id,
+          actionName: a.name,
+          commandId: a.commandId,
+          pluginId: a.pluginId,
+          success: r.success,
+          message: r.message,
+        });
+      }
+    }
+  }
+
+  const merged: ActionExecutionResult[] = [];
+  let coreIdx = 0;
+  let fsIdx = 0;
+  for (let i = 0; i < actions.length; i++) {
+    if (isFilesystemAction(actions[i]!)) {
+      const r = fsResultsByIndex.get(i);
+      if (r) merged.push(r);
+      else merged.push({ success: false, message: "Filesystem action failed" });
+      fsIdx++;
+    } else {
+      if (coreIdx < coreResults.length) {
+        merged.push(coreResults[coreIdx]!);
+        coreIdx++;
+      }
+    }
+  }
+
+  const allSuccess = merged.every((r) => r.success);
+  const successMsgs = merged.filter((r) => r.success).map((r) => r.commandId ?? "").join(", ");
+  const failMsgs = merged.filter((r) => !r.success).map((r) => `${r.commandId}: ${r.message ?? ""}`).join("; ");
+  const message = allSuccess
+    ? `Successfully executed: ${successMsgs}`
+    : `Pipeline failed: ${failMsgs}`;
+
+  return { success: allSuccess, results: merged, message };
 }
 
 export async function executePipeline(
@@ -137,15 +229,9 @@ export async function executePipeline(
       };
     }
 
-    const tokenData = await getSavedToken();
-    if (!tokenData?.access_token) {
-      throw new Error("Not authenticated. Please sign in to Gmail first.");
-    }
-    const accessToken = tokenData.access_token as string;
-
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length } as ExecutionProgress);
 
-    const result = await coreExecutePipeline(actions, event, accessToken, onProgress);
+    const result = await runPipelineWithSplit(actions, event, onProgress);
 
     const eventData = event.data as Record<string, unknown>;
     const emailId = (eventData?.emailId ?? eventData?.id) as string | undefined;
@@ -241,12 +327,6 @@ export async function executePipelineBatch(
       };
     }
 
-    const tokenData = await getSavedToken();
-    if (!tokenData?.access_token) {
-      throw new Error("Not authenticated. Please sign in to Gmail first.");
-    }
-    const accessToken = tokenData.access_token as string;
-
     if (!actions?.length) {
       return {
         success: true,
@@ -258,22 +338,62 @@ export async function executePipelineBatch(
       };
     }
 
+    const hasCoreActions = actions.some((a) => !isFilesystemAction(a));
+    if (hasCoreActions) {
+      const tokenData = await getSavedToken();
+      if (!tokenData?.access_token) {
+        throw new Error("Not authenticated. Please sign in to Gmail first.");
+      }
+    }
+
+    const hasFsActions = actions.some(isFilesystemAction);
+    if (hasFsActions) {
+      const handle = await getDirectoryHandle();
+      if (!handle) {
+        throw new Error("Choose a directory in Filesystem plugin settings.");
+      }
+    }
+
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length } as ExecutionProgress);
 
-    const eventObjects = events.map((email) => ({
-      type: eventType,
-      source: "gmail",
-      data: email,
-    })) as EmailEvent[];
-    const result = await coreExecutePipelineBatch(actions, eventObjects, accessToken, onProgress);
+    const normalisedActions: NormalisedAction[] = actions.map((a, i) => ({
+      id: (a.commandId ?? a.id) + "_" + i,
+      pluginId: a.pluginId ?? "gmail",
+      commandId: a.commandId ?? a.id ?? "",
+      name: (a.name ?? a.commandId ?? "").replace(/_/g, " ") || "",
+    }));
 
-    const resultsList = (result.results ?? []) as Array<{
+    const resultsList: Array<{
       event?: EmailEvent;
-      results?: unknown[];
+      results?: ActionExecutionResult[];
       success?: boolean;
-    }>;
+      message?: string;
+    }> = [];
+
+    for (let i = 0; i < events.length; i++) {
+      const email = events[i] as Record<string, unknown>;
+      const eventObj: EmailEvent = {
+        type: eventType,
+        source: "gmail",
+        data: email,
+      };
+      onProgress?.({
+        phase: "batch_event",
+        eventIndex: i,
+        totalEvents: events.length,
+        event: eventObj,
+      } as ExecutionProgress);
+      const r = await runPipelineWithSplit(normalisedActions, eventObj, onProgress);
+      resultsList.push({
+        event: eventObj,
+        results: r.results,
+        success: r.success,
+        message: r.message,
+      });
+    }
+
     await Promise.all(
-      resultsList.map(        async (r) => {
+      resultsList.map(async (r) => {
         const eventData = r.event?.data as Record<string, unknown>;
         const emailId = (eventData?.emailId ?? eventData?.id) as string | undefined;
         await Promise.all([
@@ -283,14 +403,24 @@ export async function executePipelineBatch(
             from: eventData?.from as string | undefined,
             eventType,
             actions,
-            results: (r.results ?? []) as ActionExecutionResult[],
+            results: r.results ?? [],
             success: r.success ?? false,
           }),
-          syncAfterExecution(emailId ?? "", (r.results ?? []) as ActionExecutionResult[]),
+          syncAfterExecution(emailId ?? "", r.results ?? []),
         ]);
       })
     );
 
+    const successful = resultsList.filter((r) => r.success).length;
+    const failed = resultsList.length - successful;
+    const result = {
+      success: failed === 0,
+      results: resultsList,
+      total: resultsList.length,
+      successful,
+      failed,
+      message: `Processed ${resultsList.length} event(s): ${successful} successful, ${failed} failed`,
+    };
     onProgress?.({ phase: "done", result } as ExecutionProgress);
     return result;
   } catch (error) {

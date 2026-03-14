@@ -50,6 +50,7 @@
   import { cn } from "$lib/utils.js";
   import type { StoredItem } from "$lib/types.js";
   import { RefreshCw, LogOut, Trash2, Search, Database } from "lucide-svelte";
+  import FilesystemPluginSettings from "../components/plugins/FilesystemPluginSettings.svelte";
 
   // ── Source metadata ────────────────────────────────────────────────
   const SOURCE_META = {
@@ -95,15 +96,23 @@
       platform: "Social",
       live: true,
     },
+    filesystem: {
+      color: "#10b981",
+      icon: "F",
+      label: "Local Filesystem",
+      platform: "Files",
+      live: true,
+    },
   };
 
   // All sources in display order (live first, then coming-soon alphabetical)
   const ALL_SOURCES = [
     "gmail",
+    "twitter",
+    "filesystem",
     "telegram",
     "instagram",
     "slack",
-    "twitter",
     "youtube",
   ];
 
@@ -1351,6 +1360,35 @@
           </div>
         </div>
       {/if}
+    {:else if selectedSource === "filesystem"}
+      <!-- ── Local Filesystem panel ──────────────────────────────────── -->
+      <div class="flex flex-col h-full overflow-hidden">
+        <div
+          class="flex items-center gap-3 px-8 pt-5 pb-4 border-b border-border shrink-0 bg-transparent"
+        >
+          <div class="flex items-center gap-2 min-w-0">
+            <div
+              class="size-7 rounded-full bg-[#10b981]/15 flex items-center justify-center text-xs font-bold text-[#10b981] shrink-0"
+            >
+              F
+            </div>
+            <span class="text-sm font-medium text-foreground truncate">
+              Local Filesystem
+            </span>
+          </div>
+        </div>
+        <div class="flex-1 overflow-auto px-8 py-6">
+          <div class="max-w-xl">
+            <p class="text-sm text-muted-foreground mb-4">
+              Choose a directory to allow pipeline actions (read_file, write_file, list_dir, etc.)
+              to operate on your local files. Requires Chrome or Edge.
+            </p>
+            <div class="rounded-lg border border-border bg-card p-4">
+              <FilesystemPluginSettings />
+            </div>
+          </div>
+        </div>
+      </div>
     {:else}
       <!-- Coming-soon source panel -->
       {@const meta = SOURCE_META[selectedSource]}

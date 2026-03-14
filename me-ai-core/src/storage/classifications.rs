@@ -65,6 +65,7 @@ pub async fn get_classifications(
 }
 
 /// Get one classification by emailId.
+#[allow(dead_code)]
 pub async fn get_classification_by_email_id(
     db: DbRef<'_>,
     email_id: &str,

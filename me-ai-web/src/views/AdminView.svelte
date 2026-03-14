@@ -1,15 +1,17 @@
 <script lang="ts">
-  import ModelsView  from "./ModelsView.svelte";
+  import ModelsView from "./ModelsView.svelte";
   import DataManager from "../components/actions/DataManager.svelte";
-  import { cn }      from "$lib/utils.js";
-  import { Database, BrainCircuit } from "lucide-svelte";
+  import PluginsDashboard from "../components/dashboard/PluginsDashboard.svelte";
+  import { cn } from "$lib/utils.js";
+  import { Database, BrainCircuit, Puzzle } from "lucide-svelte";
 
-  type Section = "models" | "data";
+  type Section = "models" | "data" | "plugins";
   let activeSection = $state<Section>("models");
 
   const NAV_ITEMS: { id: Section; label: string; icon: typeof BrainCircuit }[] = [
-    { id: "models", label: "Local Models",    icon: BrainCircuit  },
-    { id: "data",   label: "Data Management", icon: Database      },
+    { id: "models", label: "Local Models", icon: BrainCircuit },
+    { id: "data", label: "Data Management", icon: Database },
+    { id: "plugins", label: "Plugins", icon: Puzzle },
   ];
 </script>
 
@@ -50,6 +52,8 @@
       <ModelsView />
     {:else if activeSection === "data"}
       <DataManager />
+    {:else if activeSection === "plugins"}
+      <PluginsDashboard />
     {/if}
   </main>
 

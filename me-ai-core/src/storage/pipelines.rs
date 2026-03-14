@@ -67,6 +67,15 @@ struct PluginStoreRow {
     enabled: Option<bool>,
 }
 
+/// Input from JS for pipeline actions (pluginId, commandId).
+#[derive(Clone, Debug, Deserialize)]
+pub struct PipelineActionInput {
+    #[serde(rename = "pluginId", default)]
+    pub plugin_id: String,
+    #[serde(rename = "commandId", default)]
+    pub command_id: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PipelineActionRow {
     #[serde(rename = "plugin_id")]

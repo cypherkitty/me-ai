@@ -89,19 +89,6 @@ impl DbRef<'_> {
     {
         index_get_all(self.0, store_name, index_name, key_range, limit).await
     }
-    pub async fn store_scan<T>(
-        &self,
-        store_name: &str,
-        key_range: Option<KeyRange>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        direction: Option<Direction>,
-    ) -> Result<Vec<T>, CoreError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        store_scan(self.0, store_name, key_range, limit, offset, direction).await
-    }
     pub async fn index_scan<T>(
         &self,
         store_name: &str,
@@ -213,32 +200,6 @@ where
     if values.is_empty() {
         return Ok(());
     }
-
-    let key_path = match store_name {
-        store::ITEMS
-        | store::AUDIT_LOG
-        | store::SM_PLUGIN_ACTIONS
-        | store::SM_PLUGIN_SOURCES
-        | store::SM_CATEGORY_PIPELINE
-        | store::SM_TYPE_PIPELINE
-        | store::SM_RULES
-        | store::SM_RULE_TRIGGERS
-        | store::SM_RULE_COMMANDS
-        | store::SM_EVENTS => "id",
-
-        store::SM_EVENT_TYPES
-        | store::SM_EVENT_CATEGORIES
-        | store::SM_SOURCES
-        | store::SM_ACTIONS
-        | store::SM_PLUGINS => "name",
-
-        store::CONTACTS => "email",
-        store::SYNC_STATE => "sourceType",
-        store::SETTINGS => "key",
-        store::EMAIL_CLASSIFICATIONS => "emailId",
-        store::SM_RULE_POLICIES => "rule_id",
-        _ => "",
-    };
 
     let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
     let mut collected: Vec<(JsValue, Option<JsValue>)> = Vec::with_capacity(values.len());
@@ -365,32 +326,6 @@ where
     Ok(out)
 }
 
-/// Scan store with limit/offset and direction (for pagination).
-pub async fn store_scan<T>(
-    rexie: &Rexie,
-    store_name: &str,
-    key_range: Option<KeyRange>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-    direction: Option<Direction>,
-) -> Result<Vec<T>, CoreError>
-where
-    T: DeserializeOwned,
-{
-    let tx = rexie
-        .transaction(&[store_name], TransactionMode::ReadOnly)
-        .map_err(rexie_err)?;
-    let s = tx.store(store_name).map_err(rexie_err)?;
-    let pairs = s.scan(key_range, limit, offset, direction).await.map_err(rexie_err)?;
-    tx.done().await.map_err(rexie_err)?;
-    let mut out = Vec::with_capacity(pairs.len());
-    for (_, val) in pairs {
-        let t = from_value(val).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-        out.push(t);
-    }
-    Ok(out)
-}
-
 /// Scan an index with limit/offset and direction (e.g. auditLog by executedAt DESC).
 pub async fn index_scan<T>(
     rexie: &Rexie,
@@ -431,6 +366,7 @@ pub fn key_range_only(key: &str) -> Result<KeyRange, CoreError> {
 }
 
 /// Build KeyRange::only for boolean key (e.g. index on "success").
+#[allow(dead_code)]
 pub fn key_range_only_bool(b: bool) -> Result<KeyRange, CoreError> {
     let k = JsValue::from_bool(b);
     KeyRange::only(&k).map_err(|e| {
