@@ -75,17 +75,29 @@ pub async fn get_rules() -> Result<Vec<serde_json::Value>, CoreError> {
     let rules: Vec<RuleRow> = store_get_all(store::SM_RULES, None, None).await?;
     let mut out = Vec::new();
     for r in rules {
-        let id = r.id.as_deref().unwrap_or("");
-        let range = key_range_only(id)?;
-        let triggers: Vec<RuleTriggerRow> = index_get_all(
-            store::SM_RULE_TRIGGERS,
-            "rule_id",
-            Some(range.clone()),
-            None,
-        )
-        .await?;
-        let commands: Vec<RuleCommandRow> =
-            index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+        let id = r.id.as_deref().and_then(|v| {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            }
+        });
+        let (triggers, commands) = if let Some(id) = id {
+            let range = key_range_only(id)?;
+            let triggers: Vec<RuleTriggerRow> = index_get_all(
+                store::SM_RULE_TRIGGERS,
+                "rule_id",
+                Some(range.clone()),
+                None,
+            )
+            .await?;
+            let commands: Vec<RuleCommandRow> =
+                index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+            (triggers, commands)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         out.push(serde_json::json!({
             "id": r.id,
             "name": r.name,

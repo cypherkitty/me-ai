@@ -28,6 +28,8 @@ pub fn rexie_to_core(e: rexie::Error) -> CoreError {
     let hint = " (IndexedDB may be blocked, in private/incognito mode, or storage full)";
     let msg = if msg.trim() == "idb error" || msg.len() < 20 {
         format!("idb error{hint}")
+    } else if msg.contains("DataError") || msg.contains("valid key") {
+        format!("{msg} (Check for null, undefined, boolean, or NaN keys)")
     } else if msg.contains("idb error") && !msg.contains("private") && !msg.contains("blocked") {
         format!("{msg}{hint}")
     } else {

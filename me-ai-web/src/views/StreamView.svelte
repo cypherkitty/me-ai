@@ -153,6 +153,10 @@
   /** Execute a pipeline directly from the stream for a pending event */
   async function executeFromStream(evt: StreamEvent) {
     const id = evt.id ?? evt.emailId ?? "";
+    if (!id || id === "null" || id === "undefined") {
+      console.warn("StreamView: cannot execute item with invalid id:", id);
+      return;
+    }
     let emailData: Record<string, unknown> = {};
     try {
       if (id && typeof id === "string" && id.trim().length > 0) {

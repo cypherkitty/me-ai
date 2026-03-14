@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use rexie::Direction;
 
 use crate::db::{
-    index_count, index_get_all, index_scan, key_range_only_bool, store_clear, store_count,
-    store_delete, store_get, store_put,
+    index_scan, store_clear, store_count, store_delete, store_get, store_get_all, store_put,
 };
 use crate::error::CoreError;
 use crate::schema::store;
@@ -110,26 +109,27 @@ pub async fn get_audit_log(
     offset: i64,
     failures_only: bool,
 ) -> Result<GetAuditLogResult, CoreError> {
-    let total = if failures_only {
-        let range = key_range_only_bool(false)?;
-        index_count(store::AUDIT_LOG, "success", Some(range)).await? as i64
-    } else {
-        store_count(store::AUDIT_LOG, None).await? as i64
-    };
-
-    let entries = if failures_only {
-        let range = key_range_only_bool(false)?;
-        let all: Vec<AuditLogRow> =
-            index_get_all(store::AUDIT_LOG, "success", Some(range), Some(5000)).await?;
-        let mut sorted = all;
-        sorted.sort_by(|a, b| b.executed_at.cmp(&a.executed_at));
-        sorted
+    let (entries, total) = if failures_only {
+        let all: Vec<AuditLogRow> = index_scan(
+            store::AUDIT_LOG,
+            "executedAt",
+            None,
+            None,
+            None,
+            Some(Direction::Prev),
+        )
+        .await?;
+        let failures: Vec<AuditLogRow> =
+            all.into_iter().filter(|r| r.success == Some(false)).collect();
+        let total = failures.len() as i64;
+        let entries = failures
             .into_iter()
             .skip(offset as usize)
             .take(limit as usize)
-            .collect()
+            .collect();
+        (entries, total)
     } else {
-        index_scan(
+        let entries = index_scan(
             store::AUDIT_LOG,
             "executedAt",
             None,
@@ -137,7 +137,9 @@ pub async fn get_audit_log(
             Some(offset as u32),
             Some(Direction::Prev),
         )
-        .await?
+        .await?;
+        let total = store_count(store::AUDIT_LOG, None).await? as i64;
+        (entries, total)
     };
 
     Ok(GetAuditLogResult { entries, total })
@@ -149,17 +151,15 @@ pub async fn clear_audit_log() -> Result<(), CoreError> {
 
 /// Count audit entries by success (for event stats).
 pub async fn get_audit_stats() -> Result<(u32, u32), CoreError> {
-    let completed = index_count(
-        store::AUDIT_LOG,
-        "success",
-        Some(key_range_only_bool(true)?),
-    )
-    .await?;
-    let failed = index_count(
-        store::AUDIT_LOG,
-        "success",
-        Some(key_range_only_bool(false)?),
-    )
-    .await?;
+    let rows: Vec<AuditLogRow> = store_get_all(store::AUDIT_LOG, None, None).await?;
+    let mut completed = 0u32;
+    let mut failed = 0u32;
+    for row in rows {
+        match row.success {
+            Some(true) => completed += 1,
+            Some(false) => failed += 1,
+            None => {}
+        }
+    }
     Ok((completed, failed))
 }
