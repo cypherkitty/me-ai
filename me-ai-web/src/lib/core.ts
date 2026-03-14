@@ -1,6 +1,7 @@
 /**
  * me-ai-core (Rust WASM) — stateful MeAiCore (meta-secret WasmRepo pattern).
  * Rexie is built once at init; all operations use the same instance via coreStore.
+ * Uses vite-plugin-wasm (nervo-labs pattern) so bundling preserves wasm-bindgen imports.
  */
 
 import initDefault, { MeAiCore } from "me-ai-core";
@@ -181,6 +182,39 @@ export async function getNewestSourceId(source_type: string) {
 }
 export async function getPlugins() {
   return requireCore().getPlugins();
+}
+export function getPluginRegistry() {
+  return requireCore().getPluginRegistry();
+}
+export function getAvailableActions(source: string) {
+  return requireCore().getAvailableActions(source);
+}
+export function getRequiredScopes(actionId: string, source: string) {
+  return requireCore().getRequiredScopes(actionId, source);
+}
+export function resolvePluginId(source: string) {
+  return requireCore().resolvePluginId(source);
+}
+export function getPluginsForPrompt() {
+  return requireCore().getPluginsForPrompt();
+}
+export async function executePipeline(
+  actions: unknown[],
+  event: unknown,
+  accessToken: string,
+  onProgress?: (progress: unknown) => void,
+  config?: unknown
+) {
+  return requireCore().executePipeline(actions, event, accessToken, onProgress, config);
+}
+export async function executePipelineBatch(
+  actions: unknown[],
+  events: unknown[],
+  accessToken: string,
+  onProgress?: (progress: unknown) => void,
+  config?: unknown
+) {
+  return requireCore().executePipelineBatch(actions, events, accessToken, onProgress, config);
 }
 export async function getRules() {
   return requireCore().getRules();

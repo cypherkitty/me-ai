@@ -6,7 +6,12 @@
  * and category-based execution policies (NOISE / INFO / CRITICAL).
  */
 
-import { pluginRegistry } from "./plugin-registry.js";
+import {
+  getAvailableActions as coreGetAvailableActions,
+  getRequiredScopes as coreGetRequiredScopes,
+  executePipeline as coreExecutePipeline,
+  executePipelineBatch as coreExecutePipelineBatch,
+} from "../core.js";
 import { findMatchingRules, getPipelineForEvent } from "../rules.js";
 import { EVENT_CATEGORY_TIERS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
@@ -140,8 +145,7 @@ export async function executePipeline(
 
     onProgress?.({ phase: "pipeline_loaded", actions, actionCount: actions.length } as ExecutionProgress);
 
-    const context = { accessToken, event, onProgress };
-    const result = await pluginRegistry.executePipeline(actions, context);
+    const result = await coreExecutePipeline(actions, event, accessToken, onProgress);
 
     const eventData = event.data as Record<string, unknown>;
     const emailId = (eventData?.emailId ?? eventData?.id) as string | undefined;
@@ -261,13 +265,7 @@ export async function executePipelineBatch(
       source: "gmail",
       data: email,
     })) as EmailEvent[];
-    const baseContext = { accessToken, onProgress };
-
-    const result = await pluginRegistry.executePipelineBatch(
-      actions,
-      eventObjects,
-      baseContext
-    );
+    const result = await coreExecutePipelineBatch(actions, eventObjects, accessToken, onProgress);
 
     const resultsList = (result.results ?? []) as Array<{
       event?: EmailEvent;
@@ -310,7 +308,8 @@ export async function executePipelineBatch(
 }
 
 export function getAvailableActions(source: string): unknown[] {
-  return pluginRegistry.getAvailableActions(source);
+  const arr = coreGetAvailableActions(source);
+  return Array.isArray(arr) ? arr : [];
 }
 
 export async function isAuthenticated(): Promise<boolean> {
@@ -319,7 +318,8 @@ export async function isAuthenticated(): Promise<boolean> {
 }
 
 export function getRequiredScopes(actionId: string, source: string): string[] {
-  return pluginRegistry.getRequiredScopes(actionId, source);
+  const arr = coreGetRequiredScopes(actionId, source);
+  return Array.isArray(arr) ? (arr as string[]) : [];
 }
 
 export { EVENT_CATEGORY_TIERS };

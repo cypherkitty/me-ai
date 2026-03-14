@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SYSTEM_PROMPT, CLASSIFICATION_CONFIG, formatEmailPrompt } from "../../lib/triage.js";
+  import { getSystemPrompt, CLASSIFICATION_CONFIG, formatEmailPrompt } from "../../lib/triage.js";
 
   interface Props {
     open?: boolean;
@@ -53,7 +53,7 @@
             This is the system prompt sent to the LLM before each email. It instructs the model
             on how to classify emails and what JSON format to produce.
           </div>
-          <pre class="code-block">{SYSTEM_PROMPT}</pre>
+          <pre class="code-block">{getSystemPrompt()}</pre>
 
         {:else if activeTab === "email"}
           <div class="section-desc">
@@ -108,7 +108,7 @@ Labels: {"{email.labels}"}
             The full message array sent to the model:
           </div>
           <pre class="code-block">[
-  {"{"} role: "system", content: SYSTEM_PROMPT {"}"},
+  {"{"} role: "system", content: getSystemPrompt() {"}"},
   {"{"} role: "user",   content: formatEmailPrompt(email) {"}"}
 ]</pre>
         {/if}

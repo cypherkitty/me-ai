@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { pluginRegistry } from "../../lib/plugins/plugin-registry.js";
+  import { getPluginRegistry } from "../../lib/core.js";
 
   interface Props {
     open?: boolean;
@@ -7,15 +7,29 @@
   let { open = $bindable(false) }: Props = $props();
 
   // Snapshot all plugins and their handlers at open time
+  interface PluginRegistryAction {
+    actionId?: string;
+    name?: string;
+    description?: string;
+    requiredScopes?: string[];
+  }
+  interface PluginRegistryEntry {
+    pluginId?: string;
+    pluginName?: string;
+    actions?: PluginRegistryAction[];
+  }
+
   const plugins = $derived.by(() => {
     if (!open) return [];
-    return pluginRegistry.getAllPlugins().map(plugin => ({
-      id: plugin.pluginId,
-      name: plugin.serviceName,
-      actions: plugin.getHandlers().map(h => ({
-        id: h.actionId,
-        name: h.name,
-        description: h.description,
+    const raw = getPluginRegistry() as PluginRegistryEntry[];
+    if (!Array.isArray(raw)) return [];
+    return raw.map((plugin) => ({
+      id: plugin.pluginId ?? "",
+      name: plugin.pluginName ?? "",
+      actions: (plugin.actions ?? []).map((h) => ({
+        id: h.actionId ?? "",
+        name: h.name ?? "",
+        description: h.description ?? "",
         scopes: h.requiredScopes || [],
       })),
     }));
@@ -145,8 +159,7 @@
       <!-- Footer -->
       <div class="panel-footer">
         <span class="footer-note">
-          Add plugins by extending <code>BasePlugin</code> and calling
-          <code>pluginRegistry.registerPlugin()</code>
+          Add plugins by extending <code>me-ai-core/src/plugins</code>
         </span>
         <button class="close-footer-btn" onclick={() => open = false}>Close</button>
       </div>

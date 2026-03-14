@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
+import wasm from "vite-plugin-wasm";
+import topLevelAwait from "vite-plugin-top-level-await";
 
 const ONNX_DIST = path.resolve("node_modules/onnxruntime-web/dist");
 const CORE_PKG = path.resolve("node_modules/me-ai-core");
@@ -18,6 +20,8 @@ export default defineConfig({
     },
   },
   plugins: [
+    wasm(),
+    topLevelAwait(),
     tailwindcss(),
     svelte(),
     {

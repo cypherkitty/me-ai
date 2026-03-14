@@ -25,7 +25,7 @@ import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
-import { pluginRegistry } from "./plugins/plugin-registry.js";
+import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
 
 const DEFAULT_COUNT = 20;
@@ -187,14 +187,22 @@ Rules:
 }
 
 function getPluginsForPrompt(): PluginForPrompt[] {
-  return pluginRegistry.getAllPlugins().map((plugin) => ({
-    pluginId: plugin.pluginId,
-    pluginName: plugin.serviceName,
-    actions: plugin.getHandlers().map((h) => ({ actionId: h.actionId })),
-  }));
+  const raw = coreGetPluginsForPrompt();
+  if (!Array.isArray(raw)) return [];
+  return (raw as Array<{ plugin_id?: string; pluginName?: string; actions?: Array<{ actionId?: string }> }>).map(
+    (p) => ({
+      pluginId: p.plugin_id ?? "",
+      pluginName: p.pluginName ?? "",
+      actions: (p.actions ?? []).map((a) => ({ actionId: a.actionId ?? "" })),
+    })
+  );
 }
 
-export const SYSTEM_PROMPT = buildSystemPrompt(getPluginsForPrompt());
+/** System prompt for classification. Built lazily when core is initialized. */
+export function getSystemPrompt(): string {
+  return buildSystemPrompt(getPluginsForPrompt());
+}
+
 
 export async function scanEmails(
   engine: TriageEngine,
@@ -286,7 +294,7 @@ export async function scanEmails(
       errors,
       results,
       email: { subject: email.subject, from: email.from, date: email.date != null ? String(email.date) : undefined },
-      prompt: { system: SYSTEM_PROMPT, user: emailPrompt },
+      prompt: { system: systemPrompt, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
       live: null,
       lastResult: null,
