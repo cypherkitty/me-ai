@@ -10,7 +10,9 @@
 mod db;
 mod domain;
 mod error;
+mod plugins;
 
+use js_sys::Function;
 use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
 
@@ -374,6 +376,85 @@ impl MeAiCore {
     pub async fn get_plugins(&self) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
         wasm_result(domain::rules::get_plugins(db).await)
+    }
+
+    #[wasm_bindgen(js_name = getPluginRegistry)]
+    pub fn get_plugin_registry(&self) -> Result<JsValue, JsValue> {
+        let plugins = plugins::get_plugin_registry();
+        serde_wasm_bindgen::to_value(&plugins).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getAvailableActions)]
+    pub fn get_available_actions(&self, source: &str) -> Result<JsValue, JsValue> {
+        let actions = plugins::get_available_actions(source);
+        serde_wasm_bindgen::to_value(&actions).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getRequiredScopes)]
+    pub fn get_required_scopes(&self, action_id: &str, source: &str) -> Result<JsValue, JsValue> {
+        let scopes = plugins::get_required_scopes(action_id, source);
+        serde_wasm_bindgen::to_value(&scopes).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = resolvePluginId)]
+    pub fn resolve_plugin_id(&self, source: &str) -> String {
+        plugins::resolve_plugin_id(source)
+    }
+
+    #[wasm_bindgen(js_name = getPluginsForPrompt)]
+    pub fn get_plugins_for_prompt(&self) -> Result<JsValue, JsValue> {
+        let plugins = plugins::get_plugins_for_prompt();
+        serde_wasm_bindgen::to_value(&plugins).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = executePipeline)]
+    pub async fn execute_pipeline(
+        &self,
+        actions: JsValue,
+        event: JsValue,
+        access_token: String,
+        on_progress: Option<Function>,
+        config: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let actions: Vec<plugins::ActionInput> = serde_wasm_bindgen::from_value(actions)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let event: plugins::EventInput = serde_wasm_bindgen::from_value(event)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let config: Option<serde_json::Value> = match config {
+            Some(v) if !v.is_null() && !v.is_undefined() => {
+                Some(serde_wasm_bindgen::from_value(v).map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
+            }
+            _ => None,
+        };
+        let result = plugins::execute_pipeline(actions, event, access_token, on_progress, config)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serialize_to_js(&result)
+    }
+
+    #[wasm_bindgen(js_name = executePipelineBatch)]
+    pub async fn execute_pipeline_batch(
+        &self,
+        actions: JsValue,
+        events: JsValue,
+        access_token: String,
+        on_progress: Option<Function>,
+        config: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let actions: Vec<plugins::ActionInput> = serde_wasm_bindgen::from_value(actions)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let events: Vec<plugins::EventInput> = serde_wasm_bindgen::from_value(events)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let config: Option<serde_json::Value> = match config {
+            Some(v) if !v.is_null() && !v.is_undefined() => {
+                Some(serde_wasm_bindgen::from_value(v).map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
+            }
+            _ => None,
+        };
+        let result = plugins::execute_pipeline_batch(actions, events, access_token, on_progress, config)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serialize_to_js(&result)
     }
 
     #[wasm_bindgen(js_name = getRules)]

@@ -14,6 +14,9 @@ pub enum CoreError {
 
     #[error("serialize: {0}")]
     Serialize(String),
+
+    #[error("plugin: {0}")]
+    Plugin(String),
 }
 
 /// Convert rexie::Error to CoreError, preserving the underlying idb/browser error message.

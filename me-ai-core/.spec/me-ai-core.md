@@ -20,6 +20,7 @@ Rust, wasm-bindgen, rexie (IndexedDB), serde, thiserror. Build: wasm-pack, targe
 - `src/domain/` — domain logic
   - `app.rs` — schema init, seed data, settings
   - `audit.rs`, `classifications.rs`, `events.rs`, `items.rs`, `pipelines.rs`, `rules.rs`, `rules_data.rs`, `sync.rs`
+- `src/plugins/` — plugin metadata (actions, scopes, source mapping); execution stays in TS
 
 ## WASM API (main groups)
 

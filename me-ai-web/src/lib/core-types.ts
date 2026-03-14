@@ -60,6 +60,25 @@ export interface CoreModule {
   upsertContact: (email: string, name: string, firstSeen: number, lastSeen: number) => Promise<void>;
   getNewestSourceId: (sourceType: string) => Promise<string | null>;
   getPlugins: () => Promise<unknown[]>;
+  getPluginRegistry: () => unknown;
+  getAvailableActions: (source: string) => unknown;
+  getRequiredScopes: (actionId: string, source: string) => unknown;
+  resolvePluginId: (source: string) => string;
+  getPluginsForPrompt: () => unknown;
+  executePipeline: (
+    actions: unknown[],
+    event: unknown,
+    accessToken: string,
+    onProgress?: (progress: unknown) => void,
+    config?: unknown
+  ) => Promise<unknown>;
+  executePipelineBatch: (
+    actions: unknown[],
+    events: unknown[],
+    accessToken: string,
+    onProgress?: (progress: unknown) => void,
+    config?: unknown
+  ) => Promise<unknown>;
   getRules: () => Promise<unknown[]>;
   getRule: (id: string) => Promise<unknown | null>;
   saveRule: (payload: unknown) => Promise<void>;

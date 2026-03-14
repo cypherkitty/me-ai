@@ -108,7 +108,7 @@ export interface PipelineAction {
   pluginId?: string;
 }
 
-/** Per-action execution result (from plugin-registry). */
+/** Per-action execution result (from core). */
 export interface ActionExecutionResult {
   actionId?: string;
   actionName?: string;
