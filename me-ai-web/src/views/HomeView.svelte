@@ -239,12 +239,10 @@
               : 'bg-border/60'}"
           ></div>
 
-          <!-- ── Step 3: Control Plane ─────────────────────────── -->
+          <!-- ── Step 3: Control Plane (always clickable; pipelines don't need LLM) ─────────────────────────── -->
           <a
             href="#pipelines"
-            class="relative flex items-center group no-underline {s3 === 'idle'
-              ? 'pointer-events-none opacity-40 mix-blend-luminosity hover:mix-blend-normal transition-all'
-              : ''}"
+            class="relative flex items-center group no-underline"
           >
             <div
               class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s3 ===
