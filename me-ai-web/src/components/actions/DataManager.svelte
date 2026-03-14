@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
   import {
-    getOpfsStats,
+    getStorageStats,
     clearAllDataAndCheckpoint,
     getItemsCountGmail,
     getContactsCount,
@@ -20,9 +20,9 @@
   import { RefreshCw } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
 
-  interface OpfsStats {
+  interface StorageStats {
     supported: boolean;
-    fileBytes: number;
+    usageBytes: number;
     tables: Record<string, number>;
   }
   interface IdbSummary {
@@ -36,7 +36,7 @@
   let busy = $state(false);
   let loading = $state(true);
   let categoryOrder = $state<string[]>([]);
-  let opfs = $state<OpfsStats | null>(null);
+  let storage = $state<StorageStats | null>(null);
   let idb = $state<IdbSummary | null>(null);
 
   async function load() {
@@ -58,7 +58,7 @@
         idbBytes,
       };
 
-      opfs = (await getOpfsStats()) as OpfsStats;
+      storage = await getStorageStats();
 
       const result = (await getClassificationsByCategory()) as {
         categories: unknown;
@@ -140,36 +140,36 @@
       </div>
     {:else}
       <div class="flex flex-col gap-8 max-w-2xl relative">
-        <!-- ── OPFS / DuckDB ─────────────────────────────────────────── -->
+        <!-- ── IndexedDB ───────────────────────────────────────────────── -->
         <section class="flex flex-col gap-4">
           <div class="flex items-center gap-2">
             <h2 class="text-xs font-semibold tracking-tight text-foreground">
-              DuckDB · OPFS
+              IndexedDB
             </h2>
             <span
               class="text-[0.6rem] font-mono text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded"
-              >opfs://me-ai.db</span
+              >me-ai</span
             >
-            {#if opfs && !opfs.supported}
+            {#if storage && !storage.supported}
               <span
                 class="text-[0.6rem] text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded"
-                >in-memory fallback</span
+                >Storage API unavailable</span
               >
             {/if}
           </div>
 
-          {#if opfs}
-            <!-- File + key table counts -->
+          {#if storage}
+            <!-- Storage size + table counts -->
             <div class="grid grid-cols-3 sm:grid-cols-4 gap-2">
               <div
                 class="flex flex-col items-center px-3 py-2.5 rounded border bg-card border-border/50"
               >
                 <span class="text-sm font-bold tabular-nums text-foreground"
-                  >{fmt(opfs.fileBytes)}</span
+                  >{fmt(storage.usageBytes)}</span
                 >
                 <span
                   class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/50 mt-0.5"
-                  >File size</span
+                  >Storage used</span
                 >
               </div>
               {#each [{ key: "sm_rules", label: "Rules" }, { key: "sm_events", label: "Events" }, { key: "items", label: "Emails" }] as t}
@@ -177,7 +177,7 @@
                   class="flex flex-col items-center px-3 py-2.5 rounded border bg-card border-border/50"
                 >
                   <span class="text-sm font-bold tabular-nums text-foreground"
-                    >{opfs.tables[t.key] ?? 0}</span
+                    >{storage.tables[t.key] ?? 0}</span
                   >
                   <span
                     class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/50 mt-0.5"
@@ -187,9 +187,9 @@
               {/each}
             </div>
 
-            <!-- DuckDB actions -->
+            <!-- Storage actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-duckdb", label: "Clear all DuckDB data", desc: "Reset pipelines, rules, events, emails and classifications from DuckDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -228,11 +228,11 @@
 
         <div class="border-t border-border/40"></div>
 
-        <!-- ── DuckDB · local cache ───────────────────────────────────── -->
+        <!-- ── Cached data ────────────────────────────────────────────── -->
         <section class="flex flex-col gap-4">
           <div class="flex items-center gap-2">
             <h2 class="text-xs font-semibold tracking-tight text-foreground">
-              DuckDB · local cache
+              Cached data
             </h2>
             <span
               class="text-[0.6rem] text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded font-mono"
@@ -258,7 +258,7 @@
             </div>
             {#if idb.idbBytes > 0}
               <p class="text-[0.65rem] text-muted-foreground/40">
-                Origin storage (DuckDB/OPFS + IDB cache + browser caches): <span
+                Origin storage (IndexedDB + browser caches): <span
                   class="font-mono">{fmt(idb.idbBytes)}</span
                 >
               </p>
@@ -367,7 +367,7 @@
                 <strong class="text-destructive/80 font-semibold"
                   >This cannot be undone.</strong
                 >
-                Deletes DuckDB (OPFS) and IDB cache, all cached
+                Deletes IndexedDB and caches, all cached
                 model weights (Cache API), and localStorage. The page will reload
                 fresh.
               </span>
@@ -410,7 +410,7 @@
                 >Wipe everything</span
               >
               <span class="text-[0.65rem] text-muted-foreground/40"
-                >DuckDB (OPFS) · IDB cache · model cache · localStorage — full reset.</span
+                >IndexedDB · model cache · localStorage — full reset.</span
               >
             </button>
           {/if}

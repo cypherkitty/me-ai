@@ -1,5 +1,5 @@
 /**
- * Minimal DB helpers — no DuckDB. Persistence is IndexedDB via me-ai-core (Rexie).
+ * Minimal DB helpers. Persistence is IndexedDB via me-ai-core (Rexie).
  *
  * Exports: makeItemId, toJson, fromJson, wipeAllData, nukeAllLocalData, deleteDbAndReload.
  * All data operations go through core (direct WASM exports). query/exec are deprecated stubs that throw.

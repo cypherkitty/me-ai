@@ -1,13 +1,21 @@
 //! Rexie (IndexedDB) access: get/put/delete/count/scan. No SQL, no adapter.
+//! Use DbRef for domain logic; RexieDb is built once at init (meta-secret pattern).
 
-use rexie::{Direction, KeyRange, TransactionMode};
+use rexie::{Direction, KeyRange, Rexie, TransactionMode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_wasm_bindgen::from_value;
 use wasm_bindgen::JsValue;
 
 use crate::error::CoreError;
-pub use crate::rexie_schema::get_rexie;
+use crate::rexie_schema::RexieDb;
+
+impl RexieDb {
+    /// Reference for domain logic. Rexie is built once; this passes it through.
+    pub fn db(&self) -> DbRef<'_> {
+        DbRef(&self.rexie)
+    }
+}
 
 fn rexie_err(e: rexie::Error) -> CoreError {
     crate::error::rexie_to_core(e)
@@ -18,15 +26,106 @@ fn is_invalid_key_str(key: &str) -> bool {
     trimmed.is_empty() || trimmed == "null" || trimmed == "undefined"
 }
 
+/// Reference to Rexie for domain calls. Pass db.db() from RexieDb.
+#[derive(Clone, Copy)]
+pub struct DbRef<'a>(pub(crate) &'a Rexie);
+
+impl DbRef<'_> {
+    pub async fn store_get<T>(&self, store_name: &str, key: &str) -> Result<Option<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        store_get(self.0, store_name, key).await
+    }
+    pub async fn store_put<V>(&self, store_name: &str, value: &V, key_override: Option<&str>) -> Result<(), CoreError>
+    where
+        V: Serialize,
+    {
+        store_put(self.0, store_name, value, key_override).await
+    }
+    pub async fn store_put_all<V>(&self, store_name: &str, values: &[V]) -> Result<(), CoreError>
+    where
+        V: Serialize,
+    {
+        store_put_all(self.0, store_name, values).await
+    }
+    pub async fn store_delete(&self, store_name: &str, key: &str) -> Result<(), CoreError> {
+        store_delete(self.0, store_name, key).await
+    }
+    pub async fn store_clear(&self, store_name: &str) -> Result<(), CoreError> {
+        store_clear(self.0, store_name).await
+    }
+    pub async fn store_count(&self, store_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
+        store_count(self.0, store_name, key_range).await
+    }
+    pub async fn index_count(
+        &self,
+        store_name: &str,
+        index_name: &str,
+        key_range: Option<KeyRange>,
+    ) -> Result<u32, CoreError> {
+        index_count(self.0, store_name, index_name, key_range).await
+    }
+    pub async fn store_get_all<T>(
+        &self,
+        store_name: &str,
+        key_range: Option<KeyRange>,
+        limit: Option<u32>,
+    ) -> Result<Vec<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        store_get_all(self.0, store_name, key_range, limit).await
+    }
+    pub async fn index_get_all<T>(
+        &self,
+        store_name: &str,
+        index_name: &str,
+        key_range: Option<KeyRange>,
+        limit: Option<u32>,
+    ) -> Result<Vec<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        index_get_all(self.0, store_name, index_name, key_range, limit).await
+    }
+    pub async fn store_scan<T>(
+        &self,
+        store_name: &str,
+        key_range: Option<KeyRange>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        direction: Option<Direction>,
+    ) -> Result<Vec<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        store_scan(self.0, store_name, key_range, limit, offset, direction).await
+    }
+    pub async fn index_scan<T>(
+        &self,
+        store_name: &str,
+        index_name: &str,
+        key_range: Option<KeyRange>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        direction: Option<Direction>,
+    ) -> Result<Vec<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        index_scan(self.0, store_name, index_name, key_range, limit, offset, direction).await
+    }
+}
+
 /// Get one value by key from a store.
-pub async fn store_get<T>(store_name: &str, key: &str) -> Result<Option<T>, CoreError>
+pub async fn store_get<T>(rexie: &Rexie, store_name: &str, key: &str) -> Result<Option<T>, CoreError>
 where
     T: DeserializeOwned,
 {
     if is_invalid_key_str(key) {
         return Ok(None);
     }
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -44,11 +143,15 @@ where
 }
 
 /// Put one value. Key is taken from the value (keyPath) or pass key_override for stores that need it.
-pub async fn store_put<V>(store_name: &str, value: &V, key_override: Option<&str>) -> Result<(), CoreError>
+pub async fn store_put<V>(
+    rexie: &Rexie,
+    store_name: &str,
+    value: &V,
+    key_override: Option<&str>,
+) -> Result<(), CoreError>
 where
     V: Serialize,
 {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
@@ -108,7 +211,7 @@ where
 }
 
 /// Put multiple values. Each value must contain its key (keyPath).
-pub async fn store_put_all<V>(store_name: &str, values: &[V]) -> Result<(), CoreError>
+pub async fn store_put_all<V>(rexie: &Rexie, store_name: &str, values: &[V]) -> Result<(), CoreError>
 where
     V: Serialize,
 {
@@ -156,8 +259,6 @@ where
     // Convert first v to JSON string for debug
     let debug_json = values.first().and_then(|v| serde_json::to_string(v).ok()).unwrap_or_default();
     let debug_msg = format!("store_put_all: store='{}', first_val={}", store_name, debug_json);
-    
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
@@ -170,11 +271,10 @@ where
 }
 
 /// Delete one key from a store.
-pub async fn store_delete(store_name: &str, key: &str) -> Result<(), CoreError> {
+pub async fn store_delete(rexie: &Rexie, store_name: &str, key: &str) -> Result<(), CoreError> {
     if is_invalid_key_str(key) {
         return Ok(());
     }
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
@@ -187,8 +287,7 @@ pub async fn store_delete(store_name: &str, key: &str) -> Result<(), CoreError> 
 }
 
 /// Clear all entries in a store.
-pub async fn store_clear(store_name: &str) -> Result<(), CoreError> {
-    let rexie = get_rexie().await?;
+pub async fn store_clear(rexie: &Rexie, store_name: &str) -> Result<(), CoreError> {
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
@@ -200,11 +299,11 @@ pub async fn store_clear(store_name: &str) -> Result<(), CoreError> {
 
 /// Count entries in an index (optionally filtered by key range).
 pub async fn index_count(
+    rexie: &Rexie,
     store_name: &str,
     index_name: &str,
     key_range: Option<KeyRange>,
 ) -> Result<u32, CoreError> {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -216,8 +315,7 @@ pub async fn index_count(
 }
 
 /// Count entries in a store (optionally filtered by key range).
-pub async fn store_count(store_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
-    let rexie = get_rexie().await?;
+pub async fn store_count(rexie: &Rexie, store_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -229,6 +327,7 @@ pub async fn store_count(store_name: &str, key_range: Option<KeyRange>) -> Resul
 
 /// Get all values from a store (optionally with key range and limit).
 pub async fn store_get_all<T>(
+    rexie: &Rexie,
     store_name: &str,
     key_range: Option<KeyRange>,
     limit: Option<u32>,
@@ -236,7 +335,6 @@ pub async fn store_get_all<T>(
 where
     T: DeserializeOwned,
 {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -253,6 +351,7 @@ where
 
 /// Get all values from an index (e.g. by sourceType) with optional key range and limit.
 pub async fn index_get_all<T>(
+    rexie: &Rexie,
     store_name: &str,
     index_name: &str,
     key_range: Option<KeyRange>,
@@ -261,7 +360,6 @@ pub async fn index_get_all<T>(
 where
     T: DeserializeOwned,
 {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -279,6 +377,7 @@ where
 
 /// Scan store with limit/offset and direction (for pagination).
 pub async fn store_scan<T>(
+    rexie: &Rexie,
     store_name: &str,
     key_range: Option<KeyRange>,
     limit: Option<u32>,
@@ -288,7 +387,6 @@ pub async fn store_scan<T>(
 where
     T: DeserializeOwned,
 {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;
@@ -305,6 +403,7 @@ where
 
 /// Scan an index with limit/offset and direction (e.g. auditLog by executedAt DESC).
 pub async fn index_scan<T>(
+    rexie: &Rexie,
     store_name: &str,
     index_name: &str,
     key_range: Option<KeyRange>,
@@ -315,7 +414,6 @@ pub async fn index_scan<T>(
 where
     T: DeserializeOwned,
 {
-    let rexie = get_rexie().await?;
     let tx = rexie
         .transaction(&[store_name], TransactionMode::ReadOnly)
         .map_err(rexie_err)?;

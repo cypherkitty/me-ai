@@ -2,10 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{
-    index_get_all, key_range_only, store_clear, store_delete, store_get, store_get_all,
-    store_put,
-};
+use crate::db::{key_range_only, DbRef};
 use crate::error::CoreError;
 use crate::schema::store;
 
@@ -71,8 +68,8 @@ pub struct EventRow {
 }
 
 /// Get all rules with triggers and commands.
-pub async fn get_rules() -> Result<Vec<serde_json::Value>, CoreError> {
-    let rules: Vec<RuleRow> = store_get_all(store::SM_RULES, None, None).await?;
+pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<serde_json::Value>, CoreError> {
+    let rules: Vec<RuleRow> = db.store_get_all(store::SM_RULES, None, None).await?;
     let mut out = Vec::new();
     for r in rules {
         let id = r.id.as_deref().and_then(|v| {
@@ -85,15 +82,11 @@ pub async fn get_rules() -> Result<Vec<serde_json::Value>, CoreError> {
         });
         let (triggers, commands) = if let Some(id) = id {
             let range = key_range_only(id)?;
-            let triggers: Vec<RuleTriggerRow> = index_get_all(
-                store::SM_RULE_TRIGGERS,
-                "rule_id",
-                Some(range.clone()),
-                None,
-            )
-            .await?;
+            let triggers: Vec<RuleTriggerRow> = db
+                .index_get_all(store::SM_RULE_TRIGGERS, "rule_id", Some(range.clone()), None)
+                .await?;
             let commands: Vec<RuleCommandRow> =
-                index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+                db.index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
             (triggers, commands)
         } else {
             (Vec::new(), Vec::new())
@@ -125,21 +118,17 @@ pub async fn get_rules() -> Result<Vec<serde_json::Value>, CoreError> {
 }
 
 /// Get one rule by id.
-pub async fn get_rule(id: &str) -> Result<Option<serde_json::Value>, CoreError> {
-    let r: Option<RuleRow> = store_get(store::SM_RULES, id).await?;
+pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<serde_json::Value>, CoreError> {
+    let r: Option<RuleRow> = db.store_get(store::SM_RULES, id).await?;
     let Some(r) = r else {
         return Ok(None);
     };
     let range = key_range_only(id)?;
-    let triggers: Vec<RuleTriggerRow> = index_get_all(
-        store::SM_RULE_TRIGGERS,
-        "rule_id",
-        Some(range.clone()),
-        None,
-    )
-    .await?;
+    let triggers: Vec<RuleTriggerRow> = db
+        .index_get_all(store::SM_RULE_TRIGGERS, "rule_id", Some(range.clone()), None)
+        .await?;
     let commands: Vec<RuleCommandRow> =
-        index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+        db.index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
     Ok(Some(serde_json::json!({
         "id": r.id,
         "name": r.name,
@@ -160,7 +149,7 @@ pub async fn get_rule(id: &str) -> Result<Option<serde_json::Value>, CoreError> 
 }
 
 /// Save rule (upsert) with triggers and commands. payload: JSON object from JS.
-pub async fn save_rule(payload: serde_json::Value) -> Result<(), CoreError> {
+pub async fn save_rule(db: DbRef<'_>, payload: serde_json::Value) -> Result<(), CoreError> {
     let id = payload
         .get("id")
         .and_then(|v| v.as_str())
@@ -179,27 +168,23 @@ pub async fn save_rule(payload: serde_json::Value) -> Result<(), CoreError> {
         "priority": priority,
         "created_at": created_at
     });
-    store_put(store::SM_RULES, &rule_doc, Some(id)).await?;
+    db.store_put(store::SM_RULES, &rule_doc, Some(id)).await?;
 
     // Delete existing triggers and commands for this rule
     let range = key_range_only(id)?;
-    let old_triggers: Vec<RuleTriggerRow> = index_get_all(
-        store::SM_RULE_TRIGGERS,
-        "rule_id",
-        Some(range.clone()),
-        None,
-    )
-    .await?;
+    let old_triggers: Vec<RuleTriggerRow> = db
+        .index_get_all(store::SM_RULE_TRIGGERS, "rule_id", Some(range.clone()), None)
+        .await?;
     for t in old_triggers {
         if let Some(ref tid) = t.id {
-            store_delete(store::SM_RULE_TRIGGERS, tid).await?;
+            db.store_delete(store::SM_RULE_TRIGGERS, tid).await?;
         }
     }
     let old_commands: Vec<RuleCommandRow> =
-        index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+        db.index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
     for c in old_commands {
         if let Some(ref cid) = c.id {
-            store_delete(store::SM_RULE_COMMANDS, cid).await?;
+            db.store_delete(store::SM_RULE_COMMANDS, cid).await?;
         }
     }
 
@@ -215,7 +200,7 @@ pub async fn save_rule(payload: serde_json::Value) -> Result<(), CoreError> {
             "trigger_type": t.get("type"),
             "trigger_name": t.get("name")
         });
-        store_put(store::SM_RULE_TRIGGERS, &doc, Some(&tid)).await?;
+        db.store_put(store::SM_RULE_TRIGGERS, &doc, Some(&tid)).await?;
     }
 
     let empty_actions: Vec<serde_json::Value> = vec![];
@@ -233,42 +218,38 @@ pub async fn save_rule(payload: serde_json::Value) -> Result<(), CoreError> {
             "icon": a.get("icon"),
             "order_idx": i
         });
-        store_put(store::SM_RULE_COMMANDS, &doc, Some(&cid)).await?;
+        db.store_put(store::SM_RULE_COMMANDS, &doc, Some(&cid)).await?;
     }
 
     Ok(())
 }
 
 /// Delete rule and its triggers and commands.
-pub async fn delete_rule(id: &str) -> Result<(), CoreError> {
+pub async fn delete_rule(db: DbRef<'_>, id: &str) -> Result<(), CoreError> {
     let range = key_range_only(id)?;
-    let triggers: Vec<RuleTriggerRow> = index_get_all(
-        store::SM_RULE_TRIGGERS,
-        "rule_id",
-        Some(range.clone()),
-        None,
-    )
-    .await?;
+    let triggers: Vec<RuleTriggerRow> = db
+        .index_get_all(store::SM_RULE_TRIGGERS, "rule_id", Some(range.clone()), None)
+        .await?;
     for t in triggers {
         if let Some(tid) = t.id {
-            store_delete(store::SM_RULE_TRIGGERS, &tid).await?;
+            db.store_delete(store::SM_RULE_TRIGGERS, &tid).await?;
         }
     }
     let commands: Vec<RuleCommandRow> =
-        index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
+        db.index_get_all(store::SM_RULE_COMMANDS, "rule_id", Some(range), None).await?;
     for c in commands {
         if let Some(cid) = c.id {
-            store_delete(store::SM_RULE_COMMANDS, &cid).await?;
+            db.store_delete(store::SM_RULE_COMMANDS, &cid).await?;
         }
     }
-    store_delete(store::SM_RULES, id).await?;
-    store_delete(store::SM_RULE_POLICIES, id).await?;
+    db.store_delete(store::SM_RULES, id).await?;
+    db.store_delete(store::SM_RULE_POLICIES, id).await?;
     Ok(())
 }
 
 /// Get events (paginated). Sorted by timestamp desc.
-pub async fn get_events(limit: u32, offset: u32) -> Result<Vec<EventRow>, CoreError> {
-    let mut all: Vec<EventRow> = store_get_all(store::SM_EVENTS, None, Some(limit + offset)).await?;
+pub async fn get_events(db: DbRef<'_>, limit: u32, offset: u32) -> Result<Vec<EventRow>, CoreError> {
+    let mut all: Vec<EventRow> = db.store_get_all(store::SM_EVENTS, None, Some(limit + offset)).await?;
     all.sort_by(|a, b| b.timestamp.unwrap_or(0).cmp(&a.timestamp.unwrap_or(0)));
     let skip = offset as usize;
     if skip >= all.len() {
@@ -279,21 +260,22 @@ pub async fn get_events(limit: u32, offset: u32) -> Result<Vec<EventRow>, CoreEr
 }
 
 /// Update event status.
-pub async fn update_event_status(id: &str, status: &str) -> Result<(), CoreError> {
-    if let Some(mut row) = store_get::<EventRow>(store::SM_EVENTS, id).await? {
+pub async fn update_event_status(db: DbRef<'_>, id: &str, status: &str) -> Result<(), CoreError> {
+    if let Some(mut row) = db.store_get::<EventRow>(store::SM_EVENTS, id).await? {
         row.status = Some(status.to_string());
-        store_put(store::SM_EVENTS, &row, Some(id)).await?;
+        db.store_put(store::SM_EVENTS, &row, Some(id)).await?;
     }
     Ok(())
 }
 
 /// Clear all events.
-pub async fn clear_events() -> Result<(), CoreError> {
-    store_clear(store::SM_EVENTS).await
+pub async fn clear_events(db: DbRef<'_>) -> Result<(), CoreError> {
+    db.store_clear(store::SM_EVENTS).await
 }
 
 /// Insert one event.
 pub async fn insert_event(
+    db: DbRef<'_>,
     id: &str,
     content: Option<&str>,
     subject: Option<&str>,
@@ -321,5 +303,5 @@ pub async fn insert_event(
         "actions_taken": actions_taken,
         "output": output
     });
-    store_put(store::SM_EVENTS, &doc, Some(id)).await
+    db.store_put(store::SM_EVENTS, &doc, Some(id)).await
 }

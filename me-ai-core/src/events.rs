@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::store_get_all;
+use crate::db::DbRef;
 use crate::error::CoreError;
 use crate::schema::store;
 
@@ -25,16 +25,16 @@ pub struct EventCategoryRow {
 }
 
 /// Fetch event types (name, label). Sorted by name in Rust.
-pub async fn get_event_types() -> Result<Vec<EventTypeRow>, CoreError> {
-    let mut rows: Vec<EventTypeRow> = store_get_all(store::SM_EVENT_TYPES, None, None).await?;
+pub async fn get_event_types(db: DbRef<'_>) -> Result<Vec<EventTypeRow>, CoreError> {
+    let mut rows: Vec<EventTypeRow> = db.store_get_all(store::SM_EVENT_TYPES, None, None).await?;
     rows.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(rows)
 }
 
 /// Fetch event categories (name, label, priority, policy). Sorted by priority in Rust.
-pub async fn get_event_categories() -> Result<Vec<EventCategoryRow>, CoreError> {
+pub async fn get_event_categories(db: DbRef<'_>) -> Result<Vec<EventCategoryRow>, CoreError> {
     let mut rows: Vec<EventCategoryRow> =
-        store_get_all(store::SM_EVENT_CATEGORIES, None, None).await?;
+        db.store_get_all(store::SM_EVENT_CATEGORIES, None, None).await?;
     rows.sort_by(|a, b| {
         let pa = a.priority.unwrap_or(0);
         let pb = b.priority.unwrap_or(0);
@@ -55,13 +55,13 @@ struct EventTypeStoreRow {
 
 /// Insert event type if not present (for LLM-seeded types).
 pub async fn upsert_event_type(
+    db: DbRef<'_>,
     name: &str,
     label: &str,
     category_name: &str,
     auto_created: bool,
 ) -> Result<(), CoreError> {
-    use crate::db::store_get;
-    if store_get::<EventTypeStoreRow>(store::SM_EVENT_TYPES, name).await?.is_some() {
+    if db.store_get::<EventTypeStoreRow>(store::SM_EVENT_TYPES, name).await?.is_some() {
         return Ok(());
     }
     let row = EventTypeStoreRow {
@@ -70,5 +70,5 @@ pub async fn upsert_event_type(
         category_name: Some(category_name.to_string()),
         auto_created: Some(auto_created),
     };
-    crate::db::store_put(store::SM_EVENT_TYPES, &row, Some(name)).await
+    db.store_put(store::SM_EVENT_TYPES, &row, Some(name)).await
 }

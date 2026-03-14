@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use rexie::Direction;
 
-use crate::db::{
-    index_scan, store_clear, store_count, store_delete, store_get, store_get_all, store_put,
-};
+use crate::db::DbRef;
 use crate::error::CoreError;
 use crate::schema::store;
 
@@ -45,6 +43,7 @@ struct AuditLogDoc {
 }
 
 pub async fn log_execution(
+    db: DbRef<'_>,
     id: &str,
     email_id: &str,
     subject: &str,
@@ -66,7 +65,7 @@ pub async fn log_execution(
         error: error.to_string(),
         steps: steps_json.to_string(),
     };
-    store_put(store::AUDIT_LOG, &doc, Some(id)).await
+    db.store_put(store::AUDIT_LOG, &doc, Some(id)).await
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -87,13 +86,13 @@ struct EmailClassificationRow {
     status: Option<String>,
 }
 
-pub async fn sync_after_execution(email_id: &str, delete_item: bool) -> Result<(), CoreError> {
-    if let Some(mut row) = store_get::<EmailClassificationRow>(store::EMAIL_CLASSIFICATIONS, email_id).await? {
+pub async fn sync_after_execution(db: DbRef<'_>, email_id: &str, delete_item: bool) -> Result<(), CoreError> {
+    if let Some(mut row) = db.store_get::<EmailClassificationRow>(store::EMAIL_CLASSIFICATIONS, email_id).await? {
         row.status = Some("executed".to_string());
-        store_put(store::EMAIL_CLASSIFICATIONS, &row, Some(email_id)).await?;
+        db.store_put(store::EMAIL_CLASSIFICATIONS, &row, Some(email_id)).await?;
     }
     if delete_item {
-        store_delete(store::ITEMS, email_id).await?;
+        db.store_delete(store::ITEMS, email_id).await?;
     }
     Ok(())
 }
@@ -105,20 +104,22 @@ pub struct GetAuditLogResult {
 }
 
 pub async fn get_audit_log(
+    db: DbRef<'_>,
     limit: i64,
     offset: i64,
     failures_only: bool,
 ) -> Result<GetAuditLogResult, CoreError> {
     let (entries, total) = if failures_only {
-        let all: Vec<AuditLogRow> = index_scan(
-            store::AUDIT_LOG,
-            "executedAt",
-            None,
-            None,
-            None,
-            Some(Direction::Prev),
-        )
-        .await?;
+        let all: Vec<AuditLogRow> = db
+            .index_scan(
+                store::AUDIT_LOG,
+                "executedAt",
+                None,
+                None,
+                None,
+                Some(Direction::Prev),
+            )
+            .await?;
         let failures: Vec<AuditLogRow> =
             all.into_iter().filter(|r| r.success == Some(false)).collect();
         let total = failures.len() as i64;
@@ -129,29 +130,30 @@ pub async fn get_audit_log(
             .collect();
         (entries, total)
     } else {
-        let entries = index_scan(
-            store::AUDIT_LOG,
-            "executedAt",
-            None,
-            Some(limit as u32),
-            Some(offset as u32),
-            Some(Direction::Prev),
-        )
-        .await?;
-        let total = store_count(store::AUDIT_LOG, None).await? as i64;
+        let entries = db
+            .index_scan(
+                store::AUDIT_LOG,
+                "executedAt",
+                None,
+                Some(limit as u32),
+                Some(offset as u32),
+                Some(Direction::Prev),
+            )
+            .await?;
+        let total = db.store_count(store::AUDIT_LOG, None).await? as i64;
         (entries, total)
     };
 
     Ok(GetAuditLogResult { entries, total })
 }
 
-pub async fn clear_audit_log() -> Result<(), CoreError> {
-    store_clear(store::AUDIT_LOG).await
+pub async fn clear_audit_log(db: DbRef<'_>) -> Result<(), CoreError> {
+    db.store_clear(store::AUDIT_LOG).await
 }
 
 /// Count audit entries by success (for event stats).
-pub async fn get_audit_stats() -> Result<(u32, u32), CoreError> {
-    let rows: Vec<AuditLogRow> = store_get_all(store::AUDIT_LOG, None, None).await?;
+pub async fn get_audit_stats(db: DbRef<'_>) -> Result<(u32, u32), CoreError> {
+    let rows: Vec<AuditLogRow> = db.store_get_all(store::AUDIT_LOG, None, None).await?;
     let mut completed = 0u32;
     let mut failed = 0u32;
     for row in rows {

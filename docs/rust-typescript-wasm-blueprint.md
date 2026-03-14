@@ -57,23 +57,22 @@ So: **one** wasm-pack build, **one** init call, **direct** use of generated expo
 
 | Aspect | duckdb-wasm-shell | me-ai |
 |--------|-------------------|--------|
-| Who runs the DB | JS (DuckDB is a separate Emscripten C++ WASM). Rust shell only does UI. | Rust builds SQL; **JS runs DuckDB** via an adapter (`query`/`exec`). |
-| Init | `await shell.default(wasmModule)`; no args. | `init(adapter)` — we pass the JS adapter so Rust can call back into JS to run SQL. |
-| Bindings | None; use pkg as-is. | We already use wasm-pack pkg; the only “binding” is the **adapter** (required so Rust can run SQL in JS). |
+| Who runs the DB | JS (DuckDB is a separate Emscripten C++ WASM). Rust shell only does UI. | Rust owns all persistence via Rexie (IndexedDB). No SQL; direct store access. |
+| Init | `await shell.default(wasmModule)`; no args. | `new MeAiCore()` then `createSchemaAndMigrations()` — Rexie built once in Rust. |
+| Bindings | None; use pkg as-is. | wasm-pack pkg; Rexie (IndexedDB) is used directly from Rust. |
 
-So we **already** follow the same idea: wasm-pack, single init, direct use of exports. The adapter in me-ai is not “crazy bindings” — it’s the minimal callback layer so that:
+So we **already** follow the same idea: wasm-pack, single init, direct use of exports.
 
-- Rust owns **all SQL** (no SQL strings in TS).
-- Execution stays in JS (DuckDB-WASM + OPFS, etc.).
+- Rust owns all persistence via Rexie (IndexedDB); no SQL, no JS adapter.
 
 ---
 
 ## Takeaways for me-ai
 
 1. **Keep using wasm-pack `--target web`** and the generated pkg (as we do). No need to switch to a custom binding layer.
-2. **Init pattern**: We can align with the shell style:
+2. **Init pattern**: We align with the shell style:
    - Load WASM (e.g. from `/wasm/me_ai_core.js` or from `me-ai-core` package).
-   - Call `init(adapter)` once (our adapter is the only extra argument).
+   - Create `new MeAiCore()` once (builds Rexie).
    - Then use `getEventTypes()`, `createSchemaAndMigrations()`, etc., directly.
 3. **Single entry**: Like the shell, we have one init and then only exported functions. No need for extra “binding” files beyond the adapter interface.
 4. **Optional**: We could expose a **default** export that is `init` and keep the rest as named exports, so the usage looks like:

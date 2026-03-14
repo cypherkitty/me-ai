@@ -1,9 +1,9 @@
 /**
  * Ensures tslib is materialised in node_modules.
  *
- * apache-arrow (a DuckDB WASM dependency) imports tslib as a bare specifier
- * but npm sometimes marks it as `ideallyInert` and skips creating the directory.
- * This postinstall script fetches it from the npm registry if missing.
+ * Some dependencies import tslib as a bare specifier but npm sometimes marks
+ * it as `ideallyInert` and skips creating the directory. This postinstall
+ * script fetches it from the npm registry if missing.
  */
 
 const fs   = require("fs");

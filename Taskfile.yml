@@ -26,12 +26,12 @@ tasks:
       - task copy:core
       - npm install
 
-  # --- me-ai-core (Rust WASM, blueprint: duckdb-wasm-shell style) ---
+  # --- me-ai-core (Rust WASM) ---
   # wasm-pack writes to CORE_DIR/pkg (e.g. me-ai-core/pkg); sync to CORE_PKG for install/copy.
   build:core:
     desc: Build me-ai-core with wasm-pack --target web (output in me-ai-core/pkg)
     cmds:
-      - wasm-pack build {{.CORE_DIR}} --target web --out-dir {{.CORE_PKG}}
+      - wasm-pack build {{.CORE_DIR}} --target web --out-dir pkg
 
   copy:core:
     desc: Copy me-ai-core/pkg into me-ai-web/node_modules/me-ai-core (run after build:core)
