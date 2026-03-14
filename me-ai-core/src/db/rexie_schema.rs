@@ -127,4 +127,3 @@ pub mod store {
     pub const SM_RULE_POLICIES: &str = "sm_rule_policies";
     pub const SM_EVENTS: &str = "sm_events";
 }
-

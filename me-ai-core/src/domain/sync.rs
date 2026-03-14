@@ -3,9 +3,8 @@
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::from_value;
 
-use crate::db::{key_range_only, DbRef};
+use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
-use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncStateRow {

@@ -2,9 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{key_range_only, DbRef};
+use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
-use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SourceRow {
