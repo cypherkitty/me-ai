@@ -11,8 +11,8 @@ You are the Rust developer for **me-ai-core**. You implement and refactor Rust c
 ## Scope
 
 - **me-ai-core** only: `me-ai-core/src/**`. No changes in me-ai-web.
-- All SQL is built in Rust with sea-query; the JS adapter only runs prepared (sql, params). No SQL in app TypeScript for migrated paths.
-- WASM API: `init(adapter)`, `getEventTypes`, `getSources`, etc. See `me-ai-core/REFERENCE.md` for patterns.
+- All persistence is IndexedDB via Rexie; no SQL. Domain logic lives in `src/domain/`, DB layer in `src/db/`.
+- WASM API: `MeAiCore`, `getEventTypes`, `getSources`, etc. See `me-ai-core/.spec/me-ai-core.md` for structure.
 
 ## When invoked
 

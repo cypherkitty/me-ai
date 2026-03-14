@@ -13,10 +13,13 @@ Rust, wasm-bindgen, rexie (IndexedDB), serde, thiserror. Build: wasm-pack, targe
 ## Structure
 
 - `src/lib.rs` — WASM API surface, all #[wasm_bindgen] exports
-- `src/db.rs` — Rexie primitives (store_get, store_put, store_scan, etc.)
-- `src/app.rs` — schema init, seed data
-- `src/audit.rs`, `src/classifications.rs`, `src/events.rs`, `src/items.rs`, `src/pipelines.rs`, `src/rules.rs`, `src/rules_data.rs`, `src/sync.rs` — domain modules
-- `src/rexie_schema.rs` — IndexedDB store definitions
+- `src/error.rs` — error types
+- `src/db/` — persistence layer
+  - `rexie_schema.rs` — IndexedDB store definitions, RexieDb
+  - `access.rs` — Rexie primitives (store_get, store_put, store_scan, etc.)
+- `src/domain/` — domain logic
+  - `app.rs` — schema init, seed data, settings
+  - `audit.rs`, `classifications.rs`, `events.rs`, `items.rs`, `pipelines.rs`, `rules.rs`, `rules_data.rs`, `sync.rs`
 
 ## WASM API (main groups)
 

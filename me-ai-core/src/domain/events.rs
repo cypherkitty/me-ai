@@ -2,9 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::DbRef;
+use crate::db::{store, DbRef};
 use crate::error::CoreError;
-use crate::schema::store;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventTypeRow {

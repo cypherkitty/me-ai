@@ -7,8 +7,8 @@ use serde::Serialize;
 use serde_wasm_bindgen::from_value;
 use wasm_bindgen::JsValue;
 
+use super::rexie_schema::{store, RexieDb};
 use crate::error::CoreError;
-use crate::rexie_schema::RexieDb;
 
 impl RexieDb {
     /// Reference for domain logic. Rexie is built once; this passes it through.
@@ -156,37 +156,34 @@ where
         .transaction(&[store_name], TransactionMode::ReadWrite)
         .map_err(rexie_err)?;
     let s = tx.store(store_name).map_err(rexie_err)?;
-    // Convert to strict JS objects, ensuring maps are objects, so IndexedDB can extract keyPaths.
-    // serde_wasm_bindgen uses ES6 Maps for Rust structs by default sometimes. 
-    // We use a custom Serializer configuration.
     let serializer = serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-    
+
     let val_js = if let Some(key) = key_override {
         let mut json_val = serde_json::to_value(value).map_err(|e| CoreError::Serialize(e.to_string()))?;
         if let Some(obj) = json_val.as_object_mut() {
             let key_path = match store_name {
-                crate::rexie_schema::store::ITEMS
-                | crate::rexie_schema::store::AUDIT_LOG
-                | crate::rexie_schema::store::SM_PLUGIN_ACTIONS
-                | crate::rexie_schema::store::SM_PLUGIN_SOURCES
-                | crate::rexie_schema::store::SM_CATEGORY_PIPELINE
-                | crate::rexie_schema::store::SM_TYPE_PIPELINE
-                | crate::rexie_schema::store::SM_RULES
-                | crate::rexie_schema::store::SM_RULE_TRIGGERS
-                | crate::rexie_schema::store::SM_RULE_COMMANDS
-                | crate::rexie_schema::store::SM_EVENTS => "id",
-                
-                crate::rexie_schema::store::SM_EVENT_TYPES
-                | crate::rexie_schema::store::SM_EVENT_CATEGORIES
-                | crate::rexie_schema::store::SM_SOURCES
-                | crate::rexie_schema::store::SM_ACTIONS
-                | crate::rexie_schema::store::SM_PLUGINS => "name",
+                store::ITEMS
+                | store::AUDIT_LOG
+                | store::SM_PLUGIN_ACTIONS
+                | store::SM_PLUGIN_SOURCES
+                | store::SM_CATEGORY_PIPELINE
+                | store::SM_TYPE_PIPELINE
+                | store::SM_RULES
+                | store::SM_RULE_TRIGGERS
+                | store::SM_RULE_COMMANDS
+                | store::SM_EVENTS => "id",
 
-                crate::rexie_schema::store::CONTACTS => "email",
-                crate::rexie_schema::store::SYNC_STATE => "sourceType",
-                crate::rexie_schema::store::SETTINGS => "key",
-                crate::rexie_schema::store::EMAIL_CLASSIFICATIONS => "emailId",
-                crate::rexie_schema::store::SM_RULE_POLICIES => "rule_id",
+                store::SM_EVENT_TYPES
+                | store::SM_EVENT_CATEGORIES
+                | store::SM_SOURCES
+                | store::SM_ACTIONS
+                | store::SM_PLUGINS => "name",
+
+                store::CONTACTS => "email",
+                store::SYNC_STATE => "sourceType",
+                store::SETTINGS => "key",
+                store::EMAIL_CLASSIFICATIONS => "emailId",
+                store::SM_RULE_POLICIES => "rule_id",
                 _ => "",
             };
 
@@ -199,8 +196,6 @@ where
         value.serialize(&serializer).map_err(|e| CoreError::Serialize(e.to_string()))?
     };
 
-    // Rexie/IndexedDB will throw a DataError if we pass a key to an ObjectStore that uses a keyPath.
-    // Since all our stores now use keyPath, we must NOT pass the key explicitly.
     s.put(&val_js, None).await.map_err(|e| {
         let json_str = serde_json::to_string(value).unwrap_or_else(|_| "unknown".to_string());
         let msg = format!("store_put failed for store '{}': {} (obj={})", store_name, e, json_str);
@@ -219,30 +214,29 @@ where
         return Ok(());
     }
 
-    // Determine the keyPath for this store
     let key_path = match store_name {
-        crate::rexie_schema::store::ITEMS
-        | crate::rexie_schema::store::AUDIT_LOG
-        | crate::rexie_schema::store::SM_PLUGIN_ACTIONS
-        | crate::rexie_schema::store::SM_PLUGIN_SOURCES
-        | crate::rexie_schema::store::SM_CATEGORY_PIPELINE
-        | crate::rexie_schema::store::SM_TYPE_PIPELINE
-        | crate::rexie_schema::store::SM_RULES
-        | crate::rexie_schema::store::SM_RULE_TRIGGERS
-        | crate::rexie_schema::store::SM_RULE_COMMANDS
-        | crate::rexie_schema::store::SM_EVENTS => "id",
-        
-        crate::rexie_schema::store::SM_EVENT_TYPES
-        | crate::rexie_schema::store::SM_EVENT_CATEGORIES
-        | crate::rexie_schema::store::SM_SOURCES
-        | crate::rexie_schema::store::SM_ACTIONS
-        | crate::rexie_schema::store::SM_PLUGINS => "name",
+        store::ITEMS
+        | store::AUDIT_LOG
+        | store::SM_PLUGIN_ACTIONS
+        | store::SM_PLUGIN_SOURCES
+        | store::SM_CATEGORY_PIPELINE
+        | store::SM_TYPE_PIPELINE
+        | store::SM_RULES
+        | store::SM_RULE_TRIGGERS
+        | store::SM_RULE_COMMANDS
+        | store::SM_EVENTS => "id",
 
-        crate::rexie_schema::store::CONTACTS => "email",
-        crate::rexie_schema::store::SYNC_STATE => "sourceType",
-        crate::rexie_schema::store::SETTINGS => "key",
-        crate::rexie_schema::store::EMAIL_CLASSIFICATIONS => "emailId",
-        crate::rexie_schema::store::SM_RULE_POLICIES => "rule_id",
+        store::SM_EVENT_TYPES
+        | store::SM_EVENT_CATEGORIES
+        | store::SM_SOURCES
+        | store::SM_ACTIONS
+        | store::SM_PLUGINS => "name",
+
+        store::CONTACTS => "email",
+        store::SYNC_STATE => "sourceType",
+        store::SETTINGS => "key",
+        store::EMAIL_CLASSIFICATIONS => "emailId",
+        store::SM_RULE_POLICIES => "rule_id",
         _ => "",
     };
 
@@ -251,12 +245,8 @@ where
     for v in values {
         let js = v.serialize(&serializer).map_err(|e| CoreError::Serialize(e.to_string()))?;
         collected.push((js, None));
-        
-        // Let's log exactly what we're putting so we can see which property is missing!
-        // We'll only log it to the console (debug.cjs listens to console output)
     }
-    
-    // Convert first v to JSON string for debug
+
     let debug_json = values.first().and_then(|v| serde_json::to_string(v).ok()).unwrap_or_default();
     let debug_msg = format!("store_put_all: store='{}', first_val={}", store_name, debug_json);
     let tx = rexie
@@ -444,6 +434,9 @@ pub fn key_range_only(key: &str) -> Result<KeyRange, CoreError> {
 pub fn key_range_only_bool(b: bool) -> Result<KeyRange, CoreError> {
     let k = JsValue::from_bool(b);
     KeyRange::only(&k).map_err(|e| {
-        CoreError::Rexie(format!("IDBKeyRange.only failed for boolean key '{}' (booleans are often NOT valid IDB keys): {}", b, e))
+        CoreError::Rexie(format!(
+            "IDBKeyRange.only failed for boolean key '{}' (booleans are often NOT valid IDB keys): {}",
+            b, e
+        ))
     })
 }

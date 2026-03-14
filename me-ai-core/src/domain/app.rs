@@ -2,9 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::DbRef;
+use crate::db::{store, DbRef};
 use crate::error::CoreError;
-use crate::schema::store;
 
 /// Run schema (open Rexie DB) and seed data. RexieDb is built once at init.
 pub async fn create_schema_and_migrations(db: DbRef<'_>) -> Result<(), CoreError> {
