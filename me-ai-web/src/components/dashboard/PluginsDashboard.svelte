@@ -1,7 +1,6 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
   import FilesystemPluginSettings from "../plugins/FilesystemPluginSettings.svelte";
-  import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
   interface PluginRegistryAction {
     actionId?: string;
@@ -57,6 +56,14 @@
   };
 
   let expandedScopes = $state<Set<string>>(new Set());
+  let expandedPlugins = $state<Set<string>>(new Set());
+
+  function togglePlugin(pluginId: string) {
+    const next = new Set(expandedPlugins);
+    if (next.has(pluginId)) next.delete(pluginId);
+    else next.add(pluginId);
+    expandedPlugins = next;
+  }
 
   function toggleScopes(key: string) {
     const next = new Set(expandedScopes);
@@ -79,12 +86,20 @@
     </p>
   </div>
 
-  <ScrollArea class="flex-1 px-6 pb-6">
+  <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
     <div class="flex flex-col gap-4 py-4">
       {#each plugins as plugin}
+        {@const isExpanded = expandedPlugins.has(plugin.id)}
         <div class="rounded-lg border border-border bg-card overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-3 bg-muted/30 border-b border-border">
+          <button
+            type="button"
+            class="flex items-center justify-between w-full px-4 py-3 bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors text-left"
+            onclick={() => togglePlugin(plugin.id)}
+          >
             <div class="flex items-center gap-2">
+              <span class="text-[0.7rem] text-muted-foreground w-4 shrink-0">
+                {isExpanded ? "▾" : "▸"}
+              </span>
               <span class="text-sm font-semibold text-foreground">{plugin.name}</span>
               <code class="text-[0.65rem] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
                 {plugin.id}
@@ -94,8 +109,9 @@
             <span class="text-xs text-muted-foreground">
               {plugin.actions.length} action{plugin.actions.length === 1 ? "" : "s"}
             </span>
-          </div>
+          </button>
 
+          {#if isExpanded}
           <div class="divide-y divide-border">
             {#each plugin.actions as action}
               {@const scopeKey = `${plugin.id}:${action.id}`}
@@ -146,6 +162,7 @@
               <FilesystemPluginSettings />
             </div>
           {/if}
+          {/if}
         </div>
       {/each}
 
@@ -155,5 +172,5 @@
         </div>
       {/if}
     </div>
-  </ScrollArea>
+  </div>
 </div>
