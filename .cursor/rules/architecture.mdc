@@ -19,7 +19,7 @@ The repo is split into two main parts:
 
 **Building, installing, testing, and deploying** must go through the **builder** subagent.
 Do not run `npm install`, `npm run build`, or `task` from the repo root yourself; use the builder.
-All Taskfile tasks and workflow are defined in `.cursor/agents/builder.md`.
+All Taskfile tasks and workflow are defined in `.agents/builder.md` (`.cursor/agents/builder.md` is a symlink).
 
 ## Three-Step User Flow
 

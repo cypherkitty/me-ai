@@ -7,8 +7,8 @@ alwaysApply: true
 
 The repo has two specialist agents; when you work in their area, follow their scope and patterns:
 
-- **me-ai-core** (`me-ai-core/`): Rust, WASM, sea-query. See `.cursor/agents/me-ai-core.md` for scope and patterns.
-- **me-ai-web** (`me-ai-web/`): Svelte, TypeScript, frontend. See `.cursor/agents/me-ai-web.md` for scope and patterns.
+- **me-ai-core** (`me-ai-core/`): Rust, WASM, sea-query. See `.agents/me-ai-core.md` for scope and patterns (`.cursor/agents/me-ai-core.md` is a symlink).
+- **me-ai-web** (`me-ai-web/`): Svelte, TypeScript, frontend. See `.agents/me-ai-web.md` for scope and patterns (`.cursor/agents/me-ai-web.md` is a symlink).
 
 When making changes in `me-ai-core/src/**` or `me-ai-web/src/**`, follow the conventions in the corresponding agent file.
 Do not mix concerns (e.g. no SQL in app code for migrated paths; no core logic in web).
