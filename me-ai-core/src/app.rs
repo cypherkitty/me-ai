@@ -2,15 +2,13 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{store_clear, store_count, store_delete, store_get, store_put, store_put_all};
+use crate::db::DbRef;
 use crate::error::CoreError;
-use crate::rexie_schema::get_rexie;
 use crate::schema::store;
 
-/// Run schema (open Rexie DB) and seed data. No adapter; Rexie is opened on first use.
-pub async fn create_schema_and_migrations() -> Result<(), CoreError> {
-    let _ = get_rexie().await?;
-    seed_signal_map().await?;
+/// Run schema (open Rexie DB) and seed data. RexieDb is built once at init.
+pub async fn create_schema_and_migrations(db: DbRef<'_>) -> Result<(), CoreError> {
+    seed_signal_map(db).await?;
     Ok(())
 }
 
@@ -86,8 +84,8 @@ struct SmCategoryPipelineRow {
     command_id: String,
 }
 
-async fn seed_signal_map() -> Result<(), CoreError> {
-    let n = store_count(store::SM_EVENT_TYPES, None).await?;
+async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
+    let n = db.store_count(store::SM_EVENT_TYPES, None).await?;
     if n > 0 {
         return Ok(());
     }
@@ -117,7 +115,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             auto_created: Some(*auto),
         })
         .collect();
-    store_put_all(store::SM_EVENT_TYPES, &rows).await?;
+    db.store_put_all(store::SM_EVENT_TYPES, &rows).await?;
 
     let categories = [
         ("noise", "Noise", 1, "auto"),
@@ -133,7 +131,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             policy: Some(policy.to_string()),
         })
         .collect();
-    store_put_all(store::SM_EVENT_CATEGORIES, &cat_rows).await?;
+    db.store_put_all(store::SM_EVENT_CATEGORIES, &cat_rows).await?;
 
     let sources = [
         ("gmail", "Gmail", "email", "gmail_api_v1", true),
@@ -153,7 +151,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             enabled: Some(*enabled),
         })
         .collect();
-    store_put_all(store::SM_SOURCES, &src_rows).await?;
+    db.store_put_all(store::SM_SOURCES, &src_rows).await?;
 
     let actions = [
         ("delete", "Delete"),
@@ -174,7 +172,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             label: Some(label.to_string()),
         })
         .collect();
-    store_put_all(store::SM_ACTIONS, &act_rows).await?;
+    db.store_put_all(store::SM_ACTIONS, &act_rows).await?;
 
     let plugins = [
         ("gmail_plugin", "Gmail", "2.1.0", true),
@@ -194,7 +192,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             enabled: Some(*enabled),
         })
         .collect();
-    store_put_all(store::SM_PLUGINS, &plug_rows).await?;
+    db.store_put_all(store::SM_PLUGINS, &plug_rows).await?;
 
     let plugin_actions = [
         ("gmail_plugin", "delete"),
@@ -219,7 +217,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             plugin_name: pn.to_string(),
             action_name: an.to_string(),
         };
-        store_put(store::SM_PLUGIN_ACTIONS, &row, Some(&id)).await?;
+        db.store_put(store::SM_PLUGIN_ACTIONS, &row, Some(&id)).await?;
     }
 
     let plugin_sources = [
@@ -235,7 +233,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             plugin_name: pn.to_string(),
             source_name: sn.to_string(),
         };
-        store_put(store::SM_PLUGIN_SOURCES, &row, Some(&id)).await?;
+        db.store_put(store::SM_PLUGIN_SOURCES, &row, Some(&id)).await?;
     }
 
     let category_pipeline = [
@@ -252,7 +250,7 @@ async fn seed_signal_map() -> Result<(), CoreError> {
             plugin_id: plugin.to_string(),
             command_id: cmd.to_string(),
         };
-        store_put(store::SM_CATEGORY_PIPELINE, &row, Some(&id)).await?;
+        db.store_put(store::SM_CATEGORY_PIPELINE, &row, Some(&id)).await?;
     }
 
     Ok(())
@@ -283,26 +281,26 @@ fn table_to_store(table: &str) -> Option<&'static str> {
     }
 }
 
-pub async fn get_table_count(table: &str) -> Result<i64, CoreError> {
+pub async fn get_table_count(db: DbRef<'_>, table: &str) -> Result<i64, CoreError> {
     let Some(store_name) = table_to_store(table) else {
         return Ok(0);
     };
-    let n = store_count(store_name, None).await?;
+    let n = db.store_count(store_name, None).await?;
     Ok(n as i64)
 }
 
-pub async fn clear_all_data() -> Result<(), CoreError> {
-    store_clear(store::SM_EVENTS).await?;
-    store_clear(store::SM_RULE_COMMANDS).await?;
-    store_clear(store::SM_RULE_TRIGGERS).await?;
-    store_clear(store::SM_RULE_POLICIES).await?;
-    store_clear(store::SM_RULES).await?;
-    store_clear(store::ITEMS).await?;
-    store_clear(store::EMAIL_CLASSIFICATIONS).await?;
-    store_clear(store::CONTACTS).await?;
-    store_clear(store::SYNC_STATE).await?;
-    store_clear(store::SETTINGS).await?;
-    store_clear(store::AUDIT_LOG).await?;
+pub async fn clear_all_data(db: DbRef<'_>) -> Result<(), CoreError> {
+    db.store_clear(store::SM_EVENTS).await?;
+    db.store_clear(store::SM_RULE_COMMANDS).await?;
+    db.store_clear(store::SM_RULE_TRIGGERS).await?;
+    db.store_clear(store::SM_RULE_POLICIES).await?;
+    db.store_clear(store::SM_RULES).await?;
+    db.store_clear(store::ITEMS).await?;
+    db.store_clear(store::EMAIL_CLASSIFICATIONS).await?;
+    db.store_clear(store::CONTACTS).await?;
+    db.store_clear(store::SYNC_STATE).await?;
+    db.store_clear(store::SETTINGS).await?;
+    db.store_clear(store::AUDIT_LOG).await?;
     Ok(())
 }
 
@@ -312,8 +310,8 @@ pub struct SettingRow {
     pub value: Option<String>,
 }
 
-pub async fn get_setting(key: &str) -> Result<Option<String>, CoreError> {
-    let opt: Option<SettingRow> = store_get(store::SETTINGS, key).await?;
+pub async fn get_setting(db: DbRef<'_>, key: &str) -> Result<Option<String>, CoreError> {
+    let opt: Option<SettingRow> = db.store_get(store::SETTINGS, key).await?;
     Ok(opt.and_then(|r| r.value))
 }
 
@@ -323,14 +321,14 @@ struct SettingDoc {
     value: String,
 }
 
-pub async fn set_setting(key: &str, value: &str) -> Result<(), CoreError> {
+pub async fn set_setting(db: DbRef<'_>, key: &str, value: &str) -> Result<(), CoreError> {
     let doc = SettingDoc {
         key: key.to_string(),
         value: value.to_string(),
     };
-    store_put(store::SETTINGS, &doc, Some(key)).await
+    db.store_put(store::SETTINGS, &doc, Some(key)).await
 }
 
-pub async fn remove_setting(key: &str) -> Result<(), CoreError> {
-    store_delete(store::SETTINGS, key).await
+pub async fn remove_setting(db: DbRef<'_>, key: &str) -> Result<(), CoreError> {
+    db.store_delete(store::SETTINGS, key).await
 }

@@ -6,7 +6,7 @@ A private AI chat and Gmail dashboard that runs **entirely in your browser** —
 
 ## Repository structure
 
-- **`me-ai-web/`** — Svelte 5 + Vite app (UI, DuckDB-WASM + OPFS, auth, Gmail/Twitter APIs). Run `npm install` and `npm run dev` from this directory.
+- **`me-ai-web/`** — Svelte 5 + Vite app (UI, IndexedDB via Rexie, auth, Gmail/Twitter APIs). Run `npm install` and `npm run dev` from this directory.
 - **`me-ai-core/`** — Rust WASM crate (business logic, type-safe queries via sea-query; calls into JS for DB execution). Build with `cargo build --target wasm32-unknown-unknown` or `wasm-pack build me-ai-core --target web`.
 
 ## Architecture
@@ -40,7 +40,7 @@ See [`.cursor/rules/architecture.md`](.cursor/rules/architecture.md) for the ful
 - **Ollama** — optional local LLM backend via HTTP API
 - **Google Identity Services** — client-side OAuth implicit flow
 - **Gmail REST API** — direct fetch with Bearer token
-- **DuckDB (WASM + OPFS)** — primary local data store; IndexedDB used as write-through cache for reliability
+- **IndexedDB (Rexie)** — primary local data store in the browser
 - **marked** + **DOMPurify** — Markdown rendering with XSS protection
 - **Vitest** — unit testing
 

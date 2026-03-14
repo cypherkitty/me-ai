@@ -42,7 +42,7 @@ flowchart LR
         Audit
     end
 
-    Gmail -->|"raw emails (DuckDB)"| LLM
+    Gmail -->|"raw emails (IndexedDB)"| LLM
     LLM --> Results
     Results -->|"NOISE / INFO: auto-execute"| Pipelines
     Results -->|"CRITICAL: awaiting_user"| Approvals

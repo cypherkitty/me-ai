@@ -3,10 +3,7 @@
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::from_value;
 
-use crate::db::{
-    index_count, index_get_all, key_range_only, store_clear, store_delete, store_get,
-    store_put, store_put_all,
-};
+use crate::db::{key_range_only, DbRef};
 use crate::error::CoreError;
 use crate::schema::store;
 
@@ -116,41 +113,42 @@ struct ContactDoc {
     last_seen: i64,
 }
 
-pub async fn delete_sync_state(source_type: &str) -> Result<(), CoreError> {
-    store_delete(store::SYNC_STATE, source_type).await
+pub async fn delete_sync_state(db: DbRef<'_>, source_type: &str) -> Result<(), CoreError> {
+    db.store_delete(store::SYNC_STATE, source_type).await
 }
 
-pub async fn delete_items_by_source(source_type: &str) -> Result<(), CoreError> {
+pub async fn delete_items_by_source(db: DbRef<'_>, source_type: &str) -> Result<(), CoreError> {
     let range = key_range_only(source_type)?;
-    let items: Vec<ItemRow> = index_get_all(store::ITEMS, "sourceType", Some(range), None).await?;
+    let items: Vec<ItemRow> = db.index_get_all(store::ITEMS, "sourceType", Some(range), None).await?;
     for item in items {
-        store_delete(store::ITEMS, &item.id).await?;
+        db.store_delete(store::ITEMS, &item.id).await?;
     }
     Ok(())
 }
 
-pub async fn clear_contacts() -> Result<(), CoreError> {
-    store_clear(store::CONTACTS).await
+pub async fn clear_contacts(db: DbRef<'_>) -> Result<(), CoreError> {
+    db.store_clear(store::CONTACTS).await
 }
 
-pub async fn clear_items_sync_contacts() -> Result<(), CoreError> {
-    store_clear(store::ITEMS).await?;
-    store_clear(store::SYNC_STATE).await?;
-    store_clear(store::CONTACTS).await?;
+pub async fn clear_items_sync_contacts(db: DbRef<'_>) -> Result<(), CoreError> {
+    db.store_clear(store::ITEMS).await?;
+    db.store_clear(store::SYNC_STATE).await?;
+    db.store_clear(store::CONTACTS).await?;
     Ok(())
 }
 
-pub async fn get_items_count_by_source(source_type: &str) -> Result<i64, CoreError> {
+pub async fn get_items_count_by_source(db: DbRef<'_>, source_type: &str) -> Result<i64, CoreError> {
     let range = key_range_only(source_type)?;
-    let n = index_count(store::ITEMS, "sourceType", Some(range)).await?;
+    let n = db.index_count(store::ITEMS, "sourceType", Some(range)).await?;
     Ok(n as i64)
 }
 
-pub async fn get_sync_state(source_type: &str) -> Result<Option<SyncStateRow>, CoreError> {
-    store_get::<SyncStateRow>(store::SYNC_STATE, source_type).await
+pub async fn get_sync_state(db: DbRef<'_>, source_type: &str) -> Result<Option<SyncStateRow>, CoreError> {
+    db.store_get::<SyncStateRow>(store::SYNC_STATE, source_type).await
 }
 
 pub async fn upsert_sync_state(
+    db: DbRef<'_>,
     source_type: &str,
     history_id: &str,
     last_sync_at: i64,
@@ -164,7 +162,7 @@ pub async fn upsert_sync_state(
         total_items,
         oldest_page_token: oldest_page_token.to_string(),
     };
-    store_put(store::SYNC_STATE, &doc, Some(source_type)).await
+    db.store_put(store::SYNC_STATE, &doc, Some(source_type)).await
 }
 
 #[derive(Deserialize)]
@@ -191,7 +189,7 @@ struct JsItem {
     syncedAt: Option<i64>,
 }
 
-pub async fn insert_items_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+pub async fn insert_items_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
     let arr: Vec<JsItem> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
     let docs: Vec<ItemRow> = arr
         .into_iter()
@@ -217,14 +215,14 @@ pub async fn insert_items_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreE
             synced_at: r.syncedAt,
         })
         .collect();
-    store_put_all(store::ITEMS, &docs).await
+    db.store_put_all(store::ITEMS, &docs).await
 }
 
-pub async fn insert_sync_state_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
     let arr: Vec<SyncStateInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
     for r in arr {
         let key = r.source_type.clone();
-        let existing = store_get::<SyncStateRow>(store::SYNC_STATE, &key).await?;
+        let existing = db.store_get::<SyncStateRow>(store::SYNC_STATE, &key).await?;
         if existing.is_none() {
             let doc = SyncStateDoc {
                 source_type: r.source_type,
@@ -233,13 +231,13 @@ pub async fn insert_sync_state_batch(rows: wasm_bindgen::JsValue) -> Result<(), 
                 total_items: r.total_items,
                 oldest_page_token: r.oldest_page_token,
             };
-            store_put(store::SYNC_STATE, &doc, Some(&key)).await?;
+            db.store_put(store::SYNC_STATE, &doc, Some(&key)).await?;
         }
     }
     Ok(())
 }
 
-pub async fn insert_contacts_batch(rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+pub async fn insert_contacts_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
     let arr: Vec<ContactInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
     for r in arr {
         let doc = ContactDoc {
@@ -248,28 +246,28 @@ pub async fn insert_contacts_batch(rows: wasm_bindgen::JsValue) -> Result<(), Co
             first_seen: r.first_seen,
             last_seen: r.last_seen,
         };
-        let existing = store_get::<ContactRow>(store::CONTACTS, &r.email).await?;
+        let existing = db.store_get::<ContactRow>(store::CONTACTS, &r.email).await?;
         if existing.is_none() {
-            store_put(store::CONTACTS, &doc, Some(&r.email)).await?;
+            db.store_put(store::CONTACTS, &doc, Some(&r.email)).await?;
         }
     }
     Ok(())
 }
 
-pub async fn delete_items_by_ids(ids: wasm_bindgen::JsValue) -> Result<(), CoreError> {
+pub async fn delete_items_by_ids(db: DbRef<'_>, ids: wasm_bindgen::JsValue) -> Result<(), CoreError> {
     let arr: Vec<String> = from_value(ids).map_err(|e| CoreError::Deserialize(e.to_string()))?;
     for id in arr {
-        store_delete(store::ITEMS, &id).await?;
+        db.store_delete(store::ITEMS, &id).await?;
     }
     Ok(())
 }
 
-pub async fn get_contact_by_email(email: &str) -> Result<Option<ContactRow>, CoreError> {
-    store_get(store::CONTACTS, email).await
+pub async fn get_contact_by_email(db: DbRef<'_>, email: &str) -> Result<Option<ContactRow>, CoreError> {
+    db.store_get(store::CONTACTS, email).await
 }
 
-pub async fn upsert_contact(email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
-    let existing = get_contact_by_email(email).await?;
+pub async fn upsert_contact(db: DbRef<'_>, email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
+    let existing = get_contact_by_email(db, email).await?;
     if let Some(row) = existing {
         let mut updated = ContactDoc {
             email: email.to_string(),
@@ -283,7 +281,7 @@ pub async fn upsert_contact(email: &str, name: &str, first_seen: i64, last_seen:
         if last_seen > updated.last_seen {
             updated.last_seen = last_seen;
         }
-        store_put(store::CONTACTS, &updated, Some(email)).await?;
+        db.store_put(store::CONTACTS, &updated, Some(email)).await?;
     } else {
         let doc = ContactDoc {
             email: email.to_string(),
@@ -291,7 +289,7 @@ pub async fn upsert_contact(email: &str, name: &str, first_seen: i64, last_seen:
             first_seen,
             last_seen,
         };
-        store_put(store::CONTACTS, &doc, Some(email)).await?;
+        db.store_put(store::CONTACTS, &doc, Some(email)).await?;
     }
     Ok(())
 }
@@ -303,21 +301,22 @@ struct ItemSourceId {
     date: Option<i64>,
 }
 
-pub async fn get_item_by_id(id: &str) -> Result<Option<ItemRow>, CoreError> {
-    store_get(store::ITEMS, id).await
+pub async fn get_item_by_id(db: DbRef<'_>, id: &str) -> Result<Option<ItemRow>, CoreError> {
+    db.store_get(store::ITEMS, id).await
 }
 
 /// Get items for gmail source, sorted by date desc, with limit (for scan).
-pub async fn get_items_gmail_by_date_desc(limit: u32) -> Result<Vec<ItemRow>, CoreError> {
+pub async fn get_items_gmail_by_date_desc(db: DbRef<'_>, limit: u32) -> Result<Vec<ItemRow>, CoreError> {
     let range = key_range_only("gmail")?;
     let mut rows: Vec<ItemRow> =
-        index_get_all(store::ITEMS, "sourceType", Some(range), Some(limit)).await?;
+        db.index_get_all(store::ITEMS, "sourceType", Some(range), Some(limit)).await?;
     rows.sort_by(|a, b| b.date.unwrap_or(0).cmp(&a.date.unwrap_or(0)));
     Ok(rows)
 }
 
 /// Get items for a source type, sorted by date desc, with limit and offset (for UI pagination).
 pub async fn get_items_by_source(
+    db: DbRef<'_>,
     source_type: &str,
     limit: u32,
     offset: u32,
@@ -325,17 +324,17 @@ pub async fn get_items_by_source(
     let range = key_range_only(source_type)?;
     let fetch = limit.saturating_add(offset).min(5000);
     let mut rows: Vec<ItemRow> =
-        index_get_all(store::ITEMS, "sourceType", Some(range), Some(fetch)).await?;
+        db.index_get_all(store::ITEMS, "sourceType", Some(range), Some(fetch)).await?;
     rows.sort_by(|a, b| b.date.unwrap_or(0).cmp(&a.date.unwrap_or(0)));
     let start = offset as usize;
     let end = start.saturating_add(limit as usize).min(rows.len());
     Ok(rows.get(start..end).unwrap_or(&[]).to_vec())
 }
 
-pub async fn get_newest_source_id(source_type: &str) -> Result<Option<String>, CoreError> {
+pub async fn get_newest_source_id(db: DbRef<'_>, source_type: &str) -> Result<Option<String>, CoreError> {
     let range = key_range_only(source_type)?;
     let items: Vec<ItemSourceId> =
-        index_get_all(store::ITEMS, "sourceType", Some(range), Some(1000)).await?;
+        db.index_get_all(store::ITEMS, "sourceType", Some(range), Some(1000)).await?;
     let best = items
         .into_iter()
         .filter_map(|i| i.date.map(|d| (i.source_id, d)))

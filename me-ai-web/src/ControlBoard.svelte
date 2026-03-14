@@ -47,7 +47,7 @@
 
   async function saveScanHistory(progress) {
     if (!progress || progress.phase !== "done") return;
-    // Store only stats — no email content outside DuckDB
+    // Store only stats — no email content outside IndexedDB
     await setSetting(SCAN_HISTORY_KEY, {
       timestamp: Date.now(),
       classified: progress.classified || 0,
@@ -81,7 +81,7 @@
       modelName = model?.name || model?.displayName || engine.modelId || "";
     }
 
-    // Restore last scan from DuckDB
+    // Restore last scan from IndexedDB
     const saved = await loadScanHistory();
     if (saved) {
       scanProgress = { phase: "done", ...saved };

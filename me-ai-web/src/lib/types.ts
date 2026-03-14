@@ -26,7 +26,7 @@ export interface StoredItem {
   syncedAt: number | null;
 }
 
-/** Raw row from DuckDB (labels/raw are JSON strings). */
+/** Raw row from IndexedDB (labels/raw are JSON strings). */
 export interface StoredItemRow extends Omit<StoredItem, 'labels' | 'raw'> {
   labels: string;
   raw: string;
@@ -49,7 +49,7 @@ export interface SyncProgress {
   total?: number;
 }
 
-/** Contact row (DuckDB + IDB). */
+/** Contact row (IndexedDB). */
 export interface ContactRow {
   email: string;
   name: string;

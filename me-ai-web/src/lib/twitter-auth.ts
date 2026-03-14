@@ -7,7 +7,7 @@
  *
  * Token is persisted in two places for reliability:
  *   1. localStorage  — synchronous, survives reloads instantly
- *   2. DuckDB/OPFS   — async, kept in sync for consistency
+ *   2. IndexedDB     — async, kept in sync for consistency
  */
 
 const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";

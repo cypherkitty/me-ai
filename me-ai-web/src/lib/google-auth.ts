@@ -7,7 +7,7 @@
  *
  * Token is persisted in two places for reliability:
  *   1. localStorage  — synchronous, survives reloads instantly (primary read source)
- *   2. DuckDB/OPFS   — async, kept in sync for consistency with the rest of the app
+ *   2. IndexedDB     — async, kept in sync for consistency with the rest of the app
  */
 
 declare global {

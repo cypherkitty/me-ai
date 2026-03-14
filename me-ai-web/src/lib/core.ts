@@ -1,107 +1,293 @@
 /**
- * me-ai-core (Rust WASM) — wasm-pack style: import init + exports from the pkg, call init once.
- * No getCore(); use the exported WASM functions directly after initCore() has run.
+ * me-ai-core (Rust WASM) — stateful MeAiCore (meta-secret WasmRepo pattern).
+ * Rexie is built once at init; all operations use the same instance via coreStore.
  */
 
-import initDefault, {
-  init as wasmInit,
-  createSchemaAndMigrations,
-  getTableCount,
-  clearAllData,
-} from "me-ai-core";
-
-export {
-  getEventTypes,
-  getEventCategories,
-  getSources,
-  getActions,
-  getItemsCountGmail,
-  getContactsCount,
-  getItemsDateMin,
-  getItemsDateMax,
-  getEmailClassificationsCount,
-  getSetting,
-  setSetting,
-  removeSetting,
-  getTableCount,
-  clearAllData,
-  getAuditLog,
-  getAuditStats,
-  clearAuditLog,
-  logAuditExecution,
-  syncAfterAuditExecution,
-  getCategoryPipelineActions,
-  getTypePipelineActions,
-  getEventTypeCategory,
-  getEventCategoryPolicy,
-  updateCategoryPipeline,
-  updateCategoryPolicy,
-  updateEventTypeCategory,
-  clearEventTypeCategory,
-  deleteEventType,
-  setSourceEnabled,
-  setPluginEnabled,
-  upsertEventType,
-  deleteSyncState,
-  deleteItemsBySource,
-  clearContacts,
-  clearItemsSyncContacts,
-  getItemsCountBySource,
-  getSyncState,
-  upsertSyncState,
-  insertItemsBatch,
-  insertSyncStateBatch,
-  insertContactsBatch,
-  deleteItemsByIds,
-  getContactByEmail,
-  upsertContact,
-  getNewestSourceId,
-  getPlugins,
-  getRules,
-  getRule,
-  saveRule,
-  deleteRule,
-  getEvents,
-  updateEventStatus,
-  clearEvents,
-  insertEvent,
-  getItemById,
-  getItemsGmailByDateDesc,
-  getItemsBySource,
-  getEmailClassifications,
-  updateEmailClassificationStatus,
-  clearEmailClassifications,
-  deleteEmailClassification,
-  deleteEmailClassificationsByAction,
-  putEmailClassification,
-} from "me-ai-core";
-
-let coreInitFailed = false;
+import initDefault, { MeAiCore } from "me-ai-core";
+import { coreStore, getCore } from "./store/core-store.js";
 
 /**
- * Initialize the core: load WASM (default export), call init(), then createSchemaAndMigrations().
- * Call once at app startup. After this, use the exported WASM functions directly.
- * We pass the WASM URL explicitly so it loads from /wasm/ (served by Vite middleware and static copy).
+ * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
+ * Call once at app startup. State is kept in coreStore; all operations reuse the same instance.
  */
 export async function initCore(): Promise<void> {
   try {
     const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
     const wasmUrl = `${base}wasm/me_ai_core_bg.wasm`;
     await initDefault({ module_or_path: wasmUrl });
-    wasmInit();
-    await createSchemaAndMigrations();
+    const core = await new MeAiCore();
+    await core.createSchemaAndMigrations();
+    coreStore.set({ core, initFailed: false });
   } catch (e) {
-    coreInitFailed = true;
+    coreStore.set({ core: null, initFailed: true });
     throw e;
   }
+}
+
+function requireCore(): InstanceType<typeof MeAiCore> {
+  return getCore();
+}
+
+export async function getEventTypes() {
+  return requireCore().getEventTypes();
+}
+export async function getEventCategories() {
+  return requireCore().getEventCategories();
+}
+export async function getSources() {
+  return requireCore().getSources();
+}
+export async function getActions() {
+  return requireCore().getActions();
+}
+export async function getItemsCountGmail() {
+  return requireCore().getItemsCountGmail();
+}
+export async function getContactsCount() {
+  return requireCore().getContactsCount();
+}
+export async function getItemsDateMin() {
+  return requireCore().getItemsDateMin();
+}
+export async function getItemsDateMax() {
+  return requireCore().getItemsDateMax();
+}
+export async function getEmailClassificationsCount() {
+  return requireCore().getEmailClassificationsCount();
+}
+export async function getSetting(key: string) {
+  return requireCore().getSetting(key);
+}
+export async function setSetting(key: string, value: string) {
+  return requireCore().setSetting(key, value);
+}
+export async function removeSetting(key: string) {
+  return requireCore().removeSetting(key);
+}
+export async function getTableCount(table: string) {
+  return requireCore().getTableCount(table);
+}
+export async function clearAllData() {
+  return requireCore().clearAllData();
+}
+export async function getAuditLog(limit: number, offset: number, failures_only: boolean) {
+  return requireCore().getAuditLog(limit, offset, failures_only);
+}
+export async function getAuditStats() {
+  return requireCore().getAuditStats();
+}
+export async function clearAuditLog() {
+  return requireCore().clearAuditLog();
+}
+export async function logAuditExecution(
+  id: string,
+  email_id: string,
+  subject: string,
+  from: string,
+  event_type: string,
+  executed_at: number,
+  success: boolean,
+  error: string,
+  steps_json: string
+) {
+  return requireCore().logAuditExecution(id, email_id, subject, from, event_type, executed_at, success, error, steps_json);
+}
+export async function syncAfterAuditExecution(email_id: string, delete_item: boolean) {
+  return requireCore().syncAfterAuditExecution(email_id, delete_item);
+}
+export async function getCategoryPipelineActions(category_name: string) {
+  return requireCore().getCategoryPipelineActions(category_name);
+}
+export async function getTypePipelineActions(type_name: string) {
+  return requireCore().getTypePipelineActions(type_name);
+}
+export async function getEventTypeCategory(type_name: string) {
+  return requireCore().getEventTypeCategory(type_name);
+}
+export async function getEventCategoryPolicy(category_name: string) {
+  return requireCore().getEventCategoryPolicy(category_name);
+}
+export async function updateCategoryPipeline(category_name: string, actions_js: unknown) {
+  return requireCore().updateCategoryPipeline(category_name, actions_js);
+}
+export async function updateCategoryPolicy(category_name: string, policy: string) {
+  return requireCore().updateCategoryPolicy(category_name, policy);
+}
+export async function updateEventTypeCategory(type_name: string, category_name: string) {
+  return requireCore().updateEventTypeCategory(type_name, category_name);
+}
+export async function clearEventTypeCategory(type_name: string) {
+  return requireCore().clearEventTypeCategory(type_name);
+}
+export async function deleteEventType(type_name: string) {
+  return requireCore().deleteEventType(type_name);
+}
+export async function setSourceEnabled(name: string, enabled: boolean) {
+  return requireCore().setSourceEnabled(name, enabled);
+}
+export async function setPluginEnabled(name: string, enabled: boolean) {
+  return requireCore().setPluginEnabled(name, enabled);
+}
+export async function upsertEventType(name: string, label: string, category_name: string, auto_created: boolean) {
+  return requireCore().upsertEventType(name, label, category_name, auto_created);
+}
+export async function deleteSyncState(source_type: string) {
+  return requireCore().deleteSyncState(source_type);
+}
+export async function deleteItemsBySource(source_type: string) {
+  return requireCore().deleteItemsBySource(source_type);
+}
+export async function clearContacts() {
+  return requireCore().clearContacts();
+}
+export async function clearItemsSyncContacts() {
+  return requireCore().clearItemsSyncContacts();
+}
+export async function getItemsCountBySource(source_type: string) {
+  return requireCore().getItemsCountBySource(source_type);
+}
+export async function getSyncState(source_type: string) {
+  return requireCore().getSyncState(source_type);
+}
+export async function upsertSyncState(
+  source_type: string,
+  history_id: string,
+  last_sync_at: number,
+  total_items: number,
+  oldest_page_token: string
+) {
+  return requireCore().upsertSyncState(source_type, history_id, last_sync_at, total_items, oldest_page_token);
+}
+export async function insertItemsBatch(rows: unknown) {
+  return requireCore().insertItemsBatch(rows);
+}
+export async function insertSyncStateBatch(rows: unknown) {
+  return requireCore().insertSyncStateBatch(rows);
+}
+export async function insertContactsBatch(rows: unknown) {
+  return requireCore().insertContactsBatch(rows);
+}
+export async function deleteItemsByIds(ids: unknown) {
+  return requireCore().deleteItemsByIds(ids);
+}
+export async function getContactByEmail(email: string) {
+  return requireCore().getContactByEmail(email);
+}
+export async function upsertContact(email: string, name: string, first_seen: number, last_seen: number) {
+  return requireCore().upsertContact(email, name, first_seen, last_seen);
+}
+export async function getNewestSourceId(source_type: string) {
+  return requireCore().getNewestSourceId(source_type);
+}
+export async function getPlugins() {
+  return requireCore().getPlugins();
+}
+export async function getRules() {
+  return requireCore().getRules();
+}
+export async function getRule(id: string) {
+  return requireCore().getRule(id);
+}
+export async function saveRule(payload: unknown) {
+  return requireCore().saveRule(payload);
+}
+export async function deleteRule(id: string) {
+  return requireCore().deleteRule(id);
+}
+export async function getEvents(limit: number, offset: number) {
+  return requireCore().getEvents(limit, offset);
+}
+export async function updateEventStatus(id: string, status: string) {
+  return requireCore().updateEventStatus(id, status);
+}
+export async function clearEvents() {
+  return requireCore().clearEvents();
+}
+export async function insertEvent(
+  id: string,
+  content?: string | null,
+  subject?: string | null,
+  sender?: string | null,
+  timestamp?: number,
+  status?: string | null,
+  event_type?: string | null,
+  event_category?: string | null,
+  source_name?: string | null,
+  rule_id?: string | null,
+  actions_taken?: string | null,
+  output?: string | null
+) {
+  return requireCore().insertEvent(
+    id,
+    content ?? undefined,
+    subject ?? undefined,
+    sender ?? undefined,
+    timestamp ?? 0,
+    status ?? undefined,
+    event_type ?? undefined,
+    event_category ?? undefined,
+    source_name ?? undefined,
+    rule_id ?? undefined,
+    actions_taken ?? undefined,
+    output ?? undefined
+  );
+}
+export async function getItemById(id: string) {
+  return requireCore().getItemById(id);
+}
+export async function getItemsGmailByDateDesc(limit: number) {
+  return requireCore().getItemsGmailByDateDesc(limit);
+}
+export async function getItemsBySource(source_type: string, limit: number, offset: number) {
+  return requireCore().getItemsBySource(source_type, limit, offset);
+}
+export async function getEmailClassifications(action_filter?: string | null, limit?: number | null) {
+  return requireCore().getEmailClassifications(action_filter ?? undefined, limit ?? undefined);
+}
+export async function updateEmailClassificationStatus(email_id: string, status: string) {
+  return requireCore().updateEmailClassificationStatus(email_id, status);
+}
+export async function clearEmailClassifications() {
+  return requireCore().clearEmailClassifications();
+}
+export async function deleteEmailClassification(email_id: string) {
+  return requireCore().deleteEmailClassification(email_id);
+}
+export async function deleteEmailClassificationsByAction(action: string) {
+  return requireCore().deleteEmailClassificationsByAction(action);
+}
+export async function putEmailClassification(
+  email_id: string,
+  action?: string | null,
+  category?: string | null,
+  reason?: string | null,
+  summary?: string | null,
+  tags?: string | null,
+  subject?: string | null,
+  from?: string | null,
+  date?: number | null,
+  scanned_at?: number | null,
+  status?: string | null
+) {
+  return requireCore().putEmailClassification(
+    email_id,
+    action ?? undefined,
+    category ?? undefined,
+    reason ?? undefined,
+    summary ?? undefined,
+    tags ?? undefined,
+    subject ?? undefined,
+    from ?? undefined,
+    date ?? undefined,
+    scanned_at ?? undefined,
+    status ?? undefined
+  );
 }
 
 /**
  * True if core init has already failed (e.g. IndexedDB unavailable). For UI/guards only.
  */
-export function isCoreInitFailed(): boolean {
-  return coreInitFailed;
-}
+export { isCoreInitFailed } from "./store/core-store.js";
 
 export async function getStorageStats(): Promise<{
   supported: boolean;
@@ -139,16 +325,6 @@ export async function getStorageStats(): Promise<{
     }
   }
   return { supported, usageBytes, tables };
-}
-
-/** @deprecated Use getStorageStats. */
-export async function getOpfsStats(): Promise<{
-  supported: boolean;
-  fileBytes: number;
-  tables: Record<string, number>;
-}> {
-  const s = await getStorageStats();
-  return { supported: s.supported, fileBytes: s.usageBytes, tables: s.tables };
 }
 
 export async function clearAllDataAndCheckpoint(): Promise<void> {

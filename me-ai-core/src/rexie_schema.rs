@@ -1,5 +1,6 @@
 //! Rexie (IndexedDB) schema: one DB with multiple object stores and indexes.
 //! Composite-key tables use a single "id" field (e.g. "plugin_name|action_name").
+//! RexieDb holds Rexie and is built once (meta-secret WasmRepo pattern).
 
 use rexie::{Index, ObjectStore, Rexie};
 
@@ -8,7 +9,102 @@ use crate::error::CoreError;
 const DB_NAME: &str = "me-ai";
 const DB_VERSION: u32 = 1;
 
-/// Store names (must match builder below).
+/// Rexie database handle. Built once, reused for all operations (like meta-secret WasmRepo).
+pub struct RexieDb {
+    pub(crate) rexie: Rexie,
+}
+
+impl RexieDb {
+    /// Build Rexie once. Call at init; reuse the returned instance.
+    pub async fn new() -> Result<Self, CoreError> {
+        let rexie = Rexie::builder(DB_NAME)
+            .version(DB_VERSION)
+            .add_object_store(
+                ObjectStore::new(store::ITEMS)
+                    .key_path("id")
+                    .add_index(Index::new("sourceType", "sourceType"))
+                    .add_index(Index::new("date", "date"))
+                    .add_index(Index::new("threadKey", "threadKey")),
+            )
+            .add_object_store(ObjectStore::new(store::SYNC_STATE).key_path("sourceType"))
+            .add_object_store(
+                ObjectStore::new(store::CONTACTS)
+                    .key_path("email")
+                    .add_index(Index::new("lastSeen", "lastSeen")),
+            )
+            .add_object_store(ObjectStore::new(store::SETTINGS).key_path("key"))
+            .add_object_store(
+                ObjectStore::new(store::AUDIT_LOG)
+                    .key_path("id")
+                    .add_index(Index::new("emailId", "emailId"))
+                    .add_index(Index::new("executedAt", "executedAt"))
+                    .add_index(Index::new("success", "success")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::EMAIL_CLASSIFICATIONS)
+                    .key_path("emailId")
+                    .add_index(Index::new("action", "action"))
+                    .add_index(Index::new("category", "category"))
+                    .add_index(Index::new("status", "status")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::SM_EVENT_TYPES)
+                    .key_path("name")
+                    .add_index(Index::new("category_name", "category_name")),
+            )
+            .add_object_store(ObjectStore::new(store::SM_EVENT_CATEGORIES).key_path("name"))
+            .add_object_store(ObjectStore::new(store::SM_SOURCES).key_path("name"))
+            .add_object_store(ObjectStore::new(store::SM_ACTIONS).key_path("name"))
+            .add_object_store(ObjectStore::new(store::SM_PLUGINS).key_path("name"))
+            .add_object_store(
+                ObjectStore::new(store::SM_PLUGIN_ACTIONS)
+                    .key_path("id")
+                    .add_index(Index::new("plugin_name", "plugin_name"))
+                    .add_index(Index::new("action_name", "action_name")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::SM_PLUGIN_SOURCES)
+                    .key_path("id")
+                    .add_index(Index::new("plugin_name", "plugin_name")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::SM_CATEGORY_PIPELINE)
+                    .key_path("id")
+                    .add_index(Index::new("category_name", "category_name")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::SM_TYPE_PIPELINE)
+                    .key_path("id")
+                    .add_index(Index::new("type_name", "type_name")),
+            )
+            .add_object_store(ObjectStore::new(store::SM_RULES).key_path("id"))
+            .add_object_store(
+                ObjectStore::new(store::SM_RULE_TRIGGERS)
+                    .key_path("id")
+                    .add_index(Index::new("rule_id", "rule_id")),
+            )
+            .add_object_store(
+                ObjectStore::new(store::SM_RULE_COMMANDS)
+                    .key_path("id")
+                    .add_index(Index::new("rule_id", "rule_id")),
+            )
+            .add_object_store(ObjectStore::new(store::SM_RULE_POLICIES).key_path("rule_id"))
+            .add_object_store(
+                ObjectStore::new(store::SM_EVENTS)
+                    .key_path("id")
+                    .add_index(Index::new("status", "status"))
+                    .add_index(Index::new("event_type", "event_type"))
+                    .add_index(Index::new("source_name", "source_name"))
+                    .add_index(Index::new("timestamp", "timestamp")),
+            )
+            .build()
+            .await
+            .map_err(crate::error::rexie_to_core)?;
+        Ok(Self { rexie })
+    }
+}
+
+/// Store names (must match builder above).
 pub mod store {
     pub const ITEMS: &str = "items";
     pub const SYNC_STATE: &str = "syncState";
@@ -32,94 +128,3 @@ pub mod store {
     pub const SM_EVENTS: &str = "sm_events";
 }
 
-async fn build_rexie_impl() -> rexie::Result<Rexie> {
-    Rexie::builder(DB_NAME)
-        .version(DB_VERSION)
-        .add_object_store(
-            ObjectStore::new(store::ITEMS)
-                .key_path("id")
-                .add_index(Index::new("sourceType", "sourceType"))
-                .add_index(Index::new("date", "date"))
-                .add_index(Index::new("threadKey", "threadKey")),
-        )
-        .add_object_store(ObjectStore::new(store::SYNC_STATE).key_path("sourceType"))
-        .add_object_store(
-            ObjectStore::new(store::CONTACTS)
-                .key_path("email")
-                .add_index(Index::new("lastSeen", "lastSeen")),
-        )
-        .add_object_store(ObjectStore::new(store::SETTINGS).key_path("key"))
-        .add_object_store(
-            ObjectStore::new(store::AUDIT_LOG)
-                .key_path("id")
-                .add_index(Index::new("emailId", "emailId"))
-                .add_index(Index::new("executedAt", "executedAt"))
-                .add_index(Index::new("success", "success")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::EMAIL_CLASSIFICATIONS)
-                .key_path("emailId")
-                .add_index(Index::new("action", "action"))
-                .add_index(Index::new("category", "category"))
-                .add_index(Index::new("status", "status")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::SM_EVENT_TYPES)
-                .key_path("name")
-                .add_index(Index::new("category_name", "category_name")),
-        )
-        .add_object_store(ObjectStore::new(store::SM_EVENT_CATEGORIES).key_path("name"))
-        .add_object_store(ObjectStore::new(store::SM_SOURCES).key_path("name"))
-        .add_object_store(ObjectStore::new(store::SM_ACTIONS).key_path("name"))
-        .add_object_store(ObjectStore::new(store::SM_PLUGINS).key_path("name"))
-        .add_object_store(
-            ObjectStore::new(store::SM_PLUGIN_ACTIONS)
-                .key_path("id")
-                .add_index(Index::new("plugin_name", "plugin_name"))
-                .add_index(Index::new("action_name", "action_name")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::SM_PLUGIN_SOURCES)
-                .key_path("id")
-                .add_index(Index::new("plugin_name", "plugin_name")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::SM_CATEGORY_PIPELINE)
-                .key_path("id")
-                .add_index(Index::new("category_name", "category_name")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::SM_TYPE_PIPELINE)
-                .key_path("id")
-                .add_index(Index::new("type_name", "type_name")),
-        )
-        .add_object_store(ObjectStore::new(store::SM_RULES).key_path("id"))
-        .add_object_store(
-            ObjectStore::new(store::SM_RULE_TRIGGERS)
-                .key_path("id")
-                .add_index(Index::new("rule_id", "rule_id")),
-        )
-        .add_object_store(
-            ObjectStore::new(store::SM_RULE_COMMANDS)
-                .key_path("id")
-                .add_index(Index::new("rule_id", "rule_id")),
-        )
-        .add_object_store(ObjectStore::new(store::SM_RULE_POLICIES).key_path("rule_id"))
-        .add_object_store(
-            ObjectStore::new(store::SM_EVENTS)
-                .key_path("id")
-                .add_index(Index::new("status", "status"))
-                .add_index(Index::new("event_type", "event_type"))
-                .add_index(Index::new("source_name", "source_name"))
-                .add_index(Index::new("timestamp", "timestamp")),
-        )
-        .build()
-        .await
-}
-
-/// Open the Rexie database. IndexedDB open is idempotent for same name/version.
-pub async fn get_rexie() -> Result<Rexie, CoreError> {
-    build_rexie_impl()
-        .await
-        .map_err(crate::error::rexie_to_core)
-}
