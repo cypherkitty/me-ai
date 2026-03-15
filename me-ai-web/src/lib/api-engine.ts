@@ -1,11 +1,16 @@
 /**
  * Cloud API LLM engine adapter.
- * Provides the same interface as llm-engine and ollama-engine but uses external cloud APIs.
+ * Delegates streaming to Rust WASM core; keeps engine state & listener pattern in TS.
  */
 
-import type { ApiProvider } from "./api-client.js";
-import { streamApiChat, testApiConnection, getApiKey } from "./api-client.js";
-import { getApiModelInfo } from "./api-models.js";
+import {
+  getApiModelInfo as coreGetApiModelInfo,
+  testApiConnection as coreTestApiConnection,
+  streamChat as coreStreamChat,
+} from "./core.js";
+import { getSetting } from "./store/settings.js";
+
+export type ApiProvider = "openai" | "anthropic" | "google" | "xai";
 
 type Status = "idle" | "loading" | "ready" | "generating";
 type EngineMessage = Record<string, unknown>;
@@ -33,7 +38,7 @@ export function getApiEngine(provider: ApiProvider) {
       _status = "loading";
       _provider = provider;
       broadcast({ status: "loading", data: `Checking ${provider} connection...` });
-      const apiKey = await getApiKey(provider);
+      const apiKey = await getSetting<string>(`${provider}ApiKey`);
       if (!apiKey) {
         _status = "idle";
         broadcast({
@@ -42,23 +47,30 @@ export function getApiEngine(provider: ApiProvider) {
         });
         return;
       }
-      const result = await testApiConnection(provider, apiKey);
-      if (result.connected) {
-        _status = "idle";
-        broadcast({ status: "ready", data: { type: "api", provider } });
-      } else {
+      try {
+        const ok = await coreTestApiConnection(provider, apiKey);
+        if (ok) {
+          _status = "idle";
+          broadcast({ status: "ready", data: { type: "api", provider } });
+        } else {
+          _status = "idle";
+          broadcast({
+            status: "error",
+            data: `${provider} connection failed.`,
+          });
+        }
+      } catch (e) {
         _status = "idle";
         broadcast({
           status: "error",
-          data: `${provider} connection failed: ${result.error}`,
+          data: `${provider} connection failed: ${e instanceof Error ? e.message : String(e)}`,
         });
       }
     },
 
     async loadModel(modelId: string): Promise<void> {
-      // Map UI model id -> provider model name (e.g. "gpt-5.4-low" -> "gpt-5.4")
-      const info = getApiModelInfo(modelId);
-      const providerModelName = (info?.name as string | undefined) ?? modelId;
+      const info = coreGetApiModelInfo(modelId) as { name?: string } | null;
+      const providerModelName = info?.name ?? modelId;
       _modelId = modelId;
       _modelName = providerModelName;
       _provider = provider;
@@ -67,7 +79,7 @@ export function getApiEngine(provider: ApiProvider) {
         status: "loading",
         data: `Connecting to ${provider} model: ${providerModelName}...`,
       });
-      const apiKey = await getApiKey(provider);
+      const apiKey = await getSetting<string>(`${provider}ApiKey`);
       if (!apiKey) {
         _status = "idle";
         _modelId = null;
@@ -95,15 +107,30 @@ export function getApiEngine(provider: ApiProvider) {
       let tokenCount = 0;
       const startTime = performance.now();
       _abortController = new AbortController();
+
       try {
-        const modelInfo = _modelId ? getApiModelInfo(_modelId) : null;
-        await streamApiChat(
+        const modelInfo = _modelId
+          ? (coreGetApiModelInfo(_modelId) as { reasoningEffort?: string } | null)
+          : null;
+
+        const streamOpts = {
+          temperature: (options.temperature as number | undefined) ?? 0.7,
+          maxTokens: (options.maxTokens as number | undefined) ?? 4096,
+          reasoningEffort: modelInfo?.reasoningEffort,
+        };
+
+        const chatMessages = messages.map((m) => ({
+          role: m.role,
+          content: m.content ?? "",
+        }));
+
+        await coreStreamChat(
           _provider,
           _modelName,
-          messages,
-          { ...options, reasoningEffort: modelInfo?.reasoningEffort, signal: _abortController.signal },
+          chatMessages,
+          streamOpts,
           (data) => {
-            if (_abortController!.signal.aborted) return;
+            if (_abortController?.signal.aborted) return;
             if (!data.done) {
               tokenCount++;
               const elapsed = performance.now() - startTime;
