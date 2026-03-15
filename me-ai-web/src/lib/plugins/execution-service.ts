@@ -16,7 +16,7 @@ import { findMatchingRules, getPipelineForEvent } from "../rules.js";
 import { EVENT_CATEGORY_TIERS } from "../events.js";
 import { getSavedToken } from "../google-auth.js";
 import { logExecution, syncAfterExecution } from "../store/audit.js";
-import { getDirectoryHandle } from "./filesystem-store.js";
+import { getDefaultDirectory } from "./filesystem-store.js";
 import { executeFilesystemAction } from "./filesystem-executor.js";
 import type { EmailEvent, ExecutionProgress, ActionExecutionResult } from "$lib/types";
 import type { Rule, Action } from "$lib/types";
@@ -67,9 +67,9 @@ async function runPipelineWithSplit(
   }
 
   if (fsActions.length > 0) {
-    const handle = await getDirectoryHandle();
+    const handle = await getDefaultDirectory();
     if (!handle) {
-      throw new Error("Choose a directory in Filesystem plugin settings.");
+      throw new Error("Add a directory in Sources → Local Filesystem.");
     }
   }
 
@@ -89,7 +89,7 @@ async function runPipelineWithSplit(
   }
 
   if (fsActions.length > 0) {
-    const handle = await getDirectoryHandle();
+    const handle = await getDefaultDirectory();
     if (handle) {
       for (let i = 0; i < actions.length; i++) {
         const a = actions[i]!;
@@ -348,9 +348,9 @@ export async function executePipelineBatch(
 
     const hasFsActions = actions.some(isFilesystemAction);
     if (hasFsActions) {
-      const handle = await getDirectoryHandle();
+      const handle = await getDefaultDirectory();
       if (!handle) {
-        throw new Error("Choose a directory in Filesystem plugin settings.");
+        throw new Error("Add a directory in Sources → Local Filesystem.");
       }
     }
 

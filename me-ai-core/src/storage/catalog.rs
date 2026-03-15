@@ -1,10 +1,12 @@
 //! Sources, actions, and plugins from Rexie stores.
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SourceRow {
     pub name: String,
@@ -14,6 +16,7 @@ pub struct SourceRow {
     pub enabled: Option<bool>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActionRow {
     pub name: String,
@@ -40,12 +43,14 @@ pub struct PluginSourceRow {
     pub source_name: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct LabelRef {
     pub name: String,
     pub label: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct PluginSummary {
     pub name: String,

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
-  import FilesystemPluginSettings from "../plugins/FilesystemPluginSettings.svelte";
 
   interface PluginRegistryAction {
     actionId?: string;
@@ -157,11 +156,6 @@
             {/each}
           </div>
 
-          {#if plugin.id === "filesystem"}
-            <div class="border-t border-border">
-              <FilesystemPluginSettings />
-            </div>
-          {/if}
           {/if}
         </div>
       {/each}

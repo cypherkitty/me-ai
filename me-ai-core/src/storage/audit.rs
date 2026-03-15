@@ -1,23 +1,29 @@
 //! Audit log: log execution, sync after execution, list and clear. Uses Rexie.
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use rexie::Direction;
 
 use crate::db::{store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuditLogRow {
     pub id: Option<String>,
     #[serde(rename = "emailId")]
+    #[wasm_bindgen(js_name = "emailId")]
     pub email_id: Option<String>,
     pub subject: Option<String>,
     #[serde(rename = "from")]
+    #[wasm_bindgen(js_name = "from")]
     pub from_addr: Option<String>,
     #[serde(rename = "eventType")]
+    #[wasm_bindgen(js_name = "eventType")]
     pub event_type: Option<String>,
     #[serde(rename = "executedAt")]
+    #[wasm_bindgen(js_name = "executedAt")]
     pub executed_at: Option<i64>,
     pub success: Option<bool>,
     pub error: Option<String>,
@@ -96,10 +102,18 @@ pub async fn sync_after_execution(db: DbRef<'_>, email_id: &str, delete_item: bo
     Ok(())
 }
 
-#[derive(Serialize, Deserialize)]
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct GetAuditLogResult {
     pub entries: Vec<AuditLogRow>,
     pub total: i64,
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize)]
+pub struct AuditStats {
+    pub completed: u32,
+    pub failed: u32,
 }
 
 pub async fn get_audit_log(
@@ -151,7 +165,7 @@ pub async fn clear_audit_log(db: DbRef<'_>) -> Result<(), CoreError> {
 }
 
 /// Count audit entries by success (for event stats).
-pub async fn get_audit_stats(db: DbRef<'_>) -> Result<(u32, u32), CoreError> {
+pub async fn get_audit_stats(db: DbRef<'_>) -> Result<AuditStats, CoreError> {
     let rows: Vec<AuditLogRow> = db.store_get_all(store::AUDIT_LOG, None, None).await?;
     let mut completed = 0u32;
     let mut failed = 0u32;
@@ -162,5 +176,5 @@ pub async fn get_audit_stats(db: DbRef<'_>) -> Result<(u32, u32), CoreError> {
             None => {}
         }
     }
-    Ok((completed, failed))
+    Ok(AuditStats { completed, failed })
 }

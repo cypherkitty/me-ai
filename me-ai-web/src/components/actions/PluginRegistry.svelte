@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
-  import FilesystemPluginSettings from "../plugins/FilesystemPluginSettings.svelte";
 
   interface Props {
     open?: boolean;
@@ -155,10 +154,7 @@
               {/each}
             </div>
 
-            <!-- Plugin-specific settings -->
-            {#if plugin.id === "filesystem"}
-              <FilesystemPluginSettings />
-            {/if}
+
           </div>
         {/each}
 

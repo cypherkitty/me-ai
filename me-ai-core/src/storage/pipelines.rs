@@ -2,6 +2,7 @@
 //! All via Rexie (sm_category_pipeline, sm_type_pipeline, sm_event_types, sm_event_categories, sm_sources, sm_plugins).
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
@@ -67,7 +68,7 @@ struct PluginStoreRow {
     enabled: Option<bool>,
 }
 
-/// Input from JS for pipeline actions (pluginId, commandId).
+/// Input from JS for pipeline actions (pluginId, commandId). Deserialized via serde_wasm_bindgen.
 #[derive(Clone, Debug, Deserialize)]
 pub struct PipelineActionInput {
     #[serde(rename = "pluginId", default)]
@@ -76,13 +77,17 @@ pub struct PipelineActionInput {
     pub command_id: String,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PipelineActionRow {
     #[serde(rename = "plugin_id")]
+    #[wasm_bindgen(js_name = "plugin_id")]
     pub plugin_id: String,
     #[serde(rename = "command_id")]
+    #[wasm_bindgen(js_name = "command_id")]
     pub command_id: String,
     #[serde(rename = "action_idx")]
+    #[wasm_bindgen(js_name = "action_idx")]
     pub action_idx: i64,
 }
 

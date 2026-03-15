@@ -29,13 +29,15 @@
   });
   let isChecking = $state(false);
 
-  let allModels = $derived.by((): ApiModel[] => {
+  let allModels: ApiModel[] = $state([]);
+  $effect(() => {
     const { core } = $coreStore;
-    if (!core) return [];
+    if (!core) { allModels = []; return; }
     try {
-      return (core as any).getApiModels() as ApiModel[];
-    } catch {
-      return [];
+      allModels = (core as any).getApiModels() as ApiModel[];
+    } catch (e) {
+      console.error("[CloudApiSettings] getApiModels failed:", e);
+      allModels = [];
     }
   });
 

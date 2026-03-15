@@ -1,36 +1,41 @@
 use serde::Serialize;
+use wasm_bindgen::prelude::*;
 
 use super::{filesystem, gmail, twitter, PluginId};
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Serialize)]
 pub struct ActionMetadata {
-    #[serde(rename = "actionId")]
+    #[wasm_bindgen(js_name = "actionId")]
     pub id: String,
     pub name: String,
     pub description: String,
-    #[serde(rename = "requiredScopes")]
+    #[wasm_bindgen(js_name = "requiredScopes")]
     pub required_scopes: Vec<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Serialize)]
 pub struct PluginForPrompt {
     pub plugin_id: String,
-    #[serde(rename = "pluginName")]
+    #[wasm_bindgen(js_name = "pluginName")]
     pub plugin_name: String,
     pub actions: Vec<PluginActionRef>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Serialize)]
 pub struct PluginActionRef {
-    #[serde(rename = "actionId")]
+    #[wasm_bindgen(js_name = "actionId")]
     pub action_id: String,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Serialize)]
 pub struct PluginDefinition {
-    #[serde(rename = "pluginId")]
+    #[wasm_bindgen(js_name = "pluginId")]
     pub plugin_id: String,
-    #[serde(rename = "pluginName")]
+    #[wasm_bindgen(js_name = "pluginName")]
     pub plugin_name: String,
     pub actions: Vec<ActionMetadata>,
 }
