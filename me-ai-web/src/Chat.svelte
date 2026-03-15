@@ -291,6 +291,14 @@
           if (isRunning) {
             isRunning = false;
             generationPhase = null;
+            // Replace empty assistant bubble with error text
+            const errLast = messages[messages.length - 1];
+            if (errLast && errLast.role === "assistant" && !errLast.content) {
+              messages = [
+                ...messages.slice(0, -1),
+                { ...errLast, content: `Error: ${(msg.data as string) || "Unknown error"}` },
+              ];
+            }
           }
           break;
       }
