@@ -18,6 +18,8 @@ export interface StreamOptions {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** For OpenAI reasoning models: overrides temperature with reasoning.effort */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 /**
@@ -117,7 +119,7 @@ export async function streamApiChat(
   options: StreamOptions = {},
   onToken: (data: TokenCallbackPayload) => void = () => {}
 ): Promise<void> {
-  const { temperature = 0.7, maxTokens = 4096, signal } = options;
+  const { temperature = 0.7, maxTokens = 4096, signal, reasoningEffort } = options;
   const apiKey = await getApiKey(provider);
   if (!apiKey) {
     throw new Error(
@@ -129,30 +131,46 @@ export async function streamApiChat(
   let headers: Record<string, string>;
   let body: string;
 
-  if (provider === "openai" || provider === "xai") {
-    url =
-      provider === "openai"
-        ? "https://api.openai.com/v1/chat/completions"
-        : "https://api.x.ai/v1/chat/completions";
+  if (provider === "openai") {
+    // Use the Responses API for latest OpenAI models (e.g. gpt-5.4, gpt-5-mini)
+    url = "https://api.openai.com/v1/responses";
     headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     };
     const systemMsg = messages.find((m) => m.role === "system");
     const otherMsgs = messages.filter((m) => m.role !== "system");
-    const o1Family = /^o\d/.test(modelName);
+    const input = (systemMsg ? [systemMsg, ...otherMsgs] : otherMsgs).map((m) => ({
+      role: m.role,
+      content: m.content ?? "",
+    }));
+    const bodyObj: Record<string, unknown> = {
+      model: modelName,
+      input,
+      stream: true,
+      max_output_tokens: maxTokens,
+    };
+    if (reasoningEffort) {
+      bodyObj.reasoning = { effort: reasoningEffort };
+    } else {
+      bodyObj.temperature = temperature;
+    }
+    body = JSON.stringify(bodyObj);
+  } else if (provider === "xai") {
+    url = "https://api.x.ai/v1/chat/completions";
+    headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    };
+    const systemMsg = messages.find((m) => m.role === "system");
+    const otherMsgs = messages.filter((m) => m.role !== "system");
     const bodyObj: Record<string, unknown> = {
       model: modelName,
       messages: systemMsg ? [systemMsg, ...otherMsgs] : otherMsgs,
       stream: true,
+      temperature,
+      max_tokens: maxTokens,
     };
-    if (o1Family) {
-      bodyObj.temperature = 1;
-      bodyObj.max_completion_tokens = maxTokens;
-    } else {
-      bodyObj.temperature = temperature;
-      bodyObj.max_tokens = maxTokens;
-    }
     body = JSON.stringify(bodyObj);
   } else if (provider === "anthropic") {
     url = "https://api.anthropic.com/v1/messages";
@@ -173,7 +191,7 @@ export async function streamApiChat(
       stream: true,
     });
   } else if (provider === "google") {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?key=${apiKey}`;
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?key=${apiKey}&alt=sse`;
     headers = { "Content-Type": "application/json" };
     const systemMsg = messages.find((m) => m.role === "system");
     const otherMsgs = messages.filter((m) => m.role !== "system");
@@ -222,13 +240,48 @@ export async function streamApiChat(
         if (dataStr === "[DONE]") break;
         try {
           const data = JSON.parse(dataStr) as Record<string, unknown>;
-          if (provider === "openai" || provider === "xai") {
-            const content = (data.choices as { delta?: { content?: string } }[])?.[0]?.delta?.content;
+          if (provider === "openai") {
+            // Responses API streaming events:
+            //  - type: "response.output_text.delta" with delta (string) for text
+            //  - final usage on "response.completed"
+            let content = "";
+            if ((data as any).type === "response.output_text.delta") {
+              // The delta is the text string directly
+              content = (data as any).delta ?? "";
+            } else if ((data as any).type === "response.completed") {
+              // final usage update
+              const usage = (data as any).usage as
+                | {
+                    input_tokens?: number;
+                    output_tokens?: number;
+                  }
+                | undefined;
+              if (usage) {
+                inputTokens = usage.input_tokens ?? inputTokens;
+                outputTokens = usage.output_tokens ?? outputTokens;
+              }
+            } else {
+              // Fallback for any legacy chat.completions-style responses
+              const legacyChoices = (data as any).choices as
+                | { delta?: { content?: string } }[]
+                | undefined;
+              content = legacyChoices?.[0]?.delta?.content ?? "";
+            }
+
             if (content) {
               outputTokens++;
               onToken({ content, done: false });
             }
-            const usage = data.usage as { prompt_tokens?: number; completion_tokens?: number } | undefined;
+          } else if (provider === "xai") {
+            const content = (data.choices as { delta?: { content?: string } }[])?.[0]
+              ?.delta?.content;
+            if (content) {
+              outputTokens++;
+              onToken({ content, done: false });
+            }
+            const usage = data.usage as
+              | { prompt_tokens?: number; completion_tokens?: number }
+              | undefined;
             if (usage) {
               inputTokens = usage.prompt_tokens ?? 0;
               outputTokens = usage.completion_tokens ?? outputTokens;
