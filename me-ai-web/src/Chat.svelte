@@ -3,7 +3,8 @@
   import { getSetting, setSetting } from "./lib/store/settings.js";
   import { MODELS } from "./lib/models.js";
   import { OLLAMA_MODELS } from "./lib/ollama-models.js";
-  import { API_MODELS } from "./lib/api-models.js";
+  import { coreStore } from "./lib/store/core-store.js";
+  import type { ApiModel } from "./lib/api-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
@@ -33,6 +34,11 @@
   const engine = getUnifiedEngine();
   let backend = $state("webgpu");
   let selectedModel = $state("onnx-community/gpt-oss-20b-ONNX");
+  let apiModels = $derived.by((): ApiModel[] => {
+    const { core } = $coreStore;
+    if (!core) return [];
+    try { return (core as any).getApiModels() as ApiModel[]; } catch { return []; }
+  });
   let status = $state(null); // null | "loading" | "ready"
   let error = $state(null);
   let loadingMessage = $state("");
@@ -499,7 +505,7 @@
     // Determine current model label for the task card badge
     const activeBackend =
       backend === "cloud"
-        ? API_MODELS.find((m) => m.id === selectedModel)?.provider || "cloud"
+        ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
         : backend;
 
     // Push a live task card into the chat.
@@ -723,17 +729,17 @@
   // Watch backend changes and update default model
   $effect(() => {
     if (backend === "webgpu" && !MODELS.find((m) => m.id === selectedModel)) {
-      selectedModel = MODELS[0].id;
+      if (MODELS[0]) selectedModel = MODELS[0].id;
     } else if (
       backend === "ollama" &&
       !OLLAMA_MODELS.find((m) => m.name === selectedModel)
     ) {
-      selectedModel = OLLAMA_MODELS[0].name;
+      if (OLLAMA_MODELS[0]) selectedModel = OLLAMA_MODELS[0].name;
     } else if (
       backend === "cloud" &&
-      !API_MODELS.find((m) => m.id === selectedModel)
+      !apiModels.find((m) => m.id === selectedModel)
     ) {
-      selectedModel = API_MODELS[0].id;
+      if (apiModels[0]) selectedModel = apiModels[0].id;
     }
   });
 
@@ -942,7 +948,7 @@
     bind:temperature
     bind:repetitionPenalty
     backend={backend === "cloud"
-      ? API_MODELS.find((m) => m.id === selectedModel)?.provider || "cloud"
+      ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
       : backend}
     bind:chatContainer
     onsend={send}

@@ -1,4 +1,5 @@
-import { getApiModels as coreGetApiModels, getApiModelInfo as coreGetApiModelInfo } from "./core.js";
+import { get } from "svelte/store";
+import { coreStore } from "./store/core-store.js";
 
 export interface ApiModel {
   id: string;
@@ -12,18 +13,12 @@ export interface ApiModel {
   reasoningEffort?: "low" | "medium" | "high";
 }
 
-let _cache: ApiModel[] | null = null;
-
-/** Lazily fetched from WASM core on first access (core must be initialized). */
-export const API_MODELS: ApiModel[] = new Proxy([] as ApiModel[], {
-  get(_target, prop, receiver) {
-    if (_cache === null) {
-      _cache = coreGetApiModels() as ApiModel[];
-    }
-    return Reflect.get(_cache, prop, receiver);
-  },
-});
-
 export function getApiModelInfo(modelId: string): ApiModel | null {
-  return coreGetApiModelInfo(modelId) as ApiModel | null;
+  const { core } = get(coreStore);
+  if (!core) return null;
+  try {
+    return core.getApiModelInfo(modelId) as ApiModel | null;
+  } catch {
+    return null;
+  }
 }

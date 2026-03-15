@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { API_MODELS } from "../../lib/api-models.js";
+  import { coreStore } from "../../lib/store/core-store.js";
+  import type { ApiModel } from "../../lib/api-models.js";
   import { getSetting, setSetting } from "../../lib/store/settings.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -28,7 +29,17 @@
   });
   let isChecking = $state(false);
 
-  let providerModels = $derived(API_MODELS.filter(m => m.provider === activeProvider));
+  let allModels = $derived.by((): ApiModel[] => {
+    const { core } = $coreStore;
+    if (!core) return [];
+    try {
+      return (core as any).getApiModels() as ApiModel[];
+    } catch {
+      return [];
+    }
+  });
+
+  let providerModels = $derived(allModels.filter(m => m.provider === activeProvider));
 
   onMount(async () => {
     apiKeys.openai    = await getSetting("openaiApiKey")    || "";
@@ -36,7 +47,7 @@
     apiKeys.google    = await getSetting("googleApiKey")    || "";
     apiKeys.xai       = await getSetting("xaiApiKey")       || "";
 
-    const currModel = API_MODELS.find(m => m.id === selectedModel);
+    const currModel = allModels.find(m => m.id === selectedModel);
     if (currModel) {
       activeProvider = currModel.provider;
     } else {
@@ -46,8 +57,8 @@
   });
 
   $effect(() => {
-    if (!API_MODELS.filter(m => m.provider === activeProvider).some(m => m.id === selectedModel)) {
-      selectedModel = API_MODELS.filter(m => m.provider === activeProvider)[0]?.id;
+    if (!providerModels.some(m => m.id === selectedModel)) {
+      selectedModel = providerModels[0]?.id;
     }
   });
 
