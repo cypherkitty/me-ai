@@ -64,6 +64,24 @@
   }
 
   // ── Sandboxed HTML iframe (srcdoc avoids document.write) ───────────
+  // Strip scripts and sanitize so nothing executable reaches srcdoc (avoids "Blocked script execution" in about:srcdoc).
+  function sanitizeEmailHtml(html: string): string {
+    let out = html.replace(/<script\b[\s\S]*?<\/script>/gi, "");
+    out = out.replace(/<iframe\b[\s\S]*?<\/iframe>/gi, "");
+    out = out.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, " ");
+    out = out.replace(/\s+on\w+\s*=\s*[^\s>]+/gi, " ");
+    return DOMPurify.sanitize(out, {
+      ALLOWED_TAGS: [
+        "h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "hr", "div", "span",
+        "a", "img", "strong", "b", "em", "i", "u", "s", "sub", "sup",
+        "ul", "ol", "li", "blockquote", "pre", "code",
+        "table", "thead", "tbody", "tfoot", "tr", "th", "td",
+        "style", "font",
+      ],
+      ALLOWED_ATTR: ["href", "src", "alt", "title", "target", "style", "width", "height", "border", "align", "color", "size", "face"],
+      ADD_ATTR: ["target"],
+    });
+  }
   const EMAIL_FRAME_STYLES = `
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -82,7 +100,7 @@
   `;
   const emailSrcdoc = $derived(
     message?.htmlBody && !loading
-      ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_FRAME_STYLES}</style></head><body>${message.htmlBody}</body></html>`
+      ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_FRAME_STYLES}</style></head><body>${sanitizeEmailHtml(message.htmlBody)}</body></html>`
       : ""
   );
 </script>

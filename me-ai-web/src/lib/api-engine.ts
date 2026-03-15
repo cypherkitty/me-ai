@@ -11,6 +11,7 @@ type Status = "idle" | "loading" | "ready" | "generating";
 type EngineMessage = Record<string, unknown>;
 
 let _status: Status = "idle";
+let _modelId: string | null = null;
 let _modelName: string | null = null;
 let _provider: ApiProvider | null = null;
 let _listeners = new Set<(msg: EngineMessage) => void>();
@@ -54,17 +55,22 @@ export function getApiEngine(provider: ApiProvider) {
       }
     },
 
-    async loadModel(modelName: string): Promise<void> {
-      _modelName = modelName;
+    async loadModel(modelId: string): Promise<void> {
+      // Map UI model id -> provider model name (e.g. "gpt-5.4-low" -> "gpt-5.4")
+      const info = getApiModelInfo(modelId);
+      const providerModelName = (info?.name as string | undefined) ?? modelId;
+      _modelId = modelId;
+      _modelName = providerModelName;
       _provider = provider;
       _status = "loading";
       broadcast({
         status: "loading",
-        data: `Connecting to ${provider} model: ${modelName}...`,
+        data: `Connecting to ${provider} model: ${providerModelName}...`,
       });
       const apiKey = await getApiKey(provider);
       if (!apiKey) {
         _status = "idle";
+        _modelId = null;
         _modelName = null;
         broadcast({
           status: "error",
@@ -90,11 +96,12 @@ export function getApiEngine(provider: ApiProvider) {
       const startTime = performance.now();
       _abortController = new AbortController();
       try {
+        const modelInfo = _modelId ? getApiModelInfo(_modelId) : null;
         await streamApiChat(
           _provider,
           _modelName,
           messages,
-          { ...options, signal: _abortController.signal },
+          { ...options, reasoningEffort: modelInfo?.reasoningEffort, signal: _abortController.signal },
           (data) => {
             if (_abortController!.signal.aborted) return;
             if (!data.done) {
@@ -231,6 +238,7 @@ export function getApiEngine(provider: ApiProvider) {
 
     terminate(): void {
       _status = "idle";
+      _modelId = null;
       _modelName = null;
       if (_abortController) _abortController.abort();
       _listeners.clear();

@@ -65,6 +65,12 @@ tasks:
     cmds:
       - npm run dev
 
+  kill:dev:
+    desc: Kill all npm/Vite dev servers
+    cmds:
+      - pkill -f "vite" || true
+      - pkill -f "npm run dev" || true
+
   # --- Tests ---
   test:
     desc: Run unit tests (Vitest, single run for CI)

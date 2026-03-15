@@ -1,5 +1,7 @@
 export interface ApiModel {
+  /** Local unique id used in settings/UI */
   id: string;
+  /** Actual provider model name sent to the API (no date or version suffixes beyond the official id) */
   name: string;
   displayName: string;
   provider: string;
@@ -7,41 +9,68 @@ export interface ApiModel {
   contextWindow: number;
   maxEmailTokens: number;
   recommendedForEmailProcessing?: boolean;
+  /** For OpenAI reasoning models: the reasoning effort level to pass in the request */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 export const API_MODELS: ApiModel[] = [
-  // OpenAI
+  // OpenAI (based on official catalog: https://developers.openai.com/api/docs/models)
+  // GPT‑5.4 reasoning levels
   {
-    id: "gpt-4.1",
-    name: "gpt-4.1",
-    displayName: "GPT-4.1",
+    id: "gpt-5.4-low",
+    name: "gpt-5.4",
+    displayName: "GPT-5.4 (Low reasoning)",
     provider: "openai",
-    description: "OpenAI's latest flagship model",
-    contextWindow: 1047576,
-    maxEmailTokens: 32000,
+    description: "GPT-5.4 frontier model with low reasoning effort (best latency/cost)",
+    contextWindow: 1_000_000,
+    maxEmailTokens: 64_000,
     recommendedForEmailProcessing: true,
+    reasoningEffort: "low",
   },
   {
-    id: "gpt-4o",
-    name: "gpt-4o",
-    displayName: "GPT-4o",
+    id: "gpt-5.4-medium",
+    name: "gpt-5.4",
+    displayName: "GPT-5.4 (Medium reasoning)",
     provider: "openai",
-    description: "OpenAI's multimodal model, fast and capable",
-    contextWindow: 128000,
-    maxEmailTokens: 16384,
+    description: "GPT-5.4 with medium reasoning effort (balanced)",
+    contextWindow: 1_000_000,
+    maxEmailTokens: 64_000,
     recommendedForEmailProcessing: true,
+    reasoningEffort: "medium",
   },
   {
-    id: "o3-mini",
-    name: "o3-mini",
-    displayName: "o3-mini",
+    id: "gpt-5.4-high",
+    name: "gpt-5.4",
+    displayName: "GPT-5.4 (High reasoning)",
     provider: "openai",
-    description: "Fast compact reasoning model",
-    contextWindow: 200000,
-    maxEmailTokens: 32000,
+    description: "GPT-5.4 with high reasoning effort for harder problems",
+    contextWindow: 1_000_000,
+    maxEmailTokens: 64_000,
+    recommendedForEmailProcessing: true,
+    reasoningEffort: "high",
+  },
+  {
+    id: "gpt-5.4-xhigh",
+    name: "gpt-5.4",
+    displayName: "GPT-5.4 (XHigh reasoning)",
+    provider: "openai",
+    description: "GPT-5.4 with extra-high reasoning effort; slowest and most thorough",
+    contextWindow: 1_000_000,
+    maxEmailTokens: 64_000,
+    recommendedForEmailProcessing: true,
+    reasoningEffort: "high",
+  },
+  // GPT‑5 Mini (no date suffix in name)
+  {
+    id: "gpt-5-mini",
+    name: "gpt-5-mini",
+    displayName: "GPT-5 Mini",
+    provider: "openai",
+    description: "Near-frontier, lower-latency model for cost-sensitive workloads",
+    contextWindow: 400_000,
+    maxEmailTokens: 32_000,
     recommendedForEmailProcessing: true,
   },
-
   // Anthropic
   {
     id: "claude-opus-4-6",
