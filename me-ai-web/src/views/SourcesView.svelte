@@ -50,7 +50,7 @@
   import { cn } from "$lib/utils.js";
   import type { StoredItem } from "$lib/types.js";
   import { RefreshCw, LogOut, Trash2, Search, Database } from "lucide-svelte";
-  import FilesystemPluginSettings from "../components/plugins/FilesystemPluginSettings.svelte";
+  import FilesystemSourceSettings from "../components/sources/FilesystemSourceSettings.svelte";
 
   // ── Source metadata ────────────────────────────────────────────────
   const SOURCE_META = {
@@ -1380,11 +1380,11 @@
         <div class="flex-1 overflow-auto px-8 py-6">
           <div class="max-w-xl">
             <p class="text-sm text-muted-foreground mb-4">
-              Choose a directory to allow pipeline actions (read_file, write_file, list_dir, etc.)
-              to operate on your local files. Requires Chrome or Edge.
+              Add one or more local directories to allow pipeline actions (read_file, write_file,
+              list_dir, etc.) to operate on your local files. Requires Chrome or Edge.
             </p>
             <div class="rounded-lg border border-border bg-card p-4">
-              <FilesystemPluginSettings />
+              <FilesystemSourceSettings />
             </div>
           </div>
         </div>

@@ -34,10 +34,16 @@
   const engine = getUnifiedEngine();
   let backend = $state("webgpu");
   let selectedModel = $state("onnx-community/gpt-oss-20b-ONNX");
-  let apiModels = $derived.by((): ApiModel[] => {
+  let apiModels: ApiModel[] = $state([]);
+  $effect(() => {
     const { core } = $coreStore;
-    if (!core) return [];
-    try { return (core as any).getApiModels() as ApiModel[]; } catch { return []; }
+    if (!core) { apiModels = []; return; }
+    try {
+      apiModels = (core as any).getApiModels() as ApiModel[];
+    } catch (e) {
+      console.error("[Chat] getApiModels failed:", e);
+      apiModels = [];
+    }
   });
   let status = $state(null); // null | "loading" | "ready"
   let error = $state(null);

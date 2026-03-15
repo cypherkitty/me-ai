@@ -54,6 +54,12 @@ pub fn to_js(e: &CoreError) -> JsValue {
     JsValue::from_str(&e.to_string())
 }
 
+impl From<CoreError> for JsValue {
+    fn from(e: CoreError) -> Self {
+        JsValue::from_str(&e.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

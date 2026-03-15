@@ -2,65 +2,85 @@
 
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::from_value;
+use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncStateRow {
     #[serde(rename = "sourceType")]
+    #[wasm_bindgen(js_name = "sourceType")]
     pub source_type: Option<String>,
     #[serde(rename = "historyId")]
+    #[wasm_bindgen(js_name = "historyId")]
     pub history_id: Option<String>,
     #[serde(rename = "lastSyncAt")]
+    #[wasm_bindgen(js_name = "lastSyncAt")]
     pub last_sync_at: Option<i64>,
     #[serde(rename = "totalItems")]
+    #[wasm_bindgen(js_name = "totalItems")]
     pub total_items: Option<i64>,
     #[serde(rename = "oldestPageToken")]
+    #[wasm_bindgen(js_name = "oldestPageToken")]
     pub oldest_page_token: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContactRow {
     pub email: Option<String>,
     pub name: Option<String>,
     #[serde(rename = "firstSeen")]
+    #[wasm_bindgen(js_name = "firstSeen")]
     pub first_seen: Option<i64>,
     #[serde(rename = "lastSeen")]
+    #[wasm_bindgen(js_name = "lastSeen")]
     pub last_seen: Option<i64>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemRow {
     pub id: String,
     #[serde(rename = "sourceType")]
+    #[wasm_bindgen(js_name = "sourceType")]
     pub source_type: String,
     #[serde(rename = "sourceId")]
+    #[wasm_bindgen(js_name = "sourceId")]
     pub source_id: Option<String>,
     #[serde(rename = "threadKey")]
+    #[wasm_bindgen(js_name = "threadKey")]
     pub thread_key: Option<String>,
     #[serde(rename = "type")]
+    #[wasm_bindgen(js_name = "type")]
     pub r#type: Option<String>,
     #[serde(rename = "from")]
+    #[wasm_bindgen(js_name = "from")]
     pub from: Option<String>,
     #[serde(rename = "to")]
+    #[wasm_bindgen(js_name = "to")]
     pub to: Option<String>,
     pub cc: Option<String>,
     pub subject: Option<String>,
     pub snippet: Option<String>,
     pub body: Option<String>,
     #[serde(rename = "htmlBody")]
+    #[wasm_bindgen(js_name = "htmlBody")]
     pub html_body: Option<String>,
     pub date: Option<i64>,
     pub labels: Option<String>,
     #[serde(rename = "messageId")]
+    #[wasm_bindgen(js_name = "messageId")]
     pub message_id: Option<String>,
     #[serde(rename = "inReplyTo")]
+    #[wasm_bindgen(js_name = "inReplyTo")]
     pub in_reply_to: Option<String>,
-    #[serde(rename = "references")]
     pub references: Option<String>,
     pub raw: Option<String>,
     #[serde(rename = "syncedAt")]
+    #[wasm_bindgen(js_name = "syncedAt")]
     pub synced_at: Option<i64>,
 }
 

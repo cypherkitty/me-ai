@@ -90,7 +90,7 @@ export async function executeFilesystemAction(
         const targetPath = path ?? ".";
         const targetDir = await resolveDirHandle(dirHandle, targetPath, false);
         const entries: Array<{ name: string; kind: "file" | "directory" }> = [];
-        for await (const [name, handle] of targetDir as AsyncIterable<[string, FileSystemHandle]>) {
+        for await (const [name, handle] of (targetDir as unknown) as AsyncIterable<[string, FileSystemHandle]>) {
           entries.push({ name, kind: handle.kind });
         }
         return { success: true, message: `Listed ${entries.length} entries`, data: { entries } };

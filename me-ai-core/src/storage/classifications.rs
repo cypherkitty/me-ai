@@ -1,13 +1,16 @@
 //! Email classifications store (Rexie). CRUD and filters.
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClassificationRow {
     #[serde(rename = "emailId")]
+    #[wasm_bindgen(js_name = "emailId")]
     pub email_id: Option<String>,
     pub action: Option<String>,
     pub category: Option<String>,
@@ -16,9 +19,11 @@ pub struct ClassificationRow {
     pub tags: Option<String>,
     pub subject: Option<String>,
     #[serde(rename = "from")]
+    #[wasm_bindgen(js_name = "from")]
     pub from: Option<String>,
     pub date: Option<i64>,
     #[serde(rename = "scannedAt")]
+    #[wasm_bindgen(js_name = "scannedAt")]
     pub scanned_at: Option<i64>,
     pub status: Option<String>,
 }

@@ -1,6 +1,7 @@
 //! Rules and events CRUD via Rexie (sm_rules, sm_rule_triggers, sm_rule_commands, sm_events).
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
@@ -45,6 +46,7 @@ pub struct RuleCommandRow {
     pub order_idx: Option<i64>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventRow {
     pub id: Option<String>,
@@ -54,37 +56,49 @@ pub struct EventRow {
     pub timestamp: Option<i64>,
     pub status: Option<String>,
     #[serde(rename = "event_type")]
+    #[wasm_bindgen(js_name = "event_type")]
     pub event_type: Option<String>,
     #[serde(rename = "event_category")]
+    #[wasm_bindgen(js_name = "event_category")]
     pub event_category: Option<String>,
     #[serde(rename = "source_name")]
+    #[wasm_bindgen(js_name = "source_name")]
     pub source_name: Option<String>,
     #[serde(rename = "rule_id")]
+    #[wasm_bindgen(js_name = "rule_id")]
     pub rule_id: Option<String>,
     #[serde(rename = "actions_taken")]
+    #[wasm_bindgen(js_name = "actions_taken")]
     pub actions_taken: Option<String>,
     pub output: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct RuleTriggerView {
+    /// Exposed as `type` in JS (matching original serde rename).
     #[serde(rename = "type")]
+    #[wasm_bindgen(js_name = "type")]
     pub trigger_type: Option<String>,
     pub name: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct RuleActionView {
     pub id: Option<String>,
     #[serde(rename = "pluginId")]
+    #[wasm_bindgen(js_name = "pluginId")]
     pub plugin_id: Option<String>,
     #[serde(rename = "commandId")]
+    #[wasm_bindgen(js_name = "commandId")]
     pub command_id: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub icon: Option<String>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct RuleView {
     pub id: Option<String>,
@@ -93,12 +107,13 @@ pub struct RuleView {
     pub enabled: Option<bool>,
     pub priority: Option<i64>,
     #[serde(rename = "created_at")]
+    #[wasm_bindgen(js_name = "created_at")]
     pub created_at: Option<i64>,
     pub triggers: Vec<RuleTriggerView>,
     pub actions: Vec<RuleActionView>,
 }
 
-/// Payload from JS for saving a rule. Deserialize instead of manual JSON extraction.
+/// Payload from JS for saving a rule. Deserialize only — not returned from WASM.
 #[derive(Clone, Debug, Deserialize)]
 pub struct RuleSavePayload {
     pub id: String,

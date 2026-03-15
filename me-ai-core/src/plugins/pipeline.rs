@@ -13,6 +13,13 @@ use super::{
     PluginId,
 };
 
+/// Serializable summary of a pipeline result (for progress events only).
+#[derive(Clone, Debug, Serialize)]
+struct PipelineResultSummary {
+    pub success: bool,
+    pub message: String,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "phase", rename_all = "snake_case")]
 enum ProgressEvent {
@@ -66,7 +73,7 @@ enum ProgressEvent {
         #[serde(rename = "totalEvents")]
         total_events: usize,
         event: EventInput,
-        result: PipelineResult,
+        result: PipelineResultSummary,
     },
 }
 
@@ -196,25 +203,24 @@ pub async fn execute_pipeline(
         let resolved_plugin_id = resolve_action_plugin(action, &ctx.event)
             .as_str()
             .to_string();
-        let action_result = ActionResult {
-            action_id: action.id.clone(),
-            action_name: action.name.clone(),
-            plugin_id: Some(resolved_plugin_id),
-            command_id: action.command_id.clone(),
-            success: result.success,
-            message: result.message.clone(),
-            data: result.data.clone(),
-        };
-        results.push(action_result.clone());
 
         emit_progress(
             &on_progress,
             &ProgressEvent::ActionComplete {
                 action_id: action.id.clone(),
                 action_name: action.name.clone(),
-                result,
+                result: result.clone(),
             },
         );
+
+        let action_result = ActionResult::from_plugin_result(
+            action.id.clone(),
+            action.name.clone(),
+            Some(resolved_plugin_id),
+            action.command_id.clone(),
+            result,
+        );
+        results.push(action_result);
     }
 
     let failed_results: Vec<&ActionResult> = results.iter().filter(|r| !r.success).collect();
@@ -283,23 +289,21 @@ pub async fn execute_pipeline_batch(
         )
         .await?;
 
-        let entry = PipelineBatchResultEntry {
-            event: event.clone(),
-            success: result.success,
-            results: result.results.clone(),
-            message: result.message.clone(),
-        };
-        results.push(entry.clone());
-
         emit_progress(
             &on_progress,
             &ProgressEvent::BatchEventComplete {
                 event_index: i,
                 total_events: events.len(),
                 event: event.clone(),
-                result: result.clone(),
+                result: PipelineResultSummary {
+                    success: result.success,
+                    message: result.message.clone(),
+                },
             },
         );
+
+        let entry = PipelineBatchResultEntry::new(event, result.success, result.results, result.message);
+        results.push(entry);
     }
 
     let successful = results.iter().filter(|r| r.success).count();

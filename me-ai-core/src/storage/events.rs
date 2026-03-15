@@ -1,10 +1,12 @@
 //! Event types and categories from Rexie stores.
 
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::db::{store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventTypeRow {
     pub name: String,
@@ -15,6 +17,7 @@ pub struct EventTypeRow {
     pub auto_created: Option<bool>,
 }
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventCategoryRow {
     pub name: String,

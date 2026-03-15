@@ -1,16 +1,23 @@
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiModel {
     pub id: String,
     pub name: String,
+    #[wasm_bindgen(js_name = "displayName")]
     pub display_name: String,
     pub provider: String,
     pub description: String,
+    #[wasm_bindgen(js_name = "contextWindow")]
     pub context_window: u32,
+    #[wasm_bindgen(js_name = "maxEmailTokens")]
     pub max_email_tokens: u32,
+    #[wasm_bindgen(js_name = "recommendedForEmailProcessing")]
     pub recommended_for_email_processing: bool,
+    #[wasm_bindgen(js_name = "reasoningEffort")]
     pub reasoning_effort: Option<String>,
 }
 
