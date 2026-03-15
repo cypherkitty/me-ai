@@ -1,0 +1,1 @@
+../../.agents/me-ai-core.md
