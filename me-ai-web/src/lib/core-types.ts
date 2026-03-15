@@ -107,6 +107,17 @@ export interface CoreModule {
   clearEmailClassifications: () => Promise<void>;
   deleteEmailClassification: (emailId: string) => Promise<void>;
   deleteEmailClassificationsByAction: (action: string) => Promise<void>;
+  getApiModels: () => unknown[];
+  getApiModelInfo: (modelId: string) => unknown | null;
+  testApiConnection: (provider: string, apiKey: string) => Promise<boolean>;
+  streamChat: (
+    provider: string,
+    modelName: string,
+    messages: Array<{ role: string; content: string }>,
+    options: { temperature?: number; maxTokens?: number; reasoningEffort?: string },
+    onToken: (payload: { content: string; done: boolean; inputTokens: number; outputTokens: number }) => void
+  ) => Promise<void>;
+
   getItemsGmailByDateDesc: (limit: number) => Promise<unknown[]>;
   getItemsBySource: (sourceType: string, limit: number, offset: number) => Promise<unknown[]>;
   putEmailClassification: (

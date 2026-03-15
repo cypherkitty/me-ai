@@ -17,6 +17,9 @@ pub enum CoreError {
 
     #[error("plugin: {0}")]
     Plugin(String),
+
+    #[error("llm: {0}")]
+    Llm(String),
 }
 
 /// Format rexie/idb error message with user-friendly hints. Extracted for testability.

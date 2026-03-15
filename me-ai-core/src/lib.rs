@@ -10,6 +10,7 @@
 mod db;
 mod storage;
 mod error;
+mod llm;
 mod plugins;
 
 use js_sys::Function;
@@ -614,6 +615,66 @@ impl MeAiCore {
         )
         .await
         .map_err(|e| error_to_js(&e))
+    }
+
+    // -----------------------------------------------------------------------
+    // LLM: model catalog and streaming chat
+    // -----------------------------------------------------------------------
+
+    /// Get all cloud API model definitions
+    #[wasm_bindgen(js_name = getApiModels)]
+    pub fn get_api_models(&self) -> Result<JsValue, JsValue> {
+        let models = llm::models::get_api_models();
+        serialize_to_js(&models)
+    }
+
+    /// Get a single model by ID
+    #[wasm_bindgen(js_name = getApiModelInfo)]
+    pub fn get_api_model_info(&self, model_id: &str) -> Result<JsValue, JsValue> {
+        match llm::models::get_api_model_info(model_id) {
+            Some(m) => serialize_to_js(&m),
+            None => Ok(JsValue::NULL),
+        }
+    }
+
+    /// Test API connection for a provider
+    #[wasm_bindgen(js_name = testApiConnection)]
+    pub async fn test_api_connection(&self, provider: &str, api_key: &str) -> Result<JsValue, JsValue> {
+        let ok = llm::client::test_api_connection(provider, api_key)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        Ok(JsValue::from_bool(ok))
+    }
+
+    /// Stream chat completion from a cloud API provider.
+    /// `on_token` receives TokenPayload JSON objects during streaming.
+    #[wasm_bindgen(js_name = streamChat)]
+    pub async fn stream_chat(
+        &self,
+        provider: &str,
+        model_name: &str,
+        messages: JsValue,
+        options: JsValue,
+        on_token: &Function,
+    ) -> Result<(), JsValue> {
+        let msgs: Vec<llm::client::ChatMessage> = serde_wasm_bindgen::from_value(messages)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let opts: llm::client::StreamOptions = serde_wasm_bindgen::from_value(options)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+
+        // Fetch API key from IndexedDB settings
+        let db = self.rexie_db.db();
+        let key_name = format!("{provider}ApiKey");
+        let api_key = storage::schema::get_setting(db, &key_name)
+            .await
+            .map_err(|e| error_to_js(&e))?
+            .ok_or_else(|| JsValue::from_str(
+                &format!("No API key configured for {provider}. Please check your settings."),
+            ))?;
+
+        llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token)
+            .await
+            .map_err(|e| error_to_js(&e))
     }
 }
 

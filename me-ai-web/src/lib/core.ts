@@ -364,3 +364,22 @@ export async function getStorageStats(): Promise<{
 export async function clearAllDataAndCheckpoint(): Promise<void> {
   await clearAllData();
 }
+
+export function getApiModels() {
+  return requireCore().getApiModels();
+}
+export function getApiModelInfo(modelId: string) {
+  return requireCore().getApiModelInfo(modelId);
+}
+export async function testApiConnection(provider: string, apiKey: string): Promise<boolean> {
+  return requireCore().testApiConnection(provider, apiKey);
+}
+export async function streamChat(
+  provider: string,
+  modelName: string,
+  messages: Array<{ role: string; content: string }>,
+  options: { temperature?: number; maxTokens?: number; reasoningEffort?: string },
+  onToken: (payload: { content: string; done: boolean; inputTokens: number; outputTokens: number }) => void
+): Promise<void> {
+  return requireCore().streamChat(provider, modelName, messages, options, onToken);
+}
