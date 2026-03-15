@@ -23,8 +23,8 @@ tasks:
       - task: build:core
     dir: '{{.WEB_DIR}}'
     cmds:
-      - task copy:core
       - npm install
+      - task: copy:core
 
   # --- me-ai-core (Rust WASM) ---
   # wasm-pack writes to CORE_DIR/pkg (e.g. me-ai-core/pkg); sync to CORE_PKG for install/copy.
