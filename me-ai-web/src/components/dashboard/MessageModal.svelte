@@ -63,45 +63,28 @@
     });
   }
 
-  // ── Sandboxed HTML iframe ─────────────────────────────────────────
-  let iframeEl = $state(null);
-  const messageKey = $derived(message?.id || message?.messageId || "single");
-
-  $effect(() => {
-    if (messageKey && iframeEl && message.htmlBody && !loading && viewMode === "email") {
-      // Write HTML into the sandboxed iframe
-      const doc = iframeEl.contentDocument || iframeEl.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                font-size: 14px;
-                line-height: 1.5;
-                color: #e0e0e0;
-                background: #1a1a1a;
-                margin: 0;
-                padding: 16px;
-                word-break: break-word;
-              }
-              a { color: #60a5fa; }
-              img { max-width: 100%; height: auto; }
-              table { border-collapse: collapse; max-width: 100%; }
-              td, th { padding: 4px 8px; }
-            </style>
-          </head>
-          <body>${message.htmlBody}</body>
-          </html>
-        `);
-        doc.close();
-      }
+  // ── Sandboxed HTML iframe (srcdoc avoids document.write) ───────────
+  const EMAIL_FRAME_STYLES = `
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #e0e0e0;
+      background: #1a1a1a;
+      margin: 0;
+      padding: 16px;
+      word-break: break-word;
     }
-  });
+    a { color: #60a5fa; }
+    img { max-width: 100%; height: auto; }
+    table { border-collapse: collapse; max-width: 100%; }
+    td, th { padding: 4px 8px; }
+  `;
+  const emailSrcdoc = $derived(
+    message?.htmlBody && !loading
+      ? `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${EMAIL_FRAME_STYLES}</style></head><body>${message.htmlBody}</body></html>`
+      : ""
+  );
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -202,10 +185,10 @@
           </div>
         {:else if message.htmlBody}
           <iframe
-            bind:this={iframeEl}
             class="html-frame"
             sandbox="allow-same-origin"
             title="Email content"
+            srcdoc={emailSrcdoc}
           ></iframe>
         {:else if message.body}
           <pre class="message-text">{message.body}</pre>
