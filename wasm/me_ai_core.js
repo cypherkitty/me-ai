@@ -1,797 +1,883 @@
 /* @ts-self-types="./me_ai_core.d.ts" */
 
 /**
- * Clear all user-data tables (keeps schema and seed data).
- * @returns {Promise<void>}
+ * Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
  */
-export function clearAllData() {
-    const ret = wasm.clearAllData();
-    return ret;
-}
-
-/**
- * Delete all audit log entries.
- * @returns {Promise<void>}
- */
-export function clearAuditLog() {
-    const ret = wasm.clearAuditLog();
-    return ret;
-}
-
-/**
- * @returns {Promise<void>}
- */
-export function clearContacts() {
-    const ret = wasm.clearContacts();
-    return ret;
-}
-
-/**
- * @returns {Promise<void>}
- */
-export function clearEmailClassifications() {
-    const ret = wasm.clearEmailClassifications();
-    return ret;
-}
-
-/**
- * @param {string} type_name
- * @returns {Promise<void>}
- */
-export function clearEventTypeCategory(type_name) {
-    const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.clearEventTypeCategory(ptr0, len0);
-    return ret;
-}
-
-/**
- * @returns {Promise<void>}
- */
-export function clearEvents() {
-    const ret = wasm.clearEvents();
-    return ret;
-}
-
-/**
- * @returns {Promise<void>}
- */
-export function clearItemsSyncContacts() {
-    const ret = wasm.clearItemsSyncContacts();
-    return ret;
-}
-
-/**
- * Create all tables, seed data, and run migrations. Call after init(adapter).
- * @returns {Promise<void>}
- */
-export function createSchemaAndMigrations() {
-    const ret = wasm.createSchemaAndMigrations();
-    return ret;
-}
-
-/**
- * @param {string} email_id
- * @returns {Promise<void>}
- */
-export function deleteEmailClassification(email_id) {
-    const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteEmailClassification(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} action
- * @returns {Promise<void>}
- */
-export function deleteEmailClassificationsByAction(action) {
-    const ptr0 = passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteEmailClassificationsByAction(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} type_name
- * @returns {Promise<void>}
- */
-export function deleteEventType(type_name) {
-    const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteEventType(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {any} ids
- * @returns {Promise<void>}
- */
-export function deleteItemsByIds(ids) {
-    const ret = wasm.deleteItemsByIds(ids);
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @returns {Promise<void>}
- */
-export function deleteItemsBySource(source_type) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteItemsBySource(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} id
- * @returns {Promise<void>}
- */
-export function deleteRule(id) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteRule(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @returns {Promise<void>}
- */
-export function deleteSyncState(source_type) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.deleteSyncState(ptr0, len0);
-    return ret;
-}
-
-/**
- * Fetch actions from sm_actions. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getActions() {
-    const ret = wasm.getActions();
-    return ret;
-}
-
-/**
- * Get audit log page. Returns { entries, total }.
- * @param {number} limit
- * @param {number} offset
- * @param {boolean} failures_only
- * @returns {Promise<any>}
- */
-export function getAuditLog(limit, offset, failures_only) {
-    const ret = wasm.getAuditLog(limit, offset, failures_only);
-    return ret;
-}
-
-/**
- * Audit stats: (completed count, failed count).
- * @returns {Promise<any>}
- */
-export function getAuditStats() {
-    const ret = wasm.getAuditStats();
-    return ret;
-}
-
-/**
- * @param {string} category_name
- * @returns {Promise<any>}
- */
-export function getCategoryPipelineActions(category_name) {
-    const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getCategoryPipelineActions(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} email
- * @returns {Promise<any>}
- */
-export function getContactByEmail(email) {
-    const ptr0 = passStringToWasm0(email, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getContactByEmail(ptr0, len0);
-    return ret;
-}
-
-/**
- * Count of contacts. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getContactsCount() {
-    const ret = wasm.getContactsCount();
-    return ret;
-}
-
-/**
- * @param {string | null} [action_filter]
- * @param {number | null} [limit]
- * @returns {Promise<any>}
- */
-export function getEmailClassifications(action_filter, limit) {
-    var ptr0 = isLikeNone(action_filter) ? 0 : passStringToWasm0(action_filter, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getEmailClassifications(ptr0, len0, isLikeNone(limit) ? 0x100000001 : (limit) >>> 0);
-    return ret;
-}
-
-/**
- * Count of email classifications. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getEmailClassificationsCount() {
-    const ret = wasm.getEmailClassificationsCount();
-    return ret;
-}
-
-/**
- * Fetch event categories (name, label, priority, policy) from sm_event_categories. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getEventCategories() {
-    const ret = wasm.getEventCategories();
-    return ret;
-}
-
-/**
- * @param {string} category_name
- * @returns {Promise<any>}
- */
-export function getEventCategoryPolicy(category_name) {
-    const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getEventCategoryPolicy(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} type_name
- * @returns {Promise<any>}
- */
-export function getEventTypeCategory(type_name) {
-    const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getEventTypeCategory(ptr0, len0);
-    return ret;
-}
-
-/**
- * Fetch event types (name, label) from sm_event_types. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getEventTypes() {
-    const ret = wasm.getEventTypes();
-    return ret;
-}
-
-/**
- * @param {number} limit
- * @param {number} offset
- * @returns {Promise<any>}
- */
-export function getEvents(limit, offset) {
-    const ret = wasm.getEvents(limit, offset);
-    return ret;
-}
-
-/**
- * @param {string} id
- * @returns {Promise<any>}
- */
-export function getItemById(id) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getItemById(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @param {number} limit
- * @param {number} offset
- * @returns {Promise<any>}
- */
-export function getItemsBySource(source_type, limit, offset) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getItemsBySource(ptr0, len0, limit, offset);
-    return ret;
-}
-
-/**
- * Count of all items (for post-schema init). Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getItemsCount() {
-    const ret = wasm.getItemsCount();
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @returns {Promise<any>}
- */
-export function getItemsCountBySource(source_type) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getItemsCountBySource(ptr0, len0);
-    return ret;
-}
-
-/**
- * Count of items with sourceType = 'gmail'. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getItemsCountGmail() {
-    const ret = wasm.getItemsCountGmail();
-    return ret;
-}
-
-/**
- * Newest date among gmail items (ms). Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getItemsDateMax() {
-    const ret = wasm.getItemsDateMax();
-    return ret;
-}
-
-/**
- * Oldest date among gmail items (ms). Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getItemsDateMin() {
-    const ret = wasm.getItemsDateMin();
-    return ret;
-}
-
-/**
- * @param {number} limit
- * @returns {Promise<any>}
- */
-export function getItemsGmailByDateDesc(limit) {
-    const ret = wasm.getItemsGmailByDateDesc(limit);
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @returns {Promise<any>}
- */
-export function getNewestSourceId(source_type) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getNewestSourceId(ptr0, len0);
-    return ret;
-}
-
-/**
- * @returns {Promise<any>}
- */
-export function getPlugins() {
-    const ret = wasm.getPlugins();
-    return ret;
-}
-
-/**
- * @param {string} id
- * @returns {Promise<any>}
- */
-export function getRule(id) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getRule(ptr0, len0);
-    return ret;
-}
-
-/**
- * @returns {Promise<any>}
- */
-export function getRules() {
-    const ret = wasm.getRules();
-    return ret;
-}
-
-/**
- * Get a setting value by key. Returns null if not found.
- * @param {string} key
- * @returns {Promise<any>}
- */
-export function getSetting(key) {
-    const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getSetting(ptr0, len0);
-    return ret;
-}
-
-/**
- * Fetch sources from sm_sources. Requires init(adapter) first.
- * @returns {Promise<any>}
- */
-export function getSources() {
-    const ret = wasm.getSources();
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @returns {Promise<any>}
- */
-export function getSyncState(source_type) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getSyncState(ptr0, len0);
-    return ret;
-}
-
-/**
- * Row count for a known table (for stats). Table must be in allowlist.
- * @param {string} table
- * @returns {Promise<any>}
- */
-export function getTableCount(table) {
-    const ptr0 = passStringToWasm0(table, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getTableCount(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {string} type_name
- * @returns {Promise<any>}
- */
-export function getTypePipelineActions(type_name) {
-    const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.getTypePipelineActions(ptr0, len0);
-    return ret;
-}
-
-/**
- * Initialize the core. No adapter; Rexie opens IndexedDB on first use.
- */
-export function init() {
-    const ret = wasm.init();
-    if (ret[1]) {
-        throw takeFromExternrefTable0(ret[0]);
+export class MeAiCore {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(MeAiCore.prototype);
+        obj.__wbg_ptr = ptr;
+        MeAiCoreFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        MeAiCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_meaicore_free(ptr, 0);
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearAllData() {
+        const ret = wasm.meaicore_clearAllData(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearAuditLog() {
+        const ret = wasm.meaicore_clearAuditLog(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearContacts() {
+        const ret = wasm.meaicore_clearContacts(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearEmailClassifications() {
+        const ret = wasm.meaicore_clearEmailClassifications(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} type_name
+     * @returns {Promise<void>}
+     */
+    clearEventTypeCategory(type_name) {
+        const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_clearEventTypeCategory(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearEvents() {
+        const ret = wasm.meaicore_clearEvents(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearItemsSyncContacts() {
+        const ret = wasm.meaicore_clearItemsSyncContacts(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    createSchemaAndMigrations() {
+        const ret = wasm.meaicore_createSchemaAndMigrations(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} email_id
+     * @returns {Promise<void>}
+     */
+    deleteEmailClassification(email_id) {
+        const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteEmailClassification(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} action
+     * @returns {Promise<void>}
+     */
+    deleteEmailClassificationsByAction(action) {
+        const ptr0 = passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteEmailClassificationsByAction(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} type_name
+     * @returns {Promise<void>}
+     */
+    deleteEventType(type_name) {
+        const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteEventType(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {any} ids
+     * @returns {Promise<void>}
+     */
+    deleteItemsByIds(ids) {
+        const ret = wasm.meaicore_deleteItemsByIds(this.__wbg_ptr, ids);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @returns {Promise<void>}
+     */
+    deleteItemsBySource(source_type) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteItemsBySource(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @returns {Promise<void>}
+     */
+    deleteRule(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteRule(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @returns {Promise<void>}
+     */
+    deleteSyncState(source_type) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_deleteSyncState(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {any} actions
+     * @param {any} event
+     * @param {string} access_token
+     * @param {Function | null} [on_progress]
+     * @param {any | null} [config]
+     * @returns {Promise<any>}
+     */
+    executePipeline(actions, event, access_token, on_progress, config) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_executePipeline(this.__wbg_ptr, actions, event, ptr0, len0, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress), isLikeNone(config) ? 0 : addToExternrefTable0(config));
+        return ret;
+    }
+    /**
+     * @param {any} actions
+     * @param {any} events
+     * @param {string} access_token
+     * @param {Function | null} [on_progress]
+     * @param {any | null} [config]
+     * @returns {Promise<any>}
+     */
+    executePipelineBatch(actions, events, access_token, on_progress, config) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_executePipelineBatch(this.__wbg_ptr, actions, events, ptr0, len0, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress), isLikeNone(config) ? 0 : addToExternrefTable0(config));
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getActions() {
+        const ret = wasm.meaicore_getActions(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Get a single model by ID
+     * @param {string} model_id
+     * @returns {any}
+     */
+    getApiModelInfo(model_id) {
+        const ptr0 = passStringToWasm0(model_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getApiModelInfo(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * Get all cloud API model definitions
+     * @returns {any}
+     */
+    getApiModels() {
+        const ret = wasm.meaicore_getApiModels(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {number} limit
+     * @param {number} offset
+     * @param {boolean} failures_only
+     * @returns {Promise<any>}
+     */
+    getAuditLog(limit, offset, failures_only) {
+        const ret = wasm.meaicore_getAuditLog(this.__wbg_ptr, limit, offset, failures_only);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getAuditStats() {
+        const ret = wasm.meaicore_getAuditStats(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} source
+     * @returns {any}
+     */
+    getAvailableActions(source) {
+        const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getAvailableActions(this.__wbg_ptr, ptr0, len0);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {string} category_name
+     * @returns {Promise<any>}
+     */
+    getCategoryPipelineActions(category_name) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getCategoryPipelineActions(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} email
+     * @returns {Promise<any>}
+     */
+    getContactByEmail(email) {
+        const ptr0 = passStringToWasm0(email, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getContactByEmail(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getContactsCount() {
+        const ret = wasm.meaicore_getContactsCount(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string | null} [action_filter]
+     * @param {number | null} [limit]
+     * @returns {Promise<any>}
+     */
+    getEmailClassifications(action_filter, limit) {
+        var ptr0 = isLikeNone(action_filter) ? 0 : passStringToWasm0(action_filter, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getEmailClassifications(this.__wbg_ptr, ptr0, len0, isLikeNone(limit) ? 0x100000001 : (limit) >>> 0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getEmailClassificationsCount() {
+        const ret = wasm.meaicore_getEmailClassificationsCount(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getEventCategories() {
+        const ret = wasm.meaicore_getEventCategories(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} category_name
+     * @returns {Promise<any>}
+     */
+    getEventCategoryPolicy(category_name) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getEventCategoryPolicy(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} type_name
+     * @returns {Promise<any>}
+     */
+    getEventTypeCategory(type_name) {
+        const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getEventTypeCategory(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getEventTypes() {
+        const ret = wasm.meaicore_getEventTypes(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} limit
+     * @param {number} offset
+     * @returns {Promise<any>}
+     */
+    getEvents(limit, offset) {
+        const ret = wasm.meaicore_getEvents(this.__wbg_ptr, limit, offset);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @returns {Promise<any>}
+     */
+    getItemById(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getItemById(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @param {number} limit
+     * @param {number} offset
+     * @returns {Promise<any>}
+     */
+    getItemsBySource(source_type, limit, offset) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getItemsBySource(this.__wbg_ptr, ptr0, len0, limit, offset);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getItemsCount() {
+        const ret = wasm.meaicore_getItemsCount(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @returns {Promise<any>}
+     */
+    getItemsCountBySource(source_type) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getItemsCountBySource(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getItemsCountGmail() {
+        const ret = wasm.meaicore_getItemsCountGmail(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getItemsDateMax() {
+        const ret = wasm.meaicore_getItemsDateMax(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getItemsDateMin() {
+        const ret = wasm.meaicore_getItemsDateMin(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} limit
+     * @returns {Promise<any>}
+     */
+    getItemsGmailByDateDesc(limit) {
+        const ret = wasm.meaicore_getItemsGmailByDateDesc(this.__wbg_ptr, limit);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @returns {Promise<any>}
+     */
+    getNewestSourceId(source_type) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getNewestSourceId(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {any}
+     */
+    getPluginRegistry() {
+        const ret = wasm.meaicore_getPluginRegistry(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getPlugins() {
+        const ret = wasm.meaicore_getPlugins(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {any}
+     */
+    getPluginsForPrompt() {
+        const ret = wasm.meaicore_getPluginsForPrompt(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {string} action_id
+     * @param {string} source
+     * @returns {any}
+     */
+    getRequiredScopes(action_id, source) {
+        const ptr0 = passStringToWasm0(action_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getRequiredScopes(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
+     * @param {string} id
+     * @returns {Promise<any>}
+     */
+    getRule(id) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getRule(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getRules() {
+        const ret = wasm.meaicore_getRules(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} key
+     * @returns {Promise<any>}
+     */
+    getSetting(key) {
+        const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getSetting(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getSources() {
+        const ret = wasm.meaicore_getSources(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @returns {Promise<any>}
+     */
+    getSyncState(source_type) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getSyncState(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} table
+     * @returns {Promise<any>}
+     */
+    getTableCount(table) {
+        const ptr0 = passStringToWasm0(table, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTableCount(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} type_name
+     * @returns {Promise<any>}
+     */
+    getTypePipelineActions(type_name) {
+        const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTypePipelineActions(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {any} rows
+     * @returns {Promise<void>}
+     */
+    insertContactsBatch(rows) {
+        const ret = wasm.meaicore_insertContactsBatch(this.__wbg_ptr, rows);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @param {string | null | undefined} content
+     * @param {string | null | undefined} subject
+     * @param {string | null | undefined} sender
+     * @param {number} timestamp
+     * @param {string | null} [status]
+     * @param {string | null} [event_type]
+     * @param {string | null} [event_category]
+     * @param {string | null} [source_name]
+     * @param {string | null} [rule_id]
+     * @param {string | null} [actions_taken]
+     * @param {string | null} [output]
+     * @returns {Promise<void>}
+     */
+    insertEvent(id, content, subject, sender, timestamp, status, event_type, event_category, source_name, rule_id, actions_taken, output) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(content) ? 0 : passStringToWasm0(content, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(subject) ? 0 : passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        var ptr3 = isLikeNone(sender) ? 0 : passStringToWasm0(sender, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len3 = WASM_VECTOR_LEN;
+        var ptr4 = isLikeNone(status) ? 0 : passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len4 = WASM_VECTOR_LEN;
+        var ptr5 = isLikeNone(event_type) ? 0 : passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len5 = WASM_VECTOR_LEN;
+        var ptr6 = isLikeNone(event_category) ? 0 : passStringToWasm0(event_category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len6 = WASM_VECTOR_LEN;
+        var ptr7 = isLikeNone(source_name) ? 0 : passStringToWasm0(source_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len7 = WASM_VECTOR_LEN;
+        var ptr8 = isLikeNone(rule_id) ? 0 : passStringToWasm0(rule_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len8 = WASM_VECTOR_LEN;
+        var ptr9 = isLikeNone(actions_taken) ? 0 : passStringToWasm0(actions_taken, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len9 = WASM_VECTOR_LEN;
+        var ptr10 = isLikeNone(output) ? 0 : passStringToWasm0(output, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len10 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_insertEvent(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, timestamp, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, ptr8, len8, ptr9, len9, ptr10, len10);
+        return ret;
+    }
+    /**
+     * @param {any} rows
+     * @returns {Promise<void>}
+     */
+    insertItemsBatch(rows) {
+        const ret = wasm.meaicore_insertItemsBatch(this.__wbg_ptr, rows);
+        return ret;
+    }
+    /**
+     * @param {any} rows
+     * @returns {Promise<void>}
+     */
+    insertSyncStateBatch(rows) {
+        const ret = wasm.meaicore_insertSyncStateBatch(this.__wbg_ptr, rows);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @param {string} email_id
+     * @param {string} subject
+     * @param {string} from
+     * @param {string} event_type
+     * @param {number} executed_at
+     * @param {boolean} success
+     * @param {string} error
+     * @param {string} steps_json
+     * @returns {Promise<void>}
+     */
+    logAuditExecution(id, email_id, subject, from, event_type, executed_at, success, error, steps_json) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len4 = WASM_VECTOR_LEN;
+        const ptr5 = passStringToWasm0(error, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len5 = WASM_VECTOR_LEN;
+        const ptr6 = passStringToWasm0(steps_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_logAuditExecution(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, executed_at, success, ptr5, len5, ptr6, len6);
+        return ret;
+    }
+    /**
+     * Build Rexie once. Call after WASM module is loaded. Returns core instance.
+     */
+    constructor() {
+        const ret = wasm.meaicore_new();
+        return ret;
+    }
+    /**
+     * @param {string} email_id
+     * @param {string | null} [action]
+     * @param {string | null} [category]
+     * @param {string | null} [reason]
+     * @param {string | null} [summary]
+     * @param {string | null} [tags]
+     * @param {string | null} [subject]
+     * @param {string | null} [from]
+     * @param {number | null} [date]
+     * @param {number | null} [scanned_at]
+     * @param {string | null} [status]
+     * @returns {Promise<void>}
+     */
+    putEmailClassification(email_id, action, category, reason, summary, tags, subject, from, date, scanned_at, status) {
+        const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(action) ? 0 : passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(category) ? 0 : passStringToWasm0(category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        var ptr3 = isLikeNone(reason) ? 0 : passStringToWasm0(reason, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len3 = WASM_VECTOR_LEN;
+        var ptr4 = isLikeNone(summary) ? 0 : passStringToWasm0(summary, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len4 = WASM_VECTOR_LEN;
+        var ptr5 = isLikeNone(tags) ? 0 : passStringToWasm0(tags, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len5 = WASM_VECTOR_LEN;
+        var ptr6 = isLikeNone(subject) ? 0 : passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len6 = WASM_VECTOR_LEN;
+        var ptr7 = isLikeNone(from) ? 0 : passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len7 = WASM_VECTOR_LEN;
+        var ptr8 = isLikeNone(status) ? 0 : passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len8 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_putEmailClassification(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, !isLikeNone(date), isLikeNone(date) ? 0 : date, !isLikeNone(scanned_at), isLikeNone(scanned_at) ? 0 : scanned_at, ptr8, len8);
+        return ret;
+    }
+    /**
+     * @param {string} key
+     * @returns {Promise<void>}
+     */
+    removeSetting(key) {
+        const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_removeSetting(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} source
+     * @returns {string}
+     */
+    resolvePluginId(source) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_resolvePluginId(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @param {any} payload
+     * @returns {Promise<void>}
+     */
+    saveRule(payload) {
+        const ret = wasm.meaicore_saveRule(this.__wbg_ptr, payload);
+        return ret;
+    }
+    /**
+     * @param {string} name
+     * @param {boolean} enabled
+     * @returns {Promise<void>}
+     */
+    setPluginEnabled(name, enabled) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_setPluginEnabled(this.__wbg_ptr, ptr0, len0, enabled);
+        return ret;
+    }
+    /**
+     * @param {string} key
+     * @param {string} value
+     * @returns {Promise<void>}
+     */
+    setSetting(key, value) {
+        const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_setSetting(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} name
+     * @param {boolean} enabled
+     * @returns {Promise<void>}
+     */
+    setSourceEnabled(name, enabled) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_setSourceEnabled(this.__wbg_ptr, ptr0, len0, enabled);
+        return ret;
+    }
+    /**
+     * Stream chat completion from a cloud API provider.
+     * `on_token` receives TokenPayload JSON objects during streaming.
+     * @param {string} provider
+     * @param {string} model_name
+     * @param {any} messages
+     * @param {any} options
+     * @param {Function} on_token
+     * @returns {Promise<void>}
+     */
+    streamChat(provider, model_name, messages, options, on_token) {
+        const ptr0 = passStringToWasm0(provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(model_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_streamChat(this.__wbg_ptr, ptr0, len0, ptr1, len1, messages, options, on_token);
+        return ret;
+    }
+    /**
+     * @param {string} email_id
+     * @param {boolean} delete_item
+     * @returns {Promise<void>}
+     */
+    syncAfterAuditExecution(email_id, delete_item) {
+        const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_syncAfterAuditExecution(this.__wbg_ptr, ptr0, len0, delete_item);
+        return ret;
+    }
+    /**
+     * Test API connection for a provider
+     * @param {string} provider
+     * @param {string} api_key
+     * @returns {Promise<any>}
+     */
+    testApiConnection(provider, api_key) {
+        const ptr0 = passStringToWasm0(provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(api_key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_testApiConnection(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} category_name
+     * @param {any} actions_js
+     * @returns {Promise<void>}
+     */
+    updateCategoryPipeline(category_name, actions_js) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateCategoryPipeline(this.__wbg_ptr, ptr0, len0, actions_js);
+        return ret;
+    }
+    /**
+     * @param {string} category_name
+     * @param {string} policy
+     * @returns {Promise<void>}
+     */
+    updateCategoryPolicy(category_name, policy) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(policy, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateCategoryPolicy(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} email_id
+     * @param {string} status
+     * @returns {Promise<void>}
+     */
+    updateEmailClassificationStatus(email_id, status) {
+        const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateEmailClassificationStatus(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @param {string} status
+     * @returns {Promise<void>}
+     */
+    updateEventStatus(id, status) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateEventStatus(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} type_name
+     * @param {string} category_name
+     * @returns {Promise<void>}
+     */
+    updateEventTypeCategory(type_name, category_name) {
+        const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateEventTypeCategory(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} email
+     * @param {string} name
+     * @param {number} first_seen
+     * @param {number} last_seen
+     * @returns {Promise<void>}
+     */
+    upsertContact(email, name, first_seen, last_seen) {
+        const ptr0 = passStringToWasm0(email, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_upsertContact(this.__wbg_ptr, ptr0, len0, ptr1, len1, first_seen, last_seen);
+        return ret;
+    }
+    /**
+     * @param {string} name
+     * @param {string} label
+     * @param {string} category_name
+     * @param {boolean} auto_created
+     * @returns {Promise<void>}
+     */
+    upsertEventType(name, label, category_name, auto_created) {
+        const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(label, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_upsertEventType(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, auto_created);
+        return ret;
+    }
+    /**
+     * @param {string} source_type
+     * @param {string} history_id
+     * @param {number} last_sync_at
+     * @param {number} total_items
+     * @param {string} oldest_page_token
+     * @returns {Promise<void>}
+     */
+    upsertSyncState(source_type, history_id, last_sync_at, total_items, oldest_page_token) {
+        const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(history_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(oldest_page_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_upsertSyncState(this.__wbg_ptr, ptr0, len0, ptr1, len1, last_sync_at, total_items, ptr2, len2);
+        return ret;
     }
 }
-
-/**
- * @param {any} rows
- * @returns {Promise<void>}
- */
-export function insertContactsBatch(rows) {
-    const ret = wasm.insertContactsBatch(rows);
-    return ret;
-}
-
-/**
- * @param {string} id
- * @param {string | null | undefined} content
- * @param {string | null | undefined} subject
- * @param {string | null | undefined} sender
- * @param {number} timestamp
- * @param {string | null} [status]
- * @param {string | null} [event_type]
- * @param {string | null} [event_category]
- * @param {string | null} [source_name]
- * @param {string | null} [rule_id]
- * @param {string | null} [actions_taken]
- * @param {string | null} [output]
- * @returns {Promise<void>}
- */
-export function insertEvent(id, content, subject, sender, timestamp, status, event_type, event_category, source_name, rule_id, actions_taken, output) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    var ptr1 = isLikeNone(content) ? 0 : passStringToWasm0(content, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len1 = WASM_VECTOR_LEN;
-    var ptr2 = isLikeNone(subject) ? 0 : passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len2 = WASM_VECTOR_LEN;
-    var ptr3 = isLikeNone(sender) ? 0 : passStringToWasm0(sender, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len3 = WASM_VECTOR_LEN;
-    var ptr4 = isLikeNone(status) ? 0 : passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len4 = WASM_VECTOR_LEN;
-    var ptr5 = isLikeNone(event_type) ? 0 : passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len5 = WASM_VECTOR_LEN;
-    var ptr6 = isLikeNone(event_category) ? 0 : passStringToWasm0(event_category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len6 = WASM_VECTOR_LEN;
-    var ptr7 = isLikeNone(source_name) ? 0 : passStringToWasm0(source_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len7 = WASM_VECTOR_LEN;
-    var ptr8 = isLikeNone(rule_id) ? 0 : passStringToWasm0(rule_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len8 = WASM_VECTOR_LEN;
-    var ptr9 = isLikeNone(actions_taken) ? 0 : passStringToWasm0(actions_taken, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len9 = WASM_VECTOR_LEN;
-    var ptr10 = isLikeNone(output) ? 0 : passStringToWasm0(output, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len10 = WASM_VECTOR_LEN;
-    const ret = wasm.insertEvent(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, timestamp, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, ptr8, len8, ptr9, len9, ptr10, len10);
-    return ret;
-}
-
-/**
- * @param {any} rows
- * @returns {Promise<void>}
- */
-export function insertItemsBatch(rows) {
-    const ret = wasm.insertItemsBatch(rows);
-    return ret;
-}
-
-/**
- * @param {any} rows
- * @returns {Promise<void>}
- */
-export function insertSyncStateBatch(rows) {
-    const ret = wasm.insertSyncStateBatch(rows);
-    return ret;
-}
-
-/**
- * Log one pipeline execution to auditLog.
- * @param {string} id
- * @param {string} email_id
- * @param {string} subject
- * @param {string} from
- * @param {string} event_type
- * @param {number} executed_at
- * @param {boolean} success
- * @param {string} error
- * @param {string} steps_json
- * @returns {Promise<void>}
- */
-export function logAuditExecution(id, email_id, subject, from, event_type, executed_at, success, error, steps_json) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ptr2 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len2 = WASM_VECTOR_LEN;
-    const ptr3 = passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len3 = WASM_VECTOR_LEN;
-    const ptr4 = passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len4 = WASM_VECTOR_LEN;
-    const ptr5 = passStringToWasm0(error, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len5 = WASM_VECTOR_LEN;
-    const ptr6 = passStringToWasm0(steps_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len6 = WASM_VECTOR_LEN;
-    const ret = wasm.logAuditExecution(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, executed_at, success, ptr5, len5, ptr6, len6);
-    return ret;
-}
-
-/**
- * @param {string} email_id
- * @param {string | null} [action]
- * @param {string | null} [category]
- * @param {string | null} [reason]
- * @param {string | null} [summary]
- * @param {string | null} [tags]
- * @param {string | null} [subject]
- * @param {string | null} [from]
- * @param {number | null} [date]
- * @param {number | null} [scanned_at]
- * @param {string | null} [status]
- * @returns {Promise<void>}
- */
-export function putEmailClassification(email_id, action, category, reason, summary, tags, subject, from, date, scanned_at, status) {
-    const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    var ptr1 = isLikeNone(action) ? 0 : passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len1 = WASM_VECTOR_LEN;
-    var ptr2 = isLikeNone(category) ? 0 : passStringToWasm0(category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len2 = WASM_VECTOR_LEN;
-    var ptr3 = isLikeNone(reason) ? 0 : passStringToWasm0(reason, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len3 = WASM_VECTOR_LEN;
-    var ptr4 = isLikeNone(summary) ? 0 : passStringToWasm0(summary, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len4 = WASM_VECTOR_LEN;
-    var ptr5 = isLikeNone(tags) ? 0 : passStringToWasm0(tags, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len5 = WASM_VECTOR_LEN;
-    var ptr6 = isLikeNone(subject) ? 0 : passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len6 = WASM_VECTOR_LEN;
-    var ptr7 = isLikeNone(from) ? 0 : passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len7 = WASM_VECTOR_LEN;
-    var ptr8 = isLikeNone(status) ? 0 : passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    var len8 = WASM_VECTOR_LEN;
-    const ret = wasm.putEmailClassification(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, !isLikeNone(date), isLikeNone(date) ? 0 : date, !isLikeNone(scanned_at), isLikeNone(scanned_at) ? 0 : scanned_at, ptr8, len8);
-    return ret;
-}
-
-/**
- * Remove a setting by key.
- * @param {string} key
- * @returns {Promise<void>}
- */
-export function removeSetting(key) {
-    const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.removeSetting(ptr0, len0);
-    return ret;
-}
-
-/**
- * @param {any} payload
- * @returns {Promise<void>}
- */
-export function saveRule(payload) {
-    const ret = wasm.saveRule(payload);
-    return ret;
-}
-
-/**
- * @param {string} name
- * @param {boolean} enabled
- * @returns {Promise<void>}
- */
-export function setPluginEnabled(name, enabled) {
-    const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.setPluginEnabled(ptr0, len0, enabled);
-    return ret;
-}
-
-/**
- * Set a setting (insert or replace). Value must be JSON string.
- * @param {string} key
- * @param {string} value
- * @returns {Promise<void>}
- */
-export function setSetting(key, value) {
-    const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.setSetting(ptr0, len0, ptr1, len1);
-    return ret;
-}
-
-/**
- * @param {string} name
- * @param {boolean} enabled
- * @returns {Promise<void>}
- */
-export function setSourceEnabled(name, enabled) {
-    const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.setSourceEnabled(ptr0, len0, enabled);
-    return ret;
-}
-
-/**
- * Mark email executed; delete_item = true to remove from items (destructive/archive).
- * @param {string} email_id
- * @param {boolean} delete_item
- * @returns {Promise<void>}
- */
-export function syncAfterAuditExecution(email_id, delete_item) {
-    const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.syncAfterAuditExecution(ptr0, len0, delete_item);
-    return ret;
-}
-
-/**
- * @param {string} category_name
- * @param {any} actions_js
- * @returns {Promise<void>}
- */
-export function updateCategoryPipeline(category_name, actions_js) {
-    const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.updateCategoryPipeline(ptr0, len0, actions_js);
-    return ret;
-}
-
-/**
- * @param {string} category_name
- * @param {string} policy
- * @returns {Promise<void>}
- */
-export function updateCategoryPolicy(category_name, policy) {
-    const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(policy, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.updateCategoryPolicy(ptr0, len0, ptr1, len1);
-    return ret;
-}
-
-/**
- * @param {string} email_id
- * @param {string} status
- * @returns {Promise<void>}
- */
-export function updateEmailClassificationStatus(email_id, status) {
-    const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.updateEmailClassificationStatus(ptr0, len0, ptr1, len1);
-    return ret;
-}
-
-/**
- * @param {string} id
- * @param {string} status
- * @returns {Promise<void>}
- */
-export function updateEventStatus(id, status) {
-    const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.updateEventStatus(ptr0, len0, ptr1, len1);
-    return ret;
-}
-
-/**
- * @param {string} type_name
- * @param {string} category_name
- * @returns {Promise<void>}
- */
-export function updateEventTypeCategory(type_name, category_name) {
-    const ptr0 = passStringToWasm0(type_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.updateEventTypeCategory(ptr0, len0, ptr1, len1);
-    return ret;
-}
-
-/**
- * @param {string} email
- * @param {string} name
- * @param {number} first_seen
- * @param {number} last_seen
- * @returns {Promise<void>}
- */
-export function upsertContact(email, name, first_seen, last_seen) {
-    const ptr0 = passStringToWasm0(email, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.upsertContact(ptr0, len0, ptr1, len1, first_seen, last_seen);
-    return ret;
-}
-
-/**
- * Insert event type if not present (for LLM-seeded types).
- * @param {string} name
- * @param {string} label
- * @param {string} category_name
- * @param {boolean} auto_created
- * @returns {Promise<void>}
- */
-export function upsertEventType(name, label, category_name, auto_created) {
-    const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(label, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ptr2 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.upsertEventType(ptr0, len0, ptr1, len1, ptr2, len2, auto_created);
-    return ret;
-}
-
-/**
- * @param {string} source_type
- * @param {string} history_id
- * @param {number} last_sync_at
- * @param {number} total_items
- * @param {string} oldest_page_token
- * @returns {Promise<void>}
- */
-export function upsertSyncState(source_type, history_id, last_sync_at, total_items, oldest_page_token) {
-    const ptr0 = passStringToWasm0(source_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(history_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ptr2 = passStringToWasm0(oldest_page_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len2 = WASM_VECTOR_LEN;
-    const ret = wasm.upsertSyncState(ptr0, len0, ptr1, len1, last_sync_at, total_items, ptr2, len2);
-    return ret;
-}
+if (Symbol.dispose) MeAiCore.prototype[Symbol.dispose] = MeAiCore.prototype.free;
 
 function __wbg_get_imports() {
     const import0 = {
@@ -886,8 +972,21 @@ function __wbg_get_imports() {
         __wbg__wbg_cb_unref_6b5b6b8576d35cb1: function(arg0) {
             arg0._wbg_cb_unref();
         },
+        __wbg_abort_5ef96933660780b7: function(arg0) {
+            arg0.abort();
+        },
+        __wbg_abort_6479c2d794ebf2ee: function(arg0, arg1) {
+            arg0.abort(arg1);
+        },
         __wbg_advance_670851c833f4530f: function() { return handleError(function (arg0, arg1) {
             arg0.advance(arg1 >>> 0);
+        }, arguments); },
+        __wbg_append_608dfb635ee8998f: function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
+            arg0.append(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
+        }, arguments); },
+        __wbg_arrayBuffer_eb8e9ca620af2a19: function() { return handleError(function (arg0) {
+            const ret = arg0.arrayBuffer();
+            return ret;
         }, arguments); },
         __wbg_call_2d781c1f4d5c0ef8: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.call(arg1, arg2);
@@ -897,6 +996,10 @@ function __wbg_get_imports() {
             const ret = arg0.call(arg1);
             return ret;
         }, arguments); },
+        __wbg_clearTimeout_6b8d9a38b9263d65: function(arg0) {
+            const ret = clearTimeout(arg0);
+            return ret;
+        },
         __wbg_clear_1885f7bf35006b0c: function() { return handleError(function (arg0) {
             const ret = arg0.clear();
             return ret;
@@ -964,6 +1067,14 @@ function __wbg_get_imports() {
             const ret = arg0.error;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         }, arguments); },
+        __wbg_fetch_5550a88cf343aaa9: function(arg0, arg1) {
+            const ret = arg0.fetch(arg1);
+            return ret;
+        },
+        __wbg_fetch_9dad4fe911207b37: function(arg0) {
+            const ret = fetch(arg0);
+            return ret;
+        },
         __wbg_getAll_1c496368e98193a6: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.getAll(arg1, arg2 >>> 0);
             return ret;
@@ -1017,6 +1128,14 @@ function __wbg_get_imports() {
         },
         __wbg_get_with_ref_key_6412cf3094599694: function(arg0, arg1) {
             const ret = arg0[arg1];
+            return ret;
+        },
+        __wbg_has_926ef2ff40b308cf: function() { return handleError(function (arg0, arg1) {
+            const ret = Reflect.has(arg0, arg1);
+            return ret;
+        }, arguments); },
+        __wbg_headers_eb2234545f9ff993: function(arg0) {
+            const ret = arg0.headers;
             return ret;
         },
         __wbg_indexNames_3a9be68017fb9405: function(arg0) {
@@ -1107,6 +1226,16 @@ function __wbg_get_imports() {
             const ret = result;
             return ret;
         },
+        __wbg_instanceof_Response_9b4d9fd451e051b1: function(arg0) {
+            let result;
+            try {
+                result = arg0 instanceof Response;
+            } catch (_) {
+                result = false;
+            }
+            const ret = result;
+            return ret;
+        },
         __wbg_instanceof_Uint8Array_740438561a5b956d: function(arg0) {
             let result;
             try {
@@ -1149,10 +1278,18 @@ function __wbg_get_imports() {
             const ret = arg0.length;
             return ret;
         },
+        __wbg_meaicore_new: function(arg0) {
+            const ret = MeAiCore.__wrap(arg0);
+            return ret;
+        },
         __wbg_multiEntry_fd907a11ddf44df1: function(arg0) {
             const ret = arg0.multiEntry;
             return ret;
         },
+        __wbg_new_0837727332ac86ba: function() { return handleError(function () {
+            const ret = new Headers();
+            return ret;
+        }, arguments); },
         __wbg_new_49d5571bd3f0c4d4: function() {
             const ret = new Map();
             return ret;
@@ -1169,6 +1306,18 @@ function __wbg_get_imports() {
             const ret = new Object();
             return ret;
         },
+        __wbg_new_c518c60af666645b: function() { return handleError(function () {
+            const ret = new AbortController();
+            return ret;
+        }, arguments); },
+        __wbg_new_from_slice_22da9388ac046e50: function(arg0, arg1) {
+            const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
+            return ret;
+        },
+        __wbg_new_no_args_d15c5c26a5dbe2e7: function(arg0, arg1) {
+            const ret = new Function(getStringFromWasm0(arg0, arg1));
+            return ret;
+        },
         __wbg_new_typed_aaaeaf29cf802876: function(arg0, arg1) {
             try {
                 var state0 = {a: arg0, b: arg1};
@@ -1176,7 +1325,7 @@ function __wbg_get_imports() {
                     const a = state0.a;
                     state0.a = 0;
                     try {
-                        return wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8(a, state0.b, arg0, arg1);
+                        return wasm_bindgen__convert__closures_____invoke__h449f825a019ba2b1(a, state0.b, arg0, arg1);
                     } finally {
                         state0.a = a;
                     }
@@ -1191,6 +1340,10 @@ function __wbg_get_imports() {
             const ret = new Array();
             return ret;
         },
+        __wbg_new_with_str_and_init_b4b54d1a819bc724: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = new Request(getStringFromWasm0(arg0, arg1), arg2);
+            return ret;
+        }, arguments); },
         __wbg_next_11b99ee6237339e3: function() { return handleError(function (arg0) {
             const ret = arg0.next();
             return ret;
@@ -1265,6 +1418,10 @@ function __wbg_get_imports() {
             const ret = arg0.result;
             return ret;
         }, arguments); },
+        __wbg_setTimeout_f757f00851f76c42: function(arg0, arg1) {
+            const ret = setTimeout(arg0, arg1);
+            return ret;
+        },
         __wbg_set_282384002438957f: function(arg0, arg1, arg2) {
             arg0[arg1 >>> 0] = arg2;
         },
@@ -1278,8 +1435,26 @@ function __wbg_get_imports() {
             const ret = arg0.set(arg1, arg2);
             return ret;
         },
+        __wbg_set_body_a3d856b097dfda04: function(arg0, arg1) {
+            arg0.body = arg1;
+        },
+        __wbg_set_cache_ec7e430c6056ebda: function(arg0, arg1) {
+            arg0.cache = __wbindgen_enum_RequestCache[arg1];
+        },
+        __wbg_set_credentials_ed63183445882c65: function(arg0, arg1) {
+            arg0.credentials = __wbindgen_enum_RequestCredentials[arg1];
+        },
+        __wbg_set_headers_3c8fecc693b75327: function(arg0, arg1) {
+            arg0.headers = arg1;
+        },
         __wbg_set_key_path_3c45a8ff0b89e678: function(arg0, arg1) {
             arg0.keyPath = arg1;
+        },
+        __wbg_set_method_8c015e8bcafd7be1: function(arg0, arg1, arg2) {
+            arg0.method = getStringFromWasm0(arg1, arg2);
+        },
+        __wbg_set_mode_5a87f2c809cf37c2: function(arg0, arg1) {
+            arg0.mode = __wbindgen_enum_RequestMode[arg1];
         },
         __wbg_set_multi_entry_38c253febe05d3be: function(arg0, arg1) {
             arg0.multiEntry = arg1 !== 0;
@@ -1308,8 +1483,15 @@ function __wbg_get_imports() {
         __wbg_set_onversionchange_3d88930f82c97b92: function(arg0, arg1) {
             arg0.onversionchange = arg1;
         },
+        __wbg_set_signal_0cebecb698f25d21: function(arg0, arg1) {
+            arg0.signal = arg1;
+        },
         __wbg_set_unique_a39d85db47f8e025: function(arg0, arg1) {
             arg0.unique = arg1 !== 0;
+        },
+        __wbg_signal_166e1da31adcac18: function(arg0) {
+            const ret = arg0.signal;
+            return ret;
         },
         __wbg_static_accessor_GLOBAL_8adb955bd33fac2f: function() {
             const ret = typeof global === 'undefined' ? null : global;
@@ -1327,12 +1509,24 @@ function __wbg_get_imports() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
+        __wbg_status_318629ab93a22955: function(arg0) {
+            const ret = arg0.status;
+            return ret;
+        },
+        __wbg_stringify_5ae93966a84901ac: function() { return handleError(function (arg0) {
+            const ret = JSON.stringify(arg0);
+            return ret;
+        }, arguments); },
         __wbg_target_7bc90f314634b37b: function(arg0) {
             const ret = arg0.target;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbg_then_098abe61755d12f6: function(arg0, arg1) {
             const ret = arg0.then(arg1);
+            return ret;
+        },
+        __wbg_then_9e335f6dd892bc11: function(arg0, arg1, arg2) {
+            const ret = arg0.then(arg1, arg2);
             return ret;
         },
         __wbg_toString_3272fa0dfd05dd87: function(arg0) {
@@ -1351,6 +1545,13 @@ function __wbg_get_imports() {
             const ret = arg0.unique;
             return ret;
         },
+        __wbg_url_7fefc1820fba4e0c: function(arg0, arg1) {
+            const ret = arg1.url;
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        },
         __wbg_value_21fc78aab0322612: function(arg0) {
             const ret = arg0.value;
             return ret;
@@ -1360,36 +1561,41 @@ function __wbg_get_imports() {
             return ret;
         }, arguments); },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 2, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h81542e7475713b8b, wasm_bindgen__convert__closures_____invoke__h182b1d40719d2d80);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 2, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 3, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__heedac0890341c2a7, wasm_bindgen__convert__closures_____invoke__hf812eb332429c660);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 352, function: Function { arguments: [Externref], shim_idx: 437, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hb1f1e222d193ce94, wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 423, function: Function { arguments: [], shim_idx: 424, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h67a8c841ac8fc7de, wasm_bindgen__convert__closures_____invoke__h29b15ff5f8a3bf3a);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 389, function: Function { arguments: [NamedExternref("Event")], shim_idx: 390, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hf877564250f8afb4, wasm_bindgen__convert__closures_____invoke__h7e63a02318d8eeb2);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 526, function: Function { arguments: [Externref], shim_idx: 621, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h8069e08c8e9d16c4, wasm_bindgen__convert__closures_____invoke__h0d4dd8ab4895cb88);
             return ret;
         },
-        __wbindgen_cast_0000000000000004: function(arg0) {
+        __wbindgen_cast_0000000000000004: function(arg0, arg1) {
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 572, function: Function { arguments: [NamedExternref("Event")], shim_idx: 573, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h977d29423189e3cf, wasm_bindgen__convert__closures_____invoke__hab718df87d55d7a8);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000005: function(arg0) {
             // Cast intrinsic for `F64 -> Externref`.
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000005: function(arg0) {
+        __wbindgen_cast_0000000000000006: function(arg0) {
             // Cast intrinsic for `I64 -> Externref`.
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000006: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000007: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000007: function(arg0) {
+        __wbindgen_cast_0000000000000008: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;
@@ -1410,23 +1616,27 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__h182b1d40719d2d80(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h182b1d40719d2d80(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h29b15ff5f8a3bf3a(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h29b15ff5f8a3bf3a(arg0, arg1);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h7e63a02318d8eeb2(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h7e63a02318d8eeb2(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__hf812eb332429c660(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hf812eb332429c660(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281(arg0, arg1, arg2) {
-    const ret = wasm.wasm_bindgen__convert__closures_____invoke__h4c21a5017d209281(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__hab718df87d55d7a8(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hab718df87d55d7a8(arg0, arg1, arg2);
+}
+
+function wasm_bindgen__convert__closures_____invoke__h0d4dd8ab4895cb88(arg0, arg1, arg2) {
+    const ret = wasm.wasm_bindgen__convert__closures_____invoke__h0d4dd8ab4895cb88(arg0, arg1, arg2);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
 }
 
-function wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8(arg0, arg1, arg2, arg3) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h00d297b34697abe8(arg0, arg1, arg2, arg3);
+function wasm_bindgen__convert__closures_____invoke__h449f825a019ba2b1(arg0, arg1, arg2, arg3) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h449f825a019ba2b1(arg0, arg1, arg2, arg3);
 }
 
 
@@ -1434,6 +1644,18 @@ const __wbindgen_enum_IdbCursorDirection = ["next", "nextunique", "prev", "prevu
 
 
 const __wbindgen_enum_IdbTransactionMode = ["readonly", "readwrite", "versionchange", "readwriteflush", "cleanup"];
+
+
+const __wbindgen_enum_RequestCache = ["default", "no-store", "reload", "no-cache", "force-cache", "only-if-cached"];
+
+
+const __wbindgen_enum_RequestCredentials = ["omit", "same-origin", "include"];
+
+
+const __wbindgen_enum_RequestMode = ["same-origin", "no-cors", "cors", "navigate"];
+const MeAiCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_meaicore_free(ptr >>> 0, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
