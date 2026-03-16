@@ -186,16 +186,19 @@ export class ActionResult {
         return ret;
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get message() {
-        const ret = wasm.__wbg_get_actionresult_message(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_actionresult_message(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {string | undefined}
@@ -248,11 +251,11 @@ export class ActionResult {
         wasm.__wbg_set_actionresult_data(this.__wbg_ptr, arg0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set message(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_actionresult_message(this.__wbg_ptr, ptr0, len0);
     }
     /**
@@ -1473,11 +1476,11 @@ export class EventTypeRow {
         wasm.__wbg_eventtyperow_free(ptr, 0);
     }
     /**
-     * @returns {boolean | undefined}
+     * @returns {boolean}
      */
     get auto_created() {
         const ret = wasm.__wbg_get_eventtyperow_auto_created(this.__wbg_ptr);
-        return ret === 0xFFFFFF ? undefined : ret !== 0;
+        return ret !== 0;
     }
     /**
      * @returns {string | undefined}
@@ -1519,10 +1522,10 @@ export class EventTypeRow {
         }
     }
     /**
-     * @param {boolean | null} [arg0]
+     * @param {boolean} arg0
      */
     set auto_created(arg0) {
-        wasm.__wbg_set_eventtyperow_auto_created(this.__wbg_ptr, isLikeNone(arg0) ? 0xFFFFFF : arg0 ? 1 : 0);
+        wasm.__wbg_set_eventtyperow_auto_created(this.__wbg_ptr, arg0);
     }
     /**
      * @param {string | null} [arg0]
