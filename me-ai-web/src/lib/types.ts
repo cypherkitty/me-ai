@@ -114,8 +114,8 @@ export interface ActionExecutionResult {
   actionName?: string;
   commandId?: string;
   pluginId?: string;
-  success?: boolean;
-  message?: string;
+  success: boolean;
+  message: string;
 }
 
 // ── Events / Rules / Pipelines ────────────────────────────────────────

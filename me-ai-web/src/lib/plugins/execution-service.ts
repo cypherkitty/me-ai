@@ -101,7 +101,7 @@ async function runPipelineWithSplit(
           commandId: a.commandId,
           pluginId: a.pluginId,
           success: r.success,
-          message: r.message,
+          message: r.message ?? "",
         });
       }
     }

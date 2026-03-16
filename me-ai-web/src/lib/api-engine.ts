@@ -95,7 +95,7 @@ export function getApiEngine(provider: ApiProvider) {
     },
 
     async generate(
-      messages: { role: string; content?: string }[],
+      messages: { role: string; content: string }[],
       options: Record<string, unknown> = {}
     ): Promise<void> {
       if (!_modelName || !_provider) {
@@ -121,7 +121,7 @@ export function getApiEngine(provider: ApiProvider) {
 
         const chatMessages = messages.map((m) => ({
           role: m.role,
-          content: m.content ?? "",
+          content: m.content,
         }));
 
         await coreStreamChat(
@@ -173,7 +173,7 @@ export function getApiEngine(provider: ApiProvider) {
     },
 
     generateFull(
-      messages: { role: string; content?: string }[],
+      messages: { role: string; content: string }[],
       options: Record<string, unknown>,
       onToken?: (x: {
         tps: number | null;
