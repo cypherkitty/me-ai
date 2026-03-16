@@ -1,14 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseClassification, actionColor, tagColor } from "../triage.js";
 
-function _stringToHue(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = (Math.imul(31, hash) + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash) % 360;
-}
-
 vi.mock("../core.js", () => ({
   getOnnxModels: () => [],
   getOnnxModelGroups: () => [],
