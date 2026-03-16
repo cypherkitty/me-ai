@@ -342,6 +342,16 @@ export class ActionRow {
 }
 if (Symbol.dispose) ActionRow.prototype[Symbol.dispose] = ActionRow.prototype.free;
 
+/**
+ * AI backend selection.
+ * @enum {0 | 1 | 2}
+ */
+export const AiBackend = Object.freeze({
+    WebGpu: 0, "0": "WebGpu",
+    Ollama: 1, "1": "Ollama",
+    Cloud: 2, "2": "Cloud",
+});
+
 export class ApiModel {
     static __wrap(ptr) {
         ptr = ptr >>> 0;
@@ -1629,6 +1639,128 @@ export class GetAuditLogResult {
 }
 if (Symbol.dispose) GetAuditLogResult.prototype[Symbol.dispose] = GetAuditLogResult.prototype.free;
 
+/**
+ * Gmail profile (from Google People API).
+ */
+export class GmailProfile {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(GmailProfile.prototype);
+        obj.__wbg_ptr = ptr;
+        GmailProfileFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        GmailProfileFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_gmailprofile_free(ptr, 0);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get emailAddress() {
+        const ret = wasm.gmailprofile_emailAddress(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    constructor() {
+        const ret = wasm.gmailprofile_new();
+        this.__wbg_ptr = ret >>> 0;
+        GmailProfileFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {string} v
+     */
+    set emailAddress(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.gmailprofile_set_emailAddress(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) GmailProfile.prototype[Symbol.dispose] = GmailProfile.prototype.free;
+
+/**
+ * Google OAuth 2.0 access token.
+ */
+export class GoogleToken {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(GoogleToken.prototype);
+        obj.__wbg_ptr = ptr;
+        GoogleTokenFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        GoogleTokenFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_googletoken_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get accessToken() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.googletoken_accessToken(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get expiresAt() {
+        const ret = wasm.googletoken_expiresAt(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} access_token
+     * @param {number} expires_at
+     */
+    constructor(access_token, expires_at) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.googletoken_new(ptr0, len0, expires_at);
+        this.__wbg_ptr = ret >>> 0;
+        GoogleTokenFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {string} v
+     */
+    set accessToken(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.googletoken_set_accessToken(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} v
+     */
+    set expiresAt(v) {
+        wasm.googletoken_set_expiresAt(this.__wbg_ptr, v);
+    }
+}
+if (Symbol.dispose) GoogleToken.prototype[Symbol.dispose] = GoogleToken.prototype.free;
+
 export class IntoUnderlyingByteSource {
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -2720,16 +2852,6 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @param {string} key
-     * @returns {Promise<string | undefined>}
-     */
-    getSetting(key) {
-        const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.meaicore_getSetting(this.__wbg_ptr, ptr0, len0);
-        return ret;
-    }
-    /**
      * @returns {Promise<SourceRow[]>}
      */
     getSources() {
@@ -2829,6 +2951,13 @@ export class MeAiCore {
      */
     insertSyncStateBatch(rows) {
         const ret = wasm.meaicore_insertSyncStateBatch(this.__wbg_ptr, rows);
+        return ret;
+    }
+    /**
+     * @returns {Promise<SettingValue>}
+     */
+    loadSettings() {
+        const ret = wasm.meaicore_loadSettings(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -2941,6 +3070,16 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {SettingValue} sv
+     * @returns {Promise<void>}
+     */
+    saveSettings(sv) {
+        _assertClass(sv, SettingValue);
+        var ptr0 = sv.__destroy_into_raw();
+        const ret = wasm.meaicore_saveSettings(this.__wbg_ptr, ptr0);
+        return ret;
+    }
+    /**
      * @param {string} name
      * @param {boolean} enabled
      * @returns {Promise<void>}
@@ -2949,19 +3088,6 @@ export class MeAiCore {
         const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_setPluginEnabled(this.__wbg_ptr, ptr0, len0, enabled);
-        return ret;
-    }
-    /**
-     * @param {string} key
-     * @param {string} value
-     * @returns {Promise<void>}
-     */
-    setSetting(key, value) {
-        const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(value, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.meaicore_setSetting(this.__wbg_ptr, ptr0, len0, ptr1, len1);
         return ret;
     }
     /**
@@ -4236,6 +4362,479 @@ export class RuleView {
 }
 if (Symbol.dispose) RuleView.prototype[Symbol.dispose] = RuleView.prototype.free;
 
+/**
+ * Scan history summary stats.
+ */
+export class ScanHistory {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(ScanHistory.prototype);
+        obj.__wbg_ptr = ptr;
+        ScanHistoryFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ScanHistoryFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_scanhistory_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get classified() {
+        const ret = wasm.__wbg_get_scanhistory_classified(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get errors() {
+        const ret = wasm.__wbg_get_scanhistory_errors(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get timestamp() {
+        const ret = wasm.__wbg_get_scanhistory_timestamp(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {number}
+     */
+    get total() {
+        const ret = wasm.__wbg_get_scanhistory_total(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {number} timestamp
+     * @param {number} classified
+     * @param {number} errors
+     * @param {number} total
+     */
+    constructor(timestamp, classified, errors, total) {
+        const ret = wasm.scanhistory_new(timestamp, classified, errors, total);
+        this.__wbg_ptr = ret >>> 0;
+        ScanHistoryFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set classified(arg0) {
+        wasm.__wbg_set_scanhistory_classified(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set errors(arg0) {
+        wasm.__wbg_set_scanhistory_errors(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set timestamp(arg0) {
+        wasm.__wbg_set_scanhistory_timestamp(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set total(arg0) {
+        wasm.__wbg_set_scanhistory_total(this.__wbg_ptr, arg0);
+    }
+}
+if (Symbol.dispose) ScanHistory.prototype[Symbol.dispose] = ScanHistory.prototype.free;
+
+/**
+ * All app settings in one typed struct.
+ * Load with `core.loadSettings()`, save with `core.saveSettings(sv)`.
+ * Only non-None fields are written to IndexedDB on save.
+ */
+export class SettingValue {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(SettingValue.prototype);
+        obj.__wbg_ptr = ptr;
+        SettingValueFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        SettingValueFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_settingvalue_free(ptr, 0);
+    }
+    /**
+     * @returns {AiBackend | undefined}
+     */
+    get aiBackend() {
+        const ret = wasm.settingvalue_aiBackend(this.__wbg_ptr);
+        return ret === 3 ? undefined : ret;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get anthropicApiKey() {
+        const ret = wasm.settingvalue_anthropicApiKey(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {boolean | undefined}
+     */
+    get doSample() {
+        const ret = wasm.settingvalue_doSample(this.__wbg_ptr);
+        return ret === 0xFFFFFF ? undefined : ret !== 0;
+    }
+    /**
+     * @returns {boolean | undefined}
+     */
+    get enableThinking() {
+        const ret = wasm.settingvalue_enableThinking(this.__wbg_ptr);
+        return ret === 0xFFFFFF ? undefined : ret !== 0;
+    }
+    /**
+     * @returns {GmailProfile | undefined}
+     */
+    get gmailProfile() {
+        const ret = wasm.settingvalue_gmailProfile(this.__wbg_ptr);
+        return ret === 0 ? undefined : GmailProfile.__wrap(ret);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get googleApiKey() {
+        const ret = wasm.settingvalue_googleApiKey(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get googleClientId() {
+        const ret = wasm.settingvalue_googleClientId(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {GoogleToken | undefined}
+     */
+    get googleToken() {
+        const ret = wasm.settingvalue_googleToken(this.__wbg_ptr);
+        return ret === 0 ? undefined : GoogleToken.__wrap(ret);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get loadDevice() {
+        const ret = wasm.settingvalue_loadDevice(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get loadDtype() {
+        const ret = wasm.settingvalue_loadDtype(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {number | undefined}
+     */
+    get maxTokens() {
+        const ret = wasm.settingvalue_maxTokens(this.__wbg_ptr);
+        return ret[0] === 0 ? undefined : ret[1];
+    }
+    constructor() {
+        const ret = wasm.settingvalue_new();
+        this.__wbg_ptr = ret >>> 0;
+        SettingValueFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get ollamaUrl() {
+        const ret = wasm.settingvalue_ollamaUrl(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get openaiApiKey() {
+        const ret = wasm.settingvalue_openaiApiKey(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {number | undefined}
+     */
+    get repetitionPenalty() {
+        const ret = wasm.settingvalue_repetitionPenalty(this.__wbg_ptr);
+        return ret[0] === 0 ? undefined : ret[1];
+    }
+    /**
+     * @returns {ScanHistory | undefined}
+     */
+    get scanHistory() {
+        const ret = wasm.settingvalue_scanHistory(this.__wbg_ptr);
+        return ret === 0 ? undefined : ScanHistory.__wrap(ret);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get selectedModel() {
+        const ret = wasm.settingvalue_selectedModel(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @param {AiBackend} v
+     */
+    set aiBackend(v) {
+        wasm.settingvalue_set_aiBackend(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {string} v
+     */
+    set anthropicApiKey(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_anthropicApiKey(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {boolean} v
+     */
+    set doSample(v) {
+        wasm.settingvalue_set_doSample(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {boolean} v
+     */
+    set enableThinking(v) {
+        wasm.settingvalue_set_enableThinking(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {GmailProfile} p
+     */
+    set gmailProfile(p) {
+        _assertClass(p, GmailProfile);
+        var ptr0 = p.__destroy_into_raw();
+        wasm.settingvalue_set_gmailProfile(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @param {string} v
+     */
+    set googleApiKey(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_googleApiKey(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} v
+     */
+    set googleClientId(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_googleClientId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {GoogleToken} t
+     */
+    set googleToken(t) {
+        _assertClass(t, GoogleToken);
+        var ptr0 = t.__destroy_into_raw();
+        wasm.settingvalue_set_googleToken(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @param {string} v
+     */
+    set loadDevice(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_loadDevice(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} v
+     */
+    set loadDtype(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_loadDtype(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} v
+     */
+    set maxTokens(v) {
+        wasm.settingvalue_set_maxTokens(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {string} v
+     */
+    set ollamaUrl(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_ollamaUrl(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} v
+     */
+    set openaiApiKey(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_openaiApiKey(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} v
+     */
+    set repetitionPenalty(v) {
+        wasm.settingvalue_set_repetitionPenalty(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {ScanHistory} h
+     */
+    set scanHistory(h) {
+        _assertClass(h, ScanHistory);
+        var ptr0 = h.__destroy_into_raw();
+        wasm.settingvalue_set_scanHistory(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @param {string} v
+     */
+    set selectedModel(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_selectedModel(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} v
+     */
+    set temperature(v) {
+        wasm.settingvalue_set_temperature(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {string} v
+     */
+    set twitterClientId(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_twitterClientId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {TwitterProfile} p
+     */
+    set twitterProfile(p) {
+        _assertClass(p, TwitterProfile);
+        var ptr0 = p.__destroy_into_raw();
+        wasm.settingvalue_set_twitterProfile(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @param {TwitterToken} t
+     */
+    set twitterToken(t) {
+        _assertClass(t, TwitterToken);
+        var ptr0 = t.__destroy_into_raw();
+        wasm.settingvalue_set_twitterToken(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @param {string} v
+     */
+    set xaiApiKey(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.settingvalue_set_xaiApiKey(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {number | undefined}
+     */
+    get temperature() {
+        const ret = wasm.settingvalue_temperature(this.__wbg_ptr);
+        return ret[0] === 0 ? undefined : ret[1];
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get twitterClientId() {
+        const ret = wasm.settingvalue_twitterClientId(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {TwitterProfile | undefined}
+     */
+    get twitterProfile() {
+        const ret = wasm.settingvalue_twitterProfile(this.__wbg_ptr);
+        return ret === 0 ? undefined : TwitterProfile.__wrap(ret);
+    }
+    /**
+     * @returns {TwitterToken | undefined}
+     */
+    get twitterToken() {
+        const ret = wasm.settingvalue_twitterToken(this.__wbg_ptr);
+        return ret === 0 ? undefined : TwitterToken.__wrap(ret);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get xaiApiKey() {
+        const ret = wasm.settingvalue_xaiApiKey(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+}
+if (Symbol.dispose) SettingValue.prototype[Symbol.dispose] = SettingValue.prototype.free;
+
 export class SourceRow {
     static __wrap(ptr) {
         ptr = ptr >>> 0;
@@ -4477,6 +5076,188 @@ export class SyncStateRow {
     }
 }
 if (Symbol.dispose) SyncStateRow.prototype[Symbol.dispose] = SyncStateRow.prototype.free;
+
+/**
+ * Twitter/X user profile (common fields from Twitter API v2).
+ */
+export class TwitterProfile {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(TwitterProfile.prototype);
+        obj.__wbg_ptr = ptr;
+        TwitterProfileFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TwitterProfileFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_twitterprofile_free(ptr, 0);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get id() {
+        const ret = wasm.twitterprofile_id(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get name() {
+        const ret = wasm.twitterprofile_name(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    constructor() {
+        const ret = wasm.twitterprofile_new();
+        this.__wbg_ptr = ret >>> 0;
+        TwitterProfileFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {string} v
+     */
+    set id(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.twitterprofile_set_id(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} v
+     */
+    set name(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.twitterprofile_set_name(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} v
+     */
+    set username(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.twitterprofile_set_username(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get username() {
+        const ret = wasm.twitterprofile_username(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+}
+if (Symbol.dispose) TwitterProfile.prototype[Symbol.dispose] = TwitterProfile.prototype.free;
+
+/**
+ * Twitter/X OAuth 2.0 PKCE token.
+ */
+export class TwitterToken {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(TwitterToken.prototype);
+        obj.__wbg_ptr = ptr;
+        TwitterTokenFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TwitterTokenFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_twittertoken_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get accessToken() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.twittertoken_accessToken(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get expiresAt() {
+        const ret = wasm.twittertoken_expiresAt(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {string} access_token
+     * @param {number} expires_at
+     */
+    constructor(access_token, expires_at) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.twittertoken_new(ptr0, len0, expires_at);
+        this.__wbg_ptr = ret >>> 0;
+        TwitterTokenFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get refreshToken() {
+        const ret = wasm.twittertoken_refreshToken(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @param {string} v
+     */
+    set accessToken(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.twittertoken_set_accessToken(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} v
+     */
+    set expiresAt(v) {
+        wasm.twittertoken_set_expiresAt(this.__wbg_ptr, v);
+    }
+    /**
+     * @param {string} v
+     */
+    set refreshToken(v) {
+        const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.twittertoken_set_refreshToken(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) TwitterToken.prototype[Symbol.dispose] = TwitterToken.prototype.free;
 
 function __wbg_get_imports() {
     const import0 = {
@@ -5275,6 +6056,10 @@ function __wbg_get_imports() {
         __wbg_set_unique_a39d85db47f8e025: function(arg0, arg1) {
             arg0.unique = arg1 !== 0;
         },
+        __wbg_settingvalue_new: function(arg0) {
+            const ret = SettingValue.__wrap(arg0);
+            return ret;
+        },
         __wbg_signal_166e1da31adcac18: function(arg0) {
             const ret = arg0.signal;
             return ret;
@@ -5368,17 +6153,17 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 796, function: Function { arguments: [], shim_idx: 797, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 801, function: Function { arguments: [], shim_idx: 802, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 866, function: Function { arguments: [Externref], shim_idx: 1027, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 871, function: Function { arguments: [Externref], shim_idx: 1032, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 980, function: Function { arguments: [NamedExternref("Event")], shim_idx: 981, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 985, function: Function { arguments: [NamedExternref("Event")], shim_idx: 986, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
@@ -5564,6 +6349,12 @@ const EventTypeRowFinalization = (typeof FinalizationRegistry === 'undefined')
 const GetAuditLogResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_getauditlogresult_free(ptr >>> 0, 1));
+const GmailProfileFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_gmailprofile_free(ptr >>> 0, 1));
+const GoogleTokenFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_googletoken_free(ptr >>> 0, 1));
 const IntoUnderlyingByteSourceFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_intounderlyingbytesource_free(ptr >>> 0, 1));
@@ -5615,17 +6406,35 @@ const RuleTriggerViewFinalization = (typeof FinalizationRegistry === 'undefined'
 const RuleViewFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_ruleview_free(ptr >>> 0, 1));
+const ScanHistoryFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_scanhistory_free(ptr >>> 0, 1));
+const SettingValueFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_settingvalue_free(ptr >>> 0, 1));
 const SourceRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_sourcerow_free(ptr >>> 0, 1));
 const SyncStateRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_syncstaterow_free(ptr >>> 0, 1));
+const TwitterProfileFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_twitterprofile_free(ptr >>> 0, 1));
+const TwitterTokenFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_twittertoken_free(ptr >>> 0, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
     wasm.__wbindgen_externrefs.set(idx, obj);
     return idx;
+}
+
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
 }
 
 const CLOSURE_DTORS = (typeof FinalizationRegistry === 'undefined')
