@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { MODELS, MODEL_GROUPS } from "../../lib/models.js";
+  import { getModels, getModelGroups } from "../../lib/models.js";
   import { formatBytes } from "../../lib/format.js";
   import { mountLog } from "../../lib/debug.js";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -31,7 +31,9 @@
   }
   let { selectedModel = $bindable(), loadDtype = $bindable("q4f16"), loadDevice = $bindable("webgpu"), gpuInfo = null, error = null, onload, onclearerror, onclearcache }: Props = $props();
 
-  const selectedInfo = $derived(MODELS.find(m => m.id === selectedModel));
+  const models = getModels();
+  const modelGroups = getModelGroups();
+  const selectedInfo = $derived(models.find(m => m.id === selectedModel));
 
   onMount(() => mountLog("ModelSelector"));
 </script>
@@ -47,7 +49,7 @@
         onchange={() => onclearerror?.()}
         class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       >
-        {#each MODEL_GROUPS as group (group.label)}
+        {#each modelGroups as group (group.label)}
           <optgroup label={group.label}>
             {#each group.models as model (model.id)}
               <option value={model.id}>{group.label} {model.name} — {model.size}</option>
@@ -104,7 +106,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each MODEL_GROUPS as group (group.label)}
+                {#each modelGroups as group (group.label)}
                   <tr>
                     <td colspan="4" class="px-3 pt-3 pb-1 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/40">{group.label}</td>
                   </tr>

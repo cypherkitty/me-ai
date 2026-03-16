@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { loadSettings, saveSettings, SettingValue, AiBackend } from "./lib/core.js";
-  import { MODELS } from "./lib/models.js";
-  import { OLLAMA_MODELS } from "./lib/ollama-models.js";
+  import { getModels } from "./lib/models.js";
+  import { getOllamaModels } from "./lib/ollama-models.js";
   import { coreStore } from "./lib/store/core-store.js";
   import type { ApiModel } from "./lib/api-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
@@ -748,13 +748,15 @@
 
   // Watch backend changes and update default model
   $effect(() => {
-    if (backend === AiBackend.WebGpu && !MODELS.find((m) => m.id === selectedModel)) {
-      if (MODELS[0]) selectedModel = MODELS[0].id;
+    const models = getModels();
+    const ollamaModels = getOllamaModels();
+    if (backend === AiBackend.WebGpu && !models.find((m) => m.id === selectedModel)) {
+      if (models[0]) selectedModel = models[0].id;
     } else if (
       backend === AiBackend.Ollama &&
-      !OLLAMA_MODELS.find((m) => m.name === selectedModel)
+      !ollamaModels.find((m) => m.name === selectedModel)
     ) {
-      if (OLLAMA_MODELS[0]) selectedModel = OLLAMA_MODELS[0].name;
+      if (ollamaModels[0]) selectedModel = ollamaModels[0].name;
     } else if (
       backend === AiBackend.Cloud &&
       !apiModels.find((m) => m.id === selectedModel)

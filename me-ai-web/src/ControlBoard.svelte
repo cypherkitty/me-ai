@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
-  import { MODELS } from "./lib/models.js";
-  import { OLLAMA_MODELS } from "./lib/ollama-models.js";
+  import { getModels } from "./lib/models.js";
+  import { getOllamaModels } from "./lib/ollama-models.js";
   import {
     scanEmails,
     getClassificationsByCategory,
@@ -62,8 +62,8 @@
       const msg = rawMsg as Record<string, unknown>;
       if (msg.status === "ready") {
         engineStatus = "ready";
-        const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
-        const ollamaModel = OLLAMA_MODELS.find(
+        const webgpuModel = getModels().find((m) => m.id === engine.modelId);
+        const ollamaModel = getOllamaModels().find(
           (m) => m.name === engine.modelId,
         );
         modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
@@ -73,8 +73,8 @@
 
     engineStatus = engine.status;
     if (engine.modelId) {
-      const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
-      const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
+      const webgpuModel = getModels().find((m) => m.id === engine.modelId);
+      const ollamaModel = getOllamaModels().find((m) => m.name === engine.modelId);
       modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
     }
 

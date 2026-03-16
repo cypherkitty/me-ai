@@ -42,8 +42,10 @@ function mapModel(m: import("./core.js").OllamaModel): OllamaModel {
   };
 }
 
-/** All Ollama models as a flat array. */
-export const OLLAMA_MODELS: OllamaModel[] = coreGetOllamaModels().map(mapModel);
+/** All Ollama models as a flat array. Evaluated lazily after core is ready. */
+export function getOllamaModels(): OllamaModel[] {
+  return coreGetOllamaModels().map(mapModel);
+}
 
 export function getRecommendedOllamaModels(): OllamaModel[] {
   return coreGetRecommendedOllamaModels().map(mapModel);

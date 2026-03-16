@@ -210,11 +210,11 @@ export async function scanEmails(
 
   const modelDisplayName = (modelInfo as { displayName?: string; name?: string }).displayName ?? (modelInfo as { name?: string }).name;
   if (!(modelInfo as { recommendedForEmailProcessing?: boolean }).recommendedForEmailProcessing && toProcess.length > 0) {
-    const { MODELS } = await import("./models.js");
-    const { OLLAMA_MODELS } = await import("./ollama-models.js");
+    const { getModels } = await import("./models.js");
+    const { getOllamaModels } = await import("./ollama-models.js");
     const recommendedModels = [
-      ...MODELS.filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { name: string }) => m.name),
-      ...OLLAMA_MODELS.filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { displayName: string }) => m.displayName),
+      ...getModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { name: string }) => m.name),
+      ...getOllamaModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { displayName: string }) => m.displayName),
     ];
     console.warn(
       `⚠️ Current model (${modelDisplayName}) is not optimized for email processing. ` +

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { OLLAMA_MODELS, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
+  import { getOllamaModels, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
   import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels, type OllamaConnectionResult } from "../../lib/ollama-client.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -62,6 +62,7 @@
     return availableModels.length > 0 && availableModels.includes(modelName);
   }
 
+  const ollamaModels = getOllamaModels();
   const recommendedModels = getRecommendedOllamaModels();
 </script>
 
@@ -144,7 +145,7 @@
             {/each}
           </optgroup>
           <optgroup label="Other Models">
-            {#each OLLAMA_MODELS.filter(m => !m.recommended) as model (model.name)}
+            {#each ollamaModels.filter(m => !m.recommended) as model (model.name)}
               <option value={model.name}>
                 {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
               </option>
@@ -154,7 +155,7 @@
       </div>
 
       {#if selectedModel}
-        {@const modelInfo = OLLAMA_MODELS.find(m => m.name === selectedModel)}
+        {@const modelInfo = ollamaModels.find(m => m.name === selectedModel)}
         {#if modelInfo}
           <div class="flex flex-col gap-1.5">
             <p class="text-xs text-muted-foreground">{modelInfo.description}</p>
@@ -200,7 +201,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each OLLAMA_MODELS as model (model.name)}
+              {#each ollamaModels as model (model.name)}
                 <tr class={cn(
                   "transition-colors",
                   model.name === selectedModel ? "bg-primary/5" : "hover:bg-accent",

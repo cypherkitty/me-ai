@@ -5,25 +5,25 @@
   import { Badge }      from "$lib/components/ui/badge/index.js";
   import { RefreshCw, Trash2, HardDrive, Cpu, AlertTriangle, CheckCircle2 } from "lucide-svelte";
   import { cn }         from "$lib/utils.js";
-  import { MODELS }     from "../lib/models.js";
+  import { getModels, type Model } from "../lib/models.js";
 
   const CACHE_NAME = "transformers-cache";
   const HF_PREFIX  = "https://huggingface.co/";
 
   interface CachedModel {
     id: string;
-    /** friendly name from MODELS list, or null if unknown */
+    /** friendly name from known models list, or null if unknown */
     name: string | null;
-    /** declared size string from MODELS list */
+    /** declared size string from known models list */
     declaredSize: string | null;
     files: { url: string; bytes: number }[];
     totalBytes: number;
-    /** model is in MODELS list */
+    /** model is in known models list */
     isKnown: boolean;
   }
 
   let models    = $state<CachedModel[]>([]);
-  let knownNotDownloaded = $state<typeof MODELS>([]);
+  let knownNotDownloaded = $state<Model[]>([]);
   let loading   = $state(true);
   let deleting  = $state<string | null>(null);
   let confirmId = $state<string | null>(null);
@@ -78,7 +78,7 @@
       const cachedIds = new Set(byModel.keys());
       const rows: CachedModel[] = [];
       for (const [id, files] of byModel) {
-        const meta = MODELS.find((m) => m.id === id);
+        const meta = getModels().find((m) => m.id === id);
         rows.push({
           id,
           name: meta?.name ?? null,
@@ -94,7 +94,7 @@
         return (a.name ?? a.id).localeCompare(b.name ?? b.id);
       });
       models = rows;
-      knownNotDownloaded = MODELS.filter((m) => !cachedIds.has(m.id));
+      knownNotDownloaded = getModels().filter((m) => !cachedIds.has(m.id));
     } finally {
       loading = false;
     }
