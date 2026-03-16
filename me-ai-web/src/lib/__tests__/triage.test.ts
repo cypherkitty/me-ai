@@ -31,7 +31,7 @@ vi.mock("../core.js", () => ({
     const firstBrace = text.indexOf("{");
     const lastBrace = text.lastIndexOf("}");
     if (firstBrace === -1 || lastBrace <= firstBrace) return undefined;
-    let jsonStr = text.slice(firstBrace, lastBrace + 1).replace(/ --set /g, " ");
+    const jsonStr = text.slice(firstBrace, lastBrace + 1).replace(/ --set /g, " ");
     let obj: Record<string, unknown>;
     try { obj = JSON.parse(jsonStr) as Record<string, unknown>; } catch { return undefined; }
     if (typeof obj !== "object" || Array.isArray(obj)) return undefined;
