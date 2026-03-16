@@ -56,12 +56,19 @@ tasks:
 
   # --- Dev server (use stable Rust for build:core if needed) ---
   dev:
-    desc: Run Vite dev server (core must be built first; use task install once)
-    deps:
-      - task: install
+    desc: Run Vite dev server (assumes core is already built; run task install once first)
     dir: '{{.WEB_DIR}}'
     cmds:
       - npm run dev
+
+  restart:
+    desc: Clean WASM, rebuild core, kill dev server, reinstall, start fresh
+    cmds:
+      - rm -rf {{.CORE_PKG}}
+      - task: build:core
+      - task: copy:core
+      - task: kill:dev
+      - cd {{.WEB_DIR}} && npm run dev
 
   kill:dev:
     desc: Kill all npm/Vite dev servers
