@@ -365,14 +365,3 @@ pub fn key_range_only(key: &str) -> Result<KeyRange, CoreError> {
     })
 }
 
-/// Build KeyRange::only for boolean key (e.g. index on "success").
-#[allow(dead_code)]
-pub fn key_range_only_bool(b: bool) -> Result<KeyRange, CoreError> {
-    let k = JsValue::from_bool(b);
-    KeyRange::only(&k).map_err(|e| {
-        CoreError::Rexie(format!(
-            "IDBKeyRange.only failed for boolean key '{}' (booleans are often NOT valid IDB keys): {}",
-            b, e
-        ))
-    })
-}

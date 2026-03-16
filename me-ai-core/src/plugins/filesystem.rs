@@ -23,21 +23,6 @@ impl FilesystemAction {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn from_str(s: &str) -> Option<Self> {
-        let normalized = s.trim().to_ascii_lowercase();
-        let normalized = normalized
-            .strip_prefix("filesystem:")
-            .unwrap_or(&normalized);
-        match normalized {
-            "read_file" => Some(Self::ReadFile),
-            "write_file" => Some(Self::WriteFile),
-            "list_dir" => Some(Self::ListDir),
-            "create_file" => Some(Self::CreateFile),
-            "delete_file" => Some(Self::DeleteFile),
-            _ => None,
-        }
-    }
 
     fn metadata(self) -> ActionMetadata {
         let (name, description) = match self {
