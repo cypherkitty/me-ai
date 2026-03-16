@@ -2,7 +2,7 @@
 	import { Collapsible as CollapsiblePrimitive } from "bits-ui";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		[key: string]: unknown;
 	}
 	let { ref = $bindable(null), ...restProps }: Props = $props();

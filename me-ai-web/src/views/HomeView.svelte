@@ -34,7 +34,8 @@
   const engine = getUnifiedEngine();
   let engineReady = $state(engine.isReady);
   $effect(() => {
-    const unsub = engine.onMessage((msg: { status: string }) => {
+    const unsub = engine.onMessage((rawMsg: unknown) => {
+      const msg = rawMsg as { status?: string };
       if (msg.status === "ready") engineReady = true;
     });
     return unsub;
@@ -46,34 +47,34 @@
       if (token && isTokenValid()) {
         gmailConnected = true;
       }
-    } catch {}
+    } catch { /* no-op */ }
 
     try {
       const status = (await getGmailSyncStatus()) as SyncStatus;
       emailCount = status.totalItems ?? 0;
-    } catch {}
+    } catch { /* no-op */ }
 
     // Also count Twitter items
     try {
       const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
       emailCount += twStatus.totalItems ?? 0;
-    } catch {}
+    } catch { /* no-op */ }
 
     // Check if Twitter is connected
     try {
       const twToken = await getSavedTwitterToken();
       if (twToken) gmailConnected = true; // reuse flag — means "any source connected"
-    } catch {}
+    } catch { /* no-op */ }
 
     try {
       const counts = (await getClassificationCounts()) as { total?: number };
       scannedCount = counts.total ?? 0;
-    } catch {}
+    } catch { /* no-op */ }
 
     try {
       const stats = (await getEventStats()) as { total?: number };
       pipelineCount = stats.total ?? 0;
-    } catch {}
+    } catch { /* no-op */ }
 
     checking = false;
   });
@@ -109,6 +110,14 @@
     <span class="text-sm font-semibold tracking-tight text-foreground"
       >me-ai</span
     >
+    <div class="flex-1"></div>
+    <a
+      href="#stream"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/60 transition-colors no-underline"
+    >
+      <GitBranch class="size-3.5 shrink-0" />
+      <span class="tracking-tight">Pipeline</span>
+    </a>
   </div>
 
   <!-- ── Compact Stepper Workflow ────────────────────────────────── -->

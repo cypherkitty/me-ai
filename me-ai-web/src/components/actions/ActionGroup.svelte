@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { StoredItem } from "$lib/types.js";
+  import type { StoredItem, Action } from "$lib/types.js";
   import EmailRow from "./EmailRow.svelte";
   import { cn } from "$lib/utils.js";
   import { ChevronDown } from "lucide-svelte";
@@ -19,16 +19,16 @@
     items?: ItemWithStatus[];
     expanded?: boolean;
     ontoggle?: () => void;
-    onexecute?: () => void;
+    onexecute?: (item: ItemWithStatus) => void;
     onmarkacted?: (id: string) => void;
-    ondismiss?: () => void;
-    onremove?: () => void;
+    ondismiss?: (id: string) => void;
+    onremove?: (id: string) => void;
     onclearcategory?: () => void;
   }
   let {
     action,
     color = "#888",
-    count = 0,
+    count: _count = 0,
     items = [],
     expanded = false,
     ontoggle,
@@ -43,8 +43,8 @@
   let actedItems = $derived(items.filter((i: ItemWithStatus) => i.status !== "pending"));
   let showClearConfirm = $state(false);
 
-  let activePipeline = $state<unknown[]>([]);
-  let activeTier = $state<unknown>(null);
+  let activePipeline = $state<Action[]>([]);
+  let activeTier = $state<string | undefined>(undefined);
 
   $effect(() => {
     if (expanded && action) {
@@ -106,7 +106,7 @@
         <PipelineGraph
           eventType={action}
           category={activeTier}
-          commands={activePipeline}
+          commands={activePipeline as unknown as { commandId?: string; pluginId?: string; name?: string; description?: string; icon?: string; [key: string]: unknown }[]}
         />
       </div>
       {#if pendingItems.length === 0 && actedItems.length === 0}
@@ -115,7 +115,7 @@
         </p>
       {/if}
 
-      {#each pendingItems as item (item.emailId)}
+      {#each pendingItems as item (item.id)}
         <EmailRow
           {item}
           actionColor={color}
@@ -133,7 +133,7 @@
           >
             {actedItems.length} handled
           </summary>
-          {#each actedItems as item (item.emailId)}
+          {#each actedItems as item (item.id)}
             <EmailRow {item} actionColor={color} {onremove} dimmed />
           {/each}
         </details>
@@ -156,7 +156,7 @@
             >
             <button
               onclick={() => {
-                onclearcategory();
+                onclearcategory?.();
                 showClearConfirm = false;
               }}
               class="text-destructive hover:text-destructive/80 transition-colors"

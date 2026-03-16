@@ -109,13 +109,11 @@ async function runPipelineWithSplit(
 
   const merged: ActionExecutionResult[] = [];
   let coreIdx = 0;
-  let fsIdx = 0;
   for (let i = 0; i < actions.length; i++) {
     if (isFilesystemAction(actions[i]!)) {
       const r = fsResultsByIndex.get(i);
       if (r) merged.push(r);
       else merged.push({ success: false, message: "Filesystem action failed" });
-      fsIdx++;
     } else {
       if (coreIdx < coreResults.length) {
         merged.push(coreResults[coreIdx]!);

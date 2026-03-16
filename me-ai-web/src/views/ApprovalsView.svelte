@@ -37,7 +37,7 @@
   interface ExecStep {
     id?: string;
     label?: string;
-    status?: string;
+    status?: "running" | "done" | "error" | "pending";
     [key: string]: unknown;
   }
   let events = $state<ApprovalEvent[]>([]);
@@ -150,7 +150,7 @@
       // Persist the executed status so this email doesn't reappear on refresh
       try {
         await updateClassificationStatus(id, "executed");
-      } catch {}
+      } catch { /* no-op */ }
       // Remove from pending list after a short delay so the user sees success
       setTimeout(() => {
         events = events.filter((e) => e.id !== id);
@@ -234,7 +234,6 @@
       {:else}
         <div class="flex flex-col gap-1 px-3 pb-4">
           {#each events as evt (evt.id)}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
             <div
               role="button"
               tabindex="0"

@@ -4,10 +4,23 @@
    */
 
   import { cn } from "$lib/utils.js";
+  import { SvelteSet } from "svelte/reactivity";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
 
+  interface TaskStep {
+    id: string;
+    label: string;
+    status: string;
+    expandable?: boolean;
+    subContent?: string;
+    thumbnail?: string;
+    badges?: string[];
+    detail?: string;
+    startedAt?: number;
+  }
   interface TaskCardMessage {
     model?: string;
+    steps?: TaskStep[];
     [key: string]: unknown;
   }
   interface Props {
@@ -15,15 +28,15 @@
   }
   let { msg }: Props = $props();
 
-  const MODEL_LABELS = {
+  const MODEL_LABELS: Record<string, string> = {
     webgpu: "WebGPU", ollama: "Ollama", openai: "GPT",
     anthropic: "Claude", google: "Gemini", xai: "Grok",
   };
-  const MODEL_COLORS = {
+  const MODEL_COLORS: Record<string, string> = {
     webgpu: "#4ade80", ollama: "#a78bfa", openai: "#10b981",
     anthropic: "#f59e0b", google: "#3b82f6", xai: "#e2e2e2",
   };
-  const CATEGORY_COLORS = {
+  const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     NOISE:    { bg: "color-mix(in srgb, #9ca3af 10%, transparent)", text: "#9ca3af", border: "color-mix(in srgb, #9ca3af 20%, transparent)" },
     INFO:     { bg: "color-mix(in srgb, #60a5fa 10%, transparent)", text: "#60a5fa", border: "color-mix(in srgb, #60a5fa 20%, transparent)" },
     CRITICAL: { bg: "color-mix(in srgb, #ef4444 10%, transparent)", text: "#ef4444", border: "color-mix(in srgb, #ef4444 20%, transparent)" },
@@ -31,13 +44,11 @@
   };
 
   let cardOpen = $state(true);
-  let expandedSteps = $state(new Set<string>());
+  const expandedSteps = new SvelteSet<string>();
 
   function toggleCard() { cardOpen = !cardOpen; }
   function toggleStep(id: string) {
-    const next = new Set(expandedSteps);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    expandedSteps = next;
+    if (expandedSteps.has(id)) expandedSteps.delete(id); else expandedSteps.add(id);
   }
 
   let modelLabel = $derived(msg.model ? (MODEL_LABELS[msg.model] ?? msg.model) : null);
@@ -57,22 +68,25 @@
     };
   }
 
-  function stepTextClass(status) {
-    return {
-      running: "text-foreground/70",
-      done:    "text-muted-foreground/40",
-      error:   "text-destructive",
-      pending: "text-muted-foreground/25",
-    }[status] ?? "text-muted-foreground/40";
+  const STEP_TEXT_CLASS: Record<string, string> = {
+    running: "text-foreground/70",
+    done:    "text-muted-foreground/40",
+    error:   "text-destructive",
+    pending: "text-muted-foreground/25",
+  };
+  const STEP_ICON_CLASS: Record<string, string> = {
+    running: "text-primary",
+    done:    "text-success",
+    error:   "text-destructive",
+    pending: "text-muted-foreground/25",
+  };
+
+  function stepTextClass(status: string) {
+    return STEP_TEXT_CLASS[status] ?? "text-muted-foreground/40";
   }
 
-  function stepIconClass(status) {
-    return {
-      running: "text-primary",
-      done:    "text-success",
-      error:   "text-destructive",
-      pending: "text-muted-foreground/25",
-    }[status] ?? "text-muted-foreground/25";
+  function stepIconClass(status: string) {
+    return STEP_ICON_CLASS[status] ?? "text-muted-foreground/25";
   }
 </script>
 
@@ -136,7 +150,7 @@
       </div>
     {/if}
 
-    {#if msg.steps?.length > 0}
+    {#if (msg.steps?.length ?? 0) > 0}
       <ScrollArea class="border-t border-border h-[min(320px,50vh)]">
         <div class="pr-2">
         {#each msg.steps as step (step.id)}
@@ -165,7 +179,7 @@
 
               {#if step.badges?.length}
                 <span class="flex gap-1 shrink-0">
-                  {#each step.badges as badge}
+                  {#each step.badges as badge (badge)}
                     {@const gs = categoryStyle(badge)}
                     <span
                       class="text-[0.58rem] font-bold uppercase tracking-wider px-1.5 py-px rounded border"
@@ -215,7 +229,7 @@
                 {/if}
                 {#if step.badges?.length}
                   <div class="flex flex-wrap gap-1.5">
-                    {#each step.badges as badge}
+                    {#each step.badges as badge (badge)}
                       {@const gs = categoryStyle(badge)}
                       <span
                         class="text-[0.63rem] font-bold uppercase tracking-wider px-2 py-0.5 rounded border"

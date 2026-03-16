@@ -29,7 +29,7 @@
   // "email" | "markdown" | "json"
   let viewMode = $state("email");
 
-  let markdownText = $derived(message.body ? emailToMarkdown(message) : "");
+  let markdownText = $derived(message.body ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" }) : "");
   let jsonText = $derived(emailToJsonString(message));
 
   let mdTab = $state("raw"); // "raw" | "preview"
@@ -40,7 +40,7 @@
   }
 
   function downloadMd() {
-    downloadText(markdownText, emailFilename(message));
+    downloadText(markdownText, emailFilename({ ...message, date: message.date != null ? String(message.date) : "" }));
   }
 
   function downloadJson() {
@@ -49,10 +49,10 @@
 
   /** Render markdown to sanitized HTML using marked + DOMPurify */
   function renderMarkdown(md: string) {
-    const raw = marked.parse(md);
+    const raw = marked.parse(md) as string;
     return DOMPurify.sanitize(raw, {
       ADD_ATTR: ["target"],
-      ALLOW_TAGS: [
+      ALLOWED_TAGS: [
         "h1", "h2", "h3", "h4", "h5", "h6",
         "p", "br", "hr", "blockquote", "pre", "code",
         "strong", "b", "em", "i", "a", "img",
@@ -109,8 +109,6 @@
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_interactive_supports_focus -->
 <div class="modal-overlay" onclick={onclose} role="dialog" aria-modal="true">
-  <!-- svelte-ignore a11y_interactive_supports_focus -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
     <div class="modal-header">
@@ -174,6 +172,7 @@
           <pre class="md-raw">{markdownText}</pre>
         {:else}
           <div class="md-preview">
+            <!-- eslint-disable-next-line svelte/no-at-html-tags -->
             {@html renderMarkdown(markdownText)}
           </div>
         {/if}

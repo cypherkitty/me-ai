@@ -77,7 +77,7 @@ export async function getDetailedSummary(): Promise<string> {
  * Get recent emails formatted for LLM context.
  */
 export async function getRecentEmails(limit = 10): Promise<string> {
-  const items = (await getItemsGmailByDateDesc(limit)) as Record<string, unknown>[];
+  const items = ((await getItemsGmailByDateDesc(limit)) as unknown) as Record<string, unknown>[];
   if (!items?.length) return "No emails stored locally.";
   return items
     .map((r) => formatItemForLLM(normaliseRow(r)))
@@ -89,7 +89,7 @@ export async function getRecentEmails(limit = 10): Promise<string> {
  */
 export async function searchData(searchQuery: string, limit = 10): Promise<string> {
   if (!searchQuery) return "No search query provided.";
-  const rows = (await getItemsGmailByDateDesc(limit * 5)) as Record<string, unknown>[];
+  const rows = ((await getItemsGmailByDateDesc(limit * 5)) as unknown) as Record<string, unknown>[];
   const q = searchQuery.toLowerCase();
   const scored = (rows ?? []).filter((r) => {
     const subj = String(r.subject ?? "").toLowerCase();
@@ -112,7 +112,7 @@ export async function searchData(searchQuery: string, limit = 10): Promise<strin
  * Returns null if there are no pending items.
  */
 export async function getPendingActions(): Promise<PendingActionsResult | null> {
-  const rows = (await getEmailClassifications()) as Record<string, unknown>[];
+  const rows = ((await getEmailClassifications()) as unknown) as Record<string, unknown>[];
   const pending = (rows ?? []).filter((r) => r.status === "pending");
   if (pending.length === 0) return null;
   const all = pending.map((r) => ({ ...r, tags: fromJson<unknown[]>(r.tags as string, []) }));
@@ -131,7 +131,7 @@ export async function getStoredEmails({
   offset = 0,
 }: GetStoredEmailsOptions = {}): Promise<GetStoredEmailsResult> {
   const fetchSize = searchQuery ? 2000 : limit + offset;
-  const rows = (await getItemsGmailByDateDesc(fetchSize)) as Record<string, unknown>[];
+  const rows = ((await getItemsGmailByDateDesc(fetchSize)) as unknown) as Record<string, unknown>[];
 
   let items = rows ?? [];
   if (searchQuery) {

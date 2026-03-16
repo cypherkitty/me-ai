@@ -25,7 +25,7 @@
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		class?: string;
 		side?: "top" | "bottom" | "left" | "right";
 		portalProps?: Record<string, unknown>;

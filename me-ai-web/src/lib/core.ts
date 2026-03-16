@@ -340,7 +340,7 @@ export async function getStorageStats(): Promise<{
     "settings",
   ]) {
     try {
-      tables[tbl] = Number(await getTableCount(tbl)) ?? 0;
+      tables[tbl] = Number(await getTableCount(tbl)) || 0;
     } catch {
       tables[tbl] = 0;
     }

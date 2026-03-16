@@ -11,6 +11,7 @@
   import {
     buildBatchEventMessage,
     buildEventsByCategoryMessage,
+    type ByCategory,
   } from "./lib/events.js";
   import { getClassificationsByCategory } from "./lib/triage.js";
   import {
@@ -28,35 +29,55 @@
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
 
-  const IS_WEBGPU_AVAILABLE = !!navigator.gpu;
+  const IS_WEBGPU_AVAILABLE = !!((navigator as unknown as { gpu?: unknown }).gpu);
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
-  let backend = $state("webgpu");
+  let backend = $state<"webgpu" | "ollama" | "cloud">("webgpu");
   let selectedModel = $state("onnx-community/gpt-oss-20b-ONNX");
   let apiModels: ApiModel[] = $state([]);
   $effect(() => {
     const { core } = $coreStore;
     if (!core) { apiModels = []; return; }
     try {
-      apiModels = (core as any).getApiModels() as ApiModel[];
+      apiModels = (core as unknown as { getApiModels(): ApiModel[] }).getApiModels();
     } catch (e) {
       console.error("[Chat] getApiModels failed:", e);
       apiModels = [];
     }
   });
-  let status = $state(null); // null | "loading" | "ready"
-  let error = $state(null);
+  interface ChatMsg {
+    role?: string;
+    type?: string;
+    content?: string;
+    thinking?: string;
+    model?: string;
+    status?: string;
+    title?: string;
+    description?: string;
+    steps?: Array<Record<string, unknown>>;
+    pendingData?: PendingData;
+    [key: string]: unknown;
+  }
+
+  interface PendingData {
+    total: number;
+    order: string[];
+    categories: Record<string, unknown[]>;
+  }
+
+  let status = $state<string | null>(null); // null | "loading" | "ready"
+  let error = $state<string | null>(null);
   let loadingMessage = $state("");
   // Track whether the user has explicitly initiated a load in this session.
   // Prevents stale worker errors from a previous session showing on page load.
   let loadInitiated = false;
-  let progressItems = $state([]);
+  let progressItems = $state<Record<string, unknown>[]>([]);
 
-  let messages = $state([]);
+  let messages = $state<ChatMsg[]>([]);
   let isRunning = $state(false);
-  let tps = $state(null);
-  let numTokens = $state(null);
+  let tps = $state<number | null>(null);
+  let numTokens = $state<number | null>(null);
   let enableThinking = $state(false);
   let loadDtype = $state("q4f16");
   let loadDevice = $state("webgpu");
@@ -65,12 +86,12 @@
   let temperature = $state(0.7);
   let repetitionPenalty = $state(1.1);
 
-  let chatContainer = $state(null);
-  let gpuInfo = $state(null);
-  let generationPhase = $state(null);
+  let chatContainer = $state<HTMLElement | null>(null);
+  let gpuInfo = $state<Record<string, unknown> | null>(null);
+  let generationPhase = $state<string | null>(null);
 
   // ── Cockpit state ─────────────────────────────────────────────────
-  let pendingData = $state(null);
+  let pendingData = $state<PendingData | null>(null);
   let hasScanData = $state(false);
   let isScanning = $state(false);
   let greetingShown = false;
@@ -78,7 +99,9 @@
   let storageUnavailable = $state(false);
 
   // ── Shared engine listener ─────────────────────────────────────────
-  onMount(async () => {
+  let _engineUnsub: (() => void) | undefined;
+  onMount(() => {
+    (async () => {
     // Restore saved backend, model, and options from settings (IndexedDB)
     try {
       const [
@@ -102,16 +125,16 @@
         getSetting("temperature"),
         getSetting("repetitionPenalty"),
       ]);
-      if (savedBackend) backend = savedBackend;
-      if (savedModel) selectedModel = savedModel;
-      if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking;
-      if (savedLoadDtype) loadDtype = savedLoadDtype;
-      if (savedLoadDevice) loadDevice = savedLoadDevice;
-      if (savedMaxTokens != null) maxTokens = savedMaxTokens;
-      if (savedDoSample !== undefined) doSample = savedDoSample;
-      if (savedTemperature != null) temperature = savedTemperature;
+      if (savedBackend) backend = savedBackend as "ollama" | "webgpu" | "cloud";
+      if (savedModel) selectedModel = savedModel as string;
+      if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking as boolean;
+      if (savedLoadDtype) loadDtype = savedLoadDtype as string;
+      if (savedLoadDevice) loadDevice = savedLoadDevice as string;
+      if (savedMaxTokens != null) maxTokens = savedMaxTokens as number;
+      if (savedDoSample !== undefined) doSample = savedDoSample as boolean;
+      if (savedTemperature != null) temperature = savedTemperature as number;
       if (savedRepetitionPenalty != null)
-        repetitionPenalty = savedRepetitionPenalty;
+        repetitionPenalty = savedRepetitionPenalty as number;
     } catch {
       storageUnavailable = true;
     }
@@ -124,15 +147,16 @@
       showDashboardIfNeeded();
     }
 
-    const unsub = engine.onMessage((msg) => {
+    const unsub = engine.onMessage((rawMsg) => {
+      const msg = rawMsg as Record<string, unknown>;
       switch (msg.status) {
         case "webgpu-info":
-          gpuInfo = msg.data;
+          gpuInfo = msg.data as Record<string, unknown>;
           break;
 
         case "loading":
           status = "loading";
-          loadingMessage = msg.data;
+          loadingMessage = msg.data as string;
           break;
 
         case "initiate":
@@ -158,7 +182,7 @@
 
         case "start":
           if (!isRunning) break;
-          generationPhase = msg.phase || "preparing";
+          generationPhase = (msg.phase as string) || "preparing";
           messages = [
             ...messages,
             {
@@ -172,17 +196,17 @@
 
         case "phase":
           if (!isRunning) break;
-          generationPhase = msg.phase;
+          generationPhase = msg.phase as string;
           break;
 
         case "thinking": {
           if (!isRunning) break;
-          tps = msg.tps;
-          numTokens = msg.numTokens;
+          tps = (msg.tps as number) ?? null;
+          numTokens = (msg.numTokens as number) ?? null;
           const last = messages[messages.length - 1];
           messages = [
             ...messages.slice(0, -1),
-            { ...last, thinking: (last.thinking || "") + msg.content },
+            { ...last, thinking: (last.thinking || "") + (msg.content as string) },
           ];
           scrollToBottom(false);
           break;
@@ -190,34 +214,34 @@
 
         case "thinking-done": {
           if (!isRunning) break;
-          tps = msg.tps;
-          numTokens = msg.numTokens;
+          tps = (msg.tps as number) ?? null;
+          numTokens = (msg.numTokens as number) ?? null;
           const last = messages[messages.length - 1];
           messages = [
             ...messages.slice(0, -1),
-            { ...last, thinking: msg.content },
+            { ...last, thinking: msg.content as string },
           ];
           break;
         }
 
         case "update": {
           if (!isRunning) break;
-          tps = msg.tps;
-          numTokens = msg.numTokens;
+          tps = (msg.tps as number) ?? null;
+          numTokens = (msg.numTokens as number) ?? null;
           const last = messages[messages.length - 1];
           messages = [
             ...messages.slice(0, -1),
-            { ...last, content: last.content + msg.output },
+            { ...last, content: (last.content ?? "") + (msg.output as string) },
           ];
           scrollToBottom(false);
           break;
         }
 
-        case "complete":
+        case "complete": {
           if (!isRunning) break;
           // Update final stats from Ollama
-          if (msg.tps !== undefined) tps = msg.tps;
-          if (msg.numTokens !== undefined) numTokens = msg.numTokens;
+          if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
+          if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
           isRunning = false;
           generationPhase = null;
 
@@ -230,7 +254,7 @@
             // 1. Intercept Execution Commands
             const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
             let match;
-            const executedCategories = [];
+            const executedCategories: string[] = [];
             while ((match = execRegex.exec(newContent)) !== null) {
               executedCategories.push(match[1]);
             }
@@ -259,7 +283,7 @@
               getClassificationsByCategory({ pendingOnly: true })
                 .then((byCategory) => {
                   if (byCategory.order.length > 0) {
-                    buildEventsByCategoryMessage(byCategory).then((eventsMsg) => {
+                    buildEventsByCategoryMessage(byCategory as unknown as ByCategory).then((eventsMsg) => {
                       messages = [...messages, eventsMsg];
                       scrollToBottom();
                     });
@@ -270,7 +294,7 @@
                     ...messages,
                     {
                       role: "assistant",
-                      content: `Failed to load events dashboard: ${err.message}`,
+                      content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
                     },
                   ];
                 });
@@ -291,10 +315,11 @@
 
           refreshPendingData();
           break;
+        }
 
         case "error":
           if (loadInitiated) {
-            error = msg.data;
+            error = msg.data as string;
           }
           if (status === "loading") {
             // Error during model loading - go back to model selector
@@ -316,7 +341,9 @@
       }
     });
 
-    return () => unsub();
+    _engineUnsub = unsub;
+    })();
+    return () => _engineUnsub?.();
   });
 
   // ── Dashboard / pending data ──────────────────────────────────────
@@ -324,7 +351,7 @@
     if (greetingShown || messages.length > 0) return;
     try {
       const pending = await getPendingActions();
-      pendingData = pending;
+      pendingData = pending as PendingData | null;
       if (pending) {
         greetingShown = true;
         messages = [
@@ -343,7 +370,7 @@
   async function refreshPendingData() {
     try {
       const pending = await getPendingActions();
-      pendingData = pending;
+      pendingData = pending as PendingData | null;
 
       // Update the dashboard message in-place if it exists
       const dashIdx = messages.findIndex((m) => m.type === "dashboard");
@@ -367,7 +394,7 @@
         if (byCategory.order.length === 0) {
           messages = messages.filter((_, i) => i !== eventsByCategoryIdx);
         } else {
-          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory as unknown as ByCategory);
           messages = messages.map((m, i) =>
             i === eventsByCategoryIdx ? eventsMsg : m,
           );
@@ -383,7 +410,7 @@
 
   // ── Action handlers (cockpit controls) ────────────────────────────
 
-  async function runAutomatedExecution(eventType, emails) {
+  async function runAutomatedExecution(eventType: string, emails: unknown[]) {
     if (!engine.isReady) return;
     const taskIdx = messages.length;
     const title = `${eventType
@@ -403,21 +430,24 @@
     ];
     scrollToBottom();
 
-    const updateTask = (patch) => Object.assign(messages[taskIdx], patch);
+    const updateTask = (patch: Record<string, unknown>) => Object.assign(messages[taskIdx], patch);
 
     try {
       const result = await executePipelineBatch(
         eventType,
-        emails,
+        emails as Array<Record<string, unknown>>,
         (progress) => {
           const s = messages[taskIdx].steps || [];
           if (progress.phase === "pipeline_loaded") {
             updateTask({
-              steps: progress.actions.map((a) => ({
-                id: a.id ?? a.commandId,
-                label: a.name ?? a.commandId,
-                status: "pending",
-              })),
+              steps: (progress.actions ?? []).map((rawA) => {
+                const a = rawA as Record<string, unknown>;
+                return {
+                  id: a.id ?? a.commandId,
+                  label: a.name ?? a.commandId,
+                  status: "pending",
+                };
+              }),
             });
           } else if (progress.phase === "action_start") {
             updateTask({
@@ -428,15 +458,16 @@
               ),
             });
           } else if (progress.phase === "action_complete") {
-            const ok = progress.result?.success !== false;
+            const r = progress.result as { success?: boolean; message?: string } | undefined;
+            const ok = r?.success !== false;
             updateTask({
               steps: s.map((step) =>
                 step.id === (progress.actionId ?? progress.commandId)
                   ? {
                       ...step,
                       status: ok ? "done" : "error",
-                      expandable: !!progress.result?.message,
-                      subContent: progress.result?.message ?? "",
+                      expandable: !!r?.message,
+                      subContent: r?.message ?? "",
                     }
                   : step,
               ),
@@ -476,7 +507,7 @@
           ),
           {
             id: "error",
-            label: `Execution failed: ${e.message}`,
+            label: `Execution failed: ${(e as Error)?.message ?? String(e)}`,
             status: "error",
           },
         ],
@@ -484,22 +515,22 @@
     }
   }
 
-  async function markActed(emailId) {
+  async function markActed(emailId: string) {
     await updateClassificationStatus(emailId, "acted");
     await refreshPendingData();
   }
 
-  async function dismiss(emailId) {
+  async function dismiss(emailId: string) {
     await updateClassificationStatus(emailId, "dismissed");
     await refreshPendingData();
   }
 
-  async function removeItem(emailId) {
+  async function removeItem(emailId: string) {
     await deleteClassification(emailId);
     await refreshPendingData();
   }
 
-  async function clearCategory(action) {
+  async function clearCategory(action: string) {
     await clearClassificationsByAction(action);
     await refreshPendingData();
   }
@@ -538,19 +569,19 @@
     scrollToBottom();
 
     // Helper: mutate the task card through the reactive proxy
-    const updateTask = (patch) => Object.assign(messages[taskIdx], patch);
+    const updateTask = (patch: Record<string, unknown>) => Object.assign(messages[taskIdx], patch);
 
-    let scanResults = null;
+    let scanResults: unknown[] | null = null;
     let emailCount = 0;
 
     // Completed email steps accumulate here during the scan
-    const completedSteps = [];
+    const completedSteps: Array<Record<string, unknown>> = [];
 
     try {
-      let classifyStartedAt = null;
+      let classifyStartedAt: number | null = null;
       let totalEmails = 0;
 
-      await scanEmails(engine, {
+      await scanEmails(engine as unknown as Parameters<typeof scanEmails>[0], {
         count: 20,
         onProgress: (progress) => {
           if (progress.phase === "loading") {
@@ -622,8 +653,8 @@
               ...completedSteps,
             ];
           } else if (progress.phase === "done") {
-            if (progress.results?.length > 0) {
-              scanResults = progress.results;
+            if ((progress.results?.length ?? 0) > 0) {
+              scanResults = progress.results ?? null;
             }
             emailCount = totalEmails;
           }
@@ -650,8 +681,9 @@
       await refreshPendingData();
 
       // Show scan results as a batch event message in chat
-      if (scanResults?.length > 0) {
-        const eventMsg = await buildBatchEventMessage(scanResults);
+      const typedScanResults = scanResults as unknown as Parameters<typeof buildBatchEventMessage>[0] | null;
+      if (typedScanResults && typedScanResults.length > 0) {
+        const eventMsg = await buildBatchEventMessage(typedScanResults);
         messages = [...messages, eventMsg];
         scrollToBottom();
       }
@@ -671,21 +703,22 @@
         ...(messages[taskIdx].steps ?? []).filter(
           (s) => s.status !== "running",
         ),
-        { id: "error", label: `Scan failed: ${e.message}`, status: "error" },
+        { id: "error", label: `Scan failed: ${(e as Error)?.message ?? String(e)}`, status: "error" },
       ];
     } finally {
       isScanning = false;
     }
   }
 
-  function handleCommand({ event, commandId }) {
-    // For now, describe the command execution in chat
-    const desc = `Execute "${commandId}" on ${event.type} event: "${event.data?.subject || "unknown"}"`;
+  function handleCommand(cmd: { event: Record<string, unknown>; commandId: string } | { id: string }) {
+    if (!("event" in cmd)) return;
+    const { event, commandId } = cmd;
+    const evData = event?.data as Record<string, unknown> | undefined;
     messages = [
       ...messages,
       {
         role: "assistant",
-        content: `Command: ${commandId}\n\nThis command is not yet implemented. In the future, "${commandId}" will be executed on the ${event.source} event "${event.data?.subject || ""}".`,
+        content: `Command: ${commandId}\n\nThis command is not yet implemented. In the future, "${commandId}" will be executed on the ${event.source} event "${evData?.subject || ""}".`,
       },
     ];
     scrollToBottom();
@@ -769,7 +802,7 @@
     })();
   });
 
-  async function send(text) {
+  async function send(text: string) {
     if (!text || isRunning) return;
 
     // 1. Instant Interceptor: Dashboard
@@ -786,7 +819,7 @@
             },
           ];
         } else {
-          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory as unknown as ByCategory);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {
@@ -794,7 +827,7 @@
           ...messages,
           {
             role: "assistant",
-            content: `Failed to load events dashboard: ${err.message}`,
+            content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
           },
         ];
       }
@@ -828,7 +861,7 @@
             },
           ];
         } else {
-          const eventsMsg = await buildEventsByCategoryMessage(byCategory);
+          const eventsMsg = await buildEventsByCategoryMessage(byCategory as unknown as ByCategory);
           messages = [...messages, eventsMsg];
         }
       } catch (err) {
@@ -836,7 +869,7 @@
           ...messages,
           {
             role: "assistant",
-            content: `Failed to load events: ${err.message}`,
+            content: `Failed to load events: ${(err as Error)?.message ?? String(err)}`,
           },
         ];
       }
@@ -849,7 +882,7 @@
     isRunning = true;
 
     // Build system context — only load heavy email data when the user asks about emails
-    let systemMessages = [];
+    let systemMessages: Array<{ role: string; content: string }> = [];
     try {
       const emailKeywords =
         /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;

@@ -10,7 +10,6 @@
    */
   import { onMount } from "svelte";
   import { Button }  from "$lib/components/ui/button/index.js";
-  import { Badge }   from "$lib/components/ui/badge/index.js";
   import { CheckCircle, AlertCircle, Loader, Mail } from "lucide-svelte";
   import { setSetting } from "../lib/store/settings.js";
 
@@ -58,7 +57,7 @@
       savedOk = true;
       // Clean the token out of the URL bar
       history.replaceState(null, "", window.location.pathname + "#oauth-redirect");
-    } catch (e) {
+    } catch {
       savedOk = false;
     }
 
@@ -179,8 +178,8 @@
 
     </div>
 
-    <a href="#home" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
-      ← Back to Home
+    <a href="#chat" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
+      Back to Chat
     </a>
   </div>
 </div>

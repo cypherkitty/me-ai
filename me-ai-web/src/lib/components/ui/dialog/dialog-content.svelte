@@ -7,7 +7,7 @@
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		class?: string;
 		portalProps?: Record<string, unknown>;
 		children?: Snippet;

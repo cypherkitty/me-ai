@@ -5,7 +5,7 @@
 	import TooltipPortal from "./tooltip-portal.svelte";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		class?: string;
 		sideOffset?: number;
 		side?: "top" | "bottom" | "left" | "right";

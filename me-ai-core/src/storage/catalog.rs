@@ -11,9 +11,12 @@ use crate::error::CoreError;
 pub struct SourceRow {
     pub name: String,
     pub label: Option<String>,
-    pub platform: Option<String>,
-    pub api: Option<String>,
-    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub platform: String,
+    #[serde(default)]
+    pub api: String,
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -28,19 +31,20 @@ pub struct PluginRow {
     pub name: String,
     pub label: Option<String>,
     pub version: Option<String>,
-    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginActionRow {
-    #[serde(rename = "action_name")]
-    pub action_name: Option<String>,
+    #[serde(rename = "action_name", default)]
+    pub action_name: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginSourceRow {
-    #[serde(rename = "source_name")]
-    pub source_name: Option<String>,
+    #[serde(rename = "source_name", default)]
+    pub source_name: String,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -56,7 +60,7 @@ pub struct PluginSummary {
     pub name: String,
     pub label: Option<String>,
     pub version: Option<String>,
-    pub enabled: Option<bool>,
+    pub enabled: bool,
     pub actions: Vec<LabelRef>,
     pub sources: Vec<LabelRef>,
 }
@@ -87,7 +91,8 @@ pub async fn get_plugins(db: DbRef<'_>) -> Result<Vec<PluginSummary>, CoreError>
             .await?;
         let action_names: Vec<String> = actions
             .into_iter()
-            .filter_map(|a| a.action_name)
+            .filter(|a| !a.action_name.is_empty())
+            .map(|a| a.action_name)
             .collect();
         let mut action_labels: Vec<LabelRef> = Vec::new();
         for an in &action_names {
@@ -102,7 +107,11 @@ pub async fn get_plugins(db: DbRef<'_>) -> Result<Vec<PluginSummary>, CoreError>
         let sources: Vec<PluginSourceRow> = db
             .index_get_all(store::SM_PLUGIN_SOURCES, "plugin_name", Some(range_src), None)
             .await?;
-        let source_names: Vec<String> = sources.into_iter().filter_map(|s| s.source_name).collect();
+        let source_names: Vec<String> = sources
+            .into_iter()
+            .filter(|s| !s.source_name.is_empty())
+            .map(|s| s.source_name)
+            .collect();
         let mut source_labels: Vec<LabelRef> = Vec::new();
         for sn in &source_names {
             if let Ok(Some(s)) = db.store_get::<SourceRow>(store::SM_SOURCES, sn).await {

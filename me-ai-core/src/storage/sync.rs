@@ -12,7 +12,7 @@ use crate::error::CoreError;
 pub struct SyncStateRow {
     #[serde(rename = "sourceType")]
     #[wasm_bindgen(js_name = "sourceType")]
-    pub source_type: Option<String>,
+    pub source_type: String,
     #[serde(rename = "historyId")]
     #[wasm_bindgen(js_name = "historyId")]
     pub history_id: Option<String>,
@@ -30,7 +30,7 @@ pub struct SyncStateRow {
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContactRow {
-    pub email: Option<String>,
+    pub email: String,
     pub name: Option<String>,
     #[serde(rename = "firstSeen")]
     #[wasm_bindgen(js_name = "firstSeen")]

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
+  import { SvelteSet } from "svelte/reactivity";
 
   interface Props {
     open?: boolean;
@@ -36,7 +37,7 @@
   });
 
   // Icons for well-known action IDs (same map as ActionEditor)
-  const ACTION_ICONS = {
+  const ACTION_ICONS: Record<string, string> = {
     mark_read: "✓",
     mark_unread: "○",
     star: "★",
@@ -59,16 +60,14 @@
   // Total action count across all plugins
   const totalActions = $derived(plugins.reduce((s, p) => s + p.actions.length, 0));
 
-  let expandedScopes = $state(new Set());
+  const expandedScopes = new SvelteSet<string>();
 
-  function toggleScopes(key) {
-    const next = new Set(expandedScopes);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    expandedScopes = next;
+  function toggleScopes(key: string) {
+    if (expandedScopes.has(key)) expandedScopes.delete(key);
+    else expandedScopes.add(key);
   }
 
-  function shortScope(scope) {
+  function shortScope(scope: string) {
     // e.g. "https://www.googleapis.com/auth/gmail.modify" → "gmail.modify"
     return scope.replace(/^https?:\/\/[^/]+\/auth\//, "");
   }
@@ -100,7 +99,7 @@
 
       <!-- Body -->
       <div class="panel-body">
-        {#each plugins as plugin}
+        {#each plugins as plugin (plugin.id)}
           <div class="plugin-section">
             <!-- Plugin header -->
             <div class="plugin-header">
@@ -116,7 +115,7 @@
 
             <!-- Actions table -->
             <div class="actions-table">
-              {#each plugin.actions as action}
+              {#each plugin.actions as action (action.id)}
                 {@const scopeKey = `${plugin.id}:${action.id}`}
                 {@const scopesOpen = expandedScopes.has(scopeKey)}
                 <div class="action-row">
@@ -140,7 +139,7 @@
                         </button>
                         {#if scopesOpen}
                           <div class="scopes-list">
-                            {#each action.scopes as scope}
+                            {#each action.scopes as scope (scope)}
                               <span class="scope-chip" title={scope}>
                                 {shortScope(scope)}
                               </span>

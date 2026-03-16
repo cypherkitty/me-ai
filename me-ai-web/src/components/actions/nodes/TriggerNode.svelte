@@ -1,11 +1,17 @@
 <script lang="ts">
   import { Handle, Position } from "@xyflow/svelte";
-  import { ChevronDown, Trash2 } from "lucide-svelte";
+  import { Trash2 } from "lucide-svelte";
 
   interface TriggerNodeData {
     triggerType?: string;
     isEditable?: boolean;
-    onClick?: () => void;
+    onClick?: (() => void) | null;
+    onDelete?: (() => void) | null;
+    onChange?: ((val: unknown) => void) | null;
+    label?: string;
+    index?: number;
+    triggerData?: { name?: string; [key: string]: unknown };
+    eventTypes?: unknown;
     [key: string]: unknown;
   }
   interface Props {
@@ -80,16 +86,16 @@
           <div class="space-y-1 w-full">
             <select
               class="text-xs font-semibold bg-secondary border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer outline-none w-full hover:border-border/80 focus:border-primary transition-colors focus:ring-1 focus:ring-primary/20"
-              value={data.triggerData.name}
+              value={data.triggerData?.name ?? ""}
               onchange={(e) =>
-                data.onChange({ type: "event_type", name: e.target.value })}
+                data.onChange?.({ type: "event_type", name: (e.target as HTMLSelectElement).value })}
             >
               <option value="">(Select Event Condition)</option>
-              {#each data.eventTypes || [] as et}
+              {#each (Array.isArray(data.eventTypes) ? data.eventTypes : []) as et (et)}
                 <option value={et}
                   >{et
                     .replace(/_/g, " ")
-                    .replace(/\b\w/g, (c) => c.toUpperCase())}</option
+                    .replace(/\b\w/g, (c: string) => c.toUpperCase())}</option
                 >
               {/each}
             </select>

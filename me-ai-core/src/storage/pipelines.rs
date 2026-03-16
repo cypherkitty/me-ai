@@ -47,17 +47,22 @@ struct EventTypeStoreRow {
 struct EventCategoryStoreRow {
     name: String,
     label: Option<String>,
-    priority: Option<i64>,
-    policy: Option<String>,
+    #[serde(default)]
+    priority: i64,
+    #[serde(default)]
+    policy: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct SourceStoreRow {
     name: String,
     label: Option<String>,
-    platform: Option<String>,
-    api: Option<String>,
-    enabled: Option<bool>,
+    #[serde(default)]
+    platform: String,
+    #[serde(default)]
+    api: String,
+    #[serde(default)]
+    enabled: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -65,7 +70,8 @@ struct PluginStoreRow {
     name: String,
     label: Option<String>,
     version: Option<String>,
-    enabled: Option<bool>,
+    #[serde(default)]
+    enabled: bool,
 }
 
 /// Input from JS for pipeline actions (pluginId, commandId). Deserialized via serde_wasm_bindgen.
@@ -152,7 +158,7 @@ pub async fn get_event_category_policy(
 ) -> Result<Option<String>, CoreError> {
     let row: Option<EventCategoryStoreRow> =
         db.store_get(store::SM_EVENT_CATEGORIES, category_name).await?;
-    Ok(row.and_then(|r| r.policy))
+    Ok(row.map(|r| r.policy))
 }
 
 /// Replace category pipeline with given actions.
@@ -192,7 +198,7 @@ pub async fn update_category_policy(
         .store_get(store::SM_EVENT_CATEGORIES, category_name)
         .await?
         .ok_or_else(|| CoreError::Rexie(format!("category not found: {}", category_name)))?;
-    row.policy = Some(policy.to_string());
+    row.policy = policy.to_string();
     db.store_put(store::SM_EVENT_CATEGORIES, &row, Some(category_name))
         .await
 }
@@ -239,7 +245,7 @@ pub async fn set_source_enabled(db: DbRef<'_>, name: &str, enabled: bool) -> Res
         .store_get(store::SM_SOURCES, name)
         .await?
         .ok_or_else(|| CoreError::Rexie(format!("source not found: {}", name)))?;
-    row.enabled = Some(enabled);
+    row.enabled = enabled;
     db.store_put(store::SM_SOURCES, &row, Some(name)).await
 }
 
@@ -249,6 +255,6 @@ pub async fn set_plugin_enabled(db: DbRef<'_>, name: &str, enabled: bool) -> Res
         .store_get(store::SM_PLUGINS, name)
         .await?
         .ok_or_else(|| CoreError::Rexie(format!("plugin not found: {}", name)))?;
-    row.enabled = Some(enabled);
+    row.enabled = enabled;
     db.store_put(store::SM_PLUGINS, &row, Some(name)).await
 }

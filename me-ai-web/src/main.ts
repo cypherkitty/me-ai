@@ -1,8 +1,8 @@
 import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
-import { setSetting, getSetting } from "./lib/store/settings.js";
-import { initCore } from "./lib/core.js";
+import { setSetting, getSetting } from "$lib/store/settings";
+import { initCore } from "$lib/core";
 
 // Init core after document is ready so IndexedDB open runs in a valid browser context.
 async function startCoreInit() {
@@ -10,11 +10,10 @@ async function startCoreInit() {
     await initCore();
   } catch (e) {
     console.error("[core] init failed", e);
-  } finally {
-    const el = document.getElementById("app");
-    if (!el) throw new Error("Missing #app element");
-    mount(App, { target: el });
   }
+  const el = document.getElementById("app");
+  if (!el) throw new Error("Missing #app element");
+  mount(App, { target: el });
 }
 
 if (document.readyState === "loading") {

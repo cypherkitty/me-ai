@@ -26,7 +26,7 @@
     </div>
 
     <nav class="flex flex-col flex-1 overflow-y-auto py-1">
-      {#each NAV_ITEMS as item}
+      {#each NAV_ITEMS as item (item.id)}
         <button
           class={cn(
             "relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left w-full",

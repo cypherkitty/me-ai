@@ -23,21 +23,21 @@
   const engine = getUnifiedEngine();
 
   // ── State ──────────────────────────────────────────────────────────
-  let engineStatus = $state(engine.status);
+  let engineStatus = $state<string>(engine.status);
   let modelName = $state("");
-  let categories = $state({});
-  let categoryOrder = $state([]);
-  let eventTypeToCategory = $state({});
-  let counts = $state({ total: 0 });
-  let stats = $state(null);
-  let expandedCategory = $state(null);
+  let categories = $state<Record<string, unknown>>({});
+  let categoryOrder = $state<string[]>([]);
+  let eventTypeToCategory = $state<Record<string, string>>({});
+  let counts = $state<Record<string, number> & { total: number }>({ total: 0 });
+  let stats = $state<unknown>(null);
+  let expandedCategory = $state<string | null>(null);
 
   let isScanning = $state(false);
-  let scanProgress = $state(null);
+  let scanProgress = $state<Record<string, unknown> | null>(null);
   let scanCount = $state(3);
-  let error = $state(null);
-  let successMsg = $state(null);
-  let scanAbort = $state(null);
+  let error = $state<string | null>(null);
+  let successMsg = $state<string | null>(null);
+  let scanAbort = $state<AbortController | null>(null);
 
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
 
@@ -45,7 +45,7 @@
     return await getSetting(SCAN_HISTORY_KEY);
   }
 
-  async function saveScanHistory(progress) {
+  async function saveScanHistory(progress: Record<string, unknown>) {
     if (!progress || progress.phase !== "done") return;
     // Store only stats — no email content outside IndexedDB
     await setSetting(SCAN_HISTORY_KEY, {
@@ -59,16 +59,18 @@
   }
 
   // ── Track engine status ────────────────────────────────────────────
-  onMount(async () => {
-    const unsub = engine.onMessage((msg) => {
+  onMount(() => {
+    let unsub: (() => void) | undefined;
+    (async () => {
+    unsub = engine.onMessage((rawMsg) => {
+      const msg = rawMsg as Record<string, unknown>;
       if (msg.status === "ready") {
         engineStatus = "ready";
         const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
         const ollamaModel = OLLAMA_MODELS.find(
           (m) => m.name === engine.modelId,
         );
-        const model = webgpuModel || ollamaModel;
-        modelName = model?.name || model?.displayName || engine.modelId || "";
+        modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
       }
       if (msg.status === "loading") engineStatus = "loading";
     });
@@ -77,18 +79,18 @@
     if (engine.modelId) {
       const webgpuModel = MODELS.find((m) => m.id === engine.modelId);
       const ollamaModel = OLLAMA_MODELS.find((m) => m.name === engine.modelId);
-      const model = webgpuModel || ollamaModel;
-      modelName = model?.name || model?.displayName || engine.modelId || "";
+      modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
     }
 
     // Restore last scan from IndexedDB
     const saved = await loadScanHistory();
     if (saved) {
-      scanProgress = { phase: "done", ...saved };
+      scanProgress = { phase: "done", ...(saved as Record<string, unknown>) };
     }
 
     loadData();
-    return () => unsub();
+    })();
+    return () => unsub?.();
   });
 
   // ── Load data from DB ──────────────────────────────────────────────
@@ -98,19 +100,19 @@
       const fetchedCounts = await getClassificationCounts();
       const fetchedStats = await getScanStats();
 
-      const map = {};
+      const map: Record<string, string> = {};
       for (const et of result.order) {
         const categoryTier = await getCategoryForEventType(et);
         map[et] = categoryTierToName(categoryTier);
       }
 
-      categories = result.categories;
+      categories = result.categories as Record<string, unknown>;
       categoryOrder = result.order;
-      counts = fetchedCounts;
+      counts = fetchedCounts as Record<string, number> & { total: number };
       stats = fetchedStats;
       eventTypeToCategory = map;
     } catch (e) {
-      error = `Failed to load data: ${e.message}`;
+      error = `Failed to load data: ${(e as Error)?.message ?? String(e)}`;
     }
   }
 
@@ -122,7 +124,7 @@
     await doScan(true);
   }
 
-  async function doScan(force) {
+  async function doScan(force: boolean) {
     if (isScanning || !engine.isReady) return;
 
     error = null;
@@ -133,18 +135,18 @@
     scanAbort = abort;
 
     try {
-      await scanEmails(engine, {
+      await scanEmails(engine as unknown as Parameters<typeof scanEmails>[0], {
         count: scanCount,
         force,
         signal: abort.signal,
         onProgress: (progress) => {
-          scanProgress = { ...progress };
-          if (progress.phase === "done") saveScanHistory(progress);
+          scanProgress = { ...(progress as unknown as Record<string, unknown>) };
+          if (progress.phase === "done") saveScanHistory(progress as unknown as Record<string, unknown>);
         },
       });
       await loadData();
     } catch (e) {
-      if (!abort.signal.aborted) error = `Scan failed: ${e.message}`;
+      if (!abort.signal.aborted) error = `Scan failed: ${(e as Error)?.message ?? String(e)}`;
     } finally {
       isScanning = false;
       scanAbort = null;
@@ -156,12 +158,12 @@
   }
 
   // ── Item actions ───────────────────────────────────────────────────
-  async function markActed(emailId) {
+  async function markActed(emailId: string) {
     await updateClassificationStatus(emailId, "acted");
     await loadData();
   }
 
-  async function executeEmail(eventType, email) {
+  async function executeEmail(eventType: string, email: Record<string, unknown>) {
     const { executePipeline, isAuthenticated } = await import(
       "./lib/plugins/execution-service.js"
     );
@@ -185,36 +187,36 @@
       ); // Pass true for approved if we bypass the CRITICAL UI check here for simplicity, or we can handle it properly
 
       if (result.success) {
-        successMsg = result.message;
+        successMsg = result.message ?? null;
         error = null;
-        await markActed(email.emailId); // Mark as done after successful execution
+        await markActed(email.emailId as string); // Mark as done after successful execution
       } else {
         error = `Execution failed: ${result.message}`;
         successMsg = null;
       }
     } catch (e) {
-      error = `Execution error: ${e.message}`;
+      error = `Execution error: ${(e as Error)?.message ?? String(e)}`;
       successMsg = null;
     }
   }
 
-  async function dismiss(emailId) {
+  async function dismiss(emailId: string) {
     await updateClassificationStatus(emailId, "dismissed");
     await loadData();
   }
 
-  async function removeItem(emailId) {
+  async function removeItem(emailId: string) {
     await deleteClassification(emailId);
     await loadData();
   }
 
   // ── Category actions ───────────────────────────────────────────────
-  async function clearCategory(actionId) {
+  async function clearCategory(actionId: string) {
     await clearClassificationsByAction(actionId);
     await loadData();
   }
 
-  function toggleCategory(actionId) {
+  function toggleCategory(actionId: string) {
     expandedCategory = expandedCategory === actionId ? null : actionId;
   }
 </script>

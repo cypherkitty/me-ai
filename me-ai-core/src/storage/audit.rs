@@ -11,21 +11,23 @@ use crate::error::CoreError;
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuditLogRow {
-    pub id: Option<String>,
-    #[serde(rename = "emailId")]
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "emailId", default)]
     #[wasm_bindgen(js_name = "emailId")]
-    pub email_id: Option<String>,
+    pub email_id: String,
     pub subject: Option<String>,
     #[serde(rename = "from")]
     #[wasm_bindgen(js_name = "from")]
     pub from_addr: Option<String>,
-    #[serde(rename = "eventType")]
+    #[serde(rename = "eventType", default)]
     #[wasm_bindgen(js_name = "eventType")]
-    pub event_type: Option<String>,
-    #[serde(rename = "executedAt")]
+    pub event_type: String,
+    #[serde(rename = "executedAt", default)]
     #[wasm_bindgen(js_name = "executedAt")]
-    pub executed_at: Option<i64>,
-    pub success: Option<bool>,
+    pub executed_at: i64,
+    #[serde(default)]
+    pub success: bool,
     pub error: Option<String>,
     pub steps: Option<String>,
 }
@@ -134,7 +136,7 @@ pub async fn get_audit_log(
             )
             .await?;
         let failures: Vec<AuditLogRow> =
-            all.into_iter().filter(|r| r.success == Some(false)).collect();
+            all.into_iter().filter(|r| !r.success).collect();
         let total = failures.len() as i64;
         let entries = failures
             .into_iter()
@@ -170,10 +172,10 @@ pub async fn get_audit_stats(db: DbRef<'_>) -> Result<AuditStats, CoreError> {
     let mut completed = 0u32;
     let mut failed = 0u32;
     for row in rows {
-        match row.success {
-            Some(true) => completed += 1,
-            Some(false) => failed += 1,
-            None => {}
+        if row.success {
+            completed += 1;
+        } else {
+            failed += 1;
         }
     }
     Ok(AuditStats { completed, failed })

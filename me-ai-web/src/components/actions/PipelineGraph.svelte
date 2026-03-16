@@ -25,8 +25,6 @@
     eventTypes = null,
     category,
     commands = [],
-    onExecute: _onExecute = undefined,
-    executionState: _executionState = null,
     policy = "auto",
   }: Props = $props();
 
@@ -129,7 +127,7 @@
 
       {#if eventTypes && eventTypes.length > 0}
         <div class="flex flex-wrap gap-1 mt-1 pl-4">
-          {#each eventTypes as et}
+          {#each eventTypes as et (et)}
             <span
               class="text-[9px] px-1.5 py-0.5 rounded bg-secondary/60 text-muted-foreground border border-border/50 uppercase truncate max-w-full"
             >
@@ -149,7 +147,7 @@
     </div>
   {/if}
 
-  {#each enrichedCommands as cmd, i}
+  {#each enrichedCommands as cmd, i (cmd.commandId ?? i)}
     <!-- Action Node -->
     <div
       class="shrink-0 bg-card border border-border rounded-xl w-[260px] text-foreground flex flex-col shadow-sm relative group"

@@ -11,8 +11,10 @@ pub struct RuleRow {
     pub id: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub enabled: Option<bool>,
-    pub priority: Option<i64>,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub priority: i64,
     #[serde(rename = "created_at")]
     pub created_at: Option<i64>,
 }
@@ -22,10 +24,10 @@ pub struct RuleTriggerRow {
     pub id: Option<String>,
     #[serde(rename = "rule_id")]
     pub rule_id: Option<String>,
-    #[serde(rename = "trigger_type")]
-    pub trigger_type: Option<String>,
-    #[serde(rename = "trigger_name")]
-    pub trigger_name: Option<String>,
+    #[serde(rename = "trigger_type", default)]
+    pub trigger_type: String,
+    #[serde(rename = "trigger_name", default)]
+    pub trigger_name: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -79,8 +81,8 @@ pub struct RuleTriggerView {
     /// Exposed as `type` in JS (matching original serde rename).
     #[serde(rename = "type")]
     #[wasm_bindgen(js_name = "type")]
-    pub trigger_type: Option<String>,
-    pub name: Option<String>,
+    pub trigger_type: String,
+    pub name: String,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -104,8 +106,8 @@ pub struct RuleView {
     pub id: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
-    pub enabled: Option<bool>,
-    pub priority: Option<i64>,
+    pub enabled: bool,
+    pub priority: i64,
     #[serde(rename = "created_at")]
     #[wasm_bindgen(js_name = "created_at")]
     pub created_at: Option<i64>,
@@ -178,9 +180,9 @@ struct RuleTriggerDoc {
     #[serde(rename = "rule_id")]
     rule_id: String,
     #[serde(rename = "trigger_type")]
-    trigger_type: Option<String>,
+    trigger_type: String,
     #[serde(rename = "trigger_name")]
-    trigger_name: Option<String>,
+    trigger_name: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -275,11 +277,7 @@ pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
             actions: action_views,
         });
     }
-    out.sort_by(|a, b| {
-        let pa = a.priority.unwrap_or(0);
-        let pb = b.priority.unwrap_or(0);
-        pb.cmp(&pa)
-    });
+    out.sort_by(|a, b| b.priority.cmp(&a.priority));
     Ok(out)
 }
 
@@ -362,8 +360,8 @@ pub async fn save_rule(db: DbRef<'_>, payload: RuleSavePayload) -> Result<(), Co
         let doc = RuleTriggerDoc {
             id: tid.clone(),
             rule_id: id.to_string(),
-            trigger_type: Some(t.trigger_type.clone()),
-            trigger_name: Some(t.name.clone()),
+            trigger_type: t.trigger_type.clone(),
+            trigger_name: t.name.clone(),
         };
         db.store_put(store::SM_RULE_TRIGGERS, &doc, Some(&tid)).await?;
     }

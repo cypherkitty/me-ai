@@ -555,7 +555,7 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
   for (const [email, { name, date }] of contactMap) {
     const existing = await getContactByEmail(email);
     if (existing != null) {
-      const row = existing as Record<string, unknown>;
+      const row = (existing as unknown) as Record<string, unknown>;
       await upsertContact(
         email,
         (row.name as string) || name || "",
@@ -586,7 +586,7 @@ function parseEmailAddress(str: string): ParsedEmail | null {
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
   const r = await getSyncStateRaw(sourceType);
   if (r == null) return null;
-  const row = r as Record<string, unknown>;
+  const row = (r as unknown) as Record<string, unknown>;
   return {
     sourceType: row.sourceType as string,
     historyId: row.historyId as string,

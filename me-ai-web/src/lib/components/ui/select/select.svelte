@@ -3,7 +3,7 @@
 
 	interface Props {
 		open?: boolean;
-		value?: string;
+		value?: string | string[];
 		[key: string]: unknown;
 	}
 	let {
@@ -13,4 +13,5 @@
 	}: Props = $props();
 </script>
 
-<SelectPrimitive.Root bind:open bind:value={value} {...restProps} />
+<!-- eslint-disable-next-line @typescript-eslint/no-explicit-any -->
+<SelectPrimitive.Root bind:open bind:value={value as any} {...(restProps as any)} />

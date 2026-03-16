@@ -118,7 +118,7 @@ export async function pullOllamaModel(
       for (const line of lines) {
         try {
           onProgress(JSON.parse(line) as Record<string, unknown>);
-        } catch {}
+        } catch { /* no-op */ }
       }
     }
   } finally {
@@ -212,7 +212,7 @@ export async function streamOllamaChat(
             });
             break;
           }
-        } catch {}
+        } catch { /* no-op */ }
       }
     }
   } finally {

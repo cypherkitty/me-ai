@@ -7,7 +7,6 @@ import {
   testOllamaConnection,
   getOllamaUrl,
 } from "./ollama-client.js";
-import { getOllamaModelInfo } from "./ollama-models.js";
 
 type Status = "idle" | "loading" | "ready" | "generating";
 type EngineMessage = Record<string, unknown>;
@@ -20,7 +19,7 @@ function broadcast(msg: EngineMessage): void {
   for (const fn of _listeners) {
     try {
       fn(msg);
-    } catch {}
+    } catch { /* no-op */ }
   }
 }
 
@@ -158,7 +157,7 @@ export function getOllamaEngine() {
                     numTokens: lastNumTokens,
                     text: output,
                   });
-                } catch {}
+                } catch { /* no-op */ }
               }
               break;
             case "complete":

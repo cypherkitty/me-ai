@@ -107,10 +107,12 @@ Labels: {"{email.labels}"}
           <div class="section-desc" style="margin-top: 1rem;">
             The full message array sent to the model:
           </div>
+          <!-- eslint-disable svelte/no-useless-mustaches -->
           <pre class="code-block">[
   {"{"} role: "system", content: getSystemPrompt() {"}"},
   {"{"} role: "user",   content: formatEmailPrompt(email) {"}"}
 ]</pre>
+          <!-- eslint-enable svelte/no-useless-mustaches -->
         {/if}
       </div>
     </div>

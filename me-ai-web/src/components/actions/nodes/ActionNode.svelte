@@ -4,12 +4,18 @@
 
   interface ActionCmd {
     pluginId?: string;
+    commandId?: string;
     icon?: string;
+    name?: string;
+    description?: string;
     [key: string]: unknown;
   }
   interface ActionNodeData {
     cmd: ActionCmd;
-    onClick?: () => void;
+    index?: number;
+    onClick?: (() => void) | null;
+    onEdit?: (() => void) | null;
+    onDelete?: (() => void) | null;
     [key: string]: unknown;
   }
   interface Props {

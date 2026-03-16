@@ -47,9 +47,9 @@
         onchange={() => onclearerror?.()}
         class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
       >
-        {#each MODEL_GROUPS as group}
+        {#each MODEL_GROUPS as group (group.label)}
           <optgroup label={group.label}>
-            {#each group.models as model}
+            {#each group.models as model (model.id)}
               <option value={model.id}>{group.label} {model.name} — {model.size}</option>
             {/each}
           </optgroup>
@@ -68,7 +68,7 @@
           bind:value={loadDtype}
           class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          {#each DTYPE_OPTIONS as opt}
+          {#each DTYPE_OPTIONS as opt (opt.value)}
             <option value={opt.value}>{opt.label}</option>
           {/each}
         </select>
@@ -80,7 +80,7 @@
           bind:value={loadDevice}
           class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          {#each DEVICE_OPTIONS as opt}
+          {#each DEVICE_OPTIONS as opt (opt.value)}
             <option value={opt.value}>{opt.label}</option>
           {/each}
         </select>
@@ -98,17 +98,17 @@
             <table class="w-full text-xs border-collapse">
               <thead class="sticky top-0 bg-card">
                 <tr>
-                  {#each ["Model", "Context", "Email Limit", "Status"] as h}
+                  {#each ["Model", "Context", "Email Limit", "Status"] as h (h)}
                     <th class="text-left px-3 py-2 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 border-b border-border">{h}</th>
                   {/each}
                 </tr>
               </thead>
               <tbody>
-                {#each MODEL_GROUPS as group}
+                {#each MODEL_GROUPS as group (group.label)}
                   <tr>
                     <td colspan="4" class="px-3 pt-3 pb-1 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/40">{group.label}</td>
                   </tr>
-                  {#each group.models as model}
+                  {#each group.models as model (model.id)}
                     <tr class={cn(
                       "transition-colors",
                       model.id === selectedModel ? "bg-primary/5" : "hover:bg-accent"
@@ -155,7 +155,7 @@
             WebGPU Active
           </div>
           <div class="flex flex-col gap-1">
-            {#each [["Vendor", gpuInfo.vendor], ["Architecture", gpuInfo.architecture], ...(gpuInfo.limits?.maxBufferSize ? [["Max Buffer", formatBytes(gpuInfo.limits.maxBufferSize)]] : [])] as [label, value]}
+            {#each [["Vendor", gpuInfo.vendor], ["Architecture", gpuInfo.architecture], ...(gpuInfo.limits?.maxBufferSize ? [["Max Buffer", formatBytes(gpuInfo.limits.maxBufferSize)]] : [])] as [label, value] (label)}
               <div class="flex justify-between text-xs">
                 <span class="text-muted-foreground/50">{label}</span>
                 <span class="text-foreground/75 text-right">{value}</span>

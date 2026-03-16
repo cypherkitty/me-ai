@@ -9,9 +9,9 @@ use crate::error::CoreError;
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClassificationRow {
-    #[serde(rename = "emailId")]
+    #[serde(rename = "emailId", default)]
     #[wasm_bindgen(js_name = "emailId")]
-    pub email_id: Option<String>,
+    pub email_id: String,
     pub action: Option<String>,
     pub category: Option<String>,
     pub reason: Option<String>,
@@ -113,8 +113,8 @@ pub async fn delete_classifications_by_action(db: DbRef<'_>, action: &str) -> Re
         )
         .await?;
     for row in rows {
-        if let Some(ref email_id) = row.email_id {
-            db.store_delete(store::EMAIL_CLASSIFICATIONS, email_id).await?;
+        if !row.email_id.is_empty() {
+            db.store_delete(store::EMAIL_CLASSIFICATIONS, &row.email_id).await?;
         }
     }
     Ok(())

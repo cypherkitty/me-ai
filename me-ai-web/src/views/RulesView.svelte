@@ -15,35 +15,51 @@
   import { cn }        from "$lib/utils.js";
   import { Plus, Pencil, Trash2, X, ArrowUp, ArrowDown, ChevronRight, GitBranch } from "lucide-svelte";
 
-  let rules      = $state<unknown[]>([]);
-  let eventTypes = $state<unknown[]>([]);
-  let eventCats  = $state<unknown[]>([]);
-  let actions    = $state<unknown[]>([]);
-  let policies   = $state<unknown[]>([]);
+  interface RuleTrigger { type: string; name: string; [key: string]: unknown }
+  interface RuleItem {
+    id?: string | number;
+    name: string;
+    description: string;
+    enabled: boolean;
+    priority: number;
+    triggers: RuleTrigger[];
+    actions: unknown[];
+    policy: string;
+    [key: string]: unknown;
+  }
+  interface EventTypeItem { name: string; label?: string; [key: string]: unknown }
+  interface ActionItem { name: string; label?: string; [key: string]: unknown }
+  interface PolicyItem { name: string; description?: string; [key: string]: unknown }
+
+  let rules      = $state<RuleItem[]>([]);
+  let eventTypes = $state<EventTypeItem[]>([]);
+  let eventCats  = $state<EventTypeItem[]>([]);
+  let actions    = $state<ActionItem[]>([]);
+  let policies   = $state<PolicyItem[]>([]);
   let loading    = $state(true);
 
   function clone(obj: unknown): unknown {
     return JSON.parse(JSON.stringify(obj, (_: string, v: unknown) => typeof v === "bigint" ? Number(v) : v));
   }
 
-  let editing    = $state(null);
+  let editing    = $state<RuleItem | null>(null);
   let isNew      = $state(false);
   let saving     = $state(false);
-  let deleteId   = $state(null);
+  let deleteId   = $state<string | number | null>(null);
   let editorOpen = $state(false);
   let deleteOpen = $state(false);
 
-  const POLICY_META = {
+  const POLICY_META: Record<string, { label: string; desc: string }> = {
     auto:   { label: "Auto",   desc: "Executes immediately" },
     manual: { label: "Manual", desc: "Awaits user approval" },
   };
 
-  const POLICY_VARIANT = {
+  const POLICY_VARIANT: Record<string, string> = {
     auto:   "default",
     manual: "outline",
   };
 
-  const TRIGGER_VARIANT = {
+  const TRIGGER_VARIANT: Record<string, string> = {
     event_type:     "default",
     event_category: "secondary",
   };
@@ -51,13 +67,18 @@
   async function load() {
     loading = true;
     try {
-      [rules, eventTypes, eventCats, actions, policies] = await Promise.all([
+      const [rulesRaw, eventTypesRaw, eventCatsRaw, actionsRaw, policiesRaw] = await Promise.all([
         getRules(),
         getEventTypes(),
         getEventCategories(),
         getActions(),
         getExecutionPolicies(),
       ]);
+      rules = rulesRaw as unknown as RuleItem[];
+      eventTypes = eventTypesRaw as unknown as EventTypeItem[];
+      eventCats = eventCatsRaw as unknown as EventTypeItem[];
+      actions = actionsRaw as unknown as ActionItem[];
+      policies = policiesRaw as unknown as PolicyItem[];
     } catch (e) {
       console.error("RulesView load error:", e);
     }
@@ -72,8 +93,8 @@
     editorOpen = true;
   }
 
-  function startEdit(rule) {
-    editing = clone(rule);
+  function startEdit(rule: RuleItem) {
+    editing = clone(rule) as RuleItem;
     isNew = false;
     editorOpen = true;
   }
@@ -88,8 +109,8 @@
     if (!editing) return;
     saving = true;
     try {
-      if (isNew) await createRule(editing);
-      else       await updateRule(editing.id, editing);
+      if (isNew) await createRule(editing as unknown as Parameters<typeof createRule>[0]);
+      else       await updateRule(String(editing.id), editing as unknown as Parameters<typeof updateRule>[1]);
       cancelEdit();
       await load();
     } catch (e) {
@@ -98,30 +119,31 @@
     saving = false;
   }
 
-  async function toggleEnabled(rule) {
-    await setRuleEnabled(rule.id, !rule.enabled);
+  async function toggleEnabled(rule: RuleItem) {
+    await setRuleEnabled(rule.id as string, !rule.enabled);
     rule.enabled = !rule.enabled;
   }
 
   async function doDelete() {
     if (!deleteId) return;
-    await deleteRule(deleteId);
+    await deleteRule(String(deleteId));
     deleteId = null;
     deleteOpen = false;
     await load();
   }
 
-  function addTrigger(type) {
+  function addTrigger(type: string) {
     if (!editing) return;
     editing.triggers = [...editing.triggers, { type, name: "" }];
   }
-  function removeTrigger(i) { editing.triggers = editing.triggers.filter((_, idx) => idx !== i); }
-  function addAction(name) {
+  function removeTrigger(i: number) { if (editing) editing.triggers = editing.triggers.filter((_, idx) => idx !== i); }
+  function addAction(name: string) {
     if (!editing || editing.actions.includes(name)) return;
-    editing.actions = [...editing.actions, name];
+    editing.actions = [...editing.actions, name] as unknown[];
   }
-  function removeAction(i) { editing.actions = editing.actions.filter((_, idx) => idx !== i); }
-  function moveAction(i, dir) {
+  function removeAction(i: number) { if (editing) editing.actions = editing.actions.filter((_, idx) => idx !== i); }
+  function moveAction(i: number, dir: number) {
+    if (!editing) return;
     const arr = [...editing.actions];
     const j = i + dir;
     if (j < 0 || j >= arr.length) return;
@@ -129,12 +151,13 @@
     editing.actions = arr;
   }
 
-  function triggerLabel(t) {
+  function triggerLabel(t: RuleTrigger) {
     const list = t.type === "event_type" ? eventTypes : eventCats;
-    return list.find(x => x.name === t.name)?.label ?? t.name;
+    return list.find((x: EventTypeItem) => x.name === t.name)?.label ?? t.name;
   }
-  function actionLabel(name) {
-    return actions.find(a => a.name === name)?.label ?? name;
+  function actionLabel(name: unknown) {
+    const n = String(name ?? "");
+    return actions.find((a: ActionItem) => a.name === n)?.label ?? n;
   }
 </script>
 
@@ -189,8 +212,8 @@
             <!-- Pipeline chain -->
             <div class="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
               <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">WHEN</span>
-              {#each rule.triggers as t}
-                <Badge variant={TRIGGER_VARIANT[t.type] ?? "outline"} class="text-xs px-2 h-5">
+              {#each rule.triggers as t, ti (ti)}
+                <Badge variant={(TRIGGER_VARIANT[t.type] ?? "outline") as "default" | "destructive" | "outline" | "secondary"} class="text-xs px-2 h-5">
                   {triggerLabel(t)}
                 </Badge>
               {/each}
@@ -201,7 +224,7 @@
               <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
 
               <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">DO</span>
-              {#each rule.actions as a, i}
+              {#each rule.actions as a, i (i)}
                 {#if i > 0}<span class="text-muted-foreground/30 text-xs">→</span>{/if}
                 <Badge variant="secondary" class="text-xs px-2 h-5 font-mono">
                   {actionLabel(a)}
@@ -214,7 +237,7 @@
               <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
 
               <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">VIA</span>
-              <Badge variant={POLICY_VARIANT[rule.policy] ?? "outline"} class="text-xs px-2 h-5 font-semibold">
+              <Badge variant={(POLICY_VARIANT[rule.policy] ?? "outline") as "default" | "destructive" | "outline" | "secondary"} class="text-xs px-2 h-5 font-semibold">
                 {POLICY_META[rule.policy]?.label ?? rule.policy}
               </Badge>
             </div>
@@ -235,7 +258,7 @@
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onclick={() => { deleteId = rule.id; deleteOpen = true; }}
+                onclick={() => { deleteId = rule.id ?? null; deleteOpen = true; }}
                 title="Delete"
               >
                 <Trash2 class="size-3" />
@@ -249,7 +272,7 @@
 </div>
 
 <!-- Rule editor dialog -->
-<Dialog.Root bind:open={editorOpen} onOpenChange={(o) => { if (!o) cancelEdit(); }}>
+<Dialog.Root bind:open={editorOpen} onOpenChange={(o: boolean) => { if (!o) cancelEdit(); }}>
   <Dialog.Content class="max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
     <Dialog.Header class="shrink-0">
       <Dialog.Title>{isNew ? "New Rule" : "Edit Rule"}</Dialog.Title>
@@ -285,7 +308,7 @@
                 <Switch
                   id="rule-enabled-toggle"
                   checked={editing.enabled}
-                  onCheckedChange={(v) => editing.enabled = v}
+                  onCheckedChange={(v: boolean) => { if (editing) editing.enabled = v; }}
                 />
                 <span class="text-sm text-muted-foreground">{editing.enabled ? "Enabled" : "Disabled"}</span>
               </div>
@@ -298,7 +321,7 @@
           <div class="space-y-2">
             <Label>Triggers</Label>
             <div class="flex flex-col gap-1.5">
-              {#each editing.triggers as t, i}
+              {#each editing.triggers as t, i (i)}
                 <div class="flex items-center gap-2">
                   <select
                     class="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground flex-1"
@@ -315,11 +338,11 @@
                   >
                     <option value="">Select…</option>
                     {#if t.type === "event_type"}
-                      {#each eventTypes as et}
+                      {#each eventTypes as et (et.name)}
                         <option value={et.name}>{et.label}</option>
                       {/each}
                     {:else}
-                      {#each eventCats as ec}
+                      {#each eventCats as ec (ec.name)}
                         <option value={ec.name}>{ec.label}</option>
                       {/each}
                     {/if}
@@ -342,7 +365,7 @@
           <div class="space-y-2">
             <Label>Action Pipeline <span class="text-xs text-muted-foreground">(ordered)</span></Label>
             <div class="flex flex-col gap-1.5">
-              {#each editing.actions as a, i}
+              {#each editing.actions as a, i (i)}
                 <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-muted/40 border border-border/50">
                   <span class="size-5 rounded bg-muted flex items-center justify-center text-[0.6rem] font-bold text-muted-foreground shrink-0">{i + 1}</span>
                   <span class="flex-1 text-xs text-foreground">{actionLabel(a)}</span>
@@ -360,7 +383,7 @@
                 </div>
               {/each}
               <div class="flex flex-wrap gap-1.5">
-                {#each actions.filter(a => !editing.actions.includes(a.name)) as a}
+                {#each actions.filter(a => !(editing?.actions ?? []).includes(a.name)) as a (a.name)}
                   <Button variant="outline" size="sm" onclick={() => addAction(a.name)} class="text-xs h-7">{a.label}</Button>
                 {/each}
               </div>
@@ -373,9 +396,9 @@
           <div class="space-y-2">
             <Label>Execution Policy</Label>
             <div class="flex gap-2">
-              {#each policies as p}
+              {#each policies as p (p.name)}
                 <button
-                  onclick={() => editing.policy = p.name}
+                  onclick={() => { if (editing) editing.policy = p.name; }}
                   class={cn(
                     "flex-1 flex flex-col items-start px-3 py-2.5 rounded-lg border text-left transition-colors",
                     editing.policy === p.name
@@ -403,7 +426,7 @@
 </Dialog.Root>
 
 <!-- Delete confirmation dialog -->
-<Dialog.Root bind:open={deleteOpen} onOpenChange={(o) => { if (!o) { deleteId = null; } }}>
+<Dialog.Root bind:open={deleteOpen} onOpenChange={(o: boolean) => { if (!o) { deleteId = null; } }}>
   <Dialog.Content class="max-w-sm">
     <Dialog.Header>
       <Dialog.Title>Delete Rule</Dialog.Title>

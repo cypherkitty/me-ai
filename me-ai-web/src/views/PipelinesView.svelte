@@ -50,9 +50,31 @@
   /** Category currently running Execute (category name or null) */
   let executingCategory = $state<string | null>(null);
 
+  interface EditingRuleAction {
+    id?: string;
+    pluginId: string;
+    commandId: string;
+    name?: string;
+    description?: string;
+    icon?: string;
+    order?: number;
+    [key: string]: unknown;
+  }
+  interface EditingRule {
+    id: string;
+    name: string;
+    description: string;
+    triggers: Array<{ type: "event_type" | "event_category"; name: string }>;
+    actions: EditingRuleAction[];
+    enabled: boolean;
+    priority: number;
+    policy: string;
+    _eventTypes?: Array<{ name: string; label: string; autoCreated: boolean }>;
+    [key: string]: unknown;
+  }
   // Editor state
   let showEditor = $state(false);
-  let editingRule = $state<any>(null);
+  let editingRule = $state<EditingRule | null>(null);
 
   const catColors: Record<string, string> = {
     noise: "#6b7280",
@@ -162,13 +184,14 @@
       actions: JSON.parse(JSON.stringify(cat.actions)),
       enabled: true,
       priority: cat.priority,
+      policy: cat.policy,
       _eventTypes: cat.eventTypes || [],
     };
     showEditor = true;
   }
 
   async function handleEditorSave(
-    actions?: any[],
+    actions?: Array<{ id?: string; pluginId: string; commandId: string; name?: string; description?: string; icon?: string; order?: number; [key: string]: unknown }>,
     typesToMove?: string[],
     typesToDelete?: string[],
   ) {
@@ -217,7 +240,7 @@
       <div class="flex items-center gap-2 mb-0.5">
         <Shield class="size-5 text-primary/60" />
         <h2 class="text-xl font-bold tracking-tight text-foreground">
-          Category Pipelines
+          Routing Pipelines
         </h2>
       </div>
       <p class="text-sm text-muted-foreground/60">
@@ -371,7 +394,7 @@
                   </p>
                 {:else}
                   <div class="flex flex-col gap-1 mt-2">
-                    {#each cat.eventTypes as et}
+                    {#each cat.eventTypes as et (et.name)}
                       <div
                         class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/5 border border-border/30 opacity-80"
                       >
@@ -408,8 +431,8 @@
 
   <PipelineEditor
     bind:open={showEditor}
-    bind:rule={editingRule}
+    rule={editingRule as unknown as { id: string; name: string; description: string; enabled: boolean; priority: number; triggers: { type: "event_type" | "event_category"; name: string }[]; actions: { id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }[]; policy: string; _eventTypes?: { name: string; label: string; autoCreated: boolean }[] } | null}
     customSave={true}
-    onSave={handleEditorSave}
+    onSave={handleEditorSave as unknown as (actions?: { id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }[], typesToMove?: string[], typesToDelete?: string[]) => void | Promise<void>}
   />
 </div>
