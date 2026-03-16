@@ -156,10 +156,7 @@ async fn execute_action(action: &ActionInput, ctx: &PluginContext) -> PluginResu
             &ProgressEvent::Failed {
                 action_id: action.id.clone(),
                 action_name: action.name.clone(),
-                error: result
-                    .message
-                    .clone()
-                    .unwrap_or_else(|| "Unknown error".to_string()),
+                error: result.message.clone(),
             },
         );
     }
@@ -229,11 +226,7 @@ pub async fn execute_pipeline(
         .map(|r| {
             let plugin_id = r.plugin_id.clone().unwrap_or_else(|| "undefined".to_string());
             let command_id = r.command_id.clone().unwrap_or_else(|| "undefined".to_string());
-            let msg = r
-                .message
-                .clone()
-                .unwrap_or_else(|| "Unknown error".to_string());
-            format!("{plugin_id}·{command_id}: {msg}")
+                format!("{plugin_id}·{command_id}: {}", r.message)
         })
         .collect::<Vec<String>>()
         .join("; ");

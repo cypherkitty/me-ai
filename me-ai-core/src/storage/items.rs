@@ -6,6 +6,7 @@ use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct DateRow {
     pub date: Option<i64>,
 }

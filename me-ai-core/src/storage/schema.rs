@@ -17,8 +17,8 @@ struct SmEventTypeRow {
     label: Option<String>,
     #[serde(rename = "category_name")]
     category_name: Option<String>,
-    #[serde(rename = "auto_created")]
-    auto_created: Option<bool>,
+    #[serde(rename = "auto_created", default)]
+    auto_created: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -117,7 +117,7 @@ async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
             name: name.to_string(),
             label: Some(label.to_string()),
             category_name: Some(cat.to_string()),
-            auto_created: Some(*auto),
+            auto_created: *auto,
         })
         .collect();
     db.store_put_all(store::SM_EVENT_TYPES, &rows).await?;
