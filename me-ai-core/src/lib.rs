@@ -794,7 +794,7 @@ impl MeAiCore {
         let db = self.rexie_db.db();
         let items = storage::sync::get_items_gmail_by_date_desc(db, limit).await?;
         if items.is_empty() { return Ok("No emails stored locally.".to_string()); }
-        let parts: Vec<String> = items.iter().map(|item| format_item_for_llm(item)).collect();
+        let parts: Vec<String> = items.iter().map(format_item_for_llm).collect();
         Ok(parts.join("\n\n---\n\n"))
     }
 
@@ -852,7 +852,7 @@ impl MeAiCore {
                         || item.body.to_lowercase().contains(&q_lower)
                 })
                 .take(5)
-                .map(|item| format_item_for_llm(item))
+                .map(format_item_for_llm)
                 .collect();
             if matched.is_empty() {
                 "No matching emails found.".to_string()
@@ -864,7 +864,7 @@ impl MeAiCore {
             if items.is_empty() {
                 "\n## Recent Emails\nNo emails stored locally.".to_string()
             } else {
-                let formatted: Vec<String> = items.iter().map(|i| format_item_for_llm(i)).collect();
+                let formatted: Vec<String> = items.iter().map(format_item_for_llm).collect();
                 format!("\n## Recent Emails\n{}", formatted.join("\n\n---\n\n"))
             }
         };

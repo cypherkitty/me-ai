@@ -116,7 +116,7 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
         text = stripped.trim_end_matches('\n').to_string();
     }
     // Strip --set prefixes
-    text = text.trim_start_matches(|c: char| c == '-' || c == ' ').to_string();
+    text = text.trim_start_matches(['-', ' ']).to_string();
     if let Some(rest) = text.strip_prefix("set ") {
         text = rest.to_string();
     }
@@ -193,7 +193,7 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
 fn normalize_action(raw: &str) -> Option<String> {
     let cleaned: String = raw.trim().to_uppercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else if c.is_whitespace() || c == '-' { '_' } else { '_' })
+        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
         .collect::<String>()
         .split('_')
         .filter(|s| !s.is_empty())
