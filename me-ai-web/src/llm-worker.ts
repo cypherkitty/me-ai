@@ -162,7 +162,7 @@ async function load(
 
 interface ChatMessage {
   role: string;
-  content?: string;
+  content: string;
 }
 
 interface GenerateOptions {
