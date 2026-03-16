@@ -121,6 +121,7 @@ pub async fn delete_classifications_by_action(db: DbRef<'_>, action: &str) -> Re
 }
 
 /// Insert or replace one classification (for triage scan results).
+#[allow(clippy::too_many_arguments)]
 pub async fn put_classification(
     db: DbRef<'_>,
     email_id: &str,

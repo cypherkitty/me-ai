@@ -35,8 +35,6 @@ tasks:
 
   copy:core:
     desc: Copy me-ai-core/pkg into me-ai-web/node_modules/me-ai-core (run after build:core)
-    deps:
-      - task: build:core
     cmds:
       - rm -rf {{.WEB_DIR}}/node_modules/me-ai-core
       - cp -r {{.CORE_PKG}} {{.WEB_DIR}}/node_modules/me-ai-core
@@ -72,8 +70,20 @@ tasks:
       - pkill -f "npm run dev" || true
 
   # --- Tests ---
+  test:core:
+    desc: Run me-ai-core Rust unit tests (native target, lib only)
+    cmds:
+      - cargo test --manifest-path {{.CORE_DIR}}/Cargo.toml --lib
+
+  clippy:core:
+    desc: Run Clippy on me-ai-core (wasm32 target, deny warnings)
+    cmds:
+      - cargo clippy --manifest-path {{.CORE_DIR}}/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
+
   test:
-    desc: Run unit tests (Vitest, single run for CI)
+    desc: Run all unit tests (Rust core + Vitest web, single run for CI)
+    deps:
+      - task: test:core
     dir: '{{.WEB_DIR}}'
     cmds:
       - npm run test:ci
@@ -100,10 +110,11 @@ tasks:
 
   # --- CI: install (core + npm) then unit + e2e ---
   ci:
-    desc: Full CI run (build:core → install → check → lint → unit tests → E2E tests)
+    desc: Full CI run (build:core → install → clippy:core → check → lint → unit tests → E2E tests)
     deps:
       - task: install
     cmds:
+      - task: clippy:core
       - task: check
       - task: lint
       - task: test

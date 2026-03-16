@@ -49,6 +49,7 @@ struct AuditLogDoc {
     steps: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn log_execution(
     db: DbRef<'_>,
     id: &str,
