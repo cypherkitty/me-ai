@@ -16,10 +16,12 @@ pub struct AuditLogRow {
     #[serde(rename = "emailId", default)]
     #[wasm_bindgen(js_name = "emailId")]
     pub email_id: String,
-    pub subject: Option<String>,
+    #[serde(default)]
+    pub subject: String,
     #[serde(rename = "from")]
+    #[serde(default)]
     #[wasm_bindgen(js_name = "from")]
-    pub from_addr: Option<String>,
+    pub from_addr: String,
     #[serde(rename = "eventType", default)]
     #[wasm_bindgen(js_name = "eventType")]
     pub event_type: String,
@@ -28,8 +30,10 @@ pub struct AuditLogRow {
     pub executed_at: i64,
     #[serde(default)]
     pub success: bool,
-    pub error: Option<String>,
-    pub steps: Option<String>,
+    #[serde(default)]
+    pub error: String,
+    #[serde(default)]
+    pub steps: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

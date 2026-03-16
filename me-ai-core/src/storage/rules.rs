@@ -41,11 +41,14 @@ pub struct RuleCommandRow {
     pub plugin_id: Option<String>,
     #[serde(rename = "action_id")]
     pub action_id: Option<String>,
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub icon: Option<String>,
-    #[serde(rename = "order_idx")]
-    pub order_idx: Option<i64>,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(rename = "order_idx", default)]
+    pub order_idx: i64,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -95,9 +98,12 @@ pub struct RuleActionView {
     #[serde(rename = "commandId")]
     #[wasm_bindgen(js_name = "commandId")]
     pub command_id: Option<String>,
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub icon: Option<String>,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub icon: String,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -157,11 +163,11 @@ pub struct RuleActionInput {
     #[serde(rename = "commandId", default)]
     pub command_id: Option<String>,
     #[serde(default)]
-    pub name: Option<String>,
+    pub name: String,
     #[serde(default)]
-    pub description: Option<String>,
+    pub description: String,
     #[serde(default)]
-    pub icon: Option<String>,
+    pub icon: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -374,9 +380,9 @@ pub async fn save_rule(db: DbRef<'_>, payload: RuleSavePayload) -> Result<(), Co
             command_id: a.id.clone(),
             plugin_id: a.plugin_id.clone(),
             action_id: a.command_id.clone(),
-            name: a.name.clone(),
-            description: a.description.clone(),
-            icon: a.icon.clone(),
+            name: Some(a.name.clone()),
+            description: Some(a.description.clone()),
+            icon: Some(a.icon.clone()),
             order_idx: i,
         };
         db.store_put(store::SM_RULE_COMMANDS, &doc, Some(&cid)).await?;
