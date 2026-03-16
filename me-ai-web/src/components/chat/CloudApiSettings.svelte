@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { coreStore } from "../../lib/store/core-store.js";
-  import type { ApiModel } from "../../lib/api-models.js";
-  import { getSetting, setSetting } from "../../lib/store/settings.js";
+  import { coreStore } from "$lib/store/core-store";
+  import type { ApiModel } from "$lib/api-models";
+  import { loadSettings, saveSettings, SettingValue } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -44,10 +44,11 @@
   let providerModels = $derived(allModels.filter(m => m.provider === activeProvider));
 
   onMount(async () => {
-    apiKeys.openai    = await getSetting("openaiApiKey")    || "";
-    apiKeys.anthropic = await getSetting("anthropicApiKey") || "";
-    apiKeys.google    = await getSetting("googleApiKey")    || "";
-    apiKeys.xai       = await getSetting("xaiApiKey")       || "";
+    const sv = await loadSettings();
+    apiKeys.openai    = sv.openaiApiKey    ?? "";
+    apiKeys.anthropic = sv.anthropicApiKey ?? "";
+    apiKeys.google    = sv.googleApiKey    ?? "";
+    apiKeys.xai       = sv.xaiApiKey       ?? "";
 
     const currModel = allModels.find(m => m.id === selectedModel);
     if (currModel) {
@@ -71,7 +72,13 @@
     }
     error = null;
     isChecking = true;
-    await setSetting(`${activeProvider}ApiKey`, apiKeys[activeProvider as keyof typeof apiKeys]);
+    const keySv = new SettingValue();
+    const keyVal = apiKeys[activeProvider as keyof typeof apiKeys];
+    if (activeProvider === "openai") keySv.openaiApiKey = keyVal;
+    else if (activeProvider === "anthropic") keySv.anthropicApiKey = keyVal;
+    else if (activeProvider === "google") keySv.googleApiKey = keyVal;
+    else if (activeProvider === "xai") keySv.xaiApiKey = keyVal;
+    await saveSettings(keySv);
     isChecking = false;
     onload?.();
   }

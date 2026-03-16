@@ -24,13 +24,16 @@ export function getOllamaUrl(): string {
 }
 
 export async function getOllamaUrlAsync(): Promise<string> {
-  const { getSetting } = await import("./store/settings.js");
-  return (await getSetting<string>("ollamaUrl")) || getDefaultOllamaUrl();
+  const { loadSettings } = await import("./core.js");
+  const sv = await loadSettings();
+  return sv.ollamaUrl ?? getDefaultOllamaUrl();
 }
 
 export async function setOllamaUrl(url: string): Promise<void> {
-  const { setSetting } = await import("./store/settings.js");
-  await setSetting("ollamaUrl", url);
+  const { saveSettings, SettingValue } = await import("./core.js");
+  const sv = new SettingValue();
+  sv.ollamaUrl = url;
+  await saveSettings(sv);
 }
 
 export interface OllamaConnectionResult {

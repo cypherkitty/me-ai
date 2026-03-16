@@ -18,7 +18,6 @@ const SCOPES = ["tweet.read", "users.read", "like.read", "like.write", "bookmark
 const LS_TOKEN_KEY = "me-ai:twitter-token";
 const LS_VERIFIER_KEY = "me-ai:twitter-pkce-verifier";
 const LS_STATE_KEY = "me-ai:twitter-pkce-state";
-const SETTINGS_TOKEN_KEY = "me-ai:twitter-token";
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 let _clientId: string | null = null;
@@ -86,8 +85,12 @@ async function saveToken(accessToken: string, refreshToken: string, expiresIn: n
   const data: TokenData = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt };
   _lsSave(data);
   try {
-    const { setSetting } = await import("./store/settings.js");
-    await setSetting(SETTINGS_TOKEN_KEY, data);
+    const { saveSettings, SettingValue, TwitterToken } = await import("./core.js");
+    const token = new TwitterToken(accessToken, expiresAt);
+    if (refreshToken) token.refreshToken = refreshToken;
+    const sv = new SettingValue();
+    sv.twitterToken = token;
+    await saveSettings(sv);
   } catch {
     /* ignore */
   }
@@ -97,8 +100,8 @@ async function clearSavedToken(): Promise<void> {
   _expiresAt = 0;
   _lsClear();
   try {
-    const { removeSetting } = await import("./store/settings.js");
-    await removeSetting(SETTINGS_TOKEN_KEY);
+    const { removeSetting } = await import("./core.js");
+    await removeSetting("me-ai:twitter-token");
   } catch {
     /* ignore */
   }
@@ -194,16 +197,19 @@ export async function getSavedTwitterToken(): Promise<{ access_token: string; re
   }
 
   try {
-    const { getSetting } = await import("./store/settings.js");
-    const data = (await getSetting(SETTINGS_TOKEN_KEY)) as TokenData | null;
-    if (!data?.access_token) {
+    const { loadSettings } = await import("./core.js");
+    const sv = await loadSettings();
+    const t = sv.twitterToken;
+    if (!t?.accessToken) {
       _lsClear();
       return null;
     }
-    if (Date.now() > data.expires_at - EXPIRY_MARGIN_MS) {
-      if (data.refresh_token) {
+    const expiresAt = t.expiresAt;
+    const refreshTok = t.refreshToken;
+    if (Date.now() > expiresAt - EXPIRY_MARGIN_MS) {
+      if (refreshTok) {
         try {
-          return await refreshTwitterToken(data.refresh_token);
+          return await refreshTwitterToken(refreshTok);
         } catch {
           await clearSavedToken();
           return null;
@@ -212,9 +218,9 @@ export async function getSavedTwitterToken(): Promise<{ access_token: string; re
       await clearSavedToken();
       return null;
     }
-    _expiresAt = data.expires_at;
-    _lsSave(data);
-    return { access_token: data.access_token, refresh_token: data.refresh_token ?? "" };
+    _expiresAt = expiresAt;
+    _lsSave({ access_token: t.accessToken, refresh_token: refreshTok, expires_at: expiresAt });
+    return { access_token: t.accessToken, refresh_token: refreshTok ?? "" };
   } catch {
     await clearSavedToken();
     return null;

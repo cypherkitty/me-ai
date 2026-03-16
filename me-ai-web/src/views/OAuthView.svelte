@@ -11,7 +11,7 @@
     getTokenTTL,
     revokeToken,
   } from "../lib/google-auth.js";
-  import { getSetting } from "../lib/store/settings.js";
+  import { loadSettings } from "../lib/core.js";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
     || "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
@@ -28,7 +28,8 @@
       initialized = true;
       const token = await getSavedToken();
       if (token && isTokenValid()) {
-        profile = await getSetting("gmail-profile");
+        const sv = await loadSettings();
+        profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
         tokenTTLMin = Math.floor(getTokenTTL() / 60_000);
         status = "success";
       }
@@ -43,7 +44,8 @@
     errorMsg = "";
     try {
       await requestAccessToken();
-      profile = await getSetting("gmail-profile");
+      const sv = await loadSettings();
+      profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
       tokenTTLMin = Math.floor(getTokenTTL() / 60_000);
       status = "success";
     } catch (e) {

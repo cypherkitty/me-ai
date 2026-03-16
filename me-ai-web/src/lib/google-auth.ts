@@ -36,7 +36,6 @@ interface GoogleTokenResponse {
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
-const TOKEN_KEY = "me-ai:oauth-token";
 const LS_KEY = "me-ai:oauth-token";
 const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
@@ -75,8 +74,11 @@ async function saveToken(accessToken: string, expiresIn: number): Promise<void> 
   _expiresAt = Date.now() + expiresIn * 1000;
   _lsSave(accessToken, _expiresAt);
   try {
-    const { setSetting } = await import("./store/settings.js");
-    await setSetting(TOKEN_KEY, { access_token: accessToken, expires_at: _expiresAt });
+    const { saveSettings, SettingValue, GoogleToken } = await import("./core.js");
+    const token = new GoogleToken(accessToken, _expiresAt);
+    const sv = new SettingValue();
+    sv.googleToken = token;
+    await saveSettings(sv);
   } catch {
     /* ignore */
   }
@@ -86,8 +88,8 @@ async function clearSavedToken(): Promise<void> {
   _expiresAt = 0;
   _lsClear();
   try {
-    const { removeSetting } = await import("./store/settings.js");
-    await removeSetting(TOKEN_KEY);
+    const { removeSetting } = await import("./core.js");
+    await removeSetting("me-ai:oauth-token");
   } catch {
     /* ignore */
   }
@@ -104,13 +106,15 @@ export async function getSavedToken(): Promise<{ access_token: string } | null> 
   }
 
   try {
-    const { getSetting } = await import("./store/settings.js");
-    const data = (await getSetting(TOKEN_KEY)) as { access_token?: string; expires_at?: number } | null;
+    const { loadSettings } = await import("./core.js");
+    const sv = await loadSettings();
+    const data = sv.googleToken;
     if (!data) {
       _lsClear();
       return null;
     }
-    const { access_token, expires_at } = data;
+    const access_token = data.accessToken;
+    const expires_at = data.expiresAt;
     if (!access_token || !expires_at || Date.now() > expires_at - EXPIRY_MARGIN_MS) {
       await clearSavedToken();
       return null;

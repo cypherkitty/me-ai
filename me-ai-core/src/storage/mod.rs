@@ -8,4 +8,5 @@ pub mod items;
 pub mod pipelines;
 pub mod rules;
 pub mod schema;
+pub mod settings;
 pub mod sync;

@@ -111,6 +111,16 @@ test.describe("Chat page", () => {
     test.skip(!!process.env.CI, "Requires WebGPU — skipped in CI");
     test.setTimeout(180_000);
     await page.goto("/");
+    const hasWebGPU = await page.evaluate(async () => {
+      if (!("gpu" in navigator)) return false;
+      try {
+        const adapter = await (navigator as unknown as { gpu: { requestAdapter(): Promise<unknown> } }).gpu.requestAdapter();
+        return adapter !== null;
+      } catch {
+        return false;
+      }
+    });
+    test.skip(!hasWebGPU, "Requires WebGPU — skipped when GPU unavailable");
 
     await page.getByRole("button", { name: "Load Model" }).click();
 

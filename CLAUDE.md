@@ -21,17 +21,17 @@ The repo is split into two main parts:
 
 Four specialist agents live in `.claude/agents/` (symlinked from `.agents/`):
 
-- **builder** — Building, installing, testing, deploying — always use `task`, never `npm install` or `npm run build` directly
+- **me-ai-builder** — Building, installing, testing, deploying — always use `task`, never `npm install` or `npm run build` directly
 - **me-ai-web** — Svelte/TypeScript changes in `me-ai-web/src/**`
 - **me-ai-core** — Rust/WASM changes in `me-ai-core/src/**`
-- **web-it-tests** — Running/fixing unit tests (Vitest), E2E (Playwright), or `task check`
+- **me-ai-web-it-tests** — Running/fixing unit tests (Vitest), E2E (Playwright), or `task check`
 
 **Do not mix concerns**: no core logic in web; no web concerns in core.
 
 ## Build system: Taskfile
 
 All build, test, and deploy steps go through [Task](https://taskfile.dev) from the repo root. 
-Use the **builder** agent for these. Key tasks:
+Use the **me-ai-builder** agent for these. Key tasks:
 
 ```bash
 task install    # build core (wasm-pack) + npm install in me-ai-web — run once after clone

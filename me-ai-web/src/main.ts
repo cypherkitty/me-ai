@@ -1,7 +1,7 @@
 import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
-import { setSetting, getSetting } from "$lib/store/settings";
+import { loadSettings, saveSettings } from "$lib/core";
 import { initCore } from "$lib/core";
 
 // Init core after document is ready so IndexedDB open runs in a valid browser context.
@@ -26,10 +26,10 @@ if (document.readyState === "loading") {
 // These are no-ops in production but harmless.
 declare global {
   interface Window {
-    __setSetting: typeof setSetting;
-    __getSetting: typeof getSetting;
+    __loadSettings: typeof loadSettings;
+    __saveSettings: typeof saveSettings;
   }
 }
-window.__setSetting = setSetting;
-window.__getSetting = getSetting;
+window.__loadSettings = loadSettings;
+window.__saveSettings = saveSettings;
 
