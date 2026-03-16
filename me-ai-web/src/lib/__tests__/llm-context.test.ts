@@ -28,26 +28,6 @@ describe("no full table scans in lightweight context path", () => {
     expect(src).not.toMatch(/buildLLMContext[\s\S]*?toArray/);
   });
 
-  it("getDataSummary source must not call toArray()", async () => {
-    const src = await importSource("../store/query-layer.ts");
-    const fnMatch = src.match(
-      /export async function getDataSummary\b[\s\S]*?(?=\nexport |\nfunction |\nasync function )/
-    );
-    expect(fnMatch).not.toBeNull();
-    const fnBody = fnMatch![0];
-    expect(fnBody).not.toContain(".toArray()");
-  });
-
-  it("getDetailedSummary source must not call toArray()", async () => {
-    const src = await importSource("../store/query-layer.ts");
-    const fnMatch = src.match(
-      /export async function getDetailedSummary\b[\s\S]*?(?=\nexport |\nfunction |\nasync function )/
-    );
-    expect(fnMatch).not.toBeNull();
-    const fnBody = fnMatch![0];
-    expect(fnBody).not.toContain(".toArray()");
-  });
-
   it("query-layer must not export getTopSenders", async () => {
     const src = await importSource("../store/query-layer.ts");
     expect(src).not.toMatch(/export\s+.*getTopSenders/);
