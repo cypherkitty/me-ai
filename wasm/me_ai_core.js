@@ -2399,6 +2399,64 @@ export class MeAiCore {
         wasm.__wbg_meaicore_free(ptr, 0);
     }
     /**
+     * CSS color for an action name.
+     * @param {string} action
+     * @returns {string}
+     */
+    actionColor(action) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_actionColor(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * Build rich email context string for LLM when user asks about emails.
+     * @param {string | null} [user_query]
+     * @returns {Promise<string>}
+     */
+    buildEmailContext(user_query) {
+        var ptr0 = isLikeNone(user_query) ? 0 : passStringToWasm0(user_query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_buildEmailContext(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * Build compact LLM context string. Returns empty string if no data.
+     * @returns {Promise<string>}
+     */
+    buildLlmContext() {
+        const ret = wasm.meaicore_buildLlmContext(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Build the LLM classification system prompt.
+     * `plugin_names`: comma-separated list of active plugin names (e.g. "Gmail, Twitter/X")
+     * @param {string} plugin_names
+     * @returns {string}
+     */
+    buildSystemPrompt(plugin_names) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(plugin_names, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_buildSystemPrompt(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * @returns {Promise<void>}
      */
     clearAllData() {
@@ -2554,6 +2612,110 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} subject
+     * @param {number} date_ms
+     * @param {string} ext
+     * @returns {string}
+     */
+    exportFilename(subject, date_ms, ext) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(ext, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_exportFilename(this.__wbg_ptr, ptr0, len0, date_ms, ptr1, len1);
+            deferred3_0 = ret[0];
+            deferred3_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @param {string} from_str
+     * @returns {string}
+     */
+    extractName(from_str) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(from_str, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_extractName(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @param {bigint} bytes
+     * @returns {string}
+     */
+    formatBytes(bytes) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_formatBytes(this.__wbg_ptr, bytes);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {bigint} bytes
+     * @returns {string}
+     */
+    formatBytesPrecise(bytes) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_formatBytesPrecise(this.__wbg_ptr, bytes);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Format an email as an LLM prompt.
+     * @param {string} subject
+     * @param {string} from
+     * @param {string} to
+     * @param {number} date_ms
+     * @param {string} labels
+     * @param {string} body
+     * @returns {string}
+     */
+    formatEmailPrompt(subject, from, to, date_ms, labels, body) {
+        let deferred6_0;
+        let deferred6_1;
+        try {
+            const ptr0 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ptr2 = passStringToWasm0(to, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len2 = WASM_VECTOR_LEN;
+            const ptr3 = passStringToWasm0(labels, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len3 = WASM_VECTOR_LEN;
+            const ptr4 = passStringToWasm0(body, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len4 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_formatEmailPrompt(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, date_ms, ptr3, len3, ptr4, len4);
+            deferred6_0 = ret[0];
+            deferred6_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
+        }
+    }
+    /**
      * @returns {Promise<ActionRow[]>}
      */
     getActions() {
@@ -2644,6 +2806,22 @@ export class MeAiCore {
      */
     getContactsCount() {
         const ret = wasm.meaicore_getContactsCount(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Compact data summary for the LLM system prompt. Returns empty string if no data.
+     * @returns {Promise<string>}
+     */
+    getDataSummary() {
+        const ret = wasm.meaicore_getDataSummary(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Detailed markdown summary for LLM email context.
+     * @returns {Promise<string>}
+     */
+    getDetailedSummary() {
+        const ret = wasm.meaicore_getDetailedSummary(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -2786,6 +2964,53 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} model_name
+     * @returns {OllamaModel | undefined}
+     */
+    getOllamaModelInfo(model_name) {
+        const ptr0 = passStringToWasm0(model_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getOllamaModelInfo(this.__wbg_ptr, ptr0, len0);
+        return ret === 0 ? undefined : OllamaModel.__wrap(ret);
+    }
+    /**
+     * @returns {OllamaModel[]}
+     */
+    getOllamaModels() {
+        const ret = wasm.meaicore_getOllamaModels(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @returns {OnnxModelGroup[]}
+     */
+    getOnnxModelGroups() {
+        const ret = wasm.meaicore_getOnnxModelGroups(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @param {string} model_id
+     * @returns {OnnxModel | undefined}
+     */
+    getOnnxModelInfo(model_id) {
+        const ptr0 = passStringToWasm0(model_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getOnnxModelInfo(this.__wbg_ptr, ptr0, len0);
+        return ret === 0 ? undefined : OnnxModel.__wrap(ret);
+    }
+    /**
+     * @returns {OnnxModel[]}
+     */
+    getOnnxModels() {
+        const ret = wasm.meaicore_getOnnxModels(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
      * @returns {PluginDefinition[]}
      */
     getPluginRegistry() {
@@ -2812,6 +3037,24 @@ export class MeAiCore {
         if (ret[3]) {
             throw takeFromExternrefTable0(ret[2]);
         }
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * Recent emails formatted for LLM context.
+     * @param {number} limit
+     * @returns {Promise<string>}
+     */
+    getRecentEmailsContext(limit) {
+        const ret = wasm.meaicore_getRecentEmailsContext(this.__wbg_ptr, limit);
+        return ret;
+    }
+    /**
+     * @returns {OllamaModel[]}
+     */
+    getRecommendedOllamaModels() {
+        const ret = wasm.meaicore_getRecommendedOllamaModels(this.__wbg_ptr);
         var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
         return v1;
@@ -2889,6 +3132,24 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} from_str
+     * @returns {string}
+     */
+    initial(from_str) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(from_str, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_initial(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * @param {any} rows
      * @returns {Promise<void>}
      */
@@ -2954,6 +3215,16 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} url
+     * @returns {Promise<OllamaModelTag[]>}
+     */
+    listOllamaModels(url) {
+        const ptr0 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_listOllamaModels(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * @returns {Promise<SettingValue>}
      */
     loadSettings() {
@@ -2995,6 +3266,26 @@ export class MeAiCore {
      */
     constructor() {
         const ret = wasm.meaicore_new();
+        return ret;
+    }
+    /**
+     * Parse an LLM classification response. Returns None if invalid.
+     * @param {string} response
+     * @returns {TriageClassification | undefined}
+     */
+    parseClassification(response) {
+        const ptr0 = passStringToWasm0(response, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_parseClassification(this.__wbg_ptr, ptr0, len0);
+        return ret === 0 ? undefined : TriageClassification.__wrap(ret);
+    }
+    /**
+     * @param {bigint} loaded
+     * @param {bigint} total
+     * @returns {number}
+     */
+    progressPct(loaded, total) {
+        const ret = wasm.meaicore_progressPct(this.__wbg_ptr, loaded, total);
         return ret;
     }
     /**
@@ -3102,6 +3393,40 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {number} date_ms
+     * @returns {string}
+     */
+    shortDate(date_ms) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_shortDate(this.__wbg_ptr, date_ms);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} subject
+     * @returns {string}
+     */
+    slugify(subject) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_slugify(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * Stream chat completion from a cloud API provider.
      * `on_token` receives TokenPayload JSON objects during streaming.
      * @param {string} provider
@@ -3120,6 +3445,16 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} s
+     * @returns {number}
+     */
+    stringToHue(s) {
+        const ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_stringToHue(this.__wbg_ptr, ptr0, len0);
+        return ret >>> 0;
+    }
+    /**
      * @param {string} email_id
      * @param {boolean} delete_item
      * @returns {Promise<void>}
@@ -3129,6 +3464,25 @@ export class MeAiCore {
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_syncAfterAuditExecution(this.__wbg_ptr, ptr0, len0, delete_item);
         return ret;
+    }
+    /**
+     * CSS color for a tag name.
+     * @param {string} tag
+     * @returns {string}
+     */
+    tagColor(tag) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(tag, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_tagColor(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
     }
     /**
      * Test API connection for a provider
@@ -3143,6 +3497,35 @@ export class MeAiCore {
         const len1 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_testApiConnection(this.__wbg_ptr, ptr0, len0, ptr1, len1);
         return ret;
+    }
+    /**
+     * @param {string} url
+     * @returns {Promise<OllamaConnectionResult>}
+     */
+    testOllamaConnection(url) {
+        const ptr0 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_testOllamaConnection(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} s
+     * @param {number} max_len
+     * @returns {string}
+     */
+    truncate(s, max_len) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(s, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_truncate(this.__wbg_ptr, ptr0, len0, max_len);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
     }
     /**
      * @param {string} category_name
@@ -3259,6 +3642,622 @@ export class MeAiCore {
     }
 }
 if (Symbol.dispose) MeAiCore.prototype[Symbol.dispose] = MeAiCore.prototype.free;
+
+export class OllamaConnectionResult {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OllamaConnectionResult.prototype);
+        obj.__wbg_ptr = ptr;
+        OllamaConnectionResultFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OllamaConnectionResultFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ollamaconnectionresult_free(ptr, 0);
+    }
+    /**
+     * @returns {boolean}
+     */
+    get connected() {
+        const ret = wasm.__wbg_get_ollamaconnectionresult_connected(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get corsError() {
+        const ret = wasm.__wbg_get_ollamaconnectionresult_corsError(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get error() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamaconnectionresult_error(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get version() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamaconnectionresult_version(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set connected(arg0) {
+        wasm.__wbg_set_ollamaconnectionresult_connected(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set corsError(arg0) {
+        wasm.__wbg_set_ollamaconnectionresult_corsError(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set error(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamaconnectionresult_error(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set version(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamaconnectionresult_version(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) OllamaConnectionResult.prototype[Symbol.dispose] = OllamaConnectionResult.prototype.free;
+
+export class OllamaModel {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OllamaModel.prototype);
+        obj.__wbg_ptr = ptr;
+        OllamaModelFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OllamaModelFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ollamamodel_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get contextWindow() {
+        const ret = wasm.__wbg_get_ollamamodel_contextWindow(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get description() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodel_description(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get displayName() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodel_displayName(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {number}
+     */
+    get maxEmailTokens() {
+        const ret = wasm.__wbg_get_ollamamodel_maxEmailTokens(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get name() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodel_name(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get params() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodel_params(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    get recommendedForEmailProcessing() {
+        const ret = wasm.__wbg_get_ollamamodel_recommendedForEmailProcessing(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get recommended() {
+        const ret = wasm.__wbg_get_ollamamodel_recommended(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get tags() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodel_tags(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} arg0
+     */
+    set contextWindow(arg0) {
+        wasm.__wbg_set_ollamamodel_contextWindow(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set description(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodel_description(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set displayName(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodel_displayName(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set maxEmailTokens(arg0) {
+        wasm.__wbg_set_ollamamodel_maxEmailTokens(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set name(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodel_name(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set params(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodel_params(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set recommendedForEmailProcessing(arg0) {
+        wasm.__wbg_set_ollamamodel_recommendedForEmailProcessing(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set recommended(arg0) {
+        wasm.__wbg_set_ollamamodel_recommended(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set tags(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodel_tags(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) OllamaModel.prototype[Symbol.dispose] = OllamaModel.prototype.free;
+
+export class OllamaModelTag {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OllamaModelTag.prototype);
+        obj.__wbg_ptr = ptr;
+        OllamaModelTagFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OllamaModelTagFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ollamamodeltag_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get modifiedAt() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodeltag_modifiedAt(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get name() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodeltag_name(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {bigint}
+     */
+    get size() {
+        const ret = wasm.__wbg_get_ollamamodeltag_size(this.__wbg_ptr);
+        return BigInt.asUintN(64, ret);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set modifiedAt(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodeltag_modifiedAt(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set name(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodeltag_name(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {bigint} arg0
+     */
+    set size(arg0) {
+        wasm.__wbg_set_ollamamodeltag_size(this.__wbg_ptr, arg0);
+    }
+}
+if (Symbol.dispose) OllamaModelTag.prototype[Symbol.dispose] = OllamaModelTag.prototype.free;
+
+export class OnnxModel {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OnnxModel.prototype);
+        obj.__wbg_ptr = ptr;
+        OnnxModelFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    static __unwrap(jsValue) {
+        if (!(jsValue instanceof OnnxModel)) {
+            return 0;
+        }
+        return jsValue.__destroy_into_raw();
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OnnxModelFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_onnxmodel_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get contextWindow() {
+        const ret = wasm.__wbg_get_onnxmodel_contextWindow(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get description() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodel_description(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get gpuWarning() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodel_gpuWarning(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get id() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodel_id(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    get isExperimental() {
+        const ret = wasm.__wbg_get_onnxmodel_isExperimental(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get maxEmailTokens() {
+        const ret = wasm.__wbg_get_onnxmodel_maxEmailTokens(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get name() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodel_name(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {boolean}
+     */
+    get recommendedForEmailProcessing() {
+        const ret = wasm.__wbg_get_onnxmodel_recommendedForEmailProcessing(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {string}
+     */
+    get size() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodel_size(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {number} arg0
+     */
+    set contextWindow(arg0) {
+        wasm.__wbg_set_onnxmodel_contextWindow(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set description(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodel_description(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set gpuWarning(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodel_gpuWarning(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set id(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodel_id(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set isExperimental(arg0) {
+        wasm.__wbg_set_onnxmodel_isExperimental(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {number} arg0
+     */
+    set maxEmailTokens(arg0) {
+        wasm.__wbg_set_onnxmodel_maxEmailTokens(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set name(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodel_name(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set recommendedForEmailProcessing(arg0) {
+        wasm.__wbg_set_onnxmodel_recommendedForEmailProcessing(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set size(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodel_size(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) OnnxModel.prototype[Symbol.dispose] = OnnxModel.prototype.free;
+
+export class OnnxModelGroup {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OnnxModelGroup.prototype);
+        obj.__wbg_ptr = ptr;
+        OnnxModelGroupFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OnnxModelGroupFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_onnxmodelgroup_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get label() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_onnxmodelgroup_label(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {OnnxModel[]}
+     */
+    get models() {
+        const ret = wasm.__wbg_get_onnxmodelgroup_models(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @param {string} arg0
+     */
+    set label(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodelgroup_label(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {OnnxModel[]} arg0
+     */
+    set models(arg0) {
+        const ptr0 = passArrayJsValueToWasm0(arg0, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_onnxmodelgroup_models(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) OnnxModelGroup.prototype[Symbol.dispose] = OnnxModelGroup.prototype.free;
 
 export class PipelineActionRow {
     static __wrap(ptr) {
@@ -5077,6 +6076,165 @@ export class SyncStateRow {
 }
 if (Symbol.dispose) SyncStateRow.prototype[Symbol.dispose] = SyncStateRow.prototype.free;
 
+export class TriageClassification {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(TriageClassification.prototype);
+        obj.__wbg_ptr = ptr;
+        TriageClassificationFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TriageClassificationFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_triageclassification_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get action() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_action(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get categoryTier() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_categoryTier(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get category() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_category(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get reason() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_reason(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get summary() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_summary(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get tags() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_triageclassification_tags(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set action(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_action(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set categoryTier(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_categoryTier(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set category(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_category(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set reason(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_reason(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set summary(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_summary(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set tags(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_triageclassification_tags(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) TriageClassification.prototype[Symbol.dispose] = TriageClassification.prototype.free;
+
 /**
  * Twitter/X user profile (common fields from Twitter API v2).
  */
@@ -5569,6 +6727,18 @@ function __wbg_get_imports() {
             const ret = arg0.getAll(arg1, arg2 >>> 0);
             return ret;
         }, arguments); },
+        __wbg_getDate_fbf9a2247e954082: function(arg0) {
+            const ret = arg0.getDate();
+            return ret;
+        },
+        __wbg_getFullYear_f6d84c054eee1543: function(arg0) {
+            const ret = arg0.getFullYear();
+            return ret;
+        },
+        __wbg_getMonth_884df91d4880455c: function(arg0) {
+            const ret = arg0.getMonth();
+            return ret;
+        },
         __wbg_get_326e41e095fb2575: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.get(arg0, arg1);
             return ret;
@@ -5804,6 +6974,10 @@ function __wbg_get_imports() {
             const ret = new Error(getStringFromWasm0(arg0, arg1));
             return ret;
         },
+        __wbg_new_fd94ca5c9639abd2: function(arg0) {
+            const ret = new Date(arg0);
+            return ret;
+        },
         __wbg_new_from_slice_22da9388ac046e50: function(arg0, arg1) {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
@@ -5858,10 +7032,34 @@ function __wbg_get_imports() {
             const ret = arg0.objectStore(getStringFromWasm0(arg1, arg2));
             return ret;
         }, arguments); },
+        __wbg_ollamaconnectionresult_new: function(arg0) {
+            const ret = OllamaConnectionResult.__wrap(arg0);
+            return ret;
+        },
+        __wbg_ollamamodel_new: function(arg0) {
+            const ret = OllamaModel.__wrap(arg0);
+            return ret;
+        },
+        __wbg_ollamamodeltag_new: function(arg0) {
+            const ret = OllamaModelTag.__wrap(arg0);
+            return ret;
+        },
         __wbg_only_71ec27fd794d4b29: function() { return handleError(function (arg0) {
             const ret = IDBKeyRange.only(arg0);
             return ret;
         }, arguments); },
+        __wbg_onnxmodel_new: function(arg0) {
+            const ret = OnnxModel.__wrap(arg0);
+            return ret;
+        },
+        __wbg_onnxmodel_unwrap: function(arg0) {
+            const ret = OnnxModel.__unwrap(arg0);
+            return ret;
+        },
+        __wbg_onnxmodelgroup_new: function(arg0) {
+            const ret = OnnxModelGroup.__wrap(arg0);
+            return ret;
+        },
         __wbg_openCursor_600cc3399e227945: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.openCursor(arg1, __wbindgen_enum_IdbCursorDirection[arg2]);
             return ret;
@@ -6112,6 +7310,10 @@ function __wbg_get_imports() {
             const ret = arg0.then(arg1, arg2);
             return ret;
         },
+        __wbg_toLocaleDateString_d6c514b0bb3da3f4: function(arg0, arg1, arg2, arg3) {
+            const ret = arg0.toLocaleDateString(getStringFromWasm0(arg1, arg2), arg3);
+            return ret;
+        },
         __wbg_toString_3272fa0dfd05dd87: function(arg0) {
             const ret = arg0.toString();
             return ret;
@@ -6148,23 +7350,23 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1019, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1020, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { dtor_idx: 3, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 4, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h9df14c000f4f76ee, wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d);
             return ret;
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 801, function: Function { arguments: [], shim_idx: 802, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 836, function: Function { arguments: [], shim_idx: 837, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
-        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 871, function: Function { arguments: [Externref], shim_idx: 1032, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
-            return ret;
-        },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 985, function: Function { arguments: [NamedExternref("Event")], shim_idx: 986, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 906, function: Function { arguments: [Externref], shim_idx: 1066, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000005: function(arg0) {
@@ -6232,25 +7434,32 @@ function __wbg_get_imports() {
         __wbindgen_cast_000000000000000f: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("PipelineActionRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("OllamaModelTag")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000010: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("PluginSummary")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("PipelineActionRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000011: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("RuleView")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("PluginSummary")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000012: function(arg0, arg1) {
+            var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
+            wasm.__wbindgen_free(arg0, arg1 * 4, 4);
+            // Cast intrinsic for `Vector(NamedExternref("RuleView")) -> Externref`.
+            const ret = v0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000013: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("SourceRow")) -> Externref`.
@@ -6277,12 +7486,12 @@ function wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6(arg0, arg
     wasm.wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6(arg0, arg1);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2);
-}
-
 function wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg1, arg2) {
     wasm.wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg1, arg2);
+}
+
+function wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2);
 }
 
 function wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0(arg0, arg1, arg2) {
@@ -6373,6 +7582,21 @@ const LabelRefFinalization = (typeof FinalizationRegistry === 'undefined')
 const MeAiCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_meaicore_free(ptr >>> 0, 1));
+const OllamaConnectionResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ollamaconnectionresult_free(ptr >>> 0, 1));
+const OllamaModelFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodel_free(ptr >>> 0, 1));
+const OllamaModelTagFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodeltag_free(ptr >>> 0, 1));
+const OnnxModelFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_onnxmodel_free(ptr >>> 0, 1));
+const OnnxModelGroupFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_onnxmodelgroup_free(ptr >>> 0, 1));
 const PipelineActionRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_pipelineactionrow_free(ptr >>> 0, 1));
@@ -6418,6 +7642,9 @@ const SourceRowFinalization = (typeof FinalizationRegistry === 'undefined')
 const SyncStateRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_syncstaterow_free(ptr >>> 0, 1));
+const TriageClassificationFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_triageclassification_free(ptr >>> 0, 1));
 const TwitterProfileFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_twitterprofile_free(ptr >>> 0, 1));
