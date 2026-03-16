@@ -556,16 +556,19 @@ export class AuditLogRow {
         wasm.__wbg_auditlogrow_free(ptr, 0);
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get emailId() {
-        const ret = wasm.__wbg_get_auditlogrow_emailId(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_auditlogrow_emailId(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {string | undefined}
@@ -580,23 +583,26 @@ export class AuditLogRow {
         return v1;
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get eventType() {
-        const ret = wasm.__wbg_get_auditlogrow_eventType(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_auditlogrow_eventType(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
-     * @returns {bigint | undefined}
+     * @returns {bigint}
      */
     get executedAt() {
         const ret = wasm.__wbg_get_auditlogrow_executedAt(this.__wbg_ptr);
-        return ret[0] === 0 ? undefined : ret[1];
+        return ret;
     }
     /**
      * @returns {string | undefined}
@@ -611,16 +617,19 @@ export class AuditLogRow {
         return v1;
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get id() {
-        const ret = wasm.__wbg_get_auditlogrow_id(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_auditlogrow_id(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {string | undefined}
@@ -647,18 +656,18 @@ export class AuditLogRow {
         return v1;
     }
     /**
-     * @returns {boolean | undefined}
+     * @returns {boolean}
      */
     get success() {
         const ret = wasm.__wbg_get_auditlogrow_success(this.__wbg_ptr);
-        return ret === 0xFFFFFF ? undefined : ret !== 0;
+        return ret !== 0;
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set emailId(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_auditlogrow_emailId(this.__wbg_ptr, ptr0, len0);
     }
     /**
@@ -670,18 +679,18 @@ export class AuditLogRow {
         wasm.__wbg_set_auditlogrow_error(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set eventType(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_auditlogrow_eventType(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {bigint | null} [arg0]
+     * @param {bigint} arg0
      */
     set executedAt(arg0) {
-        wasm.__wbg_set_auditlogrow_executedAt(this.__wbg_ptr, !isLikeNone(arg0), isLikeNone(arg0) ? BigInt(0) : arg0);
+        wasm.__wbg_set_auditlogrow_executedAt(this.__wbg_ptr, arg0);
     }
     /**
      * @param {string | null} [arg0]
@@ -692,11 +701,11 @@ export class AuditLogRow {
         wasm.__wbg_set_auditlogrow_from(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set id(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_auditlogrow_id(this.__wbg_ptr, ptr0, len0);
     }
     /**
@@ -716,10 +725,10 @@ export class AuditLogRow {
         wasm.__wbg_set_auditlogrow_subject(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {boolean | null} [arg0]
+     * @param {boolean} arg0
      */
     set success(arg0) {
-        wasm.__wbg_set_auditlogrow_success(this.__wbg_ptr, isLikeNone(arg0) ? 0xFFFFFF : arg0 ? 1 : 0);
+        wasm.__wbg_set_auditlogrow_success(this.__wbg_ptr, arg0);
     }
 }
 if (Symbol.dispose) AuditLogRow.prototype[Symbol.dispose] = AuditLogRow.prototype.free;
@@ -821,16 +830,19 @@ export class ClassificationRow {
         return ret[0] === 0 ? undefined : ret[1];
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get emailId() {
-        const ret = wasm.__wbg_get_classificationrow_emailId(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_classificationrow_emailId(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {string | undefined}
@@ -934,11 +946,11 @@ export class ClassificationRow {
         wasm.__wbg_set_classificationrow_date(this.__wbg_ptr, !isLikeNone(arg0), isLikeNone(arg0) ? BigInt(0) : arg0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set emailId(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_classificationrow_emailId(this.__wbg_ptr, ptr0, len0);
     }
     /**
@@ -1017,16 +1029,19 @@ export class ContactRow {
         wasm.__wbg_contactrow_free(ptr, 0);
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get email() {
-        const ret = wasm.__wbg_get_contactrow_email(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_contactrow_email(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {bigint | undefined}
@@ -1055,11 +1070,11 @@ export class ContactRow {
         return v1;
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set email(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_contactrow_email(this.__wbg_ptr, ptr0, len0);
     }
     /**
@@ -1131,23 +1146,26 @@ export class EventCategoryRow {
         }
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get policy() {
-        const ret = wasm.__wbg_get_eventcategoryrow_policy(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_eventcategoryrow_policy(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
-     * @returns {bigint | undefined}
+     * @returns {bigint}
      */
     get priority() {
         const ret = wasm.__wbg_get_eventcategoryrow_priority(this.__wbg_ptr);
-        return ret[0] === 0 ? undefined : ret[1];
+        return ret;
     }
     /**
      * @param {string | null} [arg0]
@@ -1166,18 +1184,18 @@ export class EventCategoryRow {
         wasm.__wbg_set_eventcategoryrow_name(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set policy(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_eventcategoryrow_policy(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {bigint | null} [arg0]
+     * @param {bigint} arg0
      */
     set priority(arg0) {
-        wasm.__wbg_set_eventcategoryrow_priority(this.__wbg_ptr, !isLikeNone(arg0), isLikeNone(arg0) ? BigInt(0) : arg0);
+        wasm.__wbg_set_eventcategoryrow_priority(this.__wbg_ptr, arg0);
     }
 }
 if (Symbol.dispose) EventCategoryRow.prototype[Symbol.dispose] = EventCategoryRow.prototype.free;
@@ -3544,11 +3562,11 @@ export class PluginSummary {
         return v1;
     }
     /**
-     * @returns {boolean | undefined}
+     * @returns {boolean}
      */
     get enabled() {
         const ret = wasm.__wbg_get_pluginsummary_enabled(this.__wbg_ptr);
-        return ret === 0xFFFFFF ? undefined : ret !== 0;
+        return ret !== 0;
     }
     /**
      * @returns {string | undefined}
@@ -3607,10 +3625,10 @@ export class PluginSummary {
         wasm.__wbg_set_pluginsummary_actions(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {boolean | null} [arg0]
+     * @param {boolean} arg0
      */
     set enabled(arg0) {
-        wasm.__wbg_set_pluginsummary_enabled(this.__wbg_ptr, isLikeNone(arg0) ? 0xFFFFFF : arg0 ? 1 : 0);
+        wasm.__wbg_set_pluginsummary_enabled(this.__wbg_ptr, arg0);
     }
     /**
      * @param {string | null} [arg0]
@@ -3819,45 +3837,51 @@ export class RuleTriggerView {
         wasm.__wbg_ruletriggerview_free(ptr, 0);
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get name() {
-        const ret = wasm.__wbg_get_ruletriggerview_name(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ruletriggerview_name(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * Exposed as `type` in JS (matching original serde rename).
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get type() {
-        const ret = wasm.__wbg_get_ruletriggerview_type(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ruletriggerview_type(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set name(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_ruletriggerview_name(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * Exposed as `type` in JS (matching original serde rename).
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set type(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_ruletriggerview_type(this.__wbg_ptr, ptr0, len0);
     }
 }
@@ -3910,11 +3934,11 @@ export class RuleView {
         return v1;
     }
     /**
-     * @returns {boolean | undefined}
+     * @returns {boolean}
      */
     get enabled() {
         const ret = wasm.__wbg_get_ruleview_enabled(this.__wbg_ptr);
-        return ret === 0xFFFFFF ? undefined : ret !== 0;
+        return ret !== 0;
     }
     /**
      * @returns {string | undefined}
@@ -3941,11 +3965,11 @@ export class RuleView {
         return v1;
     }
     /**
-     * @returns {bigint | undefined}
+     * @returns {bigint}
      */
     get priority() {
         const ret = wasm.__wbg_get_ruleview_priority(this.__wbg_ptr);
-        return ret[0] === 0 ? undefined : ret[1];
+        return ret;
     }
     /**
      * @returns {RuleTriggerView[]}
@@ -3979,10 +4003,10 @@ export class RuleView {
         wasm.__wbg_set_ruleview_description(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {boolean | null} [arg0]
+     * @param {boolean} arg0
      */
     set enabled(arg0) {
-        wasm.__wbg_set_ruleview_enabled(this.__wbg_ptr, isLikeNone(arg0) ? 0xFFFFFF : arg0 ? 1 : 0);
+        wasm.__wbg_set_ruleview_enabled(this.__wbg_ptr, arg0);
     }
     /**
      * @param {string | null} [arg0]
@@ -4001,10 +4025,10 @@ export class RuleView {
         wasm.__wbg_set_ruleview_name(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {bigint | null} [arg0]
+     * @param {bigint} arg0
      */
     set priority(arg0) {
-        wasm.__wbg_set_ruleview_priority(this.__wbg_ptr, !isLikeNone(arg0), isLikeNone(arg0) ? BigInt(0) : arg0);
+        wasm.__wbg_set_ruleview_priority(this.__wbg_ptr, arg0);
     }
     /**
      * @param {RuleTriggerView[]} arg0
@@ -4036,23 +4060,26 @@ export class SourceRow {
         wasm.__wbg_sourcerow_free(ptr, 0);
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get api() {
-        const ret = wasm.__wbg_get_sourcerow_api(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_sourcerow_api(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
-     * @returns {boolean | undefined}
+     * @returns {boolean}
      */
     get enabled() {
         const ret = wasm.__wbg_get_sourcerow_enabled(this.__wbg_ptr);
-        return ret === 0xFFFFFF ? undefined : ret !== 0;
+        return ret !== 0;
     }
     /**
      * @returns {string | undefined}
@@ -4082,30 +4109,33 @@ export class SourceRow {
         }
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get platform() {
-        const ret = wasm.__wbg_get_sourcerow_platform(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_sourcerow_platform(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set api(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_sourcerow_api(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {boolean | null} [arg0]
+     * @param {boolean} arg0
      */
     set enabled(arg0) {
-        wasm.__wbg_set_sourcerow_enabled(this.__wbg_ptr, isLikeNone(arg0) ? 0xFFFFFF : arg0 ? 1 : 0);
+        wasm.__wbg_set_sourcerow_enabled(this.__wbg_ptr, arg0);
     }
     /**
      * @param {string | null} [arg0]
@@ -4124,11 +4154,11 @@ export class SourceRow {
         wasm.__wbg_set_sourcerow_name(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set platform(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_sourcerow_platform(this.__wbg_ptr, ptr0, len0);
     }
 }
@@ -4184,16 +4214,19 @@ export class SyncStateRow {
         return v1;
     }
     /**
-     * @returns {string | undefined}
+     * @returns {string}
      */
     get sourceType() {
-        const ret = wasm.__wbg_get_syncstaterow_sourceType(this.__wbg_ptr);
-        let v1;
-        if (ret[0] !== 0) {
-            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
-            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_syncstaterow_sourceType(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
         }
-        return v1;
     }
     /**
      * @returns {bigint | undefined}
@@ -4225,11 +4258,11 @@ export class SyncStateRow {
         wasm.__wbg_set_syncstaterow_oldestPageToken(this.__wbg_ptr, ptr0, len0);
     }
     /**
-     * @param {string | null} [arg0]
+     * @param {string} arg0
      */
     set sourceType(arg0) {
-        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len0 = WASM_VECTOR_LEN;
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
         wasm.__wbg_set_syncstaterow_sourceType(this.__wbg_ptr, ptr0, len0);
     }
     /**
