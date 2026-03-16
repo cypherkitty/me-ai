@@ -6,3 +6,39 @@ pub(crate) fn value_to_string(v: &serde_json::Value) -> Option<String> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn string_value() {
+        assert_eq!(value_to_string(&json!("hello")), Some("hello".to_string()));
+    }
+
+    #[test]
+    fn number_value() {
+        assert_eq!(value_to_string(&json!(42)), Some("42".to_string()));
+    }
+
+    #[test]
+    fn bool_true_value() {
+        assert_eq!(value_to_string(&json!(true)), Some("true".to_string()));
+    }
+
+    #[test]
+    fn null_value() {
+        assert_eq!(value_to_string(&json!(null)), None);
+    }
+
+    #[test]
+    fn array_value() {
+        assert_eq!(value_to_string(&json!([1, 2, 3])), None);
+    }
+
+    #[test]
+    fn object_value() {
+        assert_eq!(value_to_string(&json!({"key": "val"})), None);
+    }
+}

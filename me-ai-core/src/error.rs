@@ -73,4 +73,28 @@ mod tests {
             "VersionError: requested 1 < existing 20"
         );
     }
+
+    #[test]
+    fn format_rexie_error_message_with_inner_detail() {
+        let result = format_rexie_error_message("idb error", "some inner detail");
+        assert!(result.contains("idb error"), "must contain outer message");
+        assert!(result.contains("some inner detail"), "must contain inner detail");
+        assert!(result.contains("IndexedDB may be blocked"), "must contain hint");
+    }
+
+    #[test]
+    fn format_rexie_error_message_short_string_gets_hint() {
+        // "short" has len < 20
+        let result = format_rexie_error_message("short", "");
+        assert!(result.contains("IndexedDB may be blocked"));
+    }
+
+    #[test]
+    fn format_rexie_error_message_valid_key_no_dataerror_check() {
+        // "valid key is missing" contains "valid key" but not "DataError",
+        // so the DataError branch fires (contains "valid key" matches || check).
+        let result = format_rexie_error_message("valid key is missing", "");
+        assert!(result.contains("DataError") || result.contains("Check for null"),
+            "expected DataError branch: got '{result}'");
+    }
 }

@@ -72,6 +72,36 @@ pub struct ActionResult {
     pub data: JsValue,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_result_ok() {
+        let r = PluginResult::ok("done", None);
+        assert!(r.success);
+        assert_eq!(r.message, Some("done".to_string()));
+        assert!(r.data.is_none());
+    }
+
+    #[test]
+    fn plugin_result_err() {
+        let r = PluginResult::err("bad");
+        assert!(!r.success);
+        assert_eq!(r.message, Some("bad".to_string()));
+        assert!(r.data.is_none());
+    }
+
+    #[test]
+    fn plugin_result_ok_with_data() {
+        let r = PluginResult::ok_with_data("ok", 42u32);
+        assert!(r.success);
+        assert_eq!(r.message, Some("ok".to_string()));
+        let data = r.data.as_ref().expect("data must be Some");
+        assert_eq!(*data, serde_json::json!(42));
+    }
+}
+
 impl ActionResult {
     pub fn from_plugin_result(
         action_id: Option<String>,

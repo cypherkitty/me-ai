@@ -483,4 +483,46 @@ mod tests {
         assert_eq!(GmailAction::from_str("  Mark_Read  "), Some(GmailAction::MarkRead));
         assert_eq!(GmailAction::from_str("unknown"), None);
     }
+
+    #[test]
+    fn from_str_mark_read_bare() {
+        assert_eq!(GmailAction::from_str("mark_read"), Some(GmailAction::MarkRead));
+    }
+
+    #[test]
+    fn from_str_with_gmail_prefix() {
+        assert_eq!(GmailAction::from_str("gmail:mark_read"), Some(GmailAction::MarkRead));
+    }
+
+    #[test]
+    fn from_str_case_insensitive() {
+        assert_eq!(GmailAction::from_str("MARK_READ"), Some(GmailAction::MarkRead));
+    }
+
+    #[test]
+    fn from_str_trims_whitespace() {
+        assert_eq!(GmailAction::from_str("  trash  "), Some(GmailAction::Trash));
+    }
+
+    #[test]
+    fn from_str_unknown_returns_none() {
+        assert_eq!(GmailAction::from_str("unknown_action"), None);
+    }
+
+    #[test]
+    fn round_trip_all_variants() {
+        for action in GmailAction::all() {
+            assert_eq!(
+                GmailAction::from_str(action.as_str()),
+                Some(*action),
+                "round-trip failed for {:?}",
+                action
+            );
+        }
+    }
+
+    #[test]
+    fn as_str_mark_read() {
+        assert_eq!(GmailAction::MarkRead.as_str(), "mark_read");
+    }
 }
