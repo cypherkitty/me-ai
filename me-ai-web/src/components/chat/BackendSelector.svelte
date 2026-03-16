@@ -7,7 +7,7 @@
   }
   let { backend = $bindable("webgpu"), isWebGPUAvailable = true }: Props = $props();
 
-  const options = [
+  const options = $derived([
     {
       id: "webgpu",
       icon: "🔷",
@@ -27,7 +27,7 @@
       label: "Cloud APIs",
       desc: "ChatGPT, Claude, Gemini, Grok",
     },
-  ];
+  ]);
 </script>
 
 <div class="w-full mb-4">
