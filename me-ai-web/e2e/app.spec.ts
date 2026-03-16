@@ -108,6 +108,7 @@ test.describe("Chat page", () => {
   });
 
   test("thinking is collapsed by default, expands on click", async ({ page }) => {
+    test.skip(!!process.env.CI, "Requires WebGPU — skipped in CI");
     test.setTimeout(180_000);
     await page.goto("/");
 
