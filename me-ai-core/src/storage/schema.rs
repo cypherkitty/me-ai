@@ -328,3 +328,4 @@ pub async fn set_setting(db: DbRef<'_>, key: &str, value: &str) -> Result<(), Co
 pub async fn remove_setting(db: DbRef<'_>, key: &str) -> Result<(), CoreError> {
     db.store_delete(store::SETTINGS, key).await
 }
+

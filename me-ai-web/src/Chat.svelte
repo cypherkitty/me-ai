@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { getSetting, setSetting } from "./lib/store/settings.js";
+  import { loadSettings, saveSettings, SettingValue, AiBackend } from "./lib/core.js";
   import { MODELS } from "./lib/models.js";
   import { OLLAMA_MODELS } from "./lib/ollama-models.js";
   import { coreStore } from "./lib/store/core-store.js";
@@ -33,7 +33,7 @@
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
-  let backend = $state<"webgpu" | "ollama" | "cloud">("webgpu");
+  let backend = $state<AiBackend>(AiBackend.WebGpu);
   let selectedModel = $state("onnx-community/gpt-oss-20b-ONNX");
   let apiModels: ApiModel[] = $state([]);
   $effect(() => {
@@ -104,37 +104,16 @@
     (async () => {
     // Restore saved backend, model, and options from settings (IndexedDB)
     try {
-      const [
-        savedBackend,
-        savedModel,
-        savedEnableThinking,
-        savedLoadDtype,
-        savedLoadDevice,
-        savedMaxTokens,
-        savedDoSample,
-        savedTemperature,
-        savedRepetitionPenalty,
-      ] = await Promise.all([
-        getSetting("aiBackend"),
-        getSetting("selectedModel"),
-        getSetting("enableThinking"),
-        getSetting("loadDtype"),
-        getSetting("loadDevice"),
-        getSetting("maxTokens"),
-        getSetting("doSample"),
-        getSetting("temperature"),
-        getSetting("repetitionPenalty"),
-      ]);
-      if (savedBackend) backend = savedBackend as "ollama" | "webgpu" | "cloud";
-      if (savedModel) selectedModel = savedModel as string;
-      if (savedEnableThinking !== undefined) enableThinking = savedEnableThinking as boolean;
-      if (savedLoadDtype) loadDtype = savedLoadDtype as string;
-      if (savedLoadDevice) loadDevice = savedLoadDevice as string;
-      if (savedMaxTokens != null) maxTokens = savedMaxTokens as number;
-      if (savedDoSample !== undefined) doSample = savedDoSample as boolean;
-      if (savedTemperature != null) temperature = savedTemperature as number;
-      if (savedRepetitionPenalty != null)
-        repetitionPenalty = savedRepetitionPenalty as number;
+      const sv = await loadSettings();
+      if (sv.aiBackend !== undefined) backend = sv.aiBackend;
+      if (sv.selectedModel) selectedModel = sv.selectedModel;
+      if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
+      if (sv.loadDtype) loadDtype = sv.loadDtype;
+      if (sv.loadDevice) loadDevice = sv.loadDevice;
+      if (sv.maxTokens != null) maxTokens = sv.maxTokens;
+      if (sv.doSample !== undefined) doSample = sv.doSample;
+      if (sv.temperature != null) temperature = sv.temperature;
+      if (sv.repetitionPenalty != null) repetitionPenalty = sv.repetitionPenalty;
     } catch {
       storageUnavailable = true;
     }
@@ -541,9 +520,9 @@
 
     // Determine current model label for the task card badge
     const activeBackend =
-      backend === "cloud"
+      backend === AiBackend.Cloud
         ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-        : backend;
+        : backend === AiBackend.Ollama ? "ollama" : "webgpu";
 
     // Push a live task card into the chat.
     // Capture the index so we can mutate through the $state proxy later.
@@ -742,19 +721,21 @@
     error = null;
     loadInitiated = true;
     try {
-      await setSetting("selectedModel", selectedModel);
-      await setSetting("aiBackend", backend);
-      await setSetting("loadDtype", loadDtype);
-      await setSetting("loadDevice", loadDevice);
+      const sv = new SettingValue();
+      sv.selectedModel = selectedModel;
+      sv.aiBackend = backend;
+      sv.loadDtype = loadDtype;
+      sv.loadDevice = loadDevice;
+      await saveSettings(sv);
     } catch {
       storageUnavailable = true;
     }
     // Clear gpuInfo when not using WebGPU
-    if (backend !== "webgpu") {
+    if (backend !== AiBackend.WebGpu) {
       gpuInfo = null;
     }
     const loadOptions =
-      backend === "webgpu" ? { dtype: loadDtype, device: loadDevice } : {};
+      backend === AiBackend.WebGpu ? { dtype: loadDtype, device: loadDevice } : {};
     engine.loadModel(selectedModel, loadOptions);
   }
 
@@ -767,15 +748,15 @@
 
   // Watch backend changes and update default model
   $effect(() => {
-    if (backend === "webgpu" && !MODELS.find((m) => m.id === selectedModel)) {
+    if (backend === AiBackend.WebGpu && !MODELS.find((m) => m.id === selectedModel)) {
       if (MODELS[0]) selectedModel = MODELS[0].id;
     } else if (
-      backend === "ollama" &&
+      backend === AiBackend.Ollama &&
       !OLLAMA_MODELS.find((m) => m.name === selectedModel)
     ) {
       if (OLLAMA_MODELS[0]) selectedModel = OLLAMA_MODELS[0].name;
     } else if (
-      backend === "cloud" &&
+      backend === AiBackend.Cloud &&
       !apiModels.find((m) => m.id === selectedModel)
     ) {
       if (apiModels[0]) selectedModel = apiModels[0].id;
@@ -791,11 +772,13 @@
     const e = repetitionPenalty;
     (async () => {
       try {
-        await setSetting("enableThinking", a);
-        await setSetting("maxTokens", b);
-        await setSetting("doSample", c);
-        await setSetting("temperature", d);
-        await setSetting("repetitionPenalty", e);
+        const sv = new SettingValue();
+        sv.enableThinking = a;
+        sv.maxTokens = b;
+        sv.doSample = c;
+        sv.temperature = d;
+        sv.repetitionPenalty = e;
+        await saveSettings(sv);
       } catch {
         storageUnavailable = true;
       }
@@ -947,7 +930,7 @@
     <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
       <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
-      {#if backend === "webgpu"}
+      {#if backend === AiBackend.WebGpu}
         <ModelSelector
           bind:selectedModel
           bind:loadDtype
@@ -960,9 +943,9 @@
           }}
           onclearcache={clearCacheAndRetry}
         />
-      {:else if backend === "ollama"}
+      {:else if backend === AiBackend.Ollama}
         <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
-      {:else if backend === "cloud"}
+      {:else if backend === AiBackend.Cloud}
         <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
       {/if}
     </div>
@@ -986,9 +969,9 @@
     bind:doSample
     bind:temperature
     bind:repetitionPenalty
-    backend={backend === "cloud"
+    backend={backend === AiBackend.Cloud
       ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-      : backend}
+      : backend === AiBackend.Ollama ? "ollama" : "webgpu"}
     bind:chatContainer
     onsend={send}
     onstop={stop}

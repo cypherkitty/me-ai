@@ -9,6 +9,7 @@ use js_sys::Function;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::str::FromStr;
 use wasm_bindgen::prelude::*;
 
 use crate::error::CoreError;
@@ -16,6 +17,28 @@ use crate::error::CoreError;
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Provider {
+    OpenAi,
+    Anthropic,
+    Google,
+    Xai,
+}
+
+impl FromStr for Provider {
+    type Err = CoreError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "openai" => Ok(Provider::OpenAi),
+            "anthropic" => Ok(Provider::Anthropic),
+            "google" => Ok(Provider::Google),
+            "xai" => Ok(Provider::Xai),
+            _ => Err(CoreError::Llm(format!("unknown provider: {s}"))),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -456,12 +479,14 @@ pub async fn stream_api_chat(
     options: StreamOptions,
     on_token: &Function,
 ) -> Result<(), CoreError> {
+    let provider = provider.parse::<Provider>()?;
     match provider {
-        "openai" => call_openai(model_name, api_key, messages, &options, on_token).await,
-        "anthropic" => call_anthropic(model_name, api_key, messages, &options, on_token).await,
-        "google" => call_google(model_name, api_key, messages, &options, on_token).await,
-        "xai" => call_xai(model_name, api_key, messages, &options, on_token).await,
-        _ => Err(CoreError::Llm(format!("unknown provider: {provider}"))),
+        Provider::OpenAi => call_openai(model_name, api_key, messages, &options, on_token).await,
+        Provider::Anthropic => {
+            call_anthropic(model_name, api_key, messages, &options, on_token).await
+        }
+        Provider::Google => call_google(model_name, api_key, messages, &options, on_token).await,
+        Provider::Xai => call_xai(model_name, api_key, messages, &options, on_token).await,
     }
 }
 
@@ -500,15 +525,16 @@ mod tests {
 }
 
 pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, CoreError> {
+    let provider = provider.parse::<Provider>()?;
     let auth = format!("Bearer {api_key}");
     match provider {
-        "openai" => {
+        Provider::OpenAi => {
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
                 http_fetch("GET", "https://api.openai.com/v1/models", headers, None).await?;
             Ok((200..300).contains(&status))
         }
-        "anthropic" => {
+        Provider::Anthropic => {
             let body = serde_json::json!({
                 "model": "claude-haiku-4-5-20251001",
                 "max_tokens": 1,
@@ -527,19 +553,18 @@ pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, 
                     .await?;
             Ok((200..300).contains(&status))
         }
-        "google" => {
+        Provider::Google => {
             let url = format!(
                 "https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
             );
             let (status, _) = http_fetch("GET", &url, &[], None).await?;
             Ok((200..300).contains(&status))
         }
-        "xai" => {
+        Provider::Xai => {
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
                 http_fetch("GET", "https://api.x.ai/v1/models", headers, None).await?;
             Ok((200..300).contains(&status))
         }
-        _ => Err(CoreError::Llm(format!("unknown provider: {provider}"))),
     }
 }

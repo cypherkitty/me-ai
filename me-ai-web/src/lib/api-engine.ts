@@ -7,8 +7,8 @@ import {
   getApiModelInfo as coreGetApiModelInfo,
   testApiConnection as coreTestApiConnection,
   streamChat as coreStreamChat,
+  loadSettings,
 } from "./core.js";
-import { getSetting } from "./store/settings.js";
 
 export type ApiProvider = "openai" | "anthropic" | "google" | "xai";
 
@@ -38,7 +38,13 @@ export function getApiEngine(provider: ApiProvider) {
       _status = "loading";
       _provider = provider;
       broadcast({ status: "loading", data: `Checking ${provider} connection...` });
-      const apiKey = await getSetting<string>(`${provider}ApiKey`);
+      const _sv1 = await loadSettings();
+      const apiKey = (
+        provider === "openai" ? _sv1.openaiApiKey :
+        provider === "anthropic" ? _sv1.anthropicApiKey :
+        provider === "google" ? _sv1.googleApiKey :
+        _sv1.xaiApiKey
+      ) ?? null;
       if (!apiKey) {
         _status = "idle";
         broadcast({
@@ -79,7 +85,13 @@ export function getApiEngine(provider: ApiProvider) {
         status: "loading",
         data: `Connecting to ${provider} model: ${providerModelName}...`,
       });
-      const apiKey = await getSetting<string>(`${provider}ApiKey`);
+      const _sv2 = await loadSettings();
+      const apiKey = (
+        provider === "openai" ? _sv2.openaiApiKey :
+        provider === "anthropic" ? _sv2.anthropicApiKey :
+        provider === "google" ? _sv2.googleApiKey :
+        _sv2.xaiApiKey
+      ) ?? null;
       if (!apiKey) {
         _status = "idle";
         _modelId = null;

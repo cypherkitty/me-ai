@@ -11,14 +11,10 @@
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
-  } from "./lib/triage.js";
-  import { getCategoryForEventType, categoryTierToName } from "./lib/events.js";
+  } from "$lib/triage";
+  import { getCategoryForEventType, categoryTierToName } from "$lib/events";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
-  import {
-    getSetting,
-    setSetting,
-    removeSetting,
-  } from "./lib/store/settings.js";
+  import { loadSettings, saveSettings, SettingValue, ScanHistory, removeSetting } from "./lib/core.js";
 
   const engine = getUnifiedEngine();
 
@@ -42,20 +38,20 @@
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
 
   async function loadScanHistory() {
-    return await getSetting(SCAN_HISTORY_KEY);
+    const sv = await loadSettings();
+    return sv.scanHistory ?? null;
   }
 
   async function saveScanHistory(progress: Record<string, unknown>) {
     if (!progress || progress.phase !== "done") return;
-    // Store only stats — no email content outside IndexedDB
-    await setSetting(SCAN_HISTORY_KEY, {
-      timestamp: Date.now(),
-      classified: progress.classified || 0,
-      errors: progress.errors || 0,
-      total: progress.total || 0,
-      totals: progress.totals || {},
-      summary: progress.summary || {},
-    });
+    const sv = new SettingValue();
+    sv.scanHistory = new ScanHistory(
+      Date.now(),
+      Number(progress.classified) || 0,
+      Number(progress.errors) || 0,
+      Number(progress.total) || 0,
+    );
+    await saveSettings(sv);
   }
 
   // ── Track engine status ────────────────────────────────────────────
@@ -85,7 +81,13 @@
     // Restore last scan from IndexedDB
     const saved = await loadScanHistory();
     if (saved) {
-      scanProgress = { phase: "done", ...(saved as Record<string, unknown>) };
+      scanProgress = {
+        phase: "done",
+        timestamp: saved.timestamp,
+        classified: saved.classified,
+        errors: saved.errors,
+        total: saved.total,
+      };
     }
 
     loadData();

@@ -4,8 +4,10 @@
  * Uses vite-plugin-wasm (nervo-labs pattern) so bundling preserves wasm-bindgen imports.
  */
 
-import initDefault, { MeAiCore } from "me-ai-core";
+import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
+
+export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory } from "me-ai-core";
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
@@ -56,11 +58,11 @@ export async function getItemsDateMax() {
 export async function getEmailClassificationsCount() {
   return requireCore().getEmailClassificationsCount();
 }
-export async function getSetting(key: string) {
-  return requireCore().getSetting(key);
+export async function loadSettings(): Promise<SettingValue> {
+  return requireCore().loadSettings();
 }
-export async function setSetting(key: string, value: string) {
-  return requireCore().setSetting(key, value);
+export async function saveSettings(sv: SettingValue): Promise<void> {
+  return requireCore().saveSettings(sv);
 }
 export async function removeSetting(key: string) {
   return requireCore().removeSetting(key);

@@ -20,6 +20,7 @@ use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
 use crate::llm::models::ApiModel;
 use crate::plugins::{ActionInput, ActionMetadata, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
+use crate::storage::settings::SettingValue;
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
 use crate::storage::classifications::ClassificationRow;
@@ -134,16 +135,16 @@ impl MeAiCore {
         Ok(storage::schema::clear_all_data(db).await?)
     }
 
-    #[wasm_bindgen(js_name = getSetting)]
-    pub async fn get_setting(&self, key: &str) -> Result<Option<String>, JsValue> {
+    #[wasm_bindgen(js_name = loadSettings)]
+    pub async fn load_settings(&self) -> Result<SettingValue, JsValue> {
         let db = self.rexie_db.db();
-        Ok(storage::schema::get_setting(db, key).await?)
+        Ok(storage::settings::load_settings(db).await?)
     }
 
-    #[wasm_bindgen(js_name = setSetting)]
-    pub async fn set_setting(&self, key: &str, value: &str) -> Result<(), JsValue> {
+    #[wasm_bindgen(js_name = saveSettings)]
+    pub async fn save_settings(&self, sv: SettingValue) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
-        Ok(storage::schema::set_setting(db, key, value).await?)
+        Ok(storage::settings::save_settings(db, &sv).await?)
     }
 
     #[wasm_bindgen(js_name = removeSetting)]

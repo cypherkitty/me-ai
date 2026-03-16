@@ -1,6 +1,6 @@
 ---
-id: builder
-name: builder
+id: me-ai-builder
+name: me-ai-builder
 description: Build and install specialist. Use Taskfile only; do not run npm install or npm run build from repo root.
 enabled: true
 model: inherit
@@ -39,7 +39,7 @@ task test:e2e   # E2E (optional)
 
 1. Run the appropriate task(s) for the request (e.g. build after code changes, install after clone).
 2. If a build fails, read the error output, identify the cause, and fix or report clearly. Suggest fixes in me-ai-core or me-ai-web as needed, or recommend running a different task.
-3. Do not run tests; the web-it-tests subagent handles those.
+3. Do not run tests; the me-ai-web-it-tests subagent handles those.
 
 ## Output
 

@@ -1,10 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    getSetting,
-    setSetting,
-    removeSetting,
-  } from "../lib/store/settings.js";
+  import { loadSettings, saveSettings, SettingValue, GmailProfile, TwitterProfile } from "../lib/core.js";
   import {
     initGoogleAuth,
     requestAccessToken,
@@ -161,9 +157,10 @@
   const hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
   onMount(() => {
-    getSetting("googleClientId").then((saved) => {
-      clientId = (saved as string) || DEFAULT_CLIENT_ID;
-      clientIdInput = (saved as string) || DEFAULT_CLIENT_ID;
+    loadSettings().then((sv) => {
+      const saved = sv.googleClientId ?? null;
+      clientId = saved || DEFAULT_CLIENT_ID;
+      clientIdInput = saved || DEFAULT_CLIENT_ID;
     });
     window.addEventListener("keydown", handleKeydown);
     return () => {
@@ -237,7 +234,9 @@
   async function saveClientId() {
     const t = clientIdInput.trim();
     if (!t) return;
-    await setSetting("googleClientId", t);
+    const sv = new SettingValue();
+    sv.googleClientId = t;
+    await saveSettings(sv);
     clientId = t;
     gmailError = null;
     showClientIdEdit = false;
@@ -275,7 +274,6 @@
     totalLocalMessages = 0;
     selectedMessage = null;
     gmailError = null;
-    await removeSetting("gmail-profile");
   }
 
   async function fetchProfile() {
@@ -283,7 +281,11 @@
     try {
       const r = await getProfile(accessToken);
       profile = r;
-      await setSetting("gmail-profile", r);
+      const gmailProf = new GmailProfile();
+      if (r.emailAddress) gmailProf.emailAddress = r.emailAddress as string;
+      const sv = new SettingValue();
+      sv.gmailProfile = gmailProf;
+      await saveSettings(sv);
     } catch (e) {
       if (!accessToken) return;
       gmailError = `Profile fetch failed: ${errMsg(e)}`;
@@ -430,7 +432,8 @@
   // Init on mount
   onMount(async () => {
     // Restore saved client ID
-    const savedTwId = await getSetting("twitterClientId") as string | null;
+    const initSv = await loadSettings();
+    const savedTwId = initSv.twitterClientId ?? null;
     twClientId = savedTwId || "";
     twClientIdInput = savedTwId || "";
 
@@ -472,7 +475,9 @@
   async function twSaveClientId() {
     const t = twClientIdInput.trim();
     if (!t) return;
-    await setSetting("twitterClientId", t);
+    const sv = new SettingValue();
+    sv.twitterClientId = t;
+    await saveSettings(sv);
     twClientId = t;
     initTwitterAuth(t);
     twShowClientIdEdit = false;
@@ -504,7 +509,6 @@
     twMessages = [];
     twTotalMessages = 0;
     twError = null;
-    await removeSetting("twitter-profile");
   }
 
   async function twFetchProfile() {
@@ -512,7 +516,14 @@
     try {
       const r = await getTwitterMe(twAccessToken);
       twProfile = r.data as unknown as Record<string, unknown>;
-      await setSetting("twitter-profile", r.data);
+      const twProf = new TwitterProfile();
+      const rd = r.data as { id?: string; name?: string; username?: string };
+      if (rd.id) twProf.id = rd.id;
+      if (rd.name) twProf.name = rd.name;
+      if (rd.username) twProf.username = rd.username;
+      const sv = new SettingValue();
+      sv.twitterProfile = twProf;
+      await saveSettings(sv);
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {

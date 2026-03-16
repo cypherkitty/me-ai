@@ -1,28 +1,29 @@
 <script lang="ts">
   import { cn } from "$lib/utils.js";
+  import { AiBackend } from "$lib/core.js";
 
   interface Props {
-    backend?: "webgpu" | "ollama" | "cloud";
+    backend?: AiBackend;
     isWebGPUAvailable?: boolean;
   }
-  let { backend = $bindable("webgpu"), isWebGPUAvailable = true }: Props = $props();
+  let { backend = $bindable(AiBackend.WebGpu), isWebGPUAvailable = true }: Props = $props();
 
   const options = $derived([
     {
-      id: "webgpu",
+      id: AiBackend.WebGpu,
       icon: "🔷",
       label: "WebGPU",
       desc: "Browser, private, no server",
       disabled: !isWebGPUAvailable,
     },
     {
-      id: "ollama",
+      id: AiBackend.Ollama,
       icon: "🦙",
       label: "Ollama",
       desc: "Local server, larger models",
     },
     {
-      id: "cloud",
+      id: AiBackend.Cloud,
       icon: "☁️",
       label: "Cloud APIs",
       desc: "ChatGPT, Claude, Gemini, Grok",
@@ -52,7 +53,7 @@
 
   {#snippet optionBtn(opt: typeof options[number])}
     <button
-      onclick={() => (backend = opt.id as "webgpu" | "ollama" | "cloud")}
+      onclick={() => (backend = opt.id)}
       disabled={opt.disabled}
       class={cn(
         "flex items-center gap-3 p-3.5 text-left rounded border transition-all w-full",
@@ -77,7 +78,7 @@
     </button>
   {/snippet}
 
-  {#if !isWebGPUAvailable && backend === "webgpu"}
+  {#if !isWebGPUAvailable && backend === AiBackend.WebGpu}
     <p
       class="mt-2.5 px-3 py-2 text-xs text-warning bg-warning/8 border border-warning/20 rounded text-center"
     >

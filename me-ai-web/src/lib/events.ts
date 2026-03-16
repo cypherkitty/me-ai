@@ -77,25 +77,40 @@ export function categoryTierToName(category: EventCategory): string {
 }
 
 // ── Persistence ─────────────────────────────────────────────────────
+// These dynamic maps are not fields in SettingValue; persist via localStorage.
 
 async function loadUserMap(): Promise<Record<string, Action[]>> {
-  const { getSetting } = await import("./store/settings.js");
-  return (await getSetting(STORAGE_KEY)) || {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, Action[]>) : {};
+  } catch {
+    return {};
+  }
 }
 
 async function saveUserMap(map: Record<string, Action[]>): Promise<void> {
-  const { setSetting } = await import("./store/settings.js");
-  await setSetting(STORAGE_KEY, map);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
 }
 
 async function loadCategoriesMap(): Promise<Record<string, EventCategory>> {
-  const { getSetting } = await import("./store/settings.js");
-  return (await getSetting(CATEGORIES_KEY)) || {};
+  try {
+    const raw = localStorage.getItem(CATEGORIES_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, EventCategory>) : {};
+  } catch {
+    return {};
+  }
 }
 
 async function saveCategoriesMap(map: Record<string, EventCategory>): Promise<void> {
-  const { setSetting } = await import("./store/settings.js");
-  await setSetting(CATEGORIES_KEY, map);
+  try {
+    localStorage.setItem(CATEGORIES_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ── Event type queries ──────────────────────────────────────────────

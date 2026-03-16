@@ -73,7 +73,7 @@ impl DbRef<'_> {
         limit: Option<u32>,
     ) -> Result<Vec<T>, CoreError>
     where
-        T: serde::de::DeserializeOwned,
+        T: DeserializeOwned,
     {
         store_get_all(self.0, store_name, key_range, limit).await
     }
@@ -85,7 +85,7 @@ impl DbRef<'_> {
         limit: Option<u32>,
     ) -> Result<Vec<T>, CoreError>
     where
-        T: serde::de::DeserializeOwned,
+        T: DeserializeOwned,
     {
         index_get_all(self.0, store_name, index_name, key_range, limit).await
     }
