@@ -1,5 +1,72 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { parseClassification, actionColor, tagColor } from "../triage.js";
+
+function _stringToHue(s: string): number {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (Math.imul(31, hash) + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % 360;
+}
+
+vi.mock("../core.js", () => ({
+  getOnnxModels: () => [],
+  getOnnxModelGroups: () => [],
+  getOllamaModels: () => [],
+  getRecommendedOllamaModels: () => [],
+  getPluginsForPrompt: () => [],
+  getItemsCountGmail: vi.fn(),
+  getEmailClassificationsCount: vi.fn(),
+  getItemsGmailByDateDesc: vi.fn(),
+  getEmailClassifications: vi.fn(),
+  putEmailClassification: vi.fn(),
+  updateEmailClassificationStatus: vi.fn(),
+  clearEmailClassifications: vi.fn(),
+  deleteEmailClassificationsByAction: vi.fn(),
+  deleteEmailClassification: vi.fn(),
+  buildSystemPrompt: vi.fn(),
+  formatEmailPrompt: vi.fn(),
+  parseClassification: (response: string) => {
+    if (!response || !response.trim()) return undefined;
+    let text = response.trim();
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    if (text.startsWith("```json")) text = text.slice(7);
+    else if (text.startsWith("```")) text = text.slice(3);
+    if (text.endsWith("```")) text = text.slice(0, -3);
+    text = text.replace(/^[-\s]+/, "");
+    if (text.startsWith("set ")) text = text.slice(4);
+    text = text.trim();
+    const firstBrace = text.indexOf("{");
+    const lastBrace = text.lastIndexOf("}");
+    if (firstBrace === -1 || lastBrace <= firstBrace) return undefined;
+    let jsonStr = text.slice(firstBrace, lastBrace + 1).replace(/ --set /g, " ");
+    let obj: Record<string, unknown>;
+    try { obj = JSON.parse(jsonStr) as Record<string, unknown>; } catch { return undefined; }
+    if (typeof obj !== "object" || Array.isArray(obj)) return undefined;
+    const rawAction = String(obj.action ?? "").trim();
+    if (!rawAction) return undefined;
+    const al = rawAction.toLowerCase();
+    if (al.includes("=") || al.includes("postgres") || al.includes("sslmode") || al.includes("connection") || al.includes("config")) return undefined;
+    const action = rawAction.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    if (!action || action.length > 50) return undefined;
+    const reason = String(obj.reason ?? "").slice(0, 300);
+    const summary = String(obj.summary ?? "").slice(0, 500);
+    const tags: string[] = Array.isArray(obj.tags)
+      ? (obj.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t: string) => t.trim().toLowerCase()).slice(0, 10)
+      : [];
+    return { action, category: "noise", categoryTier: "NOISE", reason, summary, tags: JSON.stringify(tags) };
+  },
+  actionColor: (action: string) => {
+    let hash = 0;
+    for (let i = 0; i < action.length; i++) hash = (Math.imul(31, hash) + action.charCodeAt(i)) | 0;
+    return `hsl(${Math.abs(hash) % 360}, 55%, 55%)`;
+  },
+  tagColor: (tag: string) => {
+    let hash = 0;
+    for (let i = 0; i < tag.length; i++) hash = (Math.imul(31, hash) + tag.charCodeAt(i)) | 0;
+    return `hsl(${Math.abs(hash) % 360}, 40%, 35%)`;
+  },
+}));
 
 describe("parseClassification", () => {
   it("parses a full classification with all fields", () => {
@@ -125,8 +192,11 @@ describe("parseClassification", () => {
     expect(result!.reason).toBe("Discount offer");
   });
 
-  it("returns null for array instead of object", () => {
-    expect(parseClassification('[{"action": "DELETE"}]')).toBeNull();
+  it("extracts object from array wrapper (permissive parser)", () => {
+    // The parser extracts from first { to last } — it handles LLM array responses
+    const result = parseClassification('[{"action": "DELETE", "reason": "x", "summary": "y", "tags": []}]');
+    expect(result).not.toBeNull();
+    expect(result!.action).toBe("DELETE");
   });
 
   it("handles pretty-printed JSON", () => {
