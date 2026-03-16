@@ -1,8 +1,15 @@
-use js_sys::{Function, Promise};
+use async_openai::{
+    config::OpenAIConfig,
+    types::responses::{
+        CreateResponseArgs, EasyInputContent, EasyInputMessage, InputItem, InputParam, OutputItem,
+        OutputMessageContent, Reasoning, ReasoningEffort, Role,
+    },
+};
+use js_sys::Function;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
 
 use crate::error::CoreError;
 
@@ -43,74 +50,27 @@ fn emit_token(on_token: &Function, payload: &TokenPayload) {
     }
 }
 
-fn js_error_string(e: &JsValue) -> String {
-    e.as_string()
-        .or_else(|| {
-            js_sys::Reflect::get(e, &JsValue::from_str("message"))
-                .ok()
-                .and_then(|v| v.as_string())
-        })
-        .unwrap_or_else(|| format!("{e:?}"))
-}
-
-/// HTTP request via the browser's native `fetch` API (no reqwest body reading).
-/// Returns `(status_code, body_text)` on success, or `CoreError` on network failure.
-async fn js_fetch(
+async fn http_fetch(
     method: &str,
     url: &str,
     headers: &[(&str, &str)],
     body: Option<String>,
 ) -> Result<(u16, String), CoreError> {
-    let url_s = serde_json::to_string(url).unwrap();
-    let method_s = serde_json::to_string(method).unwrap();
-
-    let headers_pairs: Vec<String> = headers
-        .iter()
-        .map(|(k, v)| {
-            format!(
-                "{}: {}",
-                serde_json::to_string(k).unwrap(),
-                serde_json::to_string(v).unwrap()
-            )
-        })
-        .collect();
-    let headers_obj = format!("{{{}}}", headers_pairs.join(", "));
-
-    // body must be a JSON-encoded string so that `body: <value>` is a JS string literal
-    let body_part = match body {
-        Some(b) => format!(", body: {}", serde_json::to_string(&b).unwrap()),
-        None => String::new(),
+    let client = Client::new();
+    let mut builder = match method {
+        "POST" => client.post(url),
+        _ => client.get(url),
     };
-
-    // Build an IIFE that calls fetch and returns { s: status, b: bodyText } as JSON
-    let js = format!(
-        "return fetch({url_s}, {{ method: {method_s}, headers: {headers_obj}{body_part} }})\
-         .then(async function(r) {{ \
-             var t = await r.text(); \
-             return JSON.stringify({{ s: r.status, b: t }}); \
-         }})"
-    );
-
-    let func = Function::new_no_args(&js);
-    let promise = Promise::from(
-        func.call0(&JsValue::NULL)
-            .map_err(|e| CoreError::Llm(js_error_string(&e)))?,
-    );
-
-    let val = JsFuture::from(promise)
-        .await
-        .map_err(|e| CoreError::Llm(js_error_string(&e)))?;
-
-    let json_str = val
-        .as_string()
-        .ok_or_else(|| CoreError::Llm("fetch returned non-string".to_string()))?;
-
-    let parsed: Value =
-        serde_json::from_str(&json_str).map_err(|e| CoreError::Llm(e.to_string()))?;
-
-    let status = parsed["s"].as_u64().unwrap_or(0) as u16;
-    let body_text = parsed["b"].as_str().unwrap_or("").to_string();
-    Ok((status, body_text))
+    for (k, v) in headers {
+        builder = builder.header(*k, *v);
+    }
+    if let Some(b) = body {
+        builder = builder.body(b);
+    }
+    let response = builder.send().await.map_err(|e| CoreError::Llm(e.to_string()))?;
+    let status = response.status().as_u16();
+    let text = response.text().await.map_err(|e| CoreError::Llm(e.to_string()))?;
+    Ok((status, text))
 }
 
 /// Parse all `data:` lines from a complete SSE response body.
@@ -141,71 +101,90 @@ async fn call_openai(
     options: &StreamOptions,
     on_token: &Function,
 ) -> Result<(), CoreError> {
-    let auth = format!("Bearer {api_key}");
-    let headers: &[(&str, &str)] = &[("authorization", &auth), ("content-type", "application/json")];
+    let openai_client = async_openai::Client::with_config(
+        OpenAIConfig::new().with_api_key(api_key),
+    );
 
-    let input: Vec<Value> = messages
+    // Separate system messages (→ instructions) from the rest (→ input items).
+    let system_text: String = messages
         .iter()
-        .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
+        .filter(|m| m.role == "system")
+        .map(|m| m.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let input_items: Vec<InputItem> = messages
+        .iter()
+        .filter(|m| m.role != "system")
+        .map(|m| {
+            let role = match m.role.as_str() {
+                "assistant" => Role::Assistant,
+                _ => Role::User,
+            };
+            InputItem::EasyMessage(EasyInputMessage {
+                role,
+                content: EasyInputContent::Text(m.content.clone()),
+                r#type: Default::default(),
+            })
+        })
         .collect();
 
-    let mut body = serde_json::json!({
-        "model": model_name,
-        "input": input,
-        "stream": true,
-    });
+    let mut req_builder = CreateResponseArgs::default();
+    req_builder.model(model_name.to_string());
+    req_builder.input(InputParam::Items(input_items));
+    req_builder.stream(false);
+
+    if !system_text.is_empty() {
+        req_builder.instructions(system_text);
+    }
     if let Some(max) = options.max_tokens {
-        body["max_output_tokens"] = serde_json::json!(max);
+        req_builder.max_output_tokens(max);
     }
-    if let Some(ref effort) = options.reasoning_effort {
-        body["reasoning"] = serde_json::json!({ "effort": effort });
-    } else if let Some(temp) = options.temperature {
-        body["temperature"] = serde_json::json!(temp);
-    }
-
-    let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let (status, text) =
-        js_fetch("POST", "https://api.openai.com/v1/responses", headers, Some(body_str)).await?;
-
-    if status < 200 || status >= 300 {
-        return Err(CoreError::Llm(format!("openai API error ({status}): {text}")));
+    if let Some(ref effort_str) = options.reasoning_effort {
+        let effort = match effort_str.as_str() {
+            "low" => ReasoningEffort::Low,
+            "high" => ReasoningEffort::High,
+            _ => ReasoningEffort::Medium,
+        };
+        req_builder.reasoning(Reasoning { effort: Some(effort), summary: None });
     }
 
-    let mut input_tokens: u32 = 0;
-    let mut output_tokens: u32 = 0;
+    let request = req_builder.build().map_err(|e| CoreError::Llm(e.to_string()))?;
 
-    for data_str in parse_sse_text(&text) {
-        if let Ok(parsed) = serde_json::from_str::<Value>(&data_str) {
-            let event_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
-            match event_type {
-                "response.output_text.delta" => {
-                    if let Some(delta) = parsed.get("delta").and_then(|v| v.as_str()) {
-                        emit_token(
-                            on_token,
-                            &TokenPayload {
-                                content: delta.to_string(),
-                                done: false,
-                                input_tokens,
-                                output_tokens,
-                            },
-                        );
-                    }
+    let response = openai_client
+        .responses()
+        .create(request)
+        .await
+        .map_err(|e| CoreError::Llm(e.to_string()))?;
+
+    // Collect all output text from the response.
+    let mut full_text = String::new();
+    for item in &response.output {
+        if let OutputItem::Message(msg) = item {
+            for content_part in &msg.content {
+                if let OutputMessageContent::OutputText(t) = content_part {
+                    full_text.push_str(&t.text);
                 }
-                "response.completed" => {
-                    if let Some(usage) = parsed.pointer("/response/usage") {
-                        input_tokens = usage
-                            .get("input_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0) as u32;
-                        output_tokens = usage
-                            .get("output_tokens")
-                            .and_then(|v| v.as_u64())
-                            .unwrap_or(0) as u32;
-                    }
-                }
-                _ => {}
             }
         }
+    }
+
+    let (input_tokens, output_tokens) = response
+        .usage
+        .map(|u| (u.input_tokens, u.output_tokens))
+        .unwrap_or((0, 0));
+
+    // Emit the full text as a single token chunk, then the done sentinel.
+    if !full_text.is_empty() {
+        emit_token(
+            on_token,
+            &TokenPayload {
+                content: full_text,
+                done: false,
+                input_tokens,
+                output_tokens,
+            },
+        );
     }
 
     emit_token(
@@ -257,7 +236,7 @@ async fn call_anthropic(
 
     let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
     let (status, text) =
-        js_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str)).await?;
+        http_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str)).await?;
 
     if status < 200 || status >= 300 {
         return Err(CoreError::Llm(format!("anthropic API error ({status}): {text}")));
@@ -355,7 +334,7 @@ async fn call_google(
     }
 
     let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let (status, text) = js_fetch("POST", &url, headers, Some(body_str)).await?;
+    let (status, text) = http_fetch("POST", &url, headers, Some(body_str)).await?;
 
     if status < 200 || status >= 300 {
         return Err(CoreError::Llm(format!("google API error ({status}): {text}")));
@@ -421,7 +400,7 @@ async fn call_xai(
 
     let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
     let (status, text) =
-        js_fetch("POST", "https://api.x.ai/v1/chat/completions", headers, Some(body_str)).await?;
+        http_fetch("POST", "https://api.x.ai/v1/chat/completions", headers, Some(body_str)).await?;
 
     if status < 200 || status >= 300 {
         return Err(CoreError::Llm(format!("xai API error ({status}): {text}")));
@@ -486,13 +465,47 @@ pub async fn stream_api_chat(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_sse_text_empty() {
+        assert_eq!(parse_sse_text(""), Vec::<String>::new());
+    }
+
+    #[test]
+    fn parse_sse_text_ignores_non_data_lines() {
+        let input = "event: message\nid: 1\n: comment\n";
+        assert_eq!(parse_sse_text(input), Vec::<String>::new());
+    }
+
+    #[test]
+    fn parse_sse_text_done_sentinel_breaks_loop() {
+        let input = "data: first\ndata: [DONE]\ndata: never_seen\n";
+        assert_eq!(parse_sse_text(input), vec!["first"]);
+    }
+
+    #[test]
+    fn parse_sse_text_extracts_and_trims_data_lines() {
+        let input = "data:  hello \ndata: world\n";
+        assert_eq!(parse_sse_text(input), vec!["hello", "world"]);
+    }
+
+    #[test]
+    fn parse_sse_text_mixed_input() {
+        let input = "\ndata: alpha\n: comment\nevent: ping\ndata: beta\ndata: [DONE]\ndata: ignored\n";
+        assert_eq!(parse_sse_text(input), vec!["alpha", "beta"]);
+    }
+}
+
 pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, CoreError> {
     let auth = format!("Bearer {api_key}");
     match provider {
         "openai" => {
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
-                js_fetch("GET", "https://api.openai.com/v1/models", headers, None).await?;
+                http_fetch("GET", "https://api.openai.com/v1/models", headers, None).await?;
             Ok(status >= 200 && status < 300)
         }
         "anthropic" => {
@@ -510,7 +523,7 @@ pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, 
                 ("content-type", "application/json"),
             ];
             let (status, _) =
-                js_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str))
+                http_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str))
                     .await?;
             Ok(status >= 200 && status < 300)
         }
@@ -518,13 +531,13 @@ pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, 
             let url = format!(
                 "https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
             );
-            let (status, _) = js_fetch("GET", &url, &[], None).await?;
+            let (status, _) = http_fetch("GET", &url, &[], None).await?;
             Ok(status >= 200 && status < 300)
         }
         "xai" => {
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
-                js_fetch("GET", "https://api.x.ai/v1/models", headers, None).await?;
+                http_fetch("GET", "https://api.x.ai/v1/models", headers, None).await?;
             Ok(status >= 200 && status < 300)
         }
         _ => Err(CoreError::Llm(format!("unknown provider: {provider}"))),

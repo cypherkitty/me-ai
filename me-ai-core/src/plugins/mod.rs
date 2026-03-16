@@ -73,3 +73,71 @@ impl std::fmt::Display for PluginId {
 pub fn resolve_plugin_id(source: &str) -> String {
     PluginId::from_source(source).into_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_source_gmail_lowercase() {
+        assert_eq!(PluginId::from_source("gmail"), PluginId::Gmail);
+    }
+
+    #[test]
+    fn from_source_gmail_uppercase() {
+        assert_eq!(PluginId::from_source("GMAIL"), PluginId::Gmail);
+    }
+
+    #[test]
+    fn from_source_gmail_mixed_case_with_whitespace() {
+        assert_eq!(PluginId::from_source("  Gmail  "), PluginId::Gmail);
+    }
+
+    #[test]
+    fn from_source_twitter() {
+        assert_eq!(PluginId::from_source("twitter"), PluginId::Twitter);
+    }
+
+    #[test]
+    fn from_source_filesystem() {
+        assert_eq!(PluginId::from_source("filesystem"), PluginId::Filesystem);
+    }
+
+    #[test]
+    fn from_source_unknown_becomes_other() {
+        assert_eq!(
+            PluginId::from_source("unknown_plugin"),
+            PluginId::Other("unknown_plugin".into())
+        );
+    }
+
+    #[test]
+    fn as_str_gmail() {
+        assert_eq!(PluginId::Gmail.as_str(), "gmail");
+    }
+
+    #[test]
+    fn as_str_other() {
+        assert_eq!(PluginId::Other("foo".into()).as_str(), "foo");
+    }
+
+    #[test]
+    fn into_string_gmail() {
+        assert_eq!(PluginId::Gmail.into_string(), "gmail");
+    }
+
+    #[test]
+    fn display_twitter() {
+        assert_eq!(format!("{}", PluginId::Twitter), "twitter");
+    }
+
+    #[test]
+    fn resolve_plugin_id_uppercase_gmail() {
+        assert_eq!(resolve_plugin_id("GMAIL"), "gmail");
+    }
+
+    #[test]
+    fn resolve_plugin_id_whitespace_twitter() {
+        assert_eq!(resolve_plugin_id("  Twitter "), "twitter");
+    }
+}

@@ -625,11 +625,12 @@ impl MeAiCore {
         // Fetch API key from IndexedDB settings
         let db = self.rexie_db.db();
         let key_name = format!("{provider}ApiKey");
-        let api_key = storage::schema::get_setting(db, &key_name)
+        let api_key_raw = storage::schema::get_setting(db, &key_name)
             .await?
             .ok_or_else(|| JsValue::from_str(
                 &format!("No API key configured for {provider}. Please check your settings."),
             ))?;
+        let api_key = serde_json::from_str::<String>(&api_key_raw).unwrap_or(api_key_raw);
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
     }

@@ -84,6 +84,12 @@ The chat is the control interface over the event stream. The LLM can trigger UI 
 
 CRITICAL events show an amber **approval card** instead of a direct execute button.
 
+## HTTP in WASM (me-ai-core)
+
+Use `reqwest` for all HTTP calls in Rust/WASM — never use browser `fetch` directly via `js_sys::Function` or hand-built JS strings. `reqwest` automatically uses the browser's fetch API under the hood when targeting `wasm32-unknown-unknown`.
+
+For OpenAI specifically, use `async-openai` (`default-features = false, features = ["responses"]`). It compiles to WASM — `tokio` is gated to `cfg(not(target_family = "wasm"))`. Streaming is not supported on WASM; use non-streaming `.create()` calls.
+
 ## Linting (me-ai-web)
 
 ESLint 9 flat config in `me-ai-web/eslint.config.js`. Runs on `me-ai-web/src/` via `npm run lint` or `task lint`.

@@ -203,3 +203,60 @@ pub fn get_api_models() -> Vec<ApiModel> {
 pub fn get_api_model_info(model_id: &str) -> Option<ApiModel> {
     get_api_models().into_iter().find(|m| m.id == model_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_api_models_returns_non_empty() {
+        assert!(!get_api_models().is_empty());
+    }
+
+    #[test]
+    fn all_models_have_required_fields() {
+        for m in get_api_models() {
+            assert!(!m.id.is_empty(), "empty id");
+            assert!(!m.name.is_empty(), "empty name for {}", m.id);
+            assert!(!m.provider.is_empty(), "empty provider for {}", m.id);
+            assert!(!m.display_name.is_empty(), "empty display_name for {}", m.id);
+        }
+    }
+
+    #[test]
+    fn all_providers_are_known() {
+        let known = ["openai", "anthropic", "google", "xai"];
+        for m in get_api_models() {
+            assert!(
+                known.contains(&m.provider.as_str()),
+                "unknown provider '{}' for model '{}'",
+                m.provider,
+                m.id
+            );
+        }
+    }
+
+    #[test]
+    fn get_api_model_info_claude_opus_4_6() {
+        let model = get_api_model_info("claude-opus-4-6").expect("claude-opus-4-6 must exist");
+        assert_eq!(model.provider, "anthropic");
+    }
+
+    #[test]
+    fn get_api_model_info_nonexistent_returns_none() {
+        assert!(get_api_model_info("nonexistent-model-id").is_none());
+    }
+
+    #[test]
+    fn reasoning_effort_only_on_openai_models() {
+        for m in get_api_models() {
+            if m.reasoning_effort.is_some() {
+                assert_eq!(
+                    m.provider, "openai",
+                    "reasoning_effort should only be set on openai models, found on '{}'",
+                    m.id
+                );
+            }
+        }
+    }
+}
