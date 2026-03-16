@@ -13,31 +13,32 @@ pub struct SyncStateRow {
     #[serde(rename = "sourceType")]
     #[wasm_bindgen(js_name = "sourceType")]
     pub source_type: String,
-    #[serde(rename = "historyId")]
+    #[serde(rename = "historyId", default)]
     #[wasm_bindgen(js_name = "historyId")]
-    pub history_id: Option<String>,
+    pub history_id: String,
     #[serde(rename = "lastSyncAt")]
     #[wasm_bindgen(js_name = "lastSyncAt")]
     pub last_sync_at: Option<i64>,
-    #[serde(rename = "totalItems")]
+    #[serde(rename = "totalItems", default)]
     #[wasm_bindgen(js_name = "totalItems")]
-    pub total_items: Option<i64>,
-    #[serde(rename = "oldestPageToken")]
+    pub total_items: i64,
+    #[serde(rename = "oldestPageToken", default)]
     #[wasm_bindgen(js_name = "oldestPageToken")]
-    pub oldest_page_token: Option<String>,
+    pub oldest_page_token: String,
 }
 
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContactRow {
     pub email: String,
-    pub name: Option<String>,
-    #[serde(rename = "firstSeen")]
+    #[serde(default)]
+    pub name: String,
+    #[serde(rename = "firstSeen", default)]
     #[wasm_bindgen(js_name = "firstSeen")]
-    pub first_seen: Option<i64>,
-    #[serde(rename = "lastSeen")]
+    pub first_seen: i64,
+    #[serde(rename = "lastSeen", default)]
     #[wasm_bindgen(js_name = "lastSeen")]
-    pub last_seen: Option<i64>,
+    pub last_seen: i64,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -47,37 +48,43 @@ pub struct ItemRow {
     #[serde(rename = "sourceType")]
     #[wasm_bindgen(js_name = "sourceType")]
     pub source_type: String,
-    #[serde(rename = "sourceId")]
+    #[serde(rename = "sourceId", default)]
     #[wasm_bindgen(js_name = "sourceId")]
-    pub source_id: Option<String>,
-    #[serde(rename = "threadKey")]
+    pub source_id: String,
+    #[serde(rename = "threadKey", default)]
     #[wasm_bindgen(js_name = "threadKey")]
-    pub thread_key: Option<String>,
-    #[serde(rename = "type")]
+    pub thread_key: String,
+    #[serde(rename = "type", default)]
     #[wasm_bindgen(js_name = "type")]
-    pub r#type: Option<String>,
-    #[serde(rename = "from")]
+    pub r#type: String,
+    #[serde(rename = "from", default)]
     #[wasm_bindgen(js_name = "from")]
-    pub from: Option<String>,
-    #[serde(rename = "to")]
+    pub from: String,
+    #[serde(rename = "to", default)]
     #[wasm_bindgen(js_name = "to")]
-    pub to: Option<String>,
-    pub cc: Option<String>,
-    pub subject: Option<String>,
-    pub snippet: Option<String>,
-    pub body: Option<String>,
+    pub to: String,
+    #[serde(default)]
+    pub cc: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub snippet: String,
+    #[serde(default)]
+    pub body: String,
     #[serde(rename = "htmlBody")]
     #[wasm_bindgen(js_name = "htmlBody")]
     pub html_body: Option<String>,
     pub date: Option<i64>,
-    pub labels: Option<String>,
-    #[serde(rename = "messageId")]
+    #[serde(default)]
+    pub labels: String,
+    #[serde(rename = "messageId", default)]
     #[wasm_bindgen(js_name = "messageId")]
-    pub message_id: Option<String>,
-    #[serde(rename = "inReplyTo")]
+    pub message_id: String,
+    #[serde(rename = "inReplyTo", default)]
     #[wasm_bindgen(js_name = "inReplyTo")]
-    pub in_reply_to: Option<String>,
-    pub references: Option<String>,
+    pub in_reply_to: String,
+    #[serde(default)]
+    pub references: String,
     pub raw: Option<String>,
     #[serde(rename = "syncedAt")]
     #[wasm_bindgen(js_name = "syncedAt")]
@@ -215,21 +222,21 @@ pub async fn insert_items_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> R
         .map(|r| ItemRow {
             id: r.id,
             source_type: r.sourceType,
-            source_id: r.sourceId,
-            thread_key: r.threadKey,
-            r#type: r.r#type,
-            from: r.from,
-            to: r.to,
-            cc: r.cc,
-            subject: r.subject,
-            snippet: r.snippet,
-            body: r.body,
+            source_id: r.sourceId.unwrap_or_default(),
+            thread_key: r.threadKey.unwrap_or_default(),
+            r#type: r.r#type.unwrap_or_default(),
+            from: r.from.unwrap_or_default(),
+            to: r.to.unwrap_or_default(),
+            cc: r.cc.unwrap_or_default(),
+            subject: r.subject.unwrap_or_default(),
+            snippet: r.snippet.unwrap_or_default(),
+            body: r.body.unwrap_or_default(),
             html_body: r.htmlBody,
             date: r.date,
-            labels: r.labels,
-            message_id: r.messageId,
-            in_reply_to: r.inReplyTo,
-            references: r.references,
+            labels: r.labels.unwrap_or_default(),
+            message_id: r.messageId.unwrap_or_default(),
+            in_reply_to: r.inReplyTo.unwrap_or_default(),
+            references: r.references.unwrap_or_default(),
             raw: r.raw,
             synced_at: r.syncedAt,
         })
@@ -290,9 +297,9 @@ pub async fn upsert_contact(db: DbRef<'_>, email: &str, name: &str, first_seen: 
     if let Some(row) = existing {
         let mut updated = ContactDoc {
             email: email.to_string(),
-            name: row.name.unwrap_or_default(),
-            first_seen: row.first_seen.unwrap_or(0),
-            last_seen: row.last_seen.unwrap_or(0),
+            name: row.name,
+            first_seen: row.first_seen,
+            last_seen: row.last_seen,
         };
         if !name.is_empty() && updated.name.is_empty() {
             updated.name = name.to_string();

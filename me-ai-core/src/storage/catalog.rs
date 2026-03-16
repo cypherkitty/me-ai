@@ -10,7 +10,8 @@ use crate::error::CoreError;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SourceRow {
     pub name: String,
-    pub label: Option<String>,
+    #[serde(default)]
+    pub label: String,
     #[serde(default)]
     pub platform: String,
     #[serde(default)]
@@ -23,14 +24,17 @@ pub struct SourceRow {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActionRow {
     pub name: String,
-    pub label: Option<String>,
+    #[serde(default)]
+    pub label: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginRow {
     pub name: String,
-    pub label: Option<String>,
-    pub version: Option<String>,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub version: String,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -51,15 +55,18 @@ pub struct PluginSourceRow {
 #[derive(Clone, Debug, Serialize)]
 pub struct LabelRef {
     pub name: String,
-    pub label: Option<String>,
+    #[serde(default)]
+    pub label: String,
 }
 
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct PluginSummary {
     pub name: String,
-    pub label: Option<String>,
-    pub version: Option<String>,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub version: String,
     pub enabled: bool,
     pub actions: Vec<LabelRef>,
     pub sources: Vec<LabelRef>,

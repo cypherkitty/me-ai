@@ -10,7 +10,8 @@ use crate::error::CoreError;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventTypeRow {
     pub name: String,
-    pub label: Option<String>,
+    #[serde(default)]
+    pub label: String,
     #[serde(rename = "category_name")]
     pub category_name: Option<String>,
     #[serde(rename = "auto_created", default)]
@@ -21,7 +22,8 @@ pub struct EventTypeRow {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventCategoryRow {
     pub name: String,
-    pub label: Option<String>,
+    #[serde(default)]
+    pub label: String,
     #[serde(default)]
     pub priority: i64,
     #[serde(default)]
@@ -46,7 +48,8 @@ pub async fn get_event_categories(db: DbRef<'_>) -> Result<Vec<EventCategoryRow>
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct EventTypeStoreRow {
     name: String,
-    label: Option<String>,
+    #[serde(default)]
+    label: String,
     #[serde(rename = "category_name")]
     category_name: Option<String>,
     #[serde(rename = "auto_created", default)]
@@ -66,7 +69,7 @@ pub async fn upsert_event_type(
     }
     let row = EventTypeStoreRow {
         name: name.to_string(),
-        label: Some(label.to_string()),
+        label: label.to_string(),
         category_name: Some(category_name.to_string()),
         auto_created,
     };
