@@ -7,6 +7,7 @@
 //! Error handling: [thiserror](https://docs.rs/thiserror) + [anyhow](https://docs.rs/anyhow) internally;
 //! errors are converted to JsValue at the WASM boundary.
 
+mod api;
 mod db;
 mod storage;
 mod error;
@@ -23,6 +24,7 @@ use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
 use crate::plugins::{ActionInput, ActionMetadata, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
+use crate::formatting::ParsedApiError;
 use crate::storage::settings::SettingValue;
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
@@ -868,6 +870,122 @@ impl MeAiCore {
         };
         parts.push(email_section);
         Ok(parts.join("\n"))
+    }
+
+    // ── Gmail API ────────────────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = getGmailProfile)]
+    pub async fn get_gmail_profile(&self, token: &str) -> Result<JsValue, JsValue> {
+        api::gmail::get_profile(token).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = listGmailMessages)]
+    pub async fn list_gmail_messages(&self, token: &str, max_results: u32, page_token: Option<String>, q: Option<String>) -> Result<JsValue, JsValue> {
+        api::gmail::list_messages(token, max_results, page_token.as_deref(), q.as_deref()).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getGmailMessage)]
+    pub async fn get_gmail_message(&self, token: &str, message_id: &str, format: &str) -> Result<JsValue, JsValue> {
+        api::gmail::get_message(token, message_id, format).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getGmailMessagesBatch)]
+    pub async fn get_gmail_messages_batch(&self, token: &str, message_ids: Vec<String>, batch_size: u32) -> Result<JsValue, JsValue> {
+        api::gmail::get_messages_batch(token, message_ids, batch_size).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = listGmailHistory)]
+    pub async fn list_gmail_history(&self, token: &str, start_history_id: &str, page_token: Option<String>, max_results: u32) -> Result<JsValue, JsValue> {
+        api::gmail::list_history(token, start_history_id, page_token.as_deref(), max_results).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = parseGmailBody)]
+    pub fn parse_gmail_body(&self, message_json: &str) -> String {
+        api::gmail::parse_gmail_body(message_json)
+    }
+
+    #[wasm_bindgen(js_name = parseGmailHtmlBody)]
+    pub fn parse_gmail_html_body(&self, message_json: &str) -> Option<String> {
+        api::gmail::parse_gmail_html_body(message_json)
+    }
+
+    #[wasm_bindgen(js_name = getGmailHeader)]
+    pub fn get_gmail_header(&self, message_json: &str, header_name: &str) -> String {
+        api::gmail::get_gmail_header(message_json, header_name)
+    }
+
+    // ── Twitter API ──────────────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = getTwitterMe)]
+    pub async fn get_twitter_me(&self, token: &str) -> Result<JsValue, JsValue> {
+        api::twitter::get_me(token).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getTwitterTimeline)]
+    pub async fn get_twitter_timeline(&self, token: &str, user_id: &str, max_results: u32, pagination_token: Option<String>) -> Result<JsValue, JsValue> {
+        api::twitter::get_user_timeline(token, user_id, max_results, pagination_token.as_deref()).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getTwitterMentions)]
+    pub async fn get_twitter_mentions(&self, token: &str, user_id: &str, max_results: u32, pagination_token: Option<String>) -> Result<JsValue, JsValue> {
+        api::twitter::get_user_mentions(token, user_id, max_results, pagination_token.as_deref()).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = searchTwitterRecentTweets)]
+    pub async fn search_twitter_recent_tweets(&self, token: &str, query: &str, max_results: u32) -> Result<JsValue, JsValue> {
+        api::twitter::search_recent_tweets(token, query, max_results).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getTwitterTweet)]
+    pub async fn get_twitter_tweet(&self, token: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::get_tweet(token, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterLike)]
+    pub async fn twitter_like(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::like_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterUnlike)]
+    pub async fn twitter_unlike(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::unlike_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterRetweet)]
+    pub async fn twitter_retweet(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::retweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterUnretweet)]
+    pub async fn twitter_unretweet(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::unretweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterBookmark)]
+    pub async fn twitter_bookmark(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::bookmark_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterRemoveBookmark)]
+    pub async fn twitter_remove_bookmark(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::remove_bookmark(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterMuteUser)]
+    pub async fn twitter_mute_user(&self, token: &str, source_user_id: &str, target_user_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::mute_user(token, source_user_id, target_user_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = twitterBlockUser)]
+    pub async fn twitter_block_user(&self, token: &str, source_user_id: &str, target_user_id: &str) -> Result<JsValue, JsValue> {
+        api::twitter::block_user(token, source_user_id, target_user_id).await.map_err(|e| error_to_js(&e))
+    }
+
+    // ── Error parsing ────────────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = parseApiError)]
+    pub fn parse_api_error(&self, message: &str, status: u32) -> ParsedApiError {
+        formatting::parse_api_error(message, status)
     }
 
     /// Test API connection for a provider

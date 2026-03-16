@@ -92,3 +92,126 @@ pub fn short_date(date_ms: i64) -> String {
 pub fn export_filename(subject: &str, date_ms: i64, ext: &str) -> String {
     format!("{}_{}.{}", short_date(date_ms), slugify(subject), ext)
 }
+
+// ── API error parsing ─────────────────────────────────────────────────────
+
+use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParsedApiError {
+    pub title: String,
+    pub description: String,
+    pub fix: String,        // empty when no fix suggestion
+    pub action: String,     // "signout" or empty
+    pub link_url: String,   // empty when no link
+    pub link_label: String, // empty when no link
+}
+
+/// Parse a raw error message + HTTP status into user-friendly structured guidance.
+pub fn parse_api_error(message: &str, status: u32) -> ParsedApiError {
+    let msg = message;
+
+    if msg.contains("has not been used in project") || msg.contains("is disabled") {
+        let project_id = msg
+            .split("project ")
+            .nth(1)
+            .and_then(|s| s.split_whitespace().next())
+            .and_then(|s| s.parse::<u64>().ok())
+            .map(|id| id.to_string());
+        let url = project_id
+            .map(|id| {
+                format!(
+                    "https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project={id}"
+                )
+            })
+            .unwrap_or_else(|| {
+                "https://console.cloud.google.com/apis/library/gmail.googleapis.com".to_string()
+            });
+        return ParsedApiError {
+            title: "Gmail API not enabled".to_string(),
+            description: "The Gmail API needs to be enabled in your Google Cloud project before it can be used.".to_string(),
+            fix: "Click the link below to enable it, then wait ~30 seconds and retry.".to_string(),
+            action: String::new(),
+            link_url: url,
+            link_label: "Enable Gmail API".to_string(),
+        };
+    }
+
+    if status == 401 || msg.contains("Invalid Credentials") || msg.contains("invalid_token") {
+        return ParsedApiError {
+            title: "Session expired".to_string(),
+            description: "Your access token has expired or is invalid.".to_string(),
+            fix: "Sign out and sign in again to get a fresh token.".to_string(),
+            action: "signout".to_string(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    if status == 403 || (msg.contains("insufficient") && msg.contains("scope")) {
+        return ParsedApiError {
+            title: "Insufficient permissions".to_string(),
+            description: "The app doesn't have the required permissions to access Gmail.".to_string(),
+            fix: "Sign out, sign in again, and make sure to grant the Gmail read permission in the consent screen.".to_string(),
+            action: "signout".to_string(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    if msg.contains("access_denied") || msg.contains("user_denied") {
+        return ParsedApiError {
+            title: "Access denied".to_string(),
+            description: "You declined the Gmail permission request.".to_string(),
+            fix: "Click 'Sign in with Google' again and grant the Gmail read-only permission when prompted.".to_string(),
+            action: String::new(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    if msg.contains("popup") || msg.contains("blocked") {
+        return ParsedApiError {
+            title: "Popup blocked".to_string(),
+            description: "The sign-in popup was blocked by your browser.".to_string(),
+            fix: "Allow popups for this site in your browser settings, then try again.".to_string(),
+            action: String::new(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    if status == 429 || msg.contains("Rate Limit") || msg.contains("quota") {
+        return ParsedApiError {
+            title: "Rate limit exceeded".to_string(),
+            description: "Too many requests to the API.".to_string(),
+            fix: "Wait a minute and try again.".to_string(),
+            action: String::new(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    if msg.contains("Failed to fetch") || msg.contains("NetworkError") || msg.contains("network") {
+        return ParsedApiError {
+            title: "Network error".to_string(),
+            description: "Could not reach the API.".to_string(),
+            fix: "Check your internet connection and try again.".to_string(),
+            action: String::new(),
+            link_url: String::new(),
+            link_label: String::new(),
+        };
+    }
+
+    ParsedApiError {
+        title: "Something went wrong".to_string(),
+        description: msg.to_string(),
+        fix: String::new(),
+        action: String::new(),
+        link_url: String::new(),
+        link_label: String::new(),
+    }
+}

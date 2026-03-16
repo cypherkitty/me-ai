@@ -1,9 +1,12 @@
 /**
- * Thin wrapper around the Twitter/X API v2.
- * All functions take an OAuth access_token as the first argument.
+ * Thin wrapper around the Twitter/X API v2 — delegates all HTTP to me-ai-core (Rust/WASM).
  */
 
-const BASE = "https://api.twitter.com/2";
+import { getCore } from "./store/core-store.js";
+
+function requireCore() {
+  return getCore();
+}
 
 export class TwitterApiError extends Error {
   status: number;
@@ -14,50 +17,6 @@ export class TwitterApiError extends Error {
     this.status = status;
     this.code = code ?? null;
   }
-}
-
-function authHeaders(token: string): { Authorization: string } {
-  return { Authorization: `Bearer ${token}` };
-}
-
-async function api<T>(token: string, path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: authHeaders(token),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: string; title?: string; type?: string };
-    const message = body.detail || body.title || `Twitter API error: ${res.status}`;
-    const code = body.type ?? undefined;
-    throw new TwitterApiError(message, res.status, code);
-  }
-  return res.json() as Promise<T>;
-}
-
-async function apiPost<T>(token: string, path: string, body: object | null = null): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { ...authHeaders(token), "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
-    const errBody = (await res.json().catch(() => ({}))) as { detail?: string; title?: string };
-    const message = errBody.detail || errBody.title || `Twitter API error: ${res.status}`;
-    throw new TwitterApiError(message, res.status);
-  }
-  return res.json() as Promise<T>;
-}
-
-async function apiDelete<T>(token: string, path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "DELETE",
-    headers: authHeaders(token),
-  });
-  if (!res.ok) {
-    const errBody = (await res.json().catch(() => ({}))) as { detail?: string; title?: string };
-    const message = errBody.detail || errBody.title || `Twitter API error: ${res.status}`;
-    throw new TwitterApiError(message, res.status);
-  }
-  return res.json() as Promise<T>;
 }
 
 export interface TwitterUser {
@@ -84,16 +43,21 @@ export interface ApiResponse<T> {
   meta?: { next_token?: string; result_count?: number };
 }
 
+export interface TimelineOptions {
+  maxResults?: number;
+  paginationToken?: string;
+}
+
+export interface UserInfo {
+  username: string;
+  name: string;
+}
+
 /**
  * Get authenticated user's profile.
  */
 export function getMe(token: string): Promise<ApiResponse<TwitterUser>> {
-  return api(token, "/users/me?user.fields=id,name,username,profile_image_url,public_metrics");
-}
-
-export interface TimelineOptions {
-  maxResults?: number;
-  paginationToken?: string;
+  return requireCore().getTwitterMe(token) as unknown as Promise<ApiResponse<TwitterUser>>;
 }
 
 /**
@@ -105,14 +69,7 @@ export function getUserTimeline(
   options: TimelineOptions = {}
 ): Promise<ApiResponse<Tweet[]>> {
   const { maxResults = 10, paginationToken } = options;
-  const params = new URLSearchParams({
-    max_results: String(Math.min(maxResults, 100)),
-    "tweet.fields": "created_at,author_id,public_metrics,referenced_tweets,conversation_id,text",
-    "user.fields": "username,name",
-    expansions: "author_id",
-  });
-  if (paginationToken) params.set("pagination_token", paginationToken);
-  return api(token, `/users/${userId}/tweets?${params}`);
+  return requireCore().getTwitterTimeline(token, userId, Math.min(maxResults, 100), paginationToken ?? null) as unknown as Promise<ApiResponse<Tweet[]>>;
 }
 
 /**
@@ -124,14 +81,7 @@ export function getUserMentions(
   options: TimelineOptions = {}
 ): Promise<ApiResponse<Tweet[]>> {
   const { maxResults = 10, paginationToken } = options;
-  const params = new URLSearchParams({
-    max_results: String(Math.min(maxResults, 100)),
-    "tweet.fields": "created_at,author_id,public_metrics,text",
-    "user.fields": "username,name",
-    expansions: "author_id",
-  });
-  if (paginationToken) params.set("pagination_token", paginationToken);
-  return api(token, `/users/${userId}/mentions?${params}`);
+  return requireCore().getTwitterMentions(token, userId, Math.min(maxResults, 100), paginationToken ?? null) as unknown as Promise<ApiResponse<Tweet[]>>;
 }
 
 /**
@@ -143,61 +93,46 @@ export function searchRecentTweets(
   options: { maxResults?: number } = {}
 ): Promise<ApiResponse<Tweet[]>> {
   const { maxResults = 10 } = options;
-  const params = new URLSearchParams({
-    query,
-    max_results: String(Math.min(maxResults, 100)),
-    "tweet.fields": "created_at,author_id,public_metrics,text",
-    "user.fields": "username,name",
-    expansions: "author_id",
-  });
-  return api(token, `/tweets/search/recent?${params}`);
+  return requireCore().searchTwitterRecentTweets(token, query, Math.min(maxResults, 100)) as unknown as Promise<ApiResponse<Tweet[]>>;
 }
 
 /**
  * Get a single tweet by ID.
  */
 export function getTweet(token: string, tweetId: string): Promise<ApiResponse<Tweet>> {
-  return api(
-    token,
-    `/tweets/${tweetId}?tweet.fields=created_at,author_id,public_metrics,referenced_tweets,text&user.fields=username,name&expansions=author_id`
-  );
+  return requireCore().getTwitterTweet(token, tweetId) as unknown as Promise<ApiResponse<Tweet>>;
 }
 
 export function likeTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiPost(token, `/users/${userId}/likes`, { tweet_id: tweetId });
+  return requireCore().twitterLike(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function unlikeTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiDelete(token, `/users/${userId}/likes/${tweetId}`);
+  return requireCore().twitterUnlike(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function retweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiPost(token, `/users/${userId}/retweets`, { tweet_id: tweetId });
+  return requireCore().twitterRetweet(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function unretweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiDelete(token, `/users/${userId}/retweets/${tweetId}`);
+  return requireCore().twitterUnretweet(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function bookmarkTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiPost(token, `/users/${userId}/bookmarks`, { tweet_id: tweetId });
+  return requireCore().twitterBookmark(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function removeBookmark(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return apiDelete(token, `/users/${userId}/bookmarks/${tweetId}`);
+  return requireCore().twitterRemoveBookmark(token, userId, tweetId) as unknown as Promise<unknown>;
 }
 
 export function muteUser(token: string, sourceUserId: string, targetUserId: string): Promise<unknown> {
-  return apiPost(token, `/users/${sourceUserId}/muting`, { target_user_id: targetUserId });
+  return requireCore().twitterMuteUser(token, sourceUserId, targetUserId) as unknown as Promise<unknown>;
 }
 
 export function blockUser(token: string, sourceUserId: string, targetUserId: string): Promise<unknown> {
-  return apiPost(token, `/users/${sourceUserId}/blocking`, { target_user_id: targetUserId });
-}
-
-export interface UserInfo {
-  username: string;
-  name: string;
+  return requireCore().twitterBlockUser(token, sourceUserId, targetUserId) as unknown as Promise<unknown>;
 }
 
 /**

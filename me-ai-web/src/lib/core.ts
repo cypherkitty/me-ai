@@ -478,6 +478,89 @@ export function tagColor(tag: string): string {
   return requireCore().tagColor(tag);
 }
 
+// ── Gmail API ───────────────────────────────────────────────────────────────
+
+export async function getGmailProfile(token: string) {
+  return requireCore().getGmailProfile(token);
+}
+export async function listGmailMessages(token: string, maxResults: number, pageToken?: string, q?: string) {
+  return requireCore().listGmailMessages(token, maxResults, pageToken ?? null, q ?? null);
+}
+export async function getGmailMessage(token: string, messageId: string, format: string = "full") {
+  return requireCore().getGmailMessage(token, messageId, format);
+}
+export async function getGmailMessagesBatch(token: string, messageIds: string[], batchSize: number = 8) {
+  return requireCore().getGmailMessagesBatch(token, messageIds, batchSize);
+}
+export async function listGmailHistory(token: string, startHistoryId: string, pageToken?: string, maxResults: number = 500) {
+  return requireCore().listGmailHistory(token, startHistoryId, pageToken ?? null, maxResults);
+}
+export function parseGmailBody(messageJson: string): string {
+  return requireCore().parseGmailBody(messageJson);
+}
+export function parseGmailHtmlBody(messageJson: string): string | undefined {
+  return requireCore().parseGmailHtmlBody(messageJson) ?? undefined;
+}
+export function getGmailHeader(messageJson: string, headerName: string): string {
+  return requireCore().getGmailHeader(messageJson, headerName);
+}
+
+// ── Twitter API ──────────────────────────────────────────────────────────────
+
+export async function getTwitterMe(token: string) {
+  return requireCore().getTwitterMe(token);
+}
+export async function getTwitterUserTimeline(token: string, userId: string, maxResults: number = 10, paginationToken?: string) {
+  return requireCore().getTwitterTimeline(token, userId, maxResults, paginationToken ?? null);
+}
+export async function getTwitterUserMentions(token: string, userId: string, maxResults: number = 10, paginationToken?: string) {
+  return requireCore().getTwitterMentions(token, userId, maxResults, paginationToken ?? null);
+}
+export async function searchRecentTweets(token: string, query: string, maxResults: number = 10) {
+  return requireCore().searchTwitterRecentTweets(token, query, maxResults);
+}
+export async function getTwitterTweet(token: string, tweetId: string) {
+  return requireCore().getTwitterTweet(token, tweetId);
+}
+export async function likeTweet(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterLike(token, userId, tweetId);
+}
+export async function unlikeTweet(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterUnlike(token, userId, tweetId);
+}
+export async function retweetTweet(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterRetweet(token, userId, tweetId);
+}
+export async function unretweetTweet(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterUnretweet(token, userId, tweetId);
+}
+export async function bookmarkTweet(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterBookmark(token, userId, tweetId);
+}
+export async function removeBookmark(token: string, userId: string, tweetId: string) {
+  return requireCore().twitterRemoveBookmark(token, userId, tweetId);
+}
+export async function muteUser(token: string, sourceUserId: string, targetUserId: string) {
+  return requireCore().twitterMuteUser(token, sourceUserId, targetUserId);
+}
+export async function blockUser(token: string, sourceUserId: string, targetUserId: string) {
+  return requireCore().twitterBlockUser(token, sourceUserId, targetUserId);
+}
+
+// ── Error parsing ────────────────────────────────────────────────────────────
+
+export interface ParsedApiError {
+  title: string;
+  description: string;
+  fix: string;
+  action: string;
+  link_url: string;
+  link_label: string;
+}
+export function parseApiError(message: string, status: number): ParsedApiError {
+  return requireCore().parseApiError(message, status) as unknown as ParsedApiError;
+}
+
 // ── LLM context ─────────────────────────────────────────────────────────────
 
 export async function getDataSummary(): Promise<string> {

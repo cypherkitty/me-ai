@@ -21,6 +21,8 @@ serde-wasm-bindgen = "0.6.5"
 rexie = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 async-openai = { version = "0.33", default-features = false, features = ["responses"] }
+base64 = { version = "0.22", default-features = false, features = ["std"] }
+regex-lite = "0.1"
 
 [profile.release]
 lto = true
