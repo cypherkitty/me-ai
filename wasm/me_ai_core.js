@@ -2886,6 +2886,67 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} message_json
+     * @param {string} header_name
+     * @returns {string}
+     */
+    getGmailHeader(message_json, header_name) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(message_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(header_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_getGmailHeader(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+            deferred3_0 = ret[0];
+            deferred3_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @param {string} token
+     * @param {string} message_id
+     * @param {string} format
+     * @returns {Promise<any>}
+     */
+    getGmailMessage(token, message_id, format) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(message_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(format, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getGmailMessage(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string[]} message_ids
+     * @param {number} batch_size
+     * @returns {Promise<any>}
+     */
+    getGmailMessagesBatch(token, message_ids, batch_size) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayJsValueToWasm0(message_ids, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getGmailMessagesBatch(this.__wbg_ptr, ptr0, len0, ptr1, len1, batch_size);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @returns {Promise<any>}
+     */
+    getGmailProfile(token) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getGmailProfile(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * @param {string} id
      * @returns {Promise<ItemRow | undefined>}
      */
@@ -3122,6 +3183,63 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} token
+     * @returns {Promise<any>}
+     */
+    getTwitterMe(token) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTwitterMe(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {number} max_results
+     * @param {string | null} [pagination_token]
+     * @returns {Promise<any>}
+     */
+    getTwitterMentions(token, user_id, max_results, pagination_token) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(pagination_token) ? 0 : passStringToWasm0(pagination_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTwitterMentions(this.__wbg_ptr, ptr0, len0, ptr1, len1, max_results, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {number} max_results
+     * @param {string | null} [pagination_token]
+     * @returns {Promise<any>}
+     */
+    getTwitterTimeline(token, user_id, max_results, pagination_token) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(pagination_token) ? 0 : passStringToWasm0(pagination_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTwitterTimeline(this.__wbg_ptr, ptr0, len0, ptr1, len1, max_results, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    getTwitterTweet(token, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getTwitterTweet(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
      * @param {string} type_name
      * @returns {Promise<PipelineActionRow[]>}
      */
@@ -3215,6 +3333,40 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} token
+     * @param {string} start_history_id
+     * @param {string | null | undefined} page_token
+     * @param {number} max_results
+     * @returns {Promise<any>}
+     */
+    listGmailHistory(token, start_history_id, page_token, max_results) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(start_history_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(page_token) ? 0 : passStringToWasm0(page_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_listGmailHistory(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, max_results);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {number} max_results
+     * @param {string | null} [page_token]
+     * @param {string | null} [q]
+     * @returns {Promise<any>}
+     */
+    listGmailMessages(token, max_results, page_token, q) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        var ptr1 = isLikeNone(page_token) ? 0 : passStringToWasm0(page_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(q) ? 0 : passStringToWasm0(q, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_listGmailMessages(this.__wbg_ptr, ptr0, len0, max_results, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
      * @param {string} url
      * @returns {Promise<OllamaModelTag[]>}
      */
@@ -3269,6 +3421,17 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {string} message
+     * @param {number} status
+     * @returns {ParsedApiError}
+     */
+    parseApiError(message, status) {
+        const ptr0 = passStringToWasm0(message, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_parseApiError(this.__wbg_ptr, ptr0, len0, status);
+        return ParsedApiError.__wrap(ret);
+    }
+    /**
      * Parse an LLM classification response. Returns None if invalid.
      * @param {string} response
      * @returns {TriageClassification | undefined}
@@ -3278,6 +3441,39 @@ export class MeAiCore {
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_parseClassification(this.__wbg_ptr, ptr0, len0);
         return ret === 0 ? undefined : TriageClassification.__wrap(ret);
+    }
+    /**
+     * @param {string} message_json
+     * @returns {string}
+     */
+    parseGmailBody(message_json) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(message_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_parseGmailBody(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * @param {string} message_json
+     * @returns {string | undefined}
+     */
+    parseGmailHtmlBody(message_json) {
+        const ptr0 = passStringToWasm0(message_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_parseGmailHtmlBody(this.__wbg_ptr, ptr0, len0);
+        let v2;
+        if (ret[0] !== 0) {
+            v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v2;
     }
     /**
      * @param {bigint} loaded
@@ -3368,6 +3564,20 @@ export class MeAiCore {
         _assertClass(sv, SettingValue);
         var ptr0 = sv.__destroy_into_raw();
         const ret = wasm.meaicore_saveSettings(this.__wbg_ptr, ptr0);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} query
+     * @param {number} max_results
+     * @returns {Promise<any>}
+     */
+    searchTwitterRecentTweets(token, query, max_results) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(query, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_searchTwitterRecentTweets(this.__wbg_ptr, ptr0, len0, ptr1, len1, max_results);
         return ret;
     }
     /**
@@ -3526,6 +3736,134 @@ export class MeAiCore {
         } finally {
             wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
+    }
+    /**
+     * @param {string} token
+     * @param {string} source_user_id
+     * @param {string} target_user_id
+     * @returns {Promise<any>}
+     */
+    twitterBlockUser(token, source_user_id, target_user_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(source_user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(target_user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterBlockUser(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterBookmark(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterBookmark(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterLike(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterLike(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} source_user_id
+     * @param {string} target_user_id
+     * @returns {Promise<any>}
+     */
+    twitterMuteUser(token, source_user_id, target_user_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(source_user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(target_user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterMuteUser(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterRemoveBookmark(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterRemoveBookmark(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterRetweet(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterRetweet(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterUnlike(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterUnlike(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
+    }
+    /**
+     * @param {string} token
+     * @param {string} user_id
+     * @param {string} tweet_id
+     * @returns {Promise<any>}
+     */
+    twitterUnretweet(token, user_id, tweet_id) {
+        const ptr0 = passStringToWasm0(token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(user_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(tweet_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_twitterUnretweet(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+        return ret;
     }
     /**
      * @param {string} category_name
@@ -4258,6 +4596,165 @@ export class OnnxModelGroup {
     }
 }
 if (Symbol.dispose) OnnxModelGroup.prototype[Symbol.dispose] = OnnxModelGroup.prototype.free;
+
+export class ParsedApiError {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(ParsedApiError.prototype);
+        obj.__wbg_ptr = ptr;
+        ParsedApiErrorFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ParsedApiErrorFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_parsedapierror_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get action() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_action(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get description() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_description(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get fix() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_fix(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get link_label() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_link_label(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get link_url() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_link_url(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get title() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_parsedapierror_title(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set action(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_action(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set description(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_description(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set fix(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_fix(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set link_label(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_link_label(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set link_url(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_link_url(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set title(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_parsedapierror_title(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) ParsedApiError.prototype[Symbol.dispose] = ParsedApiError.prototype.free;
 
 export class PipelineActionRow {
     static __wrap(ptr) {
@@ -7350,22 +7847,22 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1019, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1020, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1111, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1112, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { dtor_idx: 3, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 4, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h9df14c000f4f76ee, wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d);
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1e7ae839838f20bc, wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 836, function: Function { arguments: [], shim_idx: 837, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 930, function: Function { arguments: [], shim_idx: 931, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 906, function: Function { arguments: [Externref], shim_idx: 1066, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 999, function: Function { arguments: [Externref], shim_idx: 1158, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
@@ -7490,8 +7987,8 @@ function wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg
     wasm.wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h601aa7233edfb00d(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3(arg0, arg1, arg2);
 }
 
 function wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0(arg0, arg1, arg2) {
@@ -7597,6 +8094,9 @@ const OnnxModelFinalization = (typeof FinalizationRegistry === 'undefined')
 const OnnxModelGroupFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_onnxmodelgroup_free(ptr >>> 0, 1));
+const ParsedApiErrorFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_parsedapierror_free(ptr >>> 0, 1));
 const PipelineActionRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_pipelineactionrow_free(ptr >>> 0, 1));
