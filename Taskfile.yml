@@ -115,6 +115,12 @@ tasks:
     cmds:
       - npm run lint
 
+  knip:
+    desc: Find unused exports and dead code in me-ai-web/src
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run knip
+
   # --- CI: install (core + npm) then unit + e2e ---
   ci:
     desc: Full CI run (build:core → install → clippy:core → check → lint → unit tests → E2E tests)

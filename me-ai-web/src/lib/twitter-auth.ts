@@ -22,7 +22,6 @@ const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 let _clientId: string | null = null;
 let _redirectUri: string | null = null;
-let _expiresAt = 0;
 
 interface TokenData {
   access_token: string;
@@ -81,7 +80,6 @@ function _lsRead(): TokenData | null {
 
 async function saveToken(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
   const expiresAt = Date.now() + expiresIn * 1000;
-  _expiresAt = expiresAt;
   const data: TokenData = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt };
   _lsSave(data);
   try {
@@ -97,7 +95,6 @@ async function saveToken(accessToken: string, refreshToken: string, expiresIn: n
 }
 
 async function clearSavedToken(): Promise<void> {
-  _expiresAt = 0;
   _lsClear();
   try {
     const { removeSetting } = await import("./core.js");
@@ -192,7 +189,6 @@ export async function handleTwitterCallback(
 export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token: string } | null> {
   const ls = _lsRead();
   if (ls?.access_token && Date.now() < ls.expires_at - EXPIRY_MARGIN_MS) {
-    _expiresAt = ls.expires_at;
     return { access_token: ls.access_token, refresh_token: ls.refresh_token ?? "" };
   }
 
@@ -218,7 +214,6 @@ export async function getSavedTwitterToken(): Promise<{ access_token: string; re
       await clearSavedToken();
       return null;
     }
-    _expiresAt = expiresAt;
     _lsSave({ access_token: t.accessToken, refresh_token: refreshTok, expires_at: expiresAt });
     return { access_token: t.accessToken, refresh_token: refreshTok ?? "" };
   } catch {
@@ -227,14 +222,10 @@ export async function getSavedTwitterToken(): Promise<{ access_token: string; re
   }
 }
 
-export function isTwitterTokenValid(): boolean {
-  return _expiresAt > 0 && Date.now() < _expiresAt - EXPIRY_MARGIN_MS;
-}
-
 /**
  * Refresh the Twitter access token using the refresh token.
  */
-export async function refreshTwitterToken(
+async function refreshTwitterToken(
   refreshTokenOverride?: string
 ): Promise<{ access_token: string; refresh_token: string }> {
   let refreshTok = refreshTokenOverride;

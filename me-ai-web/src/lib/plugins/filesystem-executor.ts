@@ -3,7 +3,7 @@
  * Actions: read_file, write_file, list_dir, create_file, delete_file.
  */
 
-export interface PluginResult {
+interface PluginResult {
   success: boolean;
   message?: string;
   data?: unknown;

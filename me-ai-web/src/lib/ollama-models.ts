@@ -11,7 +11,7 @@ import {
 } from "./core.js";
 
 /** JS-friendly Ollama model descriptor (tags parsed to string[]). */
-export interface OllamaModel {
+interface OllamaModel {
   name: string;
   displayName: string;
   params: string;

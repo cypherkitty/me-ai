@@ -10,7 +10,7 @@ import {
   loadSettings,
 } from "./core.js";
 
-export type ApiProvider = "openai" | "anthropic" | "google" | "xai";
+type ApiProvider = "openai" | "anthropic" | "google" | "xai";
 
 type Status = "idle" | "loading" | "ready" | "generating";
 type EngineMessage = Record<string, unknown>;

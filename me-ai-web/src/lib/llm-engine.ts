@@ -102,7 +102,7 @@ function ensureWorker(): Promise<WorkerHandle> {
   return _workerPromise;
 }
 
-export interface GenerateFullResult {
+interface GenerateFullResult {
   text: string;
   tps: number | null;
   numTokens: number;

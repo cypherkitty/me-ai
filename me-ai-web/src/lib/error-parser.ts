@@ -1,7 +1,7 @@
 import { GmailApiError } from "./gmail-api.js";
 import { getCore } from "./store/core-store.js";
 
-export interface ParsedError {
+interface ParsedError {
   title: string;
   description: string;
   fix?: string | null;

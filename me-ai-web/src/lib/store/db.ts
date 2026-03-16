@@ -56,22 +56,6 @@ export async function nukeAllLocalData(): Promise<void> {
   }
 }
 
-/**
- * Delete the me-ai IndexedDB database and reload (fresh start).
- */
-export async function deleteDbAndReload(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    const r = indexedDB.deleteDatabase("me-ai");
-    r.onsuccess = () => resolve();
-    r.onerror = () => resolve();
-    r.onblocked = () => resolve();
-    setTimeout(resolve, 3000);
-  });
-  if (typeof window !== "undefined") {
-    window.location.reload();
-  }
-}
-
 // ─── Utilities (no DB) ─────────────────────────────────────────────────────
 
 export function makeItemId(sourceType: string, sourceId: string): string {

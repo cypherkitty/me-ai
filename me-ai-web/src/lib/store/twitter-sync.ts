@@ -24,7 +24,7 @@ import type { SyncState, SyncProgress, StoredItemRow } from "$lib/types";
 
 const DEFAULT_SYNC_LIMIT = 50;
 
-export interface SyncTwitterOptions {
+interface SyncTwitterOptions {
   limit?: number;
   onProgress?: (p: SyncProgress) => void;
   signal?: AbortSignal;

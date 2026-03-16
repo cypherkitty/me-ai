@@ -8,18 +8,7 @@ function requireCore() {
   return getCore();
 }
 
-export class TwitterApiError extends Error {
-  status: number;
-  code: string | null;
-  constructor(message: string, status: number, code?: string | null) {
-    super(message);
-    this.name = "TwitterApiError";
-    this.status = status;
-    this.code = code ?? null;
-  }
-}
-
-export interface TwitterUser {
+interface TwitterUser {
   id: string;
   name: string;
   username: string;
@@ -27,7 +16,7 @@ export interface TwitterUser {
   public_metrics?: unknown;
 }
 
-export interface Tweet {
+interface Tweet {
   id: string;
   text: string;
   author_id?: string;
@@ -37,18 +26,18 @@ export interface Tweet {
   conversation_id?: string;
 }
 
-export interface ApiResponse<T> {
+interface ApiResponse<T> {
   data?: T;
   includes?: { users?: TwitterUser[] };
   meta?: { next_token?: string; result_count?: number };
 }
 
-export interface TimelineOptions {
+interface TimelineOptions {
   maxResults?: number;
   paginationToken?: string;
 }
 
-export interface UserInfo {
+interface UserInfo {
   username: string;
   name: string;
 }
@@ -70,69 +59,6 @@ export function getUserTimeline(
 ): Promise<ApiResponse<Tweet[]>> {
   const { maxResults = 10, paginationToken } = options;
   return requireCore().getTwitterTimeline(token, userId, Math.min(maxResults, 100), paginationToken ?? null) as unknown as Promise<ApiResponse<Tweet[]>>;
-}
-
-/**
- * Get tweets mentioning the authenticated user.
- */
-export function getUserMentions(
-  token: string,
-  userId: string,
-  options: TimelineOptions = {}
-): Promise<ApiResponse<Tweet[]>> {
-  const { maxResults = 10, paginationToken } = options;
-  return requireCore().getTwitterMentions(token, userId, Math.min(maxResults, 100), paginationToken ?? null) as unknown as Promise<ApiResponse<Tweet[]>>;
-}
-
-/**
- * Search recent tweets (last 7 days).
- */
-export function searchRecentTweets(
-  token: string,
-  query: string,
-  options: { maxResults?: number } = {}
-): Promise<ApiResponse<Tweet[]>> {
-  const { maxResults = 10 } = options;
-  return requireCore().searchTwitterRecentTweets(token, query, Math.min(maxResults, 100)) as unknown as Promise<ApiResponse<Tweet[]>>;
-}
-
-/**
- * Get a single tweet by ID.
- */
-export function getTweet(token: string, tweetId: string): Promise<ApiResponse<Tweet>> {
-  return requireCore().getTwitterTweet(token, tweetId) as unknown as Promise<ApiResponse<Tweet>>;
-}
-
-export function likeTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterLike(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function unlikeTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterUnlike(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function retweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterRetweet(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function unretweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterUnretweet(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function bookmarkTweet(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterBookmark(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function removeBookmark(token: string, userId: string, tweetId: string): Promise<unknown> {
-  return requireCore().twitterRemoveBookmark(token, userId, tweetId) as unknown as Promise<unknown>;
-}
-
-export function muteUser(token: string, sourceUserId: string, targetUserId: string): Promise<unknown> {
-  return requireCore().twitterMuteUser(token, sourceUserId, targetUserId) as unknown as Promise<unknown>;
-}
-
-export function blockUser(token: string, sourceUserId: string, targetUserId: string): Promise<unknown> {
-  return requireCore().twitterBlockUser(token, sourceUserId, targetUserId) as unknown as Promise<unknown>;
 }
 
 /**

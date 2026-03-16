@@ -49,14 +49,6 @@ export interface SyncProgress {
   total?: number;
 }
 
-/** Contact row (IndexedDB). */
-export interface ContactRow {
-  email: string;
-  name: string;
-  firstSeen: number;
-  lastSeen: number;
-}
-
 /** Audit log step (one action result). */
 export interface AuditStep {
   actionId: string;
@@ -179,47 +171,4 @@ export interface ExecutionProgress {
   actionCount?: number;
 }
 
-/** Plugin context passed to action handlers. */
-export interface PluginContext {
-  accessToken: string;
-  event: EmailEvent;
-  onProgress?: (p: ExecutionProgress) => void;
-  config?: Record<string, unknown>;
-}
 
-/** Result from a plugin action. */
-export interface PluginResult {
-  success: boolean;
-  message?: string;
-  data?: unknown;
-  error?: Error;
-}
-
-/** Action handler registered on a plugin. */
-export interface ActionHandler {
-  actionId: string;
-  name: string;
-  description: string;
-  execute: (ctx: PluginContext) => Promise<PluginResult>;
-  requiredScopes?: string[];
-  requiredPermissions?: string[];
-}
-
-/** Model definition (e.g. for dropdown). */
-export interface Model {
-  id: string;
-  name: string;
-  size: string;
-  contextWindow: number;
-  maxEmailTokens: number;
-  description: string;
-  recommendedForEmailProcessing?: boolean;
-  gpuWarning?: string;
-  isExperimental?: boolean;
-}
-
-/** Model group (dropdown section). */
-export interface ModelGroup {
-  label: string;
-  models: Model[];
-}

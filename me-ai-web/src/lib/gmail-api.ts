@@ -20,13 +20,13 @@ export class GmailApiError extends Error {
   }
 }
 
-export interface ListMessagesOptions {
+interface ListMessagesOptions {
   maxResults?: number;
   pageToken?: string;
   q?: string;
 }
 
-export interface ListHistoryOptions {
+interface ListHistoryOptions {
   startHistoryId: string;
   pageToken?: string;
   maxResults?: number;
@@ -49,14 +49,6 @@ export function getMessage(
   format: string = "full"
 ): Promise<Record<string, unknown>> {
   return requireCore().getGmailMessage(token, messageId, format) as unknown as Promise<Record<string, unknown>>;
-}
-
-export function getMessagesBatch(
-  token: string,
-  messageIds: string[],
-  batchSize: number = 8
-): Promise<Record<string, unknown>[]> {
-  return requireCore().getGmailMessagesBatch(token, messageIds, batchSize) as unknown as Promise<Record<string, unknown>[]>;
 }
 
 export function listHistory(

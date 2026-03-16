@@ -5,7 +5,6 @@
 import {
   extractName as coreExtractName,
   initial as coreInitial,
-  slugify as coreSluglify,
   exportFilename as coreExportFilename,
 } from "./core.js";
 
@@ -25,20 +24,6 @@ export function formatDate(dateStr: string | number | null | undefined): string 
   }
 }
 
-/** Format a date as YYYY-MM-DD for filenames. */
-export function shortDate(dateStr: string | number | null | undefined): string {
-  if (!dateStr) return "email";
-  try {
-    const d = new Date(dateStr as string | number);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  } catch {
-    return "email";
-  }
-}
-
 /** Extract display name from a "Name <email>" string. */
 export function extractName(fromStr: string | null | undefined): string {
   return coreExtractName(fromStr ?? "");
@@ -49,13 +34,8 @@ export function initial(fromStr: string | null | undefined): string {
   return coreInitial(fromStr ?? "");
 }
 
-/** Generate a safe filename slug from a subject string. */
-export function slugify(subject: string | null | undefined): string {
-  return coreSluglify(subject ?? "");
-}
-
 /** Message-like shape for export filename. */
-export interface MessageLike {
+interface MessageLike {
   subject?: string;
   date?: string | number;
 }
@@ -75,13 +55,13 @@ export function exportFilename(message: MessageLike, ext: string): string {
 }
 
 /** Item with optional action and date for grouping. */
-export interface ItemWithAction {
+interface ItemWithAction {
   action?: string;
   date?: number | null;
   [k: string]: unknown;
 }
 
-export interface GroupByActionResult<T extends ItemWithAction> {
+interface GroupByActionResult<T extends ItemWithAction> {
   categories: Record<string, T[]>;
   order: string[];
 }

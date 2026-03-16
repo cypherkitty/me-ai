@@ -1,11 +1,10 @@
 /**
  * Gmail sync adapter.
  *
- * Three operations:
+ * Two operations:
  * 1. syncGmail()     — First time: full sync (configurable limit, default 50).
  *                      Subsequent: incremental sync via History API (new + deleted).
  * 2. syncGmailMore() — Continue downloading older messages beyond the initial sync.
- * 3. clearGmailData() — Wipe all local Gmail data.
  *
  * syncState tracks:
  * - historyId       — for incremental sync
@@ -16,7 +15,6 @@
 
 import {
   deleteSyncState,
-  deleteItemsBySource,
   getItemsCountBySource,
   upsertSyncState,
   insertItemsBatch,
@@ -44,19 +42,19 @@ const BATCH_SIZE = 8;
 const DEFAULT_SYNC_LIMIT = 50;
 const PAGE_SIZE = 100;
 
-export interface SyncGmailOptions {
+interface SyncGmailOptions {
   limit?: number;
   onProgress?: (p: SyncProgress) => void;
   signal?: AbortSignal;
 }
 
-export interface SyncGmailResult {
+interface SyncGmailResult {
   added: number;
   deleted: number;
   errors: number;
 }
 
-export interface SyncGmailMoreResult {
+interface SyncGmailMoreResult {
   added: number;
   errors: number;
 }
@@ -141,12 +139,7 @@ export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
   };
 }
 
-export async function clearGmailData(): Promise<void> {
-  await deleteItemsBySource(SOURCE_TYPE);
-  await deleteSyncState(SOURCE_TYPE);
-}
-
-export async function getGmailItemCount(): Promise<number> {
+async function getGmailItemCount(): Promise<number> {
   return Number(await getItemsCountBySource(SOURCE_TYPE) ?? 0);
 }
 

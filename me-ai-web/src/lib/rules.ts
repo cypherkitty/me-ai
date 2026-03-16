@@ -8,17 +8,12 @@
 import {
   getEventTypes as coreGetEventTypes,
   getEventCategories as coreGetEventCategories,
-  getSources as coreGetSources,
   getActions as coreGetActions,
   getPlugins as coreGetPlugins,
   getRules as coreGetRules,
   getRule as coreGetRule,
   saveRule as coreSaveRule,
   deleteRule as coreDeleteRule,
-  getEvents as coreGetEvents,
-  insertEvent as coreInsertEvent,
-  updateEventStatus as coreUpdateEventStatus,
-  clearEvents as coreClearEvents,
   getEmailClassifications as coreGetEmailClassifications,
   getAuditStats as coreGetAuditStats,
   getItemById as coreGetItemById,
@@ -32,10 +27,8 @@ import {
   updateEventTypeCategory as coreUpdateEventTypeCategory,
   clearEventTypeCategory as coreClearEventTypeCategory,
   deleteEventType as coreDeleteEventType,
-  setSourceEnabled as coreSetSourceEnabled,
   setPluginEnabled as coreSetPluginEnabled,
 } from "./core.js";
-import { toJson, fromJson } from "./store/db.js";
 import type { Rule, Action, Trigger } from "$lib/types";
 
 // ── Seed / static data (WASM core builds SQL and passes to adapter) ────────
@@ -47,11 +40,6 @@ export async function getEventTypes(): Promise<Record<string, unknown>[]> {
 
 export async function getEventCategories(): Promise<Record<string, unknown>[]> {
   const rows = await coreGetEventCategories();
-  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
-}
-
-export async function getSources(): Promise<Record<string, unknown>[]> {
-  const rows = await coreGetSources();
   return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
 }
 
@@ -81,7 +69,7 @@ export async function getRules(): Promise<Rule[]> {
   })) as Rule[];
 }
 
-export async function getRule(id: string): Promise<Rule | null> {
+async function getRule(id: string): Promise<Rule | null> {
   const r = await coreGetRule(id);
   if (r == null || r === undefined) return null;
   const row = (r as unknown) as Record<string, unknown>;
@@ -97,7 +85,7 @@ export async function getRule(id: string): Promise<Rule | null> {
   } as Rule;
 }
 
-export interface CreateRuleInput {
+interface CreateRuleInput {
   name: string;
   description?: string;
   enabled?: boolean;
@@ -174,68 +162,9 @@ export async function deleteRule(id: string): Promise<void> {
   await coreDeleteRule(id);
 }
 
-// ── Event queries ──────────────────────────────────────────────────────
+// ── Event stats ──────────────────────────────────────────────────────
 
-export interface GetEventsOptions {
-  status?: string;
-  eventType?: string;
-  source?: string;
-  limit?: number;
-}
-
-export async function getEvents({
-  limit = 100,
-}: GetEventsOptions = {}): Promise<Record<string, unknown>[]> {
-  const rows = ((await coreGetEvents(limit, 0)) as unknown) as Record<string, unknown>[];
-  return (rows ?? []).map((r) => ({
-    ...r,
-    actions_taken: fromJson(r.actions_taken as string, []),
-    output: fromJson(r.output as string, null),
-  }));
-}
-
-export interface InsertEventInput {
-  id?: string;
-  content?: string;
-  subject?: string;
-  sender?: string;
-  timestamp?: number;
-  status?: string;
-  event_type?: string;
-  event_category?: string;
-  source_name?: string;
-  rule_id?: string | null;
-  actions_taken?: unknown[];
-  output?: unknown;
-}
-
-export async function insertEvent(evt: InsertEventInput): Promise<void> {
-  const id = evt.id ?? `evt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  await coreInsertEvent(
-    id,
-    evt.content ?? null,
-    evt.subject ?? null,
-    evt.sender ?? null,
-    evt.timestamp ?? Date.now(),
-    evt.status ?? "completed",
-    evt.event_type ?? null,
-    evt.event_category ?? null,
-    evt.source_name ?? null,
-    evt.rule_id ?? null,
-    toJson(evt.actions_taken ?? []),
-    evt.output != null ? toJson(evt.output) : null
-  );
-}
-
-export async function updateEventStatus(id: string, status: string): Promise<void> {
-  await coreUpdateEventStatus(id, status);
-}
-
-export async function clearAllEvents(): Promise<void> {
-  await coreClearEvents();
-}
-
-export interface EventStats {
+interface EventStats {
   awaiting_user: number;
   escalated: number;
   completed: number;
@@ -334,7 +263,7 @@ export async function getPendingCountByCategory(categoryName: string): Promise<n
   }).length;
 }
 
-export interface PendingItemByCategory {
+interface PendingItemByCategory {
   id: string;
   emailId: string;
   subject: string;
@@ -380,10 +309,6 @@ export async function getPendingItemsByCategory(
   return out;
 }
 
-export async function approveClassification(id: string): Promise<void> {
-  await coreUpdateEmailClassificationStatus(id, "approved");
-}
-
 export async function rejectClassification(id: string): Promise<void> {
   await coreUpdateEmailClassificationStatus(id, "escalated");
 }
@@ -412,7 +337,7 @@ export async function findMatchingRules(
 
 // ── Category-based pipeline resolution ─────────────────────────────────
 
-export interface PipelineForEvent {
+interface PipelineForEvent {
   actions: Array<{ pluginId: string; commandId: string; order: number }>;
   policy: string;
   category: string;
@@ -458,7 +383,7 @@ export async function getPipelineForEvent(eventType: string): Promise<PipelineFo
   };
 }
 
-export interface CategoryPipelineDisplay {
+interface CategoryPipelineDisplay {
   category: string;
   label: string;
   priority: number;
@@ -533,46 +458,7 @@ export async function deleteEventType(eventTypeName: string): Promise<void> {
   await coreDeleteEventType(eventTypeName);
 }
 
-export async function setSourceEnabled(name: string, enabled: boolean): Promise<void> {
-  await coreSetSourceEnabled(name, enabled);
-}
-
 export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
   await coreSetPluginEnabled(name, enabled);
 }
 
-export async function seedRuleForEventType(
-  eventType: string,
-  _policy: string,
-  actions: Action[]
-): Promise<void> {
-  if (!eventType || !actions?.length) return;
-
-  const existing = await findMatchingRules(eventType, "");
-  const alreadyHasRule = existing.some((r) =>
-    r.triggers.some((t) => t.type === "event_type" && t.name === eventType)
-  );
-  if (alreadyHasRule) return;
-
-  const label = eventType
-    .toLowerCase()
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-  const ts = Date.now();
-
-  await createRule({
-    name: `${label} Pipeline`,
-    description: `Auto-generated pipeline for "${eventType}" events`,
-    enabled: true,
-    priority: 5,
-    triggers: [{ type: "event_type", name: eventType }],
-    actions: actions.map((a, i) => ({
-      id: `${a.commandId || "cmd"}_${ts}_${i}`,
-      pluginId: a.pluginId || "",
-      commandId: a.commandId || "",
-      name: a.name || a.commandId || "",
-      description: a.description || "",
-      icon: a.icon,
-    })),
-  });
-}

@@ -11,7 +11,7 @@ import {
 } from "./core.js";
 
 // Re-export types from core for backwards compatibility
-export type { OllamaConnectionResult, OllamaModelTag } from "./core.js";
+export type { OllamaConnectionResult } from "./core.js";
 
 const LOCAL_OLLAMA_URL = "http://localhost:11434";
 const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
@@ -58,50 +58,19 @@ export async function listOllamaModels(
   return coreListOllamaModels(url);
 }
 
-export async function pullOllamaModel(
-  modelName: string,
-  onProgress: (p: Record<string, unknown>) => void = () => {},
-  url: string = getOllamaUrl()
-): Promise<void> {
-  const response = await fetch(`${url}/api/pull`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: modelName }),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to pull model: HTTP ${response.status}`);
-  }
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value);
-      const lines = text.split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          onProgress(JSON.parse(line) as Record<string, unknown>);
-        } catch { /* no-op */ }
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
 
-export interface OllamaChatMessage {
+interface OllamaChatMessage {
   role: string;
   content?: string;
 }
 
-export interface StreamOllamaOptions {
+interface StreamOllamaOptions {
   temperature?: number;
   maxTokens?: number;
   keepAlive?: string;
 }
 
-export interface OllamaTokenData {
+interface OllamaTokenData {
   content: string;
   done: boolean;
   total_duration?: number;
@@ -183,27 +152,4 @@ export async function streamOllamaChat(
     reader.releaseLock();
   }
   return fullText;
-}
-
-export async function generateOllamaChat(
-  modelName: string,
-  messages: OllamaChatMessage[],
-  options: StreamOllamaOptions = {},
-  url: string = getOllamaUrl()
-): Promise<{ text: string; eval_count: number; eval_duration: number }> {
-  let fullText = "";
-  let evalCount = 0;
-  let evalDuration = 0;
-  await streamOllamaChat(
-    modelName,
-    messages,
-    options,
-    (data) => {
-      fullText += data.content;
-      if (data.eval_count != null) evalCount = data.eval_count;
-      if (data.eval_duration != null) evalDuration = data.eval_duration;
-    },
-    url
-  );
-  return { text: fullText, eval_count: evalCount, eval_duration: evalDuration };
 }

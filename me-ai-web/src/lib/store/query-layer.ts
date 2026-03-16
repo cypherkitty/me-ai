@@ -9,65 +9,10 @@ import {
   getItemsGmailByDateDesc,
   getEmailClassifications,
   getItemsCountGmail,
-  getDataSummary as coreGetDataSummary,
-  getDetailedSummary as coreGetDetailedSummary,
-  getRecentEmailsContext,
 } from "../core.js";
 import { fromJson } from "./db.js";
-import { truncate } from "../format.js";
 import { groupByAction } from "../email-utils.js";
 import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
-
-// ── Data summary (WASM core builds SQL and passes to adapter) ───────────────
-
-/**
- * Get a high-level summary of all stored data.
- * Suitable for always-on system prompt context (small token footprint).
- * Delegates to me-ai-core.
- */
-export async function getDataSummary(): Promise<string | null> {
-  const s = await coreGetDataSummary();
-  return s || null;
-}
-
-/**
- * Get a detailed summary with label distribution, top senders, etc.
- * Delegates to me-ai-core.
- */
-export async function getDetailedSummary(): Promise<string> {
-  return coreGetDetailedSummary();
-}
-
-// ── Email queries ───────────────────────────────────────────────────
-
-/**
- * Get recent emails formatted for LLM context.
- * Delegates to me-ai-core.
- */
-export async function getRecentEmails(limit = 10): Promise<string> {
-  return getRecentEmailsContext(limit);
-}
-
-/**
- * Search stored data by text query across subject, from, snippet, body.
- */
-export async function searchData(searchQuery: string, limit = 10): Promise<string> {
-  if (!searchQuery) return "No search query provided.";
-  const rows = ((await getItemsGmailByDateDesc(limit * 5)) as unknown) as Record<string, unknown>[];
-  const q = searchQuery.toLowerCase();
-  const scored = (rows ?? []).filter((r) => {
-    const subj = String(r.subject ?? "").toLowerCase();
-    const from = String(r.from ?? "").toLowerCase();
-    const to = String(r.to ?? "").toLowerCase();
-    const snippet = String(r.snippet ?? "").toLowerCase();
-    const body = String(r.body ?? "").toLowerCase();
-    return subj.includes(q) || from.includes(q) || to.includes(q) || snippet.includes(q) || body.includes(q);
-  }).slice(0, limit);
-  if (scored.length === 0) return "No matching emails found.";
-  return scored
-    .map((r) => formatItemForLLM(normaliseRow(r)))
-    .join("\n\n---\n\n");
-}
 
 // ── Pending actions ─────────────────────────────────────────────────
 
@@ -141,26 +86,3 @@ function normaliseRow(row: Record<string, unknown>): StoredItem {
   } as StoredItem;
 }
 
-function formatItemForLLM(item: StoredItem): string {
-  const date = item.date ? new Date(item.date).toLocaleString() : "Unknown date";
-  const body = truncate(item.body || item.snippet || "", 500);
-
-  switch (item.type) {
-    case "email":
-      return [
-        `**Subject:** ${item.subject}`,
-        `**From:** ${item.from}`,
-        `**To:** ${item.to}`,
-        item.cc ? `**CC:** ${item.cc}` : "",
-        `**Date:** ${date}`,
-        `**Labels:** ${(item.labels || []).join(", ")}`,
-        "",
-        body,
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-    default:
-      return [`**From:** ${item.from}`, `**Date:** ${date}`, "", body].join("\n");
-  }
-}

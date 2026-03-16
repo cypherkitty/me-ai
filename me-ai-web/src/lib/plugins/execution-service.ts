@@ -9,7 +9,6 @@
 
 import {
   getAvailableActions as coreGetAvailableActions,
-  getRequiredScopes as coreGetRequiredScopes,
   executePipeline as coreExecutePipeline,
 } from "../core.js";
 import { findMatchingRules, getPipelineForEvent } from "../rules.js";
@@ -46,7 +45,7 @@ function normaliseActions(
   }));
 }
 
-export interface ExecutePipelineOptions {
+interface ExecutePipelineOptions {
   actionsOverride?: Array<{ pluginId: string; commandId: string }>;
 }
 
@@ -443,11 +442,6 @@ export function getAvailableActions(source: string): unknown[] {
 export async function isAuthenticated(): Promise<boolean> {
   const tokenData = await getSavedToken();
   return !!tokenData?.access_token;
-}
-
-export function getRequiredScopes(actionId: string, source: string): string[] {
-  const arr = coreGetRequiredScopes(actionId, source);
-  return Array.isArray(arr) ? (arr as string[]) : [];
 }
 
 export { EVENT_CATEGORY_TIERS };

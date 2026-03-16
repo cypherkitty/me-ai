@@ -13,7 +13,7 @@
 const enabled =
   typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
 
-export function debug(...args: unknown[]): void {
+function debug(...args: unknown[]): void {
   if (enabled) console.log("[debug]", ...args);
 }
 

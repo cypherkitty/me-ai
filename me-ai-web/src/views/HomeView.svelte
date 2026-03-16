@@ -66,6 +66,13 @@
       if (twToken) gmailConnected = true; // reuse flag — means "any source connected"
     } catch { /* no-op */ }
 
+    // Check if Local Filesystem is connected
+    try {
+      const { getDirectories } = await import("../lib/plugins/filesystem-store.js");
+      const dirs = await getDirectories();
+      if (dirs.length > 0) gmailConnected = true;
+    } catch { /* no-op */ }
+
     try {
       const counts = (await getClassificationCounts()) as { total?: number };
       scannedCount = counts.total ?? 0;
@@ -83,15 +90,15 @@
   const s1 = $derived(
     gmailConnected ? (emailCount > 0 ? "done" : "active") : "idle",
   );
-  // Scan requires emails AND AI backend to be loaded
+  // Scan requires a source to be connected AND AI backend to be loaded
   const s2 = $derived(
-    emailCount > 0 && engineReady
+    engineReady
       ? scannedCount > 0
         ? "done"
         : "active"
       : "idle",
   );
-  const s2Blocked = $derived(emailCount > 0 && !engineReady); // has emails but no AI
+  const s2Blocked = $derived(!engineReady); // source connected but no AI
   const s3 = $derived(
     scannedCount > 0 ? (pipelineCount > 0 ? "done" : "active") : "idle",
   );

@@ -8,7 +8,7 @@ import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory } from "me-ai-core";
-export type { OnnxModel, OnnxModelGroup, OllamaModel, OllamaConnectionResult, OllamaModelTag, TriageClassification } from "me-ai-core";
+export type { OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag } from "me-ai-core";
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
@@ -38,9 +38,6 @@ export async function getEventTypes() {
 export async function getEventCategories() {
   return requireCore().getEventCategories();
 }
-export async function getSources() {
-  return requireCore().getSources();
-}
 export async function getActions() {
   return requireCore().getActions();
 }
@@ -49,12 +46,6 @@ export async function getItemsCountGmail() {
 }
 export async function getContactsCount() {
   return requireCore().getContactsCount();
-}
-export async function getItemsDateMin() {
-  return requireCore().getItemsDateMin();
-}
-export async function getItemsDateMax() {
-  return requireCore().getItemsDateMax();
 }
 export async function getEmailClassificationsCount() {
   return requireCore().getEmailClassificationsCount();
@@ -68,7 +59,7 @@ export async function saveSettings(sv: SettingValue): Promise<void> {
 export async function removeSetting(key: string) {
   return requireCore().removeSetting(key);
 }
-export async function getTableCount(table: string) {
+function getTableCount(table: string) {
   return requireCore().getTableCount(table);
 }
 export async function clearAllData() {
@@ -126,9 +117,6 @@ export async function clearEventTypeCategory(type_name: string) {
 export async function deleteEventType(type_name: string) {
   return requireCore().deleteEventType(type_name);
 }
-export async function setSourceEnabled(name: string, enabled: boolean) {
-  return requireCore().setSourceEnabled(name, enabled);
-}
 export async function setPluginEnabled(name: string, enabled: boolean) {
   return requireCore().setPluginEnabled(name, enabled);
 }
@@ -143,9 +131,6 @@ export async function deleteItemsBySource(source_type: string) {
 }
 export async function clearContacts() {
   return requireCore().clearContacts();
-}
-export async function clearItemsSyncContacts() {
-  return requireCore().clearItemsSyncContacts();
 }
 export async function getItemsCountBySource(source_type: string) {
   return requireCore().getItemsCountBySource(source_type);
@@ -164,12 +149,6 @@ export async function upsertSyncState(
 }
 export async function insertItemsBatch(rows: unknown) {
   return requireCore().insertItemsBatch(rows);
-}
-export async function insertSyncStateBatch(rows: unknown) {
-  return requireCore().insertSyncStateBatch(rows);
-}
-export async function insertContactsBatch(rows: unknown) {
-  return requireCore().insertContactsBatch(rows);
 }
 export async function deleteItemsByIds(ids: unknown) {
   return requireCore().deleteItemsByIds(ids);
@@ -192,12 +171,6 @@ export function getPluginRegistry() {
 export function getAvailableActions(source: string) {
   return requireCore().getAvailableActions(source);
 }
-export function getRequiredScopes(actionId: string, source: string) {
-  return requireCore().getRequiredScopes(actionId, source);
-}
-export function resolvePluginId(source: string) {
-  return requireCore().resolvePluginId(source);
-}
 export function getPluginsForPrompt() {
   return requireCore().getPluginsForPrompt();
 }
@@ -210,15 +183,6 @@ export async function executePipeline(
 ) {
   return requireCore().executePipeline(actions, event, accessToken, onProgress, config);
 }
-export async function executePipelineBatch(
-  actions: unknown[],
-  events: unknown[],
-  accessToken: string,
-  onProgress?: (progress: unknown) => void,
-  config?: unknown
-) {
-  return requireCore().executePipelineBatch(actions, events, accessToken, onProgress, config);
-}
 export async function getRules() {
   return requireCore().getRules();
 }
@@ -230,44 +194,6 @@ export async function saveRule(payload: unknown) {
 }
 export async function deleteRule(id: string) {
   return requireCore().deleteRule(id);
-}
-export async function getEvents(limit: number, offset: number) {
-  return requireCore().getEvents(limit, offset);
-}
-export async function updateEventStatus(id: string, status: string) {
-  return requireCore().updateEventStatus(id, status);
-}
-export async function clearEvents() {
-  return requireCore().clearEvents();
-}
-export async function insertEvent(
-  id: string,
-  content?: string | null,
-  subject?: string | null,
-  sender?: string | null,
-  timestamp?: number,
-  status?: string | null,
-  event_type?: string | null,
-  event_category?: string | null,
-  source_name?: string | null,
-  rule_id?: string | null,
-  actions_taken?: string | null,
-  output?: string | null
-) {
-  return requireCore().insertEvent(
-    id,
-    content ?? undefined,
-    subject ?? undefined,
-    sender ?? undefined,
-    timestamp ?? 0,
-    status ?? undefined,
-    event_type ?? undefined,
-    event_category ?? undefined,
-    source_name ?? undefined,
-    rule_id ?? undefined,
-    actions_taken ?? undefined,
-    output ?? undefined
-  );
 }
 export async function getItemById(id: string) {
   return requireCore().getItemById(id);
@@ -321,11 +247,6 @@ export async function putEmailClassification(
   );
 }
 
-/**
- * True if core init has already failed (e.g. IndexedDB unavailable). For UI/guards only.
- */
-export { isCoreInitFailed } from "./store/core-store.js";
-
 export async function getStorageStats(): Promise<{
   supported: boolean;
   usageBytes: number;
@@ -368,9 +289,6 @@ export async function clearAllDataAndCheckpoint(): Promise<void> {
   await clearAllData();
 }
 
-export function getApiModels() {
-  return requireCore().getApiModels();
-}
 export function getApiModelInfo(modelId: string) {
   return requireCore().getApiModelInfo(modelId);
 }
@@ -428,9 +346,6 @@ export function formatBytesPrecise(bytes: number): string {
 export function progressPct(loaded: number, total: number): number {
   return requireCore().progressPct(BigInt(loaded), BigInt(total));
 }
-export function truncate(s: string, maxLen: number): string {
-  return requireCore().truncate(s, maxLen);
-}
 export function stringToHue(s: string): number {
   return requireCore().stringToHue(s);
 }
@@ -442,12 +357,6 @@ export function extractName(fromStr: string): string {
 }
 export function initial(fromStr: string): string {
   return requireCore().initial(fromStr);
-}
-export function slugify(subject: string): string {
-  return requireCore().slugify(subject);
-}
-export function shortDate(dateMs: number): string {
-  return requireCore().shortDate(dateMs);
 }
 export function exportFilename(subject: string, dateMs: number, ext: string): string {
   return requireCore().exportFilename(subject, dateMs, ext);
@@ -478,100 +387,8 @@ export function tagColor(tag: string): string {
   return requireCore().tagColor(tag);
 }
 
-// ── Gmail API ───────────────────────────────────────────────────────────────
-
-export async function getGmailProfile(token: string) {
-  return requireCore().getGmailProfile(token);
-}
-export async function listGmailMessages(token: string, maxResults: number, pageToken?: string, q?: string) {
-  return requireCore().listGmailMessages(token, maxResults, pageToken ?? null, q ?? null);
-}
-export async function getGmailMessage(token: string, messageId: string, format: string = "full") {
-  return requireCore().getGmailMessage(token, messageId, format);
-}
-export async function getGmailMessagesBatch(token: string, messageIds: string[], batchSize: number = 8) {
-  return requireCore().getGmailMessagesBatch(token, messageIds, batchSize);
-}
-export async function listGmailHistory(token: string, startHistoryId: string, pageToken?: string, maxResults: number = 500) {
-  return requireCore().listGmailHistory(token, startHistoryId, pageToken ?? null, maxResults);
-}
-export function parseGmailBody(messageJson: string): string {
-  return requireCore().parseGmailBody(messageJson);
-}
-export function parseGmailHtmlBody(messageJson: string): string | undefined {
-  return requireCore().parseGmailHtmlBody(messageJson) ?? undefined;
-}
-export function getGmailHeader(messageJson: string, headerName: string): string {
-  return requireCore().getGmailHeader(messageJson, headerName);
-}
-
-// ── Twitter API ──────────────────────────────────────────────────────────────
-
-export async function getTwitterMe(token: string) {
-  return requireCore().getTwitterMe(token);
-}
-export async function getTwitterUserTimeline(token: string, userId: string, maxResults: number = 10, paginationToken?: string) {
-  return requireCore().getTwitterTimeline(token, userId, maxResults, paginationToken ?? null);
-}
-export async function getTwitterUserMentions(token: string, userId: string, maxResults: number = 10, paginationToken?: string) {
-  return requireCore().getTwitterMentions(token, userId, maxResults, paginationToken ?? null);
-}
-export async function searchRecentTweets(token: string, query: string, maxResults: number = 10) {
-  return requireCore().searchTwitterRecentTweets(token, query, maxResults);
-}
-export async function getTwitterTweet(token: string, tweetId: string) {
-  return requireCore().getTwitterTweet(token, tweetId);
-}
-export async function likeTweet(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterLike(token, userId, tweetId);
-}
-export async function unlikeTweet(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterUnlike(token, userId, tweetId);
-}
-export async function retweetTweet(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterRetweet(token, userId, tweetId);
-}
-export async function unretweetTweet(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterUnretweet(token, userId, tweetId);
-}
-export async function bookmarkTweet(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterBookmark(token, userId, tweetId);
-}
-export async function removeBookmark(token: string, userId: string, tweetId: string) {
-  return requireCore().twitterRemoveBookmark(token, userId, tweetId);
-}
-export async function muteUser(token: string, sourceUserId: string, targetUserId: string) {
-  return requireCore().twitterMuteUser(token, sourceUserId, targetUserId);
-}
-export async function blockUser(token: string, sourceUserId: string, targetUserId: string) {
-  return requireCore().twitterBlockUser(token, sourceUserId, targetUserId);
-}
-
-// ── Error parsing ────────────────────────────────────────────────────────────
-
-export interface ParsedApiError {
-  title: string;
-  description: string;
-  fix: string;
-  action: string;
-  link_url: string;
-  link_label: string;
-}
-export function parseApiError(message: string, status: number): ParsedApiError {
-  return requireCore().parseApiError(message, status) as unknown as ParsedApiError;
-}
-
 // ── LLM context ─────────────────────────────────────────────────────────────
 
-export async function getDataSummary(): Promise<string> {
-  return requireCore().getDataSummary();
-}
-export async function getDetailedSummary(): Promise<string> {
-  return requireCore().getDetailedSummary();
-}
-export async function getRecentEmailsContext(limit: number): Promise<string> {
-  return requireCore().getRecentEmailsContext(limit);
-}
 export async function buildLlmContext(): Promise<string> {
   return requireCore().buildLlmContext();
 }

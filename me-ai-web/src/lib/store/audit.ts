@@ -18,7 +18,7 @@ import type { PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry } 
 const DESTRUCTIVE_COMMAND_IDS = new Set(["trash", "delete", "mark_spam"]);
 const ARCHIVING_COMMAND_IDS = new Set(["archive"]);
 
-export interface LogExecutionParams {
+interface LogExecutionParams {
   emailId: string;
   subject?: string;
   from?: string;
@@ -85,13 +85,13 @@ export async function syncAfterExecution(
   await coreSyncAfterAuditExecution(emailId, deleteItem);
 }
 
-export interface GetAuditLogOptions {
+interface GetAuditLogOptions {
   limit?: number;
   offset?: number;
   failuresOnly?: boolean;
 }
 
-export interface GetAuditLogResult {
+interface GetAuditLogResult {
   entries: AuditLogEntry[];
   total: number;
 }

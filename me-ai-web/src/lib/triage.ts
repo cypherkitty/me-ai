@@ -26,6 +26,7 @@ import { toJson, fromJson } from "./store/db.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
+import { getApiModelInfo } from "./api-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
@@ -40,7 +41,7 @@ export const CLASSIFICATION_CONFIG = {
 };
 
 /** Minimal engine interface used for scanning (llm-engine or unified-engine). */
-export interface TriageEngine {
+interface TriageEngine {
   readonly isReady: boolean;
   readonly modelId: string | null;
   generateFull(
@@ -100,7 +101,7 @@ export interface ClassificationResult {
 }
 
 /** Options for scanEmails. */
-export interface ScanOptions {
+interface ScanOptions {
   count?: number;
   force?: boolean;
   onProgress?: (p: ScanProgress) => void;
@@ -108,7 +109,7 @@ export interface ScanOptions {
 }
 
 /** Result of scanEmails. */
-export interface ScanResult {
+interface ScanResult {
   scanned: number;
   classified: number;
   skipped: number;
@@ -116,7 +117,7 @@ export interface ScanResult {
 }
 
 /** Row shape from emailClassifications table (normalised). */
-export interface ClassificationRow {
+interface ClassificationRow {
   emailId: string;
   action: string;
   category: string;
@@ -203,7 +204,7 @@ export async function scanEmails(
   const systemPrompt = coreBuildSystemPrompt(pluginNames);
 
   const currentModel = engine.modelId;
-  const modelInfo = getModelInfo(currentModel ?? "") ?? getOllamaModelInfo(currentModel ?? "");
+  const modelInfo = getModelInfo(currentModel ?? "") ?? getOllamaModelInfo(currentModel ?? "") ?? getApiModelInfo(currentModel ?? "");
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
@@ -398,12 +399,7 @@ export async function scanEmails(
   return { scanned: toProcess.length, classified, skipped, errors };
 }
 
-export async function getClassifications(options: { action?: string } = {}): Promise<ClassificationRow[]> {
-  const rows = ((await coreGetEmailClassifications(options.action ?? null, undefined)) as unknown) as Record<string, unknown>[];
-  return (rows ?? []).map((r) => normaliseClassificationRow(r));
-}
-
-export interface GetClassificationsByCategoryOptions {
+interface GetClassificationsByCategoryOptions {
   pendingOnly?: boolean;
 }
 
@@ -427,20 +423,6 @@ export async function getClassificationCounts(): Promise<Record<string, number>>
     counts[k] = (counts[k] ?? 0) + 1;
   }
   return counts;
-}
-
-export async function getTagCounts(): Promise<Record<string, number>> {
-  const rows = (await coreGetEmailClassifications(null, 50000)) as { tags?: string }[];
-  const tagMap: Record<string, number> = {};
-  for (const r of rows ?? []) {
-    const tags = fromJson(r.tags, []) as string[];
-    if (Array.isArray(tags)) {
-      for (const tag of tags) {
-        tagMap[tag] = (tagMap[tag] ?? 0) + 1;
-      }
-    }
-  }
-  return tagMap;
 }
 
 export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {

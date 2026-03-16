@@ -53,21 +53,6 @@ export const EVENT_CATEGORIES: Record<
   critical: { name: "critical", label: "Critical", priority: 3, color: "#ef4444", policy: "manual" },
 };
 
-export function categoryToPolicy(category: string): string {
-  return EVENT_CATEGORIES[category]?.policy || "manual";
-}
-
-export function categoryTierToPolicy(category: EventCategory): string {
-  if (category === "NOISE") return "auto";
-  if (category === "INFO") return "auto";
-  return "manual";
-}
-
-export function policyToCategoryTier(policy: string): EventCategory {
-  if (policy === "auto") return "NOISE";
-  return "CRITICAL";
-}
-
 export function categoryTierToName(category: EventCategory): string {
   const c = (category || "").toUpperCase();
   if (c === "NOISE") return "noise";
@@ -147,28 +132,6 @@ export async function getCategoryForEventType(eventType: string): Promise<EventC
   return normalizeCategory(map[normalized]);
 }
 
-export async function setCategoryForEventType(eventType: string, category: EventCategory): Promise<void> {
-  const normalized = eventType.toUpperCase();
-  if (!EVENT_CATEGORY_TIERS[category]) throw new Error(`Unknown category: ${category}`);
-  const map = await loadCategoriesMap();
-  map[normalized] = category;
-  await saveCategoriesMap(map);
-}
-
-export async function getAllEventTypeCategories(): Promise<Record<string, EventCategory>> {
-  return loadCategoriesMap();
-}
-
-export async function getExecutionPolicy(eventType: string): Promise<{
-  autoExecute: boolean;
-  requiresApproval: boolean;
-  category: EventCategory;
-}> {
-  const category = await getCategoryForEventType(eventType);
-  const def = EVENT_CATEGORY_TIERS[category] || EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY];
-  return { autoExecute: def.autoExecute, requiresApproval: def.requiresApproval, category };
-}
-
 export async function getActionsForEvent(eventType: string): Promise<Action[]> {
   const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
   if (!normalized) return [];
@@ -188,24 +151,6 @@ export async function getActionsForEvent(eventType: string): Promise<Action[]> {
     name: (a.commandId ?? "").replace(/_/g, " "),
     description: "",
   }));
-}
-
-export async function hasEvent(eventType: string): Promise<boolean> {
-  const normalized = eventType?.toUpperCase?.() || "";
-  const map = await loadUserMap();
-  return normalized in map;
-}
-
-// ── Event CRUD ──────────────────────────────────────────────────────
-
-export async function addEventType(eventType: string): Promise<void> {
-  const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
-  if (!normalized) return;
-  const map = await loadUserMap();
-  if (!(normalized in map)) {
-    map[normalized] = [];
-    await saveUserMap(map);
-  }
 }
 
 export async function seedEventTypeFromLLM(
@@ -248,45 +193,11 @@ export async function seedEventTypeFromLLM(
   }
 }
 
-export async function deleteEventType(eventType: string): Promise<void> {
-  const normalized = eventType.toUpperCase();
-  const map = await loadUserMap();
-  delete map[normalized];
-  await saveUserMap(map);
-}
-
-// ── Action pipeline CRUD ────────────────────────────────────────────
-
-export async function saveActionsForEvent(eventType: string, actions: Action[]): Promise<void> {
-  const normalized = eventType.toUpperCase();
-  const map = await loadUserMap();
-  map[normalized] = actions;
-  await saveUserMap(map);
-}
-
-export async function addActionToEvent(eventType: string, action: Action): Promise<void> {
-  const current = await getActionsForEvent(eventType);
-  await saveActionsForEvent(eventType, [...current, action]);
-}
-
-export async function removeActionFromEvent(eventType: string, actionId: string): Promise<void> {
-  const current = await getActionsForEvent(eventType);
-  await saveActionsForEvent(eventType, current.filter((a) => a.id !== actionId));
-}
-
-export async function updateActionInEvent(eventType: string, actionId: string, updates: Partial<Action>): Promise<void> {
-  const current = await getActionsForEvent(eventType);
-  await saveActionsForEvent(
-    eventType,
-    current.map((a) => (a.id === actionId ? { ...a, ...updates } : a))
-  );
-}
-
 // ── Chat message builders ───────────────────────────────────────────
 
 import type { EmailEvent } from "$lib/types";
 
-export interface ClassificationLike {
+interface ClassificationLike {
   action: string;
   reason?: string;
   summary?: string;
@@ -294,7 +205,7 @@ export interface ClassificationLike {
   categoryTier?: EventCategory;
 }
 
-export interface EmailLike {
+interface EmailLike {
   subject?: string;
   from?: string;
   date?: string | number;
@@ -302,7 +213,7 @@ export interface EmailLike {
   body?: string;
 }
 
-export async function buildEmailEvent(
+async function buildEmailEvent(
   classification: ClassificationLike,
   email: EmailLike
 ): Promise<{ event: EmailEvent; commands: Action[] }> {
@@ -327,19 +238,6 @@ export async function buildEmailEvent(
 
   const commands = await getActionsForEvent(classification.action);
   return { event, commands };
-}
-
-export function buildEventMessage(
-  event: EmailEvent,
-  commands: Action[]
-): { role: string; type: string; event: EmailEvent; commands: Action[]; content: string } {
-  return {
-    role: "assistant",
-    type: "event",
-    event,
-    commands,
-    content: "",
-  };
 }
 
 export async function buildBatchEventMessage(

@@ -143,7 +143,7 @@ function nodeToMarkdown(node: Node): string {
   return inner;
 }
 
-export interface MessageForFilename {
+interface MessageForFilename {
   subject: string;
   date: string;
 }

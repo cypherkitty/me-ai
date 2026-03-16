@@ -22,6 +22,3 @@ export function getCore(): InstanceType<typeof MeAiCore> {
   return state.core;
 }
 
-export function isCoreInitFailed(): boolean {
-  return get(coreStore).initFailed;
-}
