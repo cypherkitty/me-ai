@@ -19,7 +19,7 @@ let _status: Status = "idle";
 let _modelId: string | null = null;
 let _modelName: string | null = null;
 let _provider: ApiProvider | null = null;
-let _listeners = new Set<(msg: EngineMessage) => void>();
+const _listeners = new Set<(msg: EngineMessage) => void>();
 let _abortController: AbortController | null = null;
 
 function broadcast(msg: EngineMessage): void {
@@ -207,7 +207,7 @@ export function getApiEngine(provider: ApiProvider) {
                     numTokens: lastNumTokens,
                     text: output,
                   });
-                } catch {}
+                } catch { /* no-op */ }
               }
               break;
             case "complete":

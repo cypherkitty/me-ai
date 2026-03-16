@@ -20,7 +20,7 @@ import {
   getNewestSourceId,
 } from "../core.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
-import type { SyncState, SyncProgress } from "$lib/types";
+import type { SyncState, SyncProgress, StoredItemRow } from "$lib/types";
 
 const DEFAULT_SYNC_LIMIT = 50;
 
@@ -136,10 +136,10 @@ async function fullSync(
     const batchSize = Math.min(limit - added, 100);
     let response: TimelineResponse;
     try {
-      response = await getUserTimeline(token, userId, {
+      response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      });
+      }) as unknown) as TimelineResponse;
     } catch (e) {
       errors++;
       console.warn("[twitter-sync] API error:", (e as Error)?.message);
@@ -218,10 +218,10 @@ async function incrementalSync(
     const batchSize = Math.min(limit - added, 100);
     let response: TimelineResponse;
     try {
-      response = await getUserTimeline(token, userId, {
+      response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      });
+      }) as unknown) as TimelineResponse;
     } catch (e) {
       errors++;
       console.warn("[twitter-sync] Incremental sync error:", (e as Error)?.message);
@@ -310,11 +310,11 @@ async function continueFetch(
     const batchSize = Math.min(limit - added, 100);
     let response: TimelineResponse;
     try {
-      response = await getUserTimeline(token, userId, {
+      response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      });
-    } catch (e) {
+      }) as unknown) as TimelineResponse;
+    } catch {
       errors++;
       break;
     }
@@ -361,7 +361,7 @@ function normalizeTweet(
   tweet: TweetRow,
   userMap: Map<string, { username?: string; name?: string }> | undefined,
   currentUsername: string
-): IdbItemRow {
+): StoredItemRow {
   const author = userMap?.get(tweet.author_id ?? "");
   const authorHandle = author?.username || currentUsername || "unknown";
   const text = tweet.text || "";
@@ -400,7 +400,7 @@ function normalizeTweet(
 
 // ── Bulk DB helpers ─────────────────────────────────────────────────
 
-async function bulkUpsertItems(items: Array<Record<string, unknown>>): Promise<void> {
+async function bulkUpsertItems(items: StoredItemRow[]): Promise<void> {
   if (!items.length) return;
 
   const rows = items.map((item) => ({
@@ -437,7 +437,7 @@ async function getSyncState(sourceType: string): Promise<SyncState | null> {
   try {
     const r = await getSyncStateRaw(sourceType);
     if (r == null) return null;
-    const row = r as Record<string, unknown>;
+    const row = (r as unknown) as Record<string, unknown>;
     return {
       sourceType: row.sourceType as string,
       historyId: row.historyId as string,

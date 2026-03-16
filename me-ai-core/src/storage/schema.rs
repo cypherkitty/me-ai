@@ -25,17 +25,22 @@ struct SmEventTypeRow {
 struct SmEventCategoryRow {
     name: String,
     label: Option<String>,
-    priority: Option<i64>,
-    policy: Option<String>,
+    #[serde(default)]
+    priority: i64,
+    #[serde(default)]
+    policy: String,
 }
 
 #[derive(Serialize, Deserialize)]
 struct SmSourceRow {
     name: String,
     label: Option<String>,
-    platform: Option<String>,
-    api: Option<String>,
-    enabled: Option<bool>,
+    #[serde(default)]
+    platform: String,
+    #[serde(default)]
+    api: String,
+    #[serde(default)]
+    enabled: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -49,7 +54,8 @@ struct SmPluginRow {
     name: String,
     label: Option<String>,
     version: Option<String>,
-    enabled: Option<bool>,
+    #[serde(default)]
+    enabled: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -126,8 +132,8 @@ async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
         .map(|(name, label, pri, policy)| SmEventCategoryRow {
             name: name.to_string(),
             label: Some(label.to_string()),
-            priority: Some(*pri),
-            policy: Some(policy.to_string()),
+            priority: *pri,
+            policy: policy.to_string(),
         })
         .collect();
     db.store_put_all(store::SM_EVENT_CATEGORIES, &cat_rows).await?;
@@ -145,9 +151,9 @@ async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
         .map(|(name, label, platform, api, enabled)| SmSourceRow {
             name: name.to_string(),
             label: Some(label.to_string()),
-            platform: Some(platform.to_string()),
-            api: Some(api.to_string()),
-            enabled: Some(*enabled),
+            platform: platform.to_string(),
+            api: api.to_string(),
+            enabled: *enabled,
         })
         .collect();
     db.store_put_all(store::SM_SOURCES, &src_rows).await?;
@@ -188,7 +194,7 @@ async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
             name: name.to_string(),
             label: Some(label.to_string()),
             version: Some(version.to_string()),
-            enabled: Some(*enabled),
+            enabled: *enabled,
         })
         .collect();
     db.store_put_all(store::SM_PLUGINS, &plug_rows).await?;
@@ -294,13 +300,15 @@ pub async fn clear_all_data(db: DbRef<'_>) -> Result<(), CoreError> {
 
 #[derive(Serialize, Deserialize)]
 pub struct SettingRow {
-    pub key: Option<String>,
-    pub value: Option<String>,
+    #[serde(default)]
+    pub key: String,
+    #[serde(default)]
+    pub value: String,
 }
 
 pub async fn get_setting(db: DbRef<'_>, key: &str) -> Result<Option<String>, CoreError> {
     let opt: Option<SettingRow> = db.store_get(store::SETTINGS, key).await?;
-    Ok(opt.and_then(|r| r.value))
+    Ok(opt.map(|r| r.value))
 }
 
 #[derive(Serialize, Deserialize)]

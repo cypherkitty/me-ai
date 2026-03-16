@@ -42,7 +42,7 @@ type Listener = (msg: WorkerMessage) => void;
 let _workerPromise: Promise<WorkerHandle> | null = null;
 let _status: "idle" | "loading" | "ready" | "generating" = "idle";
 let _modelId: string | null = null;
-let _listeners = new Set<Listener>();
+const _listeners = new Set<Listener>();
 
 /**
  * Ensures the dedicated Worker is created and returns an interface to talk to it.
@@ -202,7 +202,7 @@ export function getEngine() {
               lastTps = msg.tps ?? lastTps;
               lastNumTokens = msg.numTokens ?? lastNumTokens;
               if (onToken) {
-                try { onToken({ tps: lastTps, numTokens: lastNumTokens, text: output }); } catch { }
+                try { onToken({ tps: lastTps, numTokens: lastNumTokens, text: output }); } catch { /* no-op */ }
               }
               break;
             case "complete":

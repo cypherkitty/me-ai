@@ -4,15 +4,18 @@
 
   interface EmailItem extends StoredItem {
     status?: string;
+    summary?: string;
+    reason?: string;
+    tags?: string[];
   }
   interface Props {
     item: EmailItem;
     actionColor?: string;
     dimmed?: boolean;
-    onexecute?: () => void;
+    onexecute?: (item: EmailItem) => void;
     onmarkacted?: (id: string) => void;
-    ondismiss?: () => void;
-    onremove?: () => void;
+    ondismiss?: (id: string) => void;
+    onremove?: (id: string) => void;
   }
   let {
     item,
@@ -55,7 +58,7 @@
     </span>
     {#if item.tags && item.tags.length > 0}
       <span class="row-tags">
-        {#each item.tags as tag}
+        {#each item.tags as tag (tag)}
           <span class="tag" style:background={tagColor(tag)}>{tag}</span>
         {/each}
       </span>
@@ -78,7 +81,7 @@
           title="Execute actions"
           onclick={(e) => {
             e.stopPropagation();
-            onexecute(item);
+            onexecute?.(item);
           }}
         >
           <svg
@@ -97,7 +100,7 @@
         title="Mark handled"
         onclick={(e) => {
           e.stopPropagation();
-          onmarkacted(item.emailId);
+          onmarkacted?.(item.id);
         }}
       >
         <svg
@@ -116,7 +119,7 @@
         title="Dismiss"
         onclick={(e) => {
           e.stopPropagation();
-          ondismiss(item.emailId);
+          ondismiss?.(item.id);
         }}
       >
         <svg
@@ -140,7 +143,7 @@
         title="Remove classification"
         onclick={(e) => {
           e.stopPropagation();
-          onremove(item.emailId);
+          onremove?.(item.id);
         }}
       >
         <svg

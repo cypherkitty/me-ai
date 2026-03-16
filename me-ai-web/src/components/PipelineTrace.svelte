@@ -31,7 +31,7 @@
             Execution Trace
         </p>
         <div class="flex flex-col relative">
-            {#each steps as step, i}
+            {#each steps as step, i (i)}
                 {@const isSuccess =
                     step.success === true || step.status === "done"}
                 {@const isError =

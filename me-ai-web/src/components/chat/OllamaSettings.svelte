@@ -1,12 +1,11 @@
 <script lang="ts">
   import { OLLAMA_MODELS, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
-  import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels } from "../../lib/ollama-client.js";
+  import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels, type OllamaConnectionResult } from "../../lib/ollama-client.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
-  import { Separator } from "$lib/components/ui/separator/index.js";
   import { cn } from "$lib/utils.js";
 
   interface Props {
@@ -21,9 +20,8 @@
 
   let ollamaUrl = $state(getOllamaUrl());
   let isTestingConnection = $state(false);
-  let connectionStatus = $state(null);
-  let availableModels = $state([]);
-  let isLoadingModels = $state(false);
+  let connectionStatus = $state<OllamaConnectionResult | null>(null);
+  let availableModels = $state<string[]>([]);
 
   $effect(() => {
     getOllamaUrlAsync().then((url) => {
@@ -42,14 +40,12 @@
   }
 
   async function loadAvailableModels() {
-    isLoadingModels = true;
     try {
       const models = await listOllamaModels(ollamaUrl);
-      availableModels = models.map(m => m.name);
-    } catch (e) {
+      availableModels = models.map((m: { name: string }) => m.name);
+    } catch {
       availableModels = [];
     }
-    isLoadingModels = false;
   }
 
   function handleUrlChange() {
@@ -59,10 +55,10 @@
 
   function handleLoadModel() {
     if (!selectedModel) { error = "Please select a model"; return; }
-    onload();
+    onload?.();
   }
 
-  function isModelInstalled(modelName) {
+  function isModelInstalled(modelName: string) {
     return availableModels.length > 0 && availableModels.includes(modelName);
   }
 
@@ -141,14 +137,14 @@
           class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <optgroup label="Recommended (ollama pull MODEL_NAME)">
-            {#each recommendedModels as model}
+            {#each recommendedModels as model (model.name)}
               <option value={model.name}>
                 {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
               </option>
             {/each}
           </optgroup>
           <optgroup label="Other Models">
-            {#each OLLAMA_MODELS.filter(m => !m.recommended) as model}
+            {#each OLLAMA_MODELS.filter(m => !m.recommended) as model (model.name)}
               <option value={model.name}>
                 {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
               </option>
@@ -198,13 +194,13 @@
           <table class="w-full text-xs border-collapse">
             <thead>
               <tr>
-                {#each ["Model", "Context", "Params", "Strengths"] as h}
+                {#each ["Model", "Context", "Params", "Strengths"] as h (h)}
                   <th class="text-left px-3 py-2 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 border-b border-border">{h}</th>
                 {/each}
               </tr>
             </thead>
             <tbody>
-              {#each OLLAMA_MODELS as model}
+              {#each OLLAMA_MODELS as model (model.name)}
                 <tr class={cn(
                   "transition-colors",
                   model.name === selectedModel ? "bg-primary/5" : "hover:bg-accent",

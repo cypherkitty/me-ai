@@ -7,6 +7,7 @@
 
   interface ProgressItem {
     file?: string;
+    id?: string;
     loaded?: number;
     total?: number;
   }
@@ -22,7 +23,7 @@
 <div class="max-w-[520px] mx-auto p-8 flex flex-col items-center text-center gap-3">
   <p class="text-sm text-muted-foreground tracking-tight">{message}</p>
 
-  {#each items as item}
+  {#each items as item (item.file ?? item.id)}
     {@const pct = item.total ? progressPct(item.loaded || 0, item.total) : null}
     <Card class="w-full">
       <CardContent class="pt-4 pb-3 px-4">

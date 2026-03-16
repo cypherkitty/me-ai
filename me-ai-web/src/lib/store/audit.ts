@@ -13,7 +13,7 @@ import {
   clearAuditLog as coreClearAuditLog,
 } from "../core.js";
 import { toJson, fromJson } from "./db.js";
-import type { PipelineAction, ActionExecutionResult, AuditStep } from "$lib/types";
+import type { PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry } from "$lib/types";
 
 const DESTRUCTIVE_COMMAND_IDS = new Set(["trash", "delete", "mark_spam"]);
 const ARCHIVING_COMMAND_IDS = new Set(["archive"]);
@@ -92,7 +92,7 @@ export interface GetAuditLogOptions {
 }
 
 export interface GetAuditLogResult {
-  entries: Array<Record<string, unknown> & { steps: AuditStep[]; success: boolean }>;
+  entries: AuditLogEntry[];
   total: number;
 }
 
@@ -104,12 +104,12 @@ export async function getAuditLog({
   offset = 0,
   failuresOnly = false,
 }: GetAuditLogOptions = {}): Promise<GetAuditLogResult> {
-  const result = await coreGetAuditLog(limit, offset, failuresOnly) as { entries: Record<string, unknown>[]; total: number };
+  const result = (await coreGetAuditLog(limit, offset, failuresOnly) as unknown) as { entries: Record<string, unknown>[]; total: number };
   const entries = (result.entries ?? []).map((r) => ({
     ...r,
     steps: fromJson<AuditStep[]>(r.steps as string, []),
     success: Boolean(r.success),
-  }));
+  })) as unknown as AuditLogEntry[];
   return { entries, total: result.total ?? 0 };
 }
 

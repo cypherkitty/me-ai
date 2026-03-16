@@ -4,7 +4,6 @@
   import { onMount } from "svelte";
   import { mountLog } from "../../lib/debug.js";
   import { getModelInfo } from "../../lib/models.js";
-  import { Badge } from "$lib/components/ui/badge/index.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronRight } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
@@ -36,11 +35,11 @@
 
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
 
-  const BACKEND_LABELS = {
+  const BACKEND_LABELS: Record<string, string> = {
     webgpu: "WebGPU", ollama: "Ollama", openai: "OpenAI",
     anthropic: "Claude", google: "Gemini", xai: "Grok",
   };
-  const BACKEND_COLORS = {
+  const BACKEND_COLORS: Record<string, string> = {
     webgpu: "#4ade80", ollama: "#a78bfa", openai: "#10b981",
     anthropic: "#f59e0b", google: "#3b82f6", xai: "#e8e8e8",
   };
@@ -52,8 +51,7 @@
     if (!msg.model) return null;
     const info = getModelInfo(msg.model);
     if (info) return info.name;
-    return msg.model
-      .split("/").pop()
+    return (msg.model.split("/").pop() ?? msg.model)
       .replace(/[-_](ONNX|onnx)([-_](GQA|MHA|web|DQ))*$/i, "")
       .replace(/[-_]/g, " ")
       .trim();
@@ -62,7 +60,7 @@
   let html = $derived.by(() => {
     if (msg.role !== "assistant" || !msg.content) return "";
     try {
-      const raw = marked.parse(msg.content, { breaks: true, gfm: true });
+      const raw = marked.parse(msg.content, { breaks: true, gfm: true }) as string;
       return DOMPurify.sanitize(raw);
     } catch {
       return msg.content;
@@ -127,7 +125,7 @@
         >
           <ChevronRight class={cn("size-3 shrink-0 transition-transform", showThinking && "rotate-90")} />
           Internal reasoning
-          <span class="text-[0.58rem] opacity-50 ml-0.5">{msg.thinking.split(/\s+/).filter(Boolean).length} words</span>
+          <span class="text-[0.58rem] opacity-50 ml-0.5">{String(msg.thinking).split(/\s+/).filter(Boolean).length} words</span>
         </Collapsible.Trigger>
         <Collapsible.Content>
           <pre class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
@@ -144,7 +142,7 @@
           <span class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_0.36s_infinite]"></span>
         </div>
       {:else if html}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <div class="md-body">{@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
       {:else if msg.content}
         <div class="md-body plain">{msg.content}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>

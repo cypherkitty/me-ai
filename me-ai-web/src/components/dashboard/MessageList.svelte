@@ -14,9 +14,9 @@
 </script>
 
 <div class="flex flex-col rounded border border-border overflow-hidden">
-  {#each messages as msg}
+  {#each messages as msg (msg.id)}
     <button
-      onclick={() => onselect(msg)}
+      onclick={() => onselect?.(msg)}
       class="flex gap-3 px-4 py-3.5 bg-card border-b border-border last:border-b-0 text-left hover:bg-accent transition-colors w-full"
     >
       <div class="size-[34px] rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-semibold shrink-0">

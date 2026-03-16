@@ -11,7 +11,7 @@
   }
   let { error, ondismiss = null, onsignout = null }: Props = $props();
 
-  let parsed = $derived(parseError(error));
+  let parsed = $derived(parseError(error as Error | string | null | undefined));
 
   onMount(() => mountLog("ErrorCard"));
 </script>

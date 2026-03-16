@@ -3,7 +3,7 @@
 
 	interface Props {
 		ref?: HTMLInputElement | null;
-		value?: string;
+		value?: string | number;
 		type?: string;
 		files?: FileList | undefined;
 		class?: string;

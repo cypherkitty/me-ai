@@ -49,7 +49,7 @@
     });
   }
 
-  function shortSender(from) {
+  function shortSender(from: string) {
     if (!from) return "—";
     return from.replace(/<.*>/, "").trim().slice(0, 32);
   }
@@ -123,7 +123,7 @@
                   <td class="td-subject" title={entry.subject}>{entry.subject}</td>
                   <td class="td-from">{shortSender(entry.from)}</td>
                   <td class="td-actions">
-                    {#each (entry.steps ?? []) as step}
+                    {#each (entry.steps ?? []) as step, si (si)}
                       <span class="step-pill" class:fail={!step.success} title={step.message}>
                         {step.success ? "✓" : "✕"} {step.actionName ?? step.actionId}
                       </span>
@@ -157,7 +157,7 @@
                           <div class="detail-error">{entry.error}</div>
                         {/if}
                         <div class="steps-list">
-                          {#each (entry.steps ?? []) as step}
+                          {#each (entry.steps ?? []) as step, si (si)}
                             <div class="step-row" class:step-ok={step.success} class:step-fail={!step.success}>
                               <span class="step-status">{step.success ? "✓" : "✕"}</span>
                               <span class="step-name">{step.actionName ?? step.actionId}</span>

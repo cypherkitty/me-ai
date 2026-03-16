@@ -40,19 +40,19 @@
   <div class="flex flex-col gap-3">
     <!-- First row: first two options side by side -->
     <div class="grid grid-cols-2 gap-3">
-      {#each options.slice(0, 2) as opt}
+      {#each options.slice(0, 2) as opt (opt.id)}
         {@render optionBtn(opt)}
       {/each}
     </div>
     <!-- Remaining options: each full width -->
-    {#each options.slice(2) as opt}
+    {#each options.slice(2) as opt (opt.id)}
       {@render optionBtn(opt)}
     {/each}
   </div>
 
-  {#snippet optionBtn(opt)}
+  {#snippet optionBtn(opt: typeof options[number])}
     <button
-      onclick={() => (backend = opt.id)}
+      onclick={() => (backend = opt.id as "webgpu" | "ollama" | "cloud")}
       disabled={opt.disabled}
       class={cn(
         "flex items-center gap-3 p-3.5 text-left rounded border transition-all w-full",

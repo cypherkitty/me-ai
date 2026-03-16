@@ -25,7 +25,7 @@
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		href?: string;
 		class?: string;
 		variant?: "default" | "secondary" | "destructive" | "outline";

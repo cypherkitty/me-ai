@@ -3,7 +3,7 @@
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		value?: string;
 		class?: string;
 		[key: string]: unknown;

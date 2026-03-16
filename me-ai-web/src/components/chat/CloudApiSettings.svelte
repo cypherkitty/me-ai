@@ -34,7 +34,7 @@
     const { core } = $coreStore;
     if (!core) { allModels = []; return; }
     try {
-      allModels = (core as any).getApiModels() as ApiModel[];
+      allModels = (core as unknown as { getApiModels(): ApiModel[] }).getApiModels();
     } catch (e) {
       console.error("[CloudApiSettings] getApiModels failed:", e);
       allModels = [];
@@ -96,7 +96,7 @@
       <!-- Provider tabs -->
       <Tabs bind:value={activeProvider}>
         <TabsList class="w-full">
-          {#each PROVIDERS as p}
+          {#each PROVIDERS as p (p.id)}
             <TabsTrigger value={p.id} class="flex-1 gap-1.5">
               <span>{p.icon}</span>
               <span>{p.label}</span>
@@ -132,7 +132,7 @@
           bind:value={selectedModel}
           class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
         >
-          {#each providerModels as model}
+          {#each providerModels as model (model.id)}
             <option value={model.id}>
               {model.displayName}{model.recommendedForEmailProcessing ? " ★" : ""}
             </option>

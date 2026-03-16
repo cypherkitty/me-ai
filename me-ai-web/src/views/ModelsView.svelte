@@ -55,6 +55,7 @@
       const requests = await cache.keys();
 
       // Group entries by model ID
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const byModel = new Map<string, { url: string; bytes: number }[]>();
       for (const req of requests) {
         const id = modelIdFromUrl(req.url);

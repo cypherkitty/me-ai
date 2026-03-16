@@ -2,6 +2,8 @@
   import StreamView        from "./views/StreamView.svelte";
   import PipelinesView     from "./views/PipelinesView.svelte";
   import ApprovalsView     from "./views/ApprovalsView.svelte";
+  import AuditView         from "./views/AuditView.svelte";
+  import SettingsView      from "./views/SettingsView.svelte";
   import SourcesView       from "./views/SourcesView.svelte";
   import PluginsView       from "./views/PluginsView.svelte";
   import AdminView         from "./views/AdminView.svelte";
@@ -11,8 +13,8 @@
   import ControlBoard      from "./ControlBoard.svelte";
   import { cn }            from "$lib/utils.js";
   import {
-    Zap, Activity, GitBranch, CheckSquare,
-    ArrowLeft, ScanSearch, ShieldCheck,
+    Activity, GitBranch, CheckSquare,
+    ArrowLeft, ScanSearch, FileText, Settings, MessageSquare,
   } from "lucide-svelte";
 
   interface Props {
@@ -166,6 +168,55 @@
             </span>
           {/if}
         </a>
+
+        <a href="#audit"
+          class={cn("relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors no-underline",
+            page === "audit"
+              ? "text-foreground font-medium bg-sidebar-accent"
+              : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          {#if page === "audit"}<span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"></span>{/if}
+          <FileText class="size-3.5 shrink-0" />
+          <span class="flex-1 tracking-tight">Audit Trail</span>
+        </a>
+
+        <div class="px-4 pt-3 pb-0.5">
+          <span class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/50">Other</span>
+        </div>
+
+        <a href="#scan"
+          class={cn("relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors no-underline",
+            page === "scan"
+              ? "text-foreground font-medium bg-sidebar-accent"
+              : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          {#if page === "scan"}<span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"></span>{/if}
+          <ScanSearch class="size-3.5 shrink-0" />
+          <span class="flex-1 tracking-tight">Scan</span>
+        </a>
+
+        <a href="#settings"
+          class={cn("relative flex items-center gap-2.5 px-4 py-2 text-sm transition-colors no-underline",
+            page === "settings"
+              ? "text-foreground font-medium bg-sidebar-accent"
+              : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
+          )}
+        >
+          {#if page === "settings"}<span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"></span>{/if}
+          <Settings class="size-3.5 shrink-0" />
+          <span class="flex-1 tracking-tight">Settings</span>
+        </a>
+
+        <div class="mt-auto pt-2 border-t border-sidebar-border mx-2 mb-2">
+          <a href="#chat"
+            class="flex items-center gap-2.5 px-2 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50 transition-colors no-underline rounded"
+          >
+            <MessageSquare class="size-3.5 shrink-0" />
+            <span class="flex-1 tracking-tight">Back to Chat</span>
+          </a>
+        </div>
       </nav>
     </aside>
 
@@ -173,6 +224,8 @@
       <div class="flex-1 min-h-0 flex flex-col overflow-hidden" style:display={page === "stream"    ? "flex" : "none"}><StreamView    /></div>
       <div class="flex-1 min-h-0 flex flex-col overflow-hidden" style:display={page === "pipelines" ? "flex" : "none"}><PipelinesView  /></div>
       <div class="flex-1 min-h-0 flex flex-col overflow-hidden" style:display={page === "approvals" ? "flex" : "none"}><ApprovalsView  /></div>
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden" style:display={page === "audit"     ? "flex" : "none"}><AuditView      /></div>
+      <div class="flex-1 min-h-0 flex flex-col overflow-hidden" style:display={page === "settings"  ? "flex" : "none"}><SettingsView   /></div>
     </main>
   </div>
 {/if}

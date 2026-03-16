@@ -3,7 +3,7 @@
 	import { cn } from "$lib/utils.js";
 
 	interface Props {
-		ref?: unknown;
+		ref?: HTMLElement | null;
 		class?: string;
 		max?: number;
 		value?: number | null;

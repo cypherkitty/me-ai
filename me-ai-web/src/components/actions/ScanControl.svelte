@@ -1,5 +1,6 @@
 <script lang="ts">
   import ScanLiveView from "./ScanLiveView.svelte";
+  import type { ScanProgress } from "../../lib/triage.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Search } from "lucide-svelte";
 
@@ -58,7 +59,7 @@
     return engineStatus === "ready" && !isScanning;
   }
 
-  let isVisuallyScanning = $derived(isScanning && scanProgress?.phase !== "done");
+  let isVisuallyScanning = $derived(isScanning && (scanProgress as Record<string, unknown> | null)?.phase !== "done");
 </script>
 
 <div class="rounded border border-border bg-card mb-4 overflow-hidden">
@@ -89,12 +90,13 @@
   </div>
 
   {#if stats}
+    {@const _stats = stats as Record<string, unknown>}
     <div class="flex items-center gap-2 px-4 py-2 border-b border-border/40 text-xs text-muted-foreground/60">
-      <span class="tabular-nums">{stats.totalEmails} in storage</span>
+      <span class="tabular-nums">{_stats.totalEmails} in storage</span>
       <span class="text-muted-foreground/20">·</span>
-      <span class="tabular-nums">{stats.classified} classified</span>
+      <span class="tabular-nums">{_stats.classified} classified</span>
       <span class="text-muted-foreground/20">·</span>
-      <span class="tabular-nums">{stats.unclassified} new</span>
+      <span class="tabular-nums">{_stats.unclassified} new</span>
     </div>
   {/if}
 
@@ -107,7 +109,7 @@
         disabled={isScanning}
         class="h-7 rounded border border-input bg-background px-2 text-xs text-foreground disabled:opacity-50"
       >
-        {#each COUNT_OPTIONS as opt}
+        {#each COUNT_OPTIONS as opt (opt.value)}
           <option value={opt.value}>{opt.label}</option>
         {/each}
       </select>
@@ -128,9 +130,9 @@
     </p>
   {/if}
 
-  {#if isScanning || scanProgress?.phase === "done"}
+  {#if isScanning || (scanProgress as Record<string, unknown> | null)?.phase === "done"}
     <ScanLiveView
-      progress={scanProgress}
+      progress={scanProgress as ScanProgress | null}
       {onstop}
       {oninspect}
       onclose={oncloseprogress}

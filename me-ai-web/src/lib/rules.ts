@@ -42,17 +42,17 @@ import type { Rule, Action, Trigger } from "$lib/types";
 
 export async function getEventTypes(): Promise<Record<string, unknown>[]> {
   const rows = await coreGetEventTypes();
-  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
 }
 
 export async function getEventCategories(): Promise<Record<string, unknown>[]> {
   const rows = await coreGetEventCategories();
-  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
 }
 
 export async function getSources(): Promise<Record<string, unknown>[]> {
   const rows = await coreGetSources();
-  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
 }
 
 export async function getExecutionPolicies(): Promise<unknown[]> {
@@ -61,18 +61,18 @@ export async function getExecutionPolicies(): Promise<unknown[]> {
 
 export async function getActions(): Promise<Record<string, unknown>[]> {
   const rows = await coreGetActions();
-  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
 }
 
 export async function getPlugins(): Promise<Record<string, unknown>[]> {
-  const plugins = (await coreGetPlugins()) as Record<string, unknown>[];
+  const plugins = ((await coreGetPlugins()) as unknown) as Record<string, unknown>[];
   return Array.isArray(plugins) ? plugins : [];
 }
 
 // ── Rule queries ───────────────────────────────────────────────────────
 
 export async function getRules(): Promise<Rule[]> {
-  const rules = (await coreGetRules()) as Record<string, unknown>[];
+  const rules = ((await coreGetRules()) as unknown) as Record<string, unknown>[];
   return (rules ?? []).map((r) => ({
     ...r,
     enabled: Boolean(r.enabled),
@@ -84,7 +84,7 @@ export async function getRules(): Promise<Rule[]> {
 export async function getRule(id: string): Promise<Rule | null> {
   const r = await coreGetRule(id);
   if (r == null || r === undefined) return null;
-  const row = r as Record<string, unknown>;
+  const row = (r as unknown) as Record<string, unknown>;
   return {
     id: row.id as string,
     name: row.name as string,
@@ -186,7 +186,7 @@ export interface GetEventsOptions {
 export async function getEvents({
   limit = 100,
 }: GetEventsOptions = {}): Promise<Record<string, unknown>[]> {
-  const rows = (await coreGetEvents(limit, 0)) as Record<string, unknown>[];
+  const rows = ((await coreGetEvents(limit, 0)) as unknown) as Record<string, unknown>[];
   return (rows ?? []).map((r) => ({
     ...r,
     actions_taken: fromJson(r.actions_taken as string, []),
@@ -249,8 +249,8 @@ export async function getEventStats(): Promise<EventStats> {
     coreGetEventCategories(),
     coreGetAuditStats(),
   ]);
-  const rows = (classifications ?? []) as Record<string, unknown>[];
-  const cats = (categories ?? []) as Record<string, unknown>[];
+  const rows = ((classifications ?? []) as unknown) as Record<string, unknown>[];
+  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
   const manualSet = new Set(
     cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
   );
@@ -282,11 +282,11 @@ export async function getPendingApprovals({
     coreGetEmailClassifications(),
     coreGetEventCategories(),
   ]);
-  const cats = (categories ?? []) as Record<string, unknown>[];
+  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
   const manualSet = new Set(
     cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
   );
-  const rows = (classifications ?? []) as Record<string, unknown>[];
+  const rows = ((classifications ?? []) as unknown) as Record<string, unknown>[];
   const pending = rows
     .filter(
       (r) =>
@@ -300,7 +300,7 @@ export async function getPendingApprovals({
     const emailId = (r.emailId ?? r.id) as string | undefined;
     let item: Record<string, unknown> | null = null;
     if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
-      item = await coreGetItemById(emailId) as Record<string, unknown> | null;
+      item = (await coreGetItemById(emailId) as unknown) as Record<string, unknown> | null;
     }
     const subject = (item?.subject ?? r.subject) as string;
     const from = (item?.from ?? r.from) as string;
@@ -325,7 +325,7 @@ export async function getPendingApprovals({
 }
 
 export async function getPendingCountByCategory(categoryName: string): Promise<number> {
-  const rows = (await coreGetEmailClassifications()) as Record<string, unknown>[];
+  const rows = ((await coreGetEmailClassifications()) as unknown) as Record<string, unknown>[];
   const want = categoryName.trim().toLowerCase();
   return (rows ?? []).filter((r) => {
     const cat = String(r.category ?? "").trim().toLowerCase();
@@ -349,7 +349,7 @@ export async function getPendingItemsByCategory(
   categoryName: string,
   { limit = 500 }: { limit?: number } = {}
 ): Promise<PendingItemByCategory[]> {
-  const rows = (await coreGetEmailClassifications()) as Record<string, unknown>[];
+  const rows = ((await coreGetEmailClassifications()) as unknown) as Record<string, unknown>[];
   const want = categoryName.trim().toLowerCase();
   const filtered = (rows ?? [])
     .filter((r) => {
@@ -364,7 +364,7 @@ export async function getPendingItemsByCategory(
     const emailId = (r.emailId ?? r.id) as string | undefined;
     let item: Record<string, unknown> | null = null;
     if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
-      item = await coreGetItemById(emailId) as Record<string, unknown> | null;
+      item = (await coreGetItemById(emailId) as unknown) as Record<string, unknown> | null;
     }
     out.push({
       id: emailId ?? "",
@@ -431,7 +431,7 @@ export async function getPipelineForEvent(eventType: string): Promise<PipelineFo
   const pol = policy ?? "manual";
   if (typeActions?.length > 0) {
     return {
-      actions: (typeActions as Array<{ plugin_id: string; command_id: string; action_idx: number }>).map((r) => ({
+      actions: (typeActions as unknown as Array<{ plugin_id: string; command_id: string; action_idx: number }>).map((r) => ({
         pluginId: r.plugin_id,
         commandId: r.command_id,
         order: r.action_idx,
@@ -441,7 +441,7 @@ export async function getPipelineForEvent(eventType: string): Promise<PipelineFo
       isOverride: true,
     };
   }
-  const catActions = (await coreGetCategoryPipelineActions(category)) as Array<{
+  const catActions = ((await coreGetCategoryPipelineActions(category)) as unknown) as Array<{
     plugin_id: string;
     command_id: string;
     action_idx: number;
@@ -472,12 +472,12 @@ export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]>
     coreGetEventCategories(),
     coreGetEventTypes(),
   ]);
-  const cats = (categories ?? []) as Record<string, unknown>[];
-  const typeRows = (types ?? []) as Record<string, unknown>[];
+  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
+  const typeRows = ((types ?? []) as unknown) as Record<string, unknown>[];
   const result: CategoryPipelineDisplay[] = [];
   for (const c of cats) {
     const name = c.name as string;
-    const actions = (await coreGetCategoryPipelineActions(name)) as Array<{
+    const actions = ((await coreGetCategoryPipelineActions(name)) as unknown) as Array<{
       plugin_id: string;
       command_id: string;
       action_idx: number;

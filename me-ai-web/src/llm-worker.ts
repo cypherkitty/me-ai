@@ -15,7 +15,8 @@ import {
 
 
 // WASM files are served from the site root (public/ in dev, copied in build).
-env.backends.onnx.wasm.wasmPaths = import.meta.env.BASE_URL;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(env.backends.onnx.wasm as any).wasmPaths = import.meta.env.BASE_URL;
 
 function isImageTextToTextModel(model_id: string): boolean {
   return /Qwen3\.5/i.test(model_id);
@@ -45,7 +46,7 @@ class TextGenerationPipeline {
       if (this.model && "dispose" in this.model && typeof (this.model as { dispose: () => Promise<void> }).dispose === "function") {
         try {
           await (this.model as { dispose: () => Promise<void> }).dispose();
-        } catch {}
+        } catch { /* no-op */ }
       }
       this.tokenizer = null;
       this.model = null;
@@ -61,7 +62,8 @@ class TextGenerationPipeline {
       ? AutoModelForImageTextToText
       : AutoModelForCausalLM;
 
-    this.model ??= (await ModelClass.from_pretrained(model_id, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.model ??= (await (ModelClass as any).from_pretrained(model_id, {
       dtype,
       device,
       progress_callback: progress_callback ?? undefined,
@@ -96,12 +98,13 @@ type Reply = (msg: Record<string, unknown>) => void;
 
 async function check(reply: Reply): Promise<void> {
   try {
-    if (!navigator.gpu) throw new Error("WebGPU API is not available in this browser");
-    const adapter = await navigator.gpu.requestAdapter();
+    const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<{ info?: Record<string, unknown>; limits?: Record<string, unknown>; features?: Set<string> } | null> } }).gpu;
+    if (!gpu) throw new Error("WebGPU API is not available in this browser");
+    const adapter = await gpu.requestAdapter();
     if (!adapter) throw new Error("WebGPU is not supported (no adapter found)");
 
-    const info = adapter.info || {};
-    const limits = adapter.limits || {};
+    const info = (adapter as Record<string, unknown> | null)?.['info'] as Record<string, unknown> || {};
+    const limits = (adapter as Record<string, unknown> | null)?.['limits'] as Record<string, unknown> || {};
     reply({
       status: "webgpu-info",
       data: {
@@ -109,7 +112,7 @@ async function check(reply: Reply): Promise<void> {
         architecture: info.architecture || "unknown",
         device: info.device || "unknown",
         description: info.description || "unknown",
-        features: adapter.features ? [...adapter.features].sort() : [],
+        features: adapter ? [...((adapter as unknown as { features?: Iterable<string> }).features ?? [])].sort() : [],
         limits: {
           maxBufferSize: limits.maxBufferSize,
           maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
@@ -142,11 +145,13 @@ async function load(
 
     reply({ status: "loading", data: "Compiling shaders and warming up model..." });
 
-    const warmupInputs = tokenizer.apply_chat_template(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const warmupInputs = (tokenizer as any).apply_chat_template(
       [{ role: "user", content: "hi" }],
       { add_generation_prompt: true, return_dict: true }
     );
-    await model.generate({ ...warmupInputs, max_new_tokens: 1 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (model as any).generate({ ...warmupInputs, max_new_tokens: 1 });
 
     reply({ status: "ready" });
   } catch (e) {
@@ -196,7 +201,8 @@ async function generate(
       return_dict: true,
     };
     if (!useHarmony) templateOpts.enable_thinking = !!enableThinking;
-    const inputs = tokenizer.apply_chat_template(messages, templateOpts);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inputs = (tokenizer as any).apply_chat_template(messages, templateOpts);
 
     let startTime: number | undefined;
     let numTokens = 0;
@@ -247,14 +253,16 @@ async function generate(
     const inputTokens = inputs.input_ids.dims[1];
     reply({ status: "start", phase: "preparing", inputTokens });
 
-    const streamer = new TextStreamer(tokenizer, {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const streamer = new TextStreamer(tokenizer as any, {
       skip_prompt: true,
       skip_special_tokens: true,
       callback_function: useHarmony ? harmony_callback : think_callback,
       token_callback_function,
     });
 
-    await model.generate({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (model as any).generate({
       ...inputs,
       do_sample,
       num_beams: 1,
@@ -345,7 +353,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessageData>) => {
             : requests;
           await Promise.all(toDelete.map((r) => cache.delete(r)));
         }
-      } catch {}
+      } catch { /* no-op */ }
       TextGenerationPipeline.tokenizer = null;
       TextGenerationPipeline.model = null;
       TextGenerationPipeline.model_id = null;

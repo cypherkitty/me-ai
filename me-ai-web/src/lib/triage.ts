@@ -11,13 +11,11 @@ import {
   getEmailClassificationsCount,
   getItemsGmailByDateDesc,
   getEmailClassifications as coreGetEmailClassifications,
-  getItemById as coreGetItemById,
   putEmailClassification as corePutEmailClassification,
   updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
   clearEmailClassifications as coreClearEmailClassifications,
   deleteEmailClassificationsByAction as coreDeleteEmailClassificationsByAction,
   deleteEmailClassification as coreDeleteEmailClassification,
-  getItemsBySource as coreGetItemsBySource,
 } from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
 import { stringToHue } from "./format.js";
@@ -220,12 +218,12 @@ export async function scanEmails(
   let skipped = 0;
 
   if (force) {
-    const rows = (await getItemsGmailByDateDesc(count)) as Record<string, unknown>[];
+    const rows = ((await getItemsGmailByDateDesc(count)) as unknown) as Record<string, unknown>[];
     toProcess = rows.map((r) => normaliseItemRow(r));
   } else {
     const [allItems, allClassifications] = await Promise.all([
-      getItemsGmailByDateDesc(5000) as Promise<Record<string, unknown>[]>,
-      coreGetEmailClassifications(null, 5000) as Promise<{ emailId?: string }[]>,
+      (getItemsGmailByDateDesc(5000) as unknown) as Promise<Record<string, unknown>[]>,
+      (coreGetEmailClassifications(null, 5000) as unknown) as Promise<{ emailId?: string }[]>,
     ]);
     const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
     toProcess = (allItems ?? [])
@@ -429,7 +427,7 @@ export async function scanEmails(
 }
 
 export async function getClassifications(options: { action?: string } = {}): Promise<ClassificationRow[]> {
-  const rows = (await coreGetEmailClassifications(options.action ?? null, undefined)) as Record<string, unknown>[];
+  const rows = ((await coreGetEmailClassifications(options.action ?? null, undefined)) as unknown) as Record<string, unknown>[];
   return (rows ?? []).map((r) => normaliseClassificationRow(r));
 }
 
@@ -440,7 +438,7 @@ export interface GetClassificationsByCategoryOptions {
 export async function getClassificationsByCategory(
   opts: GetClassificationsByCategoryOptions = {}
 ): Promise<{ categories: Record<string, ClassificationRow[]>; order: string[] }> {
-  const rows = (await coreGetEmailClassifications(null, 5000)) as Record<string, unknown>[];
+  const rows = ((await coreGetEmailClassifications(null, 5000)) as unknown) as Record<string, unknown>[];
   let list = (rows ?? []).map((r) => normaliseClassificationRow(r));
   if (opts.pendingOnly === true) {
     list = list.filter((r) => r.status === "pending" || r.status === "escalated");
@@ -559,7 +557,7 @@ export function parseClassification(
   let text = response.trim();
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
-  text = text.replace(/^[\s\-]*set\s+/gi, "").replace(/^---+\s*/, "");
+  text = text.replace(/^[\s-]*set\s+/gi, "").replace(/^---+\s*/, "");
   text = text.trim();
 
   const firstBracket = text.indexOf("[");

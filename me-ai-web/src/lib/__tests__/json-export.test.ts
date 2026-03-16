@@ -112,7 +112,7 @@ describe("emailJsonFilename", () => {
       date: new Date("2026-03-01").getTime(),
     });
     expect(name).toMatch(/\.json$/);
-    expect(name).not.toMatch(/[[\]\/!@#$]/);
+    expect(name).not.toMatch(/[[\]/!@#$]/);
   });
 
   it("truncates long subjects", () => {

@@ -50,7 +50,7 @@
       let idbBytes = 0;
       try {
         idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
-      } catch {}
+      } catch { /* no-op */ }
       idb = {
         emailCount,
         classCount,
@@ -172,7 +172,7 @@
                   >Storage used</span
                 >
               </div>
-              {#each [{ key: "sm_rules", label: "Rules" }, { key: "sm_events", label: "Events" }, { key: "items", label: "Emails" }] as t}
+              {#each [{ key: "sm_rules", label: "Rules" }, { key: "sm_events", label: "Events" }, { key: "items", label: "Emails" }] as t (t.key)}
                 <div
                   class="flex flex-col items-center px-3 py-2.5 rounded border bg-card border-border/50"
                 >
@@ -189,7 +189,7 @@
 
             <!-- Storage actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item (item.key)}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -242,7 +242,7 @@
 
           {#if idb}
             <div class="grid grid-cols-3 gap-2">
-              {#each [{ label: "Emails", val: idb.emailCount }, { label: "Classifications", val: idb.classCount }, { label: "Contacts", val: idb.contactCount }] as stat}
+              {#each [{ label: "Emails", val: idb.emailCount }, { label: "Classifications", val: idb.classCount }, { label: "Contacts", val: idb.contactCount }] as stat (stat.label)}
                 <div
                   class="flex flex-col items-center px-3 py-2.5 rounded border bg-card border-border/50"
                 >
@@ -273,7 +273,7 @@
                 >Clear by category</span
               >
               <div class="flex flex-wrap gap-1.5">
-                {#each categoryOrder as action}
+                {#each categoryOrder as action (action)}
                   {#if confirm === `category:${action}`}
                     <span
                       class="inline-flex items-center gap-2 text-[0.7rem] text-muted-foreground/60 px-2 py-1 rounded border border-destructive/20 bg-destructive/5"
@@ -312,7 +312,7 @@
                     confirm = null;
                     busy = true;
                     wipeAllData();
-                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await clearContacts(); }, ) }] as item}
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await clearContacts(); }, ) }] as item (item.key)}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

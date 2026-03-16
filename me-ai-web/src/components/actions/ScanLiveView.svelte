@@ -1,15 +1,27 @@
 <script lang="ts">
   import { EVENT_CATEGORY_TIERS } from "../../lib/events.js";
+  import type { ScanProgress } from "../../lib/triage.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
 
+  interface ScanResultItem {
+    success?: boolean;
+    email?: { subject?: string; from?: string; date?: number | null };
+    classification?: { action?: string; categoryTier?: string; summary?: string };
+    stats?: { tps?: number | null; numTokens?: number; inputTokens?: number; elapsed?: number };
+    error?: string;
+    rawResponse?: string;
+  }
+
   interface Props {
-    progress?: { current?: number; total?: number; [key: string]: unknown } | null;
+    progress?: ScanProgress | null;
     onstop?: () => void;
     oninspect?: () => void;
     onclose?: () => void;
   }
   let { progress = null, onstop, oninspect, onclose }: Props = $props();
+
+  let typedResults = $derived((progress?.results ?? []) as ScanResultItem[]);
 
   function fmtTime(ms: number | undefined) {
     if (!ms || ms < 0) return "—";
@@ -24,13 +36,13 @@
     return String(n);
   }
 
-  function shortSender(from: string) {
+  function shortSender(from: string | undefined) {
     if (!from) return "—";
     const name = from.replace(/<.*>/, "").trim();
     return name.length > 30 ? name.slice(0, 28) + "…" : name;
   }
 
-  function shortDate(ts: number | null | undefined) {
+  function shortDate(ts: number | string | null | undefined) {
     if (!ts) return "";
     try {
       return new Date(ts).toLocaleDateString("en-US", {
@@ -43,12 +55,9 @@
   }
 
   let pct = $derived(
-    progress?.total ? Math.round((progress.current / progress.total) * 100) : 0,
+    progress?.total ? Math.round(((progress.current ?? 0) / progress.total) * 100) : 0,
   );
   let isDone = $derived(progress?.phase === "done");
-  let isWaiting = $derived(
-    !isDone && !progress?.streamingText && progress?.phase !== "loading",
-  );
 
   // Phase label shown in the stream box header
   let phaseLabel = $derived(
@@ -153,25 +162,25 @@
     {/if}
 
     <!-- ── Completed email log ───────────────────────────────────── -->
-    {#if progress.results?.length > 0}
+    {#if typedResults.length > 0}
       <div class="mb-2">
         <div class="flex justify-between items-center mb-1.5">
           <span class="text-[0.62rem] font-bold text-muted-foreground uppercase tracking-wider">Processed emails</span>
           <span class="text-[0.6rem] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-            {progress.results.length} / {progress.total ?? 0}
+            {typedResults.length} / {progress.total ?? 0}
           </span>
         </div>
-        {#each progress.results as r, idx}
+        {#each typedResults as r, idx (idx)}
           <div
             class="p-2 rounded-lg border mb-1 {!r.success ? 'border-destructive/20 bg-destructive/5' : 'border-border bg-muted/20'}"
           >
             <div class="flex items-center gap-1.5 mb-0.5">
               <span class="text-[0.58rem] font-bold text-muted-foreground tabular-nums shrink-0">#{idx + 1}</span>
-              <span class="text-[0.68rem] font-medium text-foreground truncate flex-1">{r.email.subject || "(no subject)"}</span>
+              <span class="text-[0.68rem] font-medium text-foreground truncate flex-1">{r.email?.subject || "(no subject)"}</span>
               {#if r.success}
-                <span class="text-[0.56rem] font-bold text-[var(--color-success)] uppercase tracking-wide bg-[var(--color-success)]/10 px-1.5 py-0.5 rounded shrink-0">{r.classification.action}</span>
-                {#if r.classification.categoryTier}
-                  {@const catDef = EVENT_CATEGORY_TIERS[r.classification.categoryTier] || EVENT_CATEGORY_TIERS["CRITICAL"]}
+                <span class="text-[0.56rem] font-bold text-[var(--color-success)] uppercase tracking-wide bg-[var(--color-success)]/10 px-1.5 py-0.5 rounded shrink-0">{r.classification?.action}</span>
+                {#if r.classification?.categoryTier}
+                  {@const catDef = EVENT_CATEGORY_TIERS[r.classification.categoryTier as import("$lib/types.js").EventCategory] || EVENT_CATEGORY_TIERS["CRITICAL"]}
                   {#if catDef}
                     <span class="text-[0.52rem] font-bold uppercase tracking-wide shrink-0 opacity-80" style:color={catDef.color} title={catDef.description}>{catDef.label}</span>
                   {/if}
@@ -181,9 +190,9 @@
               {/if}
             </div>
             <div class="text-[0.58rem] text-muted-foreground mb-0.5">
-              {shortSender(r.email.from)}{#if r.email.date}<span class="text-muted-foreground/60"> · </span>{shortDate(r.email.date)}{/if}
+              {shortSender(r.email?.from)}{#if r.email?.date}<span class="text-muted-foreground/60"> · </span>{shortDate(r.email.date)}{/if}
             </div>
-            {#if r.success && r.classification.summary}
+            {#if r.success && r.classification?.summary}
               <div class="text-[0.63rem] text-muted-foreground leading-snug mb-0.5">{r.classification.summary}</div>
             {/if}
             {#if r.success && r.stats}
@@ -217,7 +226,7 @@
             <span class="text-base font-bold text-[var(--color-success)] leading-none">{progress.classified || 0}</span>
             <span class="text-[0.58rem] text-muted-foreground uppercase tracking-wide">Classified</span>
           </div>
-          {#if progress.errors > 0}
+          {#if (progress.errors ?? 0) > 0}
             <div class="flex flex-col gap-0.5">
               <span class="text-base font-bold text-destructive leading-none">{progress.errors}</span>
               <span class="text-[0.58rem] text-muted-foreground uppercase tracking-wide">Errors</span>

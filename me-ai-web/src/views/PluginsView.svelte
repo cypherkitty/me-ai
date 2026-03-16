@@ -5,17 +5,22 @@
   import { Switch }     from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { cn }         from "$lib/utils.js";
-  import { Info, Puzzle } from "lucide-svelte";
+  import { Info } from "lucide-svelte";
 
+  interface PluginAction { label?: string; name?: string; [key: string]: unknown }
   interface PluginItem {
     name: string;
     enabled?: boolean;
+    label?: string;
+    version?: string;
+    actions?: PluginAction[];
+    sources?: PluginAction[];
     [key: string]: unknown;
   }
   let plugins = $state<PluginItem[]>([]);
   let loading = $state(true);
 
-  const PLUGIN_META = {
+  const PLUGIN_META: Record<string, { color: string; icon: string; desc: string }> = {
     gmail_plugin:     { color: "#ea4335", icon: "G", desc: "Gmail email management" },
     telegram_plugin:  { color: "#26a5e4", icon: "T", desc: "Telegram messaging" },
     instagram_plugin: { color: "#e1306c", icon: "I", desc: "Instagram interactions" },
@@ -26,7 +31,7 @@
 
   async function load() {
     loading = true;
-    try { plugins = await getPlugins(); }
+    try { plugins = (await getPlugins()) as unknown as PluginItem[]; }
     catch (e) { console.error("PluginsView load error:", e); }
     loading = false;
   }
@@ -98,7 +103,7 @@
                 <div class="flex flex-col gap-1 pt-2 border-t border-border/40">
                   <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40">Actions</span>
                   <div class="flex flex-wrap gap-1">
-                    {#each plugin.actions as a}
+                    {#each plugin.actions as a, ai (ai)}
                       <Badge variant="secondary" class="text-xs px-1.5 h-4">{a.label}</Badge>
                     {/each}
                   </div>
@@ -110,7 +115,7 @@
                 <div class="flex flex-col gap-1 pt-2 border-t border-border/40">
                   <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40">Handles</span>
                   <div class="flex flex-wrap gap-1">
-                    {#each plugin.sources as s}
+                    {#each plugin.sources as s, si (si)}
                       <Badge variant="outline" class="text-xs px-1.5 h-4">{s.label}</Badge>
                     {/each}
                   </div>

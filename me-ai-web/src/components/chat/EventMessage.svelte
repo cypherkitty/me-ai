@@ -1,5 +1,4 @@
 <script lang="ts">
-  import CommandCard from "./CommandCard.svelte";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import TaskCard from "./TaskCard.svelte";
   import { stringToHue } from "../../lib/format.js";
@@ -10,21 +9,103 @@
     EVENT_CATEGORY_TIERS,
   } from "../../lib/plugins/execution-service.js";
   import { Button } from "$lib/components/ui/button/index.js";
-  import { Badge } from "$lib/components/ui/badge/index.js";
   import { cn } from "$lib/utils.js";
 
+  import type { EmailEvent, ExecutionProgress } from "$lib/types.js";
+
+  interface CommandShape {
+    commandId?: string;
+    pluginId?: string;
+    name?: string;
+    description?: string;
+    icon?: string;
+    [key: string]: unknown;
+  }
+  interface BatchItem {
+    event: EmailLike;
+    commands?: CommandShape[];
+  }
+  interface EmailLike {
+    emailId?: string;
+    subject?: string;
+    from?: string;
+    date?: number | string;
+    summary?: string;
+    reason?: string;
+    tags?: string[];
+    status?: string;
+    type?: string;
+    source?: string;
+    data?: { subject?: string; from?: string; date?: string; snippet?: string; [k: string]: unknown };
+    metadata?: { category?: string; [k: string]: unknown };
+    [k: string]: unknown;
+  }
+  interface CategoryBlock {
+    eventType: string;
+    category?: string;
+    emails: EmailLike[];
+    commands?: CommandShape[];
+  }
+  interface EventMsg {
+    type?: string;
+    event?: EmailEvent;
+    items?: BatchItem[];
+    categories?: CategoryBlock[];
+    commands?: CommandShape[];
+    total?: number;
+    [key: string]: unknown;
+  }
+  interface ExecResult {
+    success: boolean;
+    message?: string;
+    requiresApproval?: boolean;
+    actions?: unknown[];
+    category?: string;
+  }
+  interface ExecStateEntry {
+    running: boolean;
+    progress: ExecutionProgress | null;
+    result: ExecResult | null;
+  }
+  interface ApprovalEntry {
+    isBatch: boolean;
+    event?: EmailEvent;
+    emailId?: string;
+    eventType?: string;
+    emails?: EmailLike[];
+    actions?: unknown[];
+    category?: string;
+  }
+  interface TaskCardShape {
+    type: string;
+    role: string;
+    title: string;
+    model?: string;
+    status: string;
+    steps: TaskStep[];
+    [key: string]: unknown;
+  }
+  interface TaskStep {
+    id: string;
+    label: string;
+    status: string;
+    expandable?: boolean;
+    subContent?: string;
+    startedAt?: number;
+    [key: string]: unknown;
+  }
+
   interface Props {
-    msg: { type?: string; event?: unknown; [key: string]: unknown };
-    oncommand?: (cmd: { id: string }) => void;
+    msg: EventMsg;
     onexecuted?: () => void;
     ondismiss?: () => void;
   }
-  let { msg, oncommand, onexecuted, ondismiss }: Props = $props();
+  let { msg, onexecuted, ondismiss }: Props = $props();
 
   let expandedCategories = $state<Record<string, boolean>>({});
-  let executionState = $state<Record<string, unknown>>({});
-  let approvalPending = $state<Record<string, boolean>>({});
-  let executionCards = $state<Record<string, unknown>>({});
+  let executionState = $state<Record<string, ExecStateEntry>>({});
+  let approvalPending = $state<Record<string, ApprovalEntry>>({});
+  let executionCards = $state<Record<string, TaskCardShape>>({});
 
   function shortSender(from: string) {
     if (!from) return "—";
@@ -46,20 +127,21 @@
     }
   }
 
-  function applyProgressToCard(key: string, progress: Record<string, unknown>, title: string) {
-    const card = executionCards[key] ?? {
+  function applyProgressToCard(key: string, progress: ExecutionProgress, title: string) {
+    const card: TaskCardShape = executionCards[key] ?? {
       type: "task-card",
       role: "assistant",
       title,
-      model: null,
+      model: undefined,
       status: "running",
       steps: [],
     };
 
     if (progress.phase === "pipeline_loaded") {
-      card.steps = progress.actions.map((a) => ({
-        id: a.id ?? a.commandId,
-        label: a.name ?? a.commandId,
+      const actions = (progress.actions ?? []) as Array<Record<string, unknown>>;
+      card.steps = actions.map((a) => ({
+        id: (a.id ?? a.commandId) as string,
+        label: (a.name ?? a.commandId) as string,
         status: "pending",
       }));
     } else if (progress.phase === "action_start") {
@@ -69,14 +151,15 @@
           : s,
       );
     } else if (progress.phase === "action_complete") {
-      const ok = progress.result?.success !== false;
+      const r = progress.result as { success?: boolean; message?: string } | undefined;
+      const ok = r?.success !== false;
       card.steps = card.steps.map((s) =>
         s.id === (progress.actionId ?? progress.commandId)
           ? {
               ...s,
               status: ok ? "done" : "error",
-              expandable: !!progress.result?.message,
-              subContent: progress.result?.message ?? "",
+              expandable: !!r?.message,
+              subContent: r?.message ?? "",
             }
           : s,
       );
@@ -98,7 +181,7 @@
     executionCards = { ...executionCards, [key]: { ...card } };
   }
 
-  async function handleExecute(event, emailId, approved = false) {
+  async function handleExecute(event: EmailEvent, emailId: string, approved = false) {
     if (!(await isAuthenticated())) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
@@ -114,7 +197,7 @@
         type: "task-card",
         role: "assistant",
         title: shortSubj,
-        model: null,
+        model: undefined,
         status: "running",
         steps: [],
       },
@@ -150,20 +233,21 @@
       executionState[stateKey] = { running: false, progress: null, result };
       if (result.success) onexecuted?.();
     } catch (error) {
+      const errMsg = (error as Error)?.message ?? String(error);
       executionState[stateKey] = {
         running: false,
         progress: null,
-        result: { success: false, message: error.message },
+        result: { success: false, message: errMsg },
       };
       applyProgressToCard(
         stateKey,
-        { phase: "error", error: error.message },
+        { phase: "error", error: errMsg },
         shortSubj,
       );
     }
   }
 
-  async function handleExecuteGroup(eventType, emails, approved = false) {
+  async function handleExecuteGroup(eventType: string, emails: EmailLike[], approved = false) {
     if (!(await isAuthenticated())) {
       alert("Please sign in to Gmail first (Dashboard page)");
       return;
@@ -177,7 +261,7 @@
         type: "task-card",
         role: "assistant",
         title,
-        model: null,
+        model: undefined,
         status: "running",
         steps: [],
       },
@@ -186,7 +270,7 @@
     try {
       const result = await executePipelineBatch(
         eventType,
-        emails,
+        emails as unknown as Array<Record<string, unknown>>,
         (progress) => {
           executionState[stateKey] = { ...executionState[stateKey], progress };
           applyProgressToCard(stateKey, progress, title);
@@ -214,60 +298,61 @@
       executionState[stateKey] = { running: false, progress: null, result };
       if (result.success) onexecuted?.();
     } catch (error) {
+      const errMsg = (error as Error)?.message ?? String(error);
       executionState[stateKey] = {
         running: false,
         progress: null,
-        result: { success: false, message: error.message },
+        result: { success: false, message: errMsg },
       };
       applyProgressToCard(
         stateKey,
-        { phase: "error", error: error.message },
+        { phase: "error", error: errMsg },
         title,
       );
     }
   }
 
-  async function handleApprove(stateKey) {
+  async function handleApprove(stateKey: string) {
     const pending = approvalPending[stateKey];
     if (!pending) return;
     delete approvalPending[stateKey];
     approvalPending = { ...approvalPending };
     if (pending.isBatch)
-      await handleExecuteGroup(pending.eventType, pending.emails, true);
-    else await handleExecute(pending.event, pending.emailId, true);
+      await handleExecuteGroup(pending.eventType ?? "", pending.emails ?? [], true);
+    else await handleExecute(pending.event!, pending.emailId ?? "", true);
   }
 
-  function handleDismissApproval(stateKey) {
+  function handleDismissApproval(stateKey: string) {
     delete approvalPending[stateKey];
     approvalPending = { ...approvalPending };
   }
 
-  function toggleCategory(eventType) {
+  function toggleCategory(eventType: string) {
     expandedCategories = {
       ...expandedCategories,
       [eventType]: !expandedCategories[eventType],
     };
   }
 
-  function formatLabel(str) {
+  function formatLabel(str: string) {
     return str
       .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .map((w: string) => w.charAt(0) + w.slice(1).toLowerCase())
       .join(" ");
   }
 
-  function eventTypeColor(eventType) {
+  function eventTypeColor(eventType: string) {
     return `hsl(${stringToHue(eventType)}, 55%, 55%)`;
   }
 
-  function getExecutionState(key) {
+  function getExecutionState(key: string) {
     return executionState[key];
   }
 </script>
 
 <!-- ── Reusable snippets ───────────────────────────────────────────── -->
 
-{#snippet execBtn(label, isCritical, isRunning, result, onclick_fn)}
+{#snippet execBtn(label: string, isCritical: boolean, isRunning: boolean, result: ExecResult | null | undefined, onclick_fn: () => void)}
   <Button
     variant="outline"
     size="sm"
@@ -297,7 +382,7 @@
   </Button>
 {/snippet}
 
-{#snippet approvalCard(title, body, actions, stateKey, compact)}
+{#snippet approvalCard(title: string, body: string, actions: CommandShape[], stateKey: string, compact: boolean)}
   <div
     class={cn(
       "rounded border border-warning/25 bg-warning/6",
@@ -312,6 +397,7 @@
     </div>
     {#if body}
       <p class="text-[0.62rem] text-muted-foreground leading-relaxed">
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         {@html body}
       </p>
     {/if}
@@ -319,7 +405,7 @@
       <ul
         class="list-disc pl-4 text-[0.6rem] text-muted-foreground space-y-0.5"
       >
-        {#each actions as action}
+        {#each actions as action (action.name)}
           <li>
             {#if action.icon}<span>{action.icon}</span>{/if}
             <strong class="text-foreground/70">{action.name}</strong>
@@ -351,7 +437,7 @@
   </div>
 {/snippet}
 
-{#snippet eventCard(event, compact)}
+{#snippet eventCard(event: EmailEvent, compact: boolean)}
   <div
     class={cn(
       "rounded border border-border flex flex-col gap-1",
@@ -383,7 +469,7 @@
       <div class="text-[0.58rem] text-muted-foreground/40">
         {#if event.data?.from}{shortSender(event.data.from)}{/if}
         {#if event.data?.date}<span class="opacity-70">
-            · {shortDate(event.data.date)}</span
+            · {shortDate(typeof event.data.date === "number" ? event.data.date : null)}</span
           >{/if}
       </div>
     {/if}
@@ -394,7 +480,7 @@
     {/if}
     {#if event.metadata?.tags?.length}
       <div class="flex flex-wrap gap-1">
-        {#each event.metadata.tags as tag}
+        {#each event.metadata.tags as tag (tag)}
           <span
             class="text-[0.52rem] font-semibold text-muted-foreground bg-foreground/4 px-1.5 py-0.5 rounded"
             >{tag}</span
@@ -413,14 +499,15 @@
 <!-- ── Single event ─────────────────────────────────────────────────── -->
 {#if msg.type === "event"}
   <div class="self-start max-w-[90%] flex flex-col gap-1.5">
-    {@render eventCard(msg.event, false)}
+    {@render eventCard(msg.event!, false)}
 
     {#if msg.commands?.length}
-      {@const execStateKey = `single_${msg.event.data.emailId || Date.now()}`}
+      {@const _ev = msg.event!}
+      {@const execStateKey = `single_${(_ev.data.emailId as string) || Date.now()}`}
       {@const execState = getExecutionState(execStateKey)}
       {@const execApproval = approvalPending[execStateKey]}
-      {@const categoryDef = msg.event.metadata?.category
-        ? EVENT_CATEGORY_TIERS[msg.event.metadata.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
+      {@const categoryDef = _ev.metadata?.category
+        ? EVENT_CATEGORY_TIERS[_ev.metadata.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
         : null}
 
       <div class="flex items-center justify-between gap-2">
@@ -431,10 +518,10 @@
         {#if !execApproval}
           {@render execBtn(
             "Execute",
-            categoryDef?.requiresApproval,
-            execState?.running,
+            categoryDef?.requiresApproval ?? false,
+            execState?.running ?? false,
             execState?.result,
-            () => handleExecute(msg.event, msg.event.data.emailId),
+            () => handleExecute(_ev, _ev.data.emailId as string),
           )}
         {/if}
       </div>
@@ -442,16 +529,16 @@
       {#if execApproval}
         {@render approvalCard(
           "Confirm execution?",
-          null,
-          null,
+          "",
+          [],
           execStateKey,
           true,
         )}
       {/if}
 
       <PipelineGraph
-        eventType={msg.event.type}
-        category={msg.event.metadata?.category}
+        eventType={_ev.type}
+        category={_ev.metadata?.category}
         commands={msg.commands}
       />
 
@@ -469,15 +556,15 @@
     <p
       class="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground/50"
     >
-      Processed {msg.items.length} email{msg.items.length === 1 ? "" : "s"}
+      Processed {msg.items?.length ?? 0} email{(msg.items?.length ?? 0) === 1 ? "" : "s"}
     </p>
-    {#each msg.items as item}
+    {#each msg.items ?? [] as item (item.event?.data?.emailId ?? item.event?.type)}
       <div
         class="rounded border border-border bg-background px-3 py-2.5 flex flex-col gap-1.5"
       >
-        {@render eventCard(item.event, true)}
+        {@render eventCard(item.event as unknown as EmailEvent, true)}
         <PipelineGraph
-          eventType={item.event.type}
+          eventType={item.event.type ?? ""}
           category={item.event.metadata?.category}
           commands={item.commands}
         />
@@ -493,18 +580,18 @@
         >Events</span
       >
       <span class="text-[0.62rem] text-muted-foreground/40">
-        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.categories.length} event
-        type{msg.categories.length === 1 ? "" : "s"}
+        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.categories?.length ?? 0} event
+        type{(msg.categories?.length ?? 0) === 1 ? "" : "s"}
       </span>
     </div>
 
-    {#each msg.categories as catBlock}
+    {#each msg.categories ?? [] as catBlock (catBlock.eventType)}
       {@const isExpanded = expandedCategories[catBlock.eventType] ?? true}
       {@const batchStateKey = `batch_${catBlock.eventType}`}
       {@const batchState = getExecutionState(batchStateKey)}
       {@const batchApproval = approvalPending[batchStateKey]}
       {@const categoryDef = catBlock.category
-        ? EVENT_CATEGORY_TIERS[catBlock.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
+        ? (EVENT_CATEGORY_TIERS as Record<string, typeof EVENT_CATEGORY_TIERS[keyof typeof EVENT_CATEGORY_TIERS]>)[catBlock.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
         : null}
 
       <div class="rounded border border-border bg-card overflow-hidden">
@@ -545,11 +632,11 @@
             </svg>
           </button>
 
-          {#if !batchApproval && catBlock.emails.some((e) => e.status !== "executed")}
+          {#if !batchApproval && catBlock.emails.some((e) => (e as Record<string, unknown>).status !== "executed")}
             <Button
               variant="outline"
               size="sm"
-              onclick={(e) => {
+              onclick={(e: MouseEvent) => {
                 e.stopPropagation();
                 if (batchState?.result?.success) {
                   onexecuted?.();
@@ -557,7 +644,7 @@
                 } else {
                   handleExecuteGroup(
                     catBlock.eventType,
-                    catBlock.emails.filter((e) => e.status !== "executed"),
+                    catBlock.emails.filter((e) => (e as Record<string, unknown>).status !== "executed"),
                   );
                 }
               }}
@@ -574,12 +661,12 @@
               {#if batchState?.running}Running…
               {:else if batchState?.result}
                 {batchState.result.success
-                  ? `Done (Dismiss) (${batchState.result.successful ?? "?"}/${batchState.result.total ?? "?"})`
+                  ? `Done (Dismiss)`
                   : "Failed"}
               {:else if categoryDef?.requiresApproval}Review & Execute ({catBlock.emails
-                  .filter((e) => e.status !== "executed")
+                  .filter((e) => (e as Record<string, unknown>).status !== "executed")
                   .length})
-              {:else}Execute All ({catBlock.emails.filter((e) => e.status !== "executed").length})
+              {:else}Execute All ({catBlock.emails.filter((e) => (e as Record<string, unknown>).status !== "executed").length})
               {/if}
             </Button>
           {/if}
@@ -591,7 +678,7 @@
             {@render approvalCard(
               "Review required — this is a CRITICAL event type",
               `The following actions will run on <strong>${catBlock.emails.length} email${catBlock.emails.length === 1 ? "" : "s"}</strong>. This changes email state and cannot be undone easily.`,
-              batchApproval.actions,
+              (batchApproval.actions ?? []) as CommandShape[],
               batchStateKey,
               false,
             )}
@@ -608,7 +695,7 @@
         <!-- Email list -->
         {#if isExpanded}
           <div class="border-t border-border flex flex-col">
-            {#each catBlock.emails as email}
+            {#each catBlock.emails as email (email.emailId)}
               {@const execStateKey = `single_${email.emailId}`}
               {@const execState = getExecutionState(execStateKey)}
               {@const execApproval = approvalPending[execStateKey]}
@@ -624,10 +711,10 @@
                   </div>
                   <div class="text-[0.58rem] text-muted-foreground/40">
                     {#if email.from}<span class="opacity-70"
-                        >{shortSender(email.from)}</span
+                        >{shortSender(email.from ?? "")}</span
                       >{/if}
                     {#if email.date}<span class="opacity-50">
-                        · {shortDate(email.date)}</span
+                        · {shortDate(typeof email.date === "number" ? email.date : null)}</span
                       >{/if}
                   </div>
                   {#if email.summary}
@@ -639,7 +726,7 @@
                   {/if}
                   {#if email.tags?.length}
                     <div class="flex flex-wrap gap-1 mt-0.5">
-                      {#each email.tags as tag}
+                      {#each email.tags as tag (tag)}
                         <span
                           class="text-[0.52rem] font-semibold text-muted-foreground bg-foreground/4 px-1.5 py-0.5 rounded"
                           >{tag}</span
@@ -659,17 +746,17 @@
                     {#if email.status !== "executed" && !execApproval}
                       {@render execBtn(
                         "Execute",
-                        categoryDef?.requiresApproval,
-                        execState?.running,
+                        categoryDef?.requiresApproval ?? false,
+                        execState?.running ?? false,
                         execState?.result,
                         () =>
                           handleExecute(
                             {
                               type: catBlock.eventType,
                               source: "gmail",
-                              data: email,
+                              data: email as EmailEvent["data"],
                             },
-                            email.emailId,
+                            email.emailId ?? "",
                           ),
                       )}
                     {/if}
@@ -678,8 +765,8 @@
                   {#if email.status !== "executed" && execApproval}
                     {@render approvalCard(
                       "Confirm execution?",
-                      null,
-                      null,
+                      "",
+                      [],
                       execStateKey,
                       true,
                     )}

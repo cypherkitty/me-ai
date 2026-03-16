@@ -3,7 +3,7 @@
   import AppRouter from "./AppRouter.svelte";
   import { getEventStats } from "./lib/rules.js";
 
-  const CP_PAGES = ["stream", "pipelines", "approvals"];
+  const CP_PAGES = ["stream", "pipelines", "approvals", "audit", "settings"];
   const OAUTH_PAGES = ["auth", "oauth-redirect"];
   const SOURCE_PAGES = ["sources", "plugins"];
   const SCAN_PAGES = ["scan"];
@@ -36,7 +36,7 @@
   async function loadStats() {
     try {
       stats = (await getEventStats()) as EventStats;
-    } catch {}
+    } catch { /* no-op */ }
   }
 
   onMount(() => {

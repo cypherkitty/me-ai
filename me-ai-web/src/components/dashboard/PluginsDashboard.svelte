@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getPluginRegistry } from "../../lib/core.js";
+  import { SvelteSet } from "svelte/reactivity";
 
   interface PluginRegistryAction {
     actionId?: string;
@@ -54,21 +55,17 @@
     delete_file: "🗑",
   };
 
-  let expandedScopes = $state<Set<string>>(new Set());
-  let expandedPlugins = $state<Set<string>>(new Set());
+  const expandedScopes = new SvelteSet<string>();
+  const expandedPlugins = new SvelteSet<string>();
 
   function togglePlugin(pluginId: string) {
-    const next = new Set(expandedPlugins);
-    if (next.has(pluginId)) next.delete(pluginId);
-    else next.add(pluginId);
-    expandedPlugins = next;
+    if (expandedPlugins.has(pluginId)) expandedPlugins.delete(pluginId);
+    else expandedPlugins.add(pluginId);
   }
 
   function toggleScopes(key: string) {
-    const next = new Set(expandedScopes);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    expandedScopes = next;
+    if (expandedScopes.has(key)) expandedScopes.delete(key);
+    else expandedScopes.add(key);
   }
 
   function shortScope(scope: string) {
@@ -87,7 +84,7 @@
 
   <div class="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
     <div class="flex flex-col gap-4 py-4">
-      {#each plugins as plugin}
+      {#each plugins as plugin (plugin.id)}
         {@const isExpanded = expandedPlugins.has(plugin.id)}
         <div class="rounded-lg border border-border bg-card overflow-hidden">
           <button
@@ -112,7 +109,7 @@
 
           {#if isExpanded}
           <div class="divide-y divide-border">
-            {#each plugin.actions as action}
+            {#each plugin.actions as action (action.id)}
               {@const scopeKey = `${plugin.id}:${action.id}`}
               {@const scopesOpen = expandedScopes.has(scopeKey)}
               <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors">
@@ -139,7 +136,7 @@
                       </button>
                       {#if scopesOpen}
                         <div class="flex flex-wrap gap-1 mt-1">
-                          {#each action.scopes as scope}
+                          {#each action.scopes as scope (scope)}
                             <span
                               class="text-[0.55rem] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary"
                               title={scope}

@@ -22,8 +22,10 @@ pub struct EventTypeRow {
 pub struct EventCategoryRow {
     pub name: String,
     pub label: Option<String>,
-    pub priority: Option<i64>,
-    pub policy: Option<String>,
+    #[serde(default)]
+    pub priority: i64,
+    #[serde(default)]
+    pub policy: String,
 }
 
 /// Fetch event types (name, label). Sorted by name in Rust.
@@ -37,11 +39,7 @@ pub async fn get_event_types(db: DbRef<'_>) -> Result<Vec<EventTypeRow>, CoreErr
 pub async fn get_event_categories(db: DbRef<'_>) -> Result<Vec<EventCategoryRow>, CoreError> {
     let mut rows: Vec<EventCategoryRow> =
         db.store_get_all(store::SM_EVENT_CATEGORIES, None, None).await?;
-    rows.sort_by(|a, b| {
-        let pa = a.priority.unwrap_or(0);
-        let pb = b.priority.unwrap_or(0);
-        pa.cmp(&pb)
-    });
+    rows.sort_by(|a, b| a.priority.cmp(&b.priority));
     Ok(rows)
 }
 

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getSources, setSourceEnabled } from "../lib/rules.js";
   import {
     getSetting,
     setSetting,
@@ -20,15 +19,12 @@
     syncGmail,
     syncGmailMore,
     getGmailSyncStatus,
-    clearGmailData,
   } from "../lib/store/gmail-sync.js";
   import { getStoredEmails } from "../lib/store/query-layer.js";
   import {
     initTwitterAuth,
     requestTwitterAccessToken,
     getSavedTwitterToken,
-    isTwitterTokenValid,
-    refreshTwitterToken,
     revokeTwitterToken,
     handleTwitterCallback,
   } from "../lib/twitter-auth.js";
@@ -48,12 +44,14 @@
   import { Progress } from "$lib/components/ui/progress/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { cn } from "$lib/utils.js";
-  import type { StoredItem } from "$lib/types.js";
+  import type { StoredItem, SyncProgress } from "$lib/types.js";
+  import type { GmailSyncStatus } from "../lib/store/gmail-sync.js";
+  import type { TwitterSyncStatus } from "../lib/store/twitter-sync.js";
   import { RefreshCw, LogOut, Trash2, Search, Database } from "lucide-svelte";
   import FilesystemSourceSettings from "../components/sources/FilesystemSourceSettings.svelte";
 
   // ── Source metadata ────────────────────────────────────────────────
-  const SOURCE_META = {
+  const SOURCE_META: Record<string, { color: string; icon: string; label: string; platform: string; live: boolean }> = {
     gmail: {
       color: "#ea4335",
       icon: "M",
@@ -116,18 +114,7 @@
     "youtube",
   ];
 
-  let sources = $state([]);
-  let loadingSources = $state(true);
   let selectedSource = $state("gmail"); // always start on gmail
-
-  async function loadSources() {
-    loadingSources = true;
-    try {
-      sources = await getSources();
-    } catch {}
-    loadingSources = false;
-  }
-  onMount(loadSources);
 
   // ── Gmail auth + sync ──────────────────────────────────────────────
   const DEFAULT_CLIENT_ID =
@@ -142,41 +129,42 @@
   let authInitialized = $state(false);
   let showClientIdEdit = $state(false);
 
-  let accessToken = $state(null);
-  let profile = $state(null);
-  let gmailError = $state(null);
+  let accessToken = $state<string | null>(null);
+  let profile = $state<Record<string, unknown> | null>(null);
+  let gmailError = $state<string | null>(null);
   let loadingAuth = $state(false);
 
-  let emailMessages = $state([]);
+  let emailMessages = $state<StoredItem[]>([]);
   let totalLocalMessages = $state(0);
   let localOffset = $state(0);
   let loadingMessages = $state(false);
   let searchQuery = $state("");
-  let selectedMessage = $state(null);
+  let selectedMessage = $state<StoredItem | null>(null);
 
-  let syncStatus = $state(null);
-  let syncProgress = $state(null);
+  let syncStatus = $state<GmailSyncStatus | null>(null);
+  let syncProgress = $state<SyncProgress | null>(null);
   let isSyncing = $state(false);
   let syncLimit = $state(50);
   let showClearConfirm = $state(false);
-  let refreshTimer = $state(null);
+  let refreshTimer = $state<ReturnType<typeof setTimeout> | null>(null);
 
   const LIMIT_OPTIONS = [50, 100, 200, 500];
   const LOCAL_PAGE_SIZE = 50;
   /** Safe error message for UI (handles non-Error throws and undefined .message). */
-  function errMsg(e) {
+  function errMsg(e: unknown) {
     if (e == null) return "Unknown error";
     if (typeof e === "string") return e;
-    return e?.message ?? String(e);
+    return (e as Error)?.message ?? String(e);
   }
   const isSignedIn = $derived(!!accessToken);
   const isDefaultClientId = $derived(clientId === DEFAULT_CLIENT_ID);
   const hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
-  onMount(async () => {
-    const saved = await getSetting("googleClientId");
-    clientId = saved || DEFAULT_CLIENT_ID;
-    clientIdInput = saved || DEFAULT_CLIENT_ID;
+  onMount(() => {
+    getSetting("googleClientId").then((saved) => {
+      clientId = (saved as string) || DEFAULT_CLIENT_ID;
+      clientIdInput = (saved as string) || DEFAULT_CLIENT_ID;
+    });
     window.addEventListener("keydown", handleKeydown);
     return () => {
       window.removeEventListener("keydown", handleKeydown);
@@ -184,7 +172,7 @@
     };
   });
 
-  function handleKeydown(e) {
+  function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Escape" && selectedMessage) selectedMessage = null;
   }
 
@@ -279,7 +267,7 @@
     if (accessToken) {
       try {
         await revokeToken(accessToken);
-      } catch (_) {}
+      } catch { /* no-op */ }
     }
     accessToken = null;
     profile = null;
@@ -291,9 +279,9 @@
   }
 
   async function fetchProfile() {
+    if (!accessToken) return;
     try {
       const r = await getProfile(accessToken);
-      if (!accessToken) return;
       profile = r;
       await setSetting("gmail-profile", r);
     } catch (e) {
@@ -334,10 +322,10 @@
   async function refreshSyncStatus() {
     try {
       syncStatus = await getGmailSyncStatus();
-    } catch {}
+    } catch { /* no-op */ }
   }
 
-  async function startSync(limit) {
+  async function startSync(limit: number) {
     if (isSyncing || !accessToken) return;
     const token = await ensureValidToken();
     if (!token) return;
@@ -354,14 +342,14 @@
       await refreshSyncStatus();
       await loadLocalMessages(false);
     } catch (e) {
-      if (e?.name !== "AbortError" && accessToken)
+      if ((e as Error)?.name !== "AbortError" && accessToken)
         gmailError = `Sync failed: ${errMsg(e)}`;
     } finally {
       isSyncing = false;
     }
   }
 
-  async function startSyncMore(limit) {
+  async function startSyncMore(limit: number) {
     if (isSyncing || !accessToken) return;
     const token = await ensureValidToken();
     if (!token) return;
@@ -378,7 +366,7 @@
       await refreshSyncStatus();
       await loadLocalMessages(false);
     } catch (e) {
-      if (e?.name !== "AbortError" && accessToken)
+      if ((e as Error)?.name !== "AbortError" && accessToken)
         gmailError = `Sync more failed: ${errMsg(e)}`;
     } finally {
       isSyncing = false;
@@ -398,7 +386,7 @@
     }
   }
 
-  function formatTimeAgo(ts) {
+  function formatTimeAgo(ts: number | null | undefined) {
     if (!ts) return "never";
     const s = Math.floor((Date.now() - ts) / 1000);
     if (s < 60) return "just now";
@@ -420,19 +408,19 @@
   let twClientId = $state("");
   let twClientIdInput = $state("");
   let twShowClientIdEdit = $state(false);
-  let twAccessToken = $state(null);
-  let twProfile = $state(null);
-  let twError = $state(null);
+  let twAccessToken = $state<string | null>(null);
+  let twProfile = $state<Record<string, unknown> | null>(null);
+  let twError = $state<string | null>(null);
   let twLoadingAuth = $state(false);
 
-  let twMessages = $state([]);
+  let twMessages = $state<Record<string, unknown>[]>([]);
   let twTotalMessages = $state(0);
   let twLocalOffset = $state(0);
   let twLoadingMessages = $state(false);
   let twSearchQuery = $state("");
 
-  let twSyncStatus = $state(null);
-  let twSyncProgress = $state(null);
+  let twSyncStatus = $state<TwitterSyncStatus | null>(null);
+  let twSyncProgress = $state<SyncProgress | null>(null);
   let twSyncing = $state(false);
   let twSyncLimit = $state(50);
   let twShowClearConfirm = $state(false);
@@ -442,7 +430,7 @@
   // Init on mount
   onMount(async () => {
     // Restore saved client ID
-    const savedTwId = await getSetting("twitterClientId");
+    const savedTwId = await getSetting("twitterClientId") as string | null;
     twClientId = savedTwId || "";
     twClientIdInput = savedTwId || "";
 
@@ -477,7 +465,7 @@
           twAccessToken = saved.access_token;
           await twFetchProfile();
         }
-      } catch {}
+      } catch { /* no-op */ }
     }
   });
 
@@ -510,7 +498,7 @@
   async function twSignOut() {
     try {
       await revokeTwitterToken();
-    } catch {}
+    } catch { /* no-op */ }
     twAccessToken = null;
     twProfile = null;
     twMessages = [];
@@ -520,9 +508,10 @@
   }
 
   async function twFetchProfile() {
+    if (!twAccessToken) return;
     try {
       const r = await getTwitterMe(twAccessToken);
-      twProfile = r.data;
+      twProfile = r.data as unknown as Record<string, unknown>;
       await setSetting("twitter-profile", r.data);
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
@@ -536,7 +525,7 @@
     try {
       const offset = append ? twLocalOffset : 0;
       const fetchSize = twSearchQuery ? 2000 : TW_LOCAL_PAGE_SIZE + offset;
-      const rows = (await getItemsBySource("twitter", fetchSize, 0)) as Record<string, unknown>[];
+      const rows = ((await getItemsBySource("twitter", fetchSize, 0)) as unknown) as Record<string, unknown>[];
       let list = rows ?? [];
       if (twSearchQuery) {
         const q = twSearchQuery.toLowerCase();
@@ -570,10 +559,10 @@
   async function twRefreshSyncStatus() {
     try {
       twSyncStatus = await getTwitterSyncStatus();
-    } catch {}
+    } catch { /* no-op */ }
   }
 
-  async function twStartSync(limit) {
+  async function twStartSync(limit: number) {
     if (twSyncing || !twAccessToken) return;
     twError = null;
     twSyncing = true;
@@ -588,13 +577,13 @@
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
-      if (e?.name !== "AbortError") twError = `Sync failed: ${errMsg(e)}`;
+      if ((e as Error)?.name !== "AbortError") twError = `Sync failed: ${errMsg(e)}`;
     } finally {
       twSyncing = false;
     }
   }
 
-  async function twStartSyncMore(limit) {
+  async function twStartSyncMore(limit: number) {
     if (twSyncing || !twAccessToken) return;
     twError = null;
     twSyncing = true;
@@ -609,7 +598,7 @@
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
-      if (e?.name !== "AbortError") twError = `Sync more failed: ${errMsg(e)}`;
+      if ((e as Error)?.name !== "AbortError") twError = `Sync more failed: ${errMsg(e)}`;
     } finally {
       twSyncing = false;
     }
@@ -640,16 +629,16 @@
     class="w-56 shrink-0 flex flex-col border-r border-border bg-sidebar overflow-hidden"
   >
     <div class="px-3 pt-4 pb-2 shrink-0">
-      <p
+      <h2
         class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/50"
       >
         Sources
-      </p>
+      </h2>
     </div>
 
     <ScrollArea class="flex-1">
       <div class="px-2 pb-4 flex flex-col gap-0.5">
-        {#each ALL_SOURCES as name}
+        {#each ALL_SOURCES as name (name)}
           {@const meta = SOURCE_META[name]}
           {@const isSelected = selectedSource === name}
           {@const isLive = meta.live}
@@ -728,7 +717,7 @@
             <div
               class="size-7 rounded-full bg-primary/15 flex items-center justify-center text-xs font-bold text-primary shrink-0"
             >
-              {profile?.emailAddress?.[0]?.toUpperCase() ?? "G"}
+              {(profile?.emailAddress as string)?.[0]?.toUpperCase() ?? "G"}
             </div>
             <span
               class="text-sm font-medium text-foreground truncate max-w-[180px]"
@@ -757,7 +746,7 @@
               disabled={isSyncing}
               class="h-7 px-1.5 text-xs rounded border border-input bg-background text-foreground"
             >
-              {#each LIMIT_OPTIONS as opt}<option value={opt}>{opt}</option
+              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option
                 >{/each}
             </select>
 
@@ -828,7 +817,7 @@
               type="text"
               placeholder="Search subjects, senders, or snippets…"
               bind:value={searchQuery}
-              onkeydown={(e) => e.key === "Enter" && searchLocal()}
+              onkeydown={(e: KeyboardEvent) => e.key === "Enter" && searchLocal()}
               class="pl-9 h-8 text-sm"
             />
           </div>
@@ -1081,7 +1070,7 @@
               disabled={twSyncing}
               class="h-7 px-1.5 text-xs rounded border border-input bg-background text-foreground"
             >
-              {#each LIMIT_OPTIONS as opt}<option value={opt}>{opt}</option
+              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option
                 >{/each}
             </select>
 
@@ -1147,7 +1136,7 @@
               type="text"
               placeholder="Search tweets…"
               bind:value={twSearchQuery}
-              onkeydown={(e) => e.key === "Enter" && twSearchLocal()}
+              onkeydown={(e: KeyboardEvent) => e.key === "Enter" && twSearchLocal()}
               class="pl-9 h-8 text-sm"
             />
           </div>
@@ -1173,7 +1162,7 @@
           <div class="p-3">
             {#if twMessages.length > 0}
               <MessageList
-                messages={twMessages}
+                messages={twMessages as unknown as import("$lib/types.js").StoredItem[]}
                 onselect={(msg) => (selectedMessage = msg)}
               />
               {#if twMessages.length < twTotalMessages}

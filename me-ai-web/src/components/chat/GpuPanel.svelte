@@ -30,7 +30,7 @@
 
 <div class="bg-card border-b border-border px-4 py-3 animate-[slideDown_0.15s_ease-out]">
   <div class="grid grid-cols-2 gap-x-6 gap-y-2">
-    {#each rows as row}
+    {#each rows as row (row.label)}
       <div class="flex flex-col gap-px">
         <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">{row.label}</span>
         <span class={row.ok ? "text-[0.78rem] font-semibold text-success" : "text-[0.78rem] text-foreground/75 tracking-tight"}>
@@ -45,7 +45,7 @@
           Features ({gpuInfo.features.length})
         </span>
         <div class="flex flex-wrap gap-1">
-          {#each gpuInfo.features as feat}
+          {#each gpuInfo.features as feat (feat)}
             <span class="text-[0.58rem] font-mono text-muted-foreground/60 bg-muted border border-border px-1.5 py-0.5 rounded">
               {feat}
             </span>

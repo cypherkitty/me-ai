@@ -4,8 +4,13 @@
   import PromptInspector from "./PromptInspector.svelte";
   import { actionColor } from "../../lib/triage.js";
   import { EVENT_CATEGORIES } from "../../lib/events.js";
+  import type { StoredItem } from "$lib/types.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { ShieldCheck } from "lucide-svelte";
+
+  interface ItemWithStatus extends StoredItem {
+    status?: string;
+  }
 
   interface Props {
     engineStatus?: string;
@@ -13,7 +18,7 @@
     categories?: Record<string, unknown>;
     categoryOrder?: string[];
     eventTypeToCategory?: Record<string, string>;
-    counts?: Record<string, number>;
+    counts?: Record<string, number> & { total?: number };
     stats?: unknown;
     expandedCategory?: string | null;
     isScanning?: boolean;
@@ -24,9 +29,9 @@
     onscan?: () => void;
     onrescan?: () => void;
     ontogglecategory?: (cat: string) => void;
-    onexecute?: () => void;
+    onexecute?: (eventType: string, email: Record<string, unknown>) => void;
     onmarkacted?: (id: string) => void;
-    ondismiss?: () => void;
+    ondismiss?: (id: string) => void;
     onremove?: (id: string) => void;
     onclearcategory?: (category: string) => void;
     ondismisserror?: () => void;
@@ -67,8 +72,8 @@
   /** Grab a sample email from the first category to show in the inspector */
   let sampleEmail = $derived.by(() => {
     for (const action of categoryOrder) {
-      const items = categories[action];
-      if (items?.length > 0) return items[0];
+      const items = categories[action] as unknown[] | undefined;
+      if (items && items.length > 0) return items[0];
     }
     return null;
   });
@@ -182,7 +187,7 @@
       oninspect={() => (showInspector = true)}
     />
 
-    {#if counts.total > 0}
+    {#if (counts.total ?? 0) > 0}
       <div class="flex flex-col gap-6">
         {#each categoriesWithEventTypes as catBlock (catBlock.name)}
           <div class="flex flex-col gap-2">
@@ -217,15 +222,15 @@
                 <ActionGroup
                   action={actionId}
                   color={actionColor(actionId)}
-                  count={categories[actionId]?.length || 0}
-                  items={categories[actionId] || []}
+                  count={(categories[actionId] as ItemWithStatus[] | undefined)?.length || 0}
+                  items={(categories[actionId] as unknown as ItemWithStatus[] | undefined) || []}
                   expanded={expandedCategory === actionId}
-                  ontoggle={() => ontogglecategory(actionId)}
-                  onexecute={(email) => onexecute(actionId, email)}
+                  ontoggle={() => ontogglecategory?.(actionId)}
+                  onexecute={(email) => onexecute?.(actionId, email as unknown as Record<string, unknown>)}
                   {onmarkacted}
-                  {ondismiss}
+                  ondismiss={(id) => ondismiss?.(id)}
                   {onremove}
-                  onclearcategory={() => onclearcategory(actionId)}
+                  onclearcategory={() => onclearcategory?.(actionId)}
                 />
               {/each}
             </div>

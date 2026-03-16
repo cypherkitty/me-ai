@@ -163,7 +163,7 @@
         const item = await getItemById(id);
         emailData = (item ?? {}) as Record<string, unknown>;
       }
-    } catch {}
+    } catch { /* no-op */ }
 
     execState[id] = { running: true, steps: [] };
     // Also update the local event so the trace renders
@@ -237,7 +237,7 @@
     if (result.success) {
       try {
         await updateClassificationStatus(id, "executed");
-      } catch {}
+      } catch { /* no-op */ }
       // After 1.5s, reload so the item moves to completed in the audit log
       setTimeout(() => {
         load();
@@ -279,7 +279,7 @@
     class="flex items-center gap-3 px-8 py-2.5 shrink-0 border-b border-border"
   >
     <div class="flex items-center gap-1">
-      {#each STAT_FILTERS as sf}
+      {#each STAT_FILTERS as sf (sf.key)}
         <Button
           variant={filterStatus === sf.key ? "secondary" : "ghost"}
           size="sm"

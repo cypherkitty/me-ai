@@ -40,7 +40,8 @@ task build:web  # web only (skip core rebuild)
 task test       # unit tests (Vitest)
 task test:e2e   # E2E tests (Playwright)
 task check      # Svelte/TypeScript check
-task ci         # full CI: install → unit → E2E
+task lint       # ESLint on me-ai-web/src
+task ci         # full CI: install → check → lint → unit → E2E
 ```
 
 Requires: Task v3, Node 20, Rust (stable + `wasm32-unknown-unknown`), wasm-pack.
@@ -82,6 +83,15 @@ The chat is the control interface over the event stream. The LLM can trigger UI 
 - `[SHOW:DASHBOARD]` — UI strips tag and renders the interactive events-by-category dashboard inline
 
 CRITICAL events show an amber **approval card** instead of a direct execute button.
+
+## Linting (me-ai-web)
+
+ESLint 9 flat config in `me-ai-web/eslint.config.js`. Runs on `me-ai-web/src/` via `npm run lint` or `task lint`.
+
+- **Config**: ESLint 9 flat config with `eslint-plugin-svelte`, `typescript-eslint`, `globals`
+- **Rules**: `@typescript-eslint/no-explicit-any` — use typed casts (`as unknown as T`) instead of `as any`; empty catch blocks must log the error or use `_e`
+- **CI**: `task ci` runs lint before tests; GitHub CI workflow runs `task ci`
+- **Fix**: `npx eslint src/ --fix` auto-fixes many issues
 
 ## UI standards (me-ai-web)
 

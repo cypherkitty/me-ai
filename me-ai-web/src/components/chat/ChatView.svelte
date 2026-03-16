@@ -16,9 +16,22 @@
   import { actionColor } from "../../lib/triage.js";
   import { mountLog } from "../../lib/debug.js";
 
+  interface PendingData {
+    total: number;
+    order: string[];
+    categories: Record<string, unknown[]>;
+  }
+  interface ChatMsg {
+    type?: string;
+    role?: string;
+    content?: string;
+    model?: string;
+    pendingData?: PendingData;
+    [key: string]: unknown;
+  }
   interface Props {
-    messages?: unknown[];
-    pendingData?: unknown;
+    messages?: ChatMsg[];
+    pendingData?: PendingData | null;
     hasScanData?: boolean;
     engineReady?: boolean;
     isScanning?: boolean;
@@ -38,11 +51,11 @@
     onstop?: () => void;
     onreset?: () => void;
     onmarkacted?: (id: string) => void;
-    ondismiss?: () => void;
+    ondismiss?: (id: string) => void;
     onremove?: (id: string) => void;
     onclearcategory?: (category: string) => void;
     onscan?: () => void;
-    oncommand?: (cmd: { id: string }) => void;
+    oncommand?: (cmd: { event: Record<string, unknown>; commandId: string } | { id: string }) => void;
     onexecuted?: () => void;
   }
   onMount(() => mountLog("ChatView"));
@@ -73,7 +86,7 @@
     onremove,
     onclearcategory,
     onscan,
-    oncommand,
+    oncommand: _oncommand,
     onexecuted,
   }: Props = $props();
 
@@ -81,7 +94,7 @@
   let showGpuPanel = $state(false);
   let showGenerationPanel = $state(false);
 
-  function handleKeydown(e) {
+  function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -92,21 +105,21 @@
     const text = input.trim();
     if (!text || isRunning) return;
     input = "";
-    onsend(text);
+    onsend?.(text);
   }
 
-  function sendCommand(cmdStr) {
+  function sendCommand(cmdStr: string) {
     if (isRunning) return;
-    onsend(cmdStr);
+    onsend?.(cmdStr);
   }
 
-  function handleAskAI(question) {
+  function handleAskAI(question: string) {
     if (question && !isRunning) {
-      onsend(question);
+      onsend?.(question);
     }
   }
 
-  const BACKEND_META = {
+  const BACKEND_META: Record<string, { label: string; color: string }> = {
     ollama: {
       label: "Ollama",
       color: "text-primary border-primary/30 bg-primary/8",
@@ -256,7 +269,7 @@
 
         {#if tps && !isRunning}
           <span class="text-xs text-muted-foreground/50 tabular-nums">
-            {numTokens} tok · {(numTokens / tps).toFixed(1)}s · {tps.toFixed(1)}
+            {numTokens ?? 0} tok · {((numTokens ?? 0) / tps).toFixed(1)}s · {tps.toFixed(1)}
             tok/s
           </span>
         {:else if isRunning && generationPhase === "preparing"}
@@ -400,7 +413,7 @@
         </div>
       {/if}
 
-      {#each messages as msg, i}
+      {#each messages as msg, i (i)}
         {#if msg.type === "dashboard"}
           <ActionDashboard
             pendingData={msg.pendingData}
@@ -415,7 +428,6 @@
         {:else if msg.type === "event" || msg.type === "event-batch" || msg.type === "events-by-category"}
           <EventMessage
             {msg}
-            {oncommand}
             {onexecuted}
             ondismiss={() =>
               (messages = messages.filter((_, idx) => idx !== i))}
@@ -426,7 +438,7 @@
             .filter((m) => m.role === "assistant")
             .at(-1)?.model}
           <MessageBubble
-            {msg}
+            msg={msg as unknown as { role: string; content?: string; model?: string; [key: string]: unknown }}
             isLast={i === messages.length - 1}
             {isRunning}
             {generationPhase}

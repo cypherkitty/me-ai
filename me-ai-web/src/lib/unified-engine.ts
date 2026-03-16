@@ -49,7 +49,7 @@ export function getUnifiedEngine() {
         if (_currentEngine) _currentEngine.terminate();
         _currentBackend = backend;
         if (backend === "webgpu") {
-          _currentEngine = getWebGPUEngine() as Engine;
+          _currentEngine = getWebGPUEngine() as unknown as Engine;
         } else if (backend === "ollama") {
           _currentEngine = getOllamaEngine() as Engine;
         } else {
@@ -64,7 +64,7 @@ export function getUnifiedEngine() {
 
     check(): void {
       if (!_currentEngine) {
-        _currentEngine = getWebGPUEngine() as Engine;
+        _currentEngine = getWebGPUEngine() as unknown as Engine;
         _currentBackend = "webgpu";
       }
       _currentEngine.check();
@@ -102,7 +102,7 @@ export function getUnifiedEngine() {
 
     onMessage(fn: (msg: unknown) => void): () => void {
       if (!_currentEngine) {
-        _currentEngine = getWebGPUEngine() as Engine;
+        _currentEngine = getWebGPUEngine() as unknown as Engine;
         _currentBackend = "webgpu";
       }
       _unifiedListeners.add(fn);

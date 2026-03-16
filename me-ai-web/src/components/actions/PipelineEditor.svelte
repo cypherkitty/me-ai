@@ -31,7 +31,7 @@
         open?: boolean;
         rule?: PipelineRule | null;
         onSave?: (
-            actions?: any[],
+            actions?: RuleAction[],
             typesToMove?: string[],
             typesToDelete?: string[],
         ) => void | Promise<void>;
@@ -363,7 +363,7 @@
                                                 <div
                                                     class="flex flex-wrap gap-1.5 mb-3"
                                                 >
-                                                    {#each (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)) as et}
+                                                    {#each (rule?._eventTypes || []).filter((et) => !typesToDelete.includes(et.name)) as et (et.name)}
                                                         <div
                                                             class="group/chip inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/8 border border-blue-500/20 rounded-md text-xs text-blue-400 font-medium transition-all hover:border-blue-500/40"
                                                         >
@@ -393,7 +393,7 @@
                                                             >
                                                         </div>
                                                     {/each}
-                                                    {#each typesToMove as et}
+                                                    {#each typesToMove as et (et)}
                                                         <div
                                                             class="group/chip inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-md text-xs text-emerald-400 font-medium transition-all hover:border-emerald-500/50"
                                                         >
@@ -468,7 +468,7 @@
                                                         const isAssigned = (rule?._eventTypes || []).some((t) => t.name === et);
                                                         const isPendingDelete = typesToDelete.includes(et);
                                                         return (!isAssigned || isPendingDelete) && !typesToMove.includes(et);
-                                                    }, ) as et}
+                                                    }, ) as et (et)}
                                                     <option value={et}
                                                         >{et
                                                             .toLowerCase()
@@ -496,7 +496,7 @@
                                                 <option value="" disabled
                                                     >Select Event Type...</option
                                                 >
-                                                {#each eventTypes as et}
+                                                {#each eventTypes as et (et)}
                                                     <option value={et}
                                                         >{et
                                                             .toLowerCase()
@@ -571,7 +571,7 @@
                             <div
                                 class="p-5 bg-background flex-1 flex flex-col gap-3 min-h-[300px]"
                             >
-                                {#each commands as cmd, i}
+                                {#each commands as cmd, i (cmd.id ?? i)}
                                     <div
                                         class="group relative bg-secondary/30 border border-border/50 hover:border-border hover:bg-secondary/50 rounded-xl p-3 flex items-center gap-4 transition-all"
                                     >
@@ -700,7 +700,7 @@
                         >
                     </div>
                     <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-                        {#each PLUGIN_ACTIONS as group}
+                        {#each PLUGIN_ACTIONS as group (group.pluginId)}
                             <div class="flex flex-col gap-3">
                                 <div>
                                     <span
@@ -709,7 +709,7 @@
                                     >
                                 </div>
                                 <div class="grid grid-cols-2 gap-3">
-                                    {#each group.actions as handler}
+                                    {#each group.actions as handler (handler.actionId)}
                                         {@const added = isInPipeline(
                                             handler.actionId,
                                         )}
@@ -831,9 +831,9 @@
                                     <option value="" disabled
                                         >Select handler function...</option
                                     >
-                                    {#each PLUGIN_ACTIONS as group}
+                                    {#each PLUGIN_ACTIONS as group (group.pluginId)}
                                         <optgroup label={group.pluginName}>
-                                            {#each group.actions as handler}
+                                            {#each group.actions as handler (handler.actionId)}
                                                 <option
                                                     value="{group.pluginId}:{handler.actionId}"
                                                     >{handler.name}</option

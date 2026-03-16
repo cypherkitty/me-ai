@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { Button }  from "$lib/components/ui/button/index.js";
   import { Badge }   from "$lib/components/ui/badge/index.js";
-  import { cn }      from "$lib/utils.js";
   import { Zap, Mail, CheckCircle, AlertCircle, Loader } from "lucide-svelte";
   import {
     initGoogleAuth,
@@ -164,8 +163,8 @@
     </div>
 
     <!-- Back link -->
-    <a href="#home" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
-      ← Back to Home
+    <a href="#chat" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
+      Back to Chat
     </a>
   </div>
 </div>

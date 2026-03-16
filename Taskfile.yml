@@ -60,7 +60,7 @@ tasks:
   dev:
     desc: Run Vite dev server (core must be built first; use task install once)
     deps:
-      - task: copy:core
+      - task: install
     dir: '{{.WEB_DIR}}'
     cmds:
       - npm run dev
@@ -92,12 +92,20 @@ tasks:
     cmds:
       - npm run check
 
+  lint:
+    desc: Run ESLint on me-ai-web/src
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run lint
+
   # --- CI: install (core + npm) then unit + e2e ---
   ci:
-    desc: Full CI run (build:core → install → unit tests → E2E tests)
+    desc: Full CI run (build:core → install → check → lint → unit tests → E2E tests)
     deps:
       - task: install
     cmds:
+      - task: check
+      - task: lint
       - task: test
       - task: test:e2e
 
