@@ -22,6 +22,7 @@ pub struct ApiModel {
 }
 
 impl ApiModel {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         id: &str,
         name: &str,

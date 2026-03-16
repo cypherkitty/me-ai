@@ -238,7 +238,7 @@ async fn call_anthropic(
     let (status, text) =
         http_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str)).await?;
 
-    if status < 200 || status >= 300 {
+    if !(200..300).contains(&status) {
         return Err(CoreError::Llm(format!("anthropic API error ({status}): {text}")));
     }
 
@@ -336,7 +336,7 @@ async fn call_google(
     let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
     let (status, text) = http_fetch("POST", &url, headers, Some(body_str)).await?;
 
-    if status < 200 || status >= 300 {
+    if !(200..300).contains(&status) {
         return Err(CoreError::Llm(format!("google API error ({status}): {text}")));
     }
 
@@ -402,7 +402,7 @@ async fn call_xai(
     let (status, text) =
         http_fetch("POST", "https://api.x.ai/v1/chat/completions", headers, Some(body_str)).await?;
 
-    if status < 200 || status >= 300 {
+    if !(200..300).contains(&status) {
         return Err(CoreError::Llm(format!("xai API error ({status}): {text}")));
     }
 
@@ -506,7 +506,7 @@ pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, 
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
                 http_fetch("GET", "https://api.openai.com/v1/models", headers, None).await?;
-            Ok(status >= 200 && status < 300)
+            Ok((200..300).contains(&status))
         }
         "anthropic" => {
             let body = serde_json::json!({
@@ -525,20 +525,20 @@ pub async fn test_api_connection(provider: &str, api_key: &str) -> Result<bool, 
             let (status, _) =
                 http_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str))
                     .await?;
-            Ok(status >= 200 && status < 300)
+            Ok((200..300).contains(&status))
         }
         "google" => {
             let url = format!(
                 "https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
             );
             let (status, _) = http_fetch("GET", &url, &[], None).await?;
-            Ok(status >= 200 && status < 300)
+            Ok((200..300).contains(&status))
         }
         "xai" => {
             let headers: &[(&str, &str)] = &[("authorization", &auth)];
             let (status, _) =
                 http_fetch("GET", "https://api.x.ai/v1/models", headers, None).await?;
-            Ok(status >= 200 && status < 300)
+            Ok((200..300).contains(&status))
         }
         _ => Err(CoreError::Llm(format!("unknown provider: {provider}"))),
     }

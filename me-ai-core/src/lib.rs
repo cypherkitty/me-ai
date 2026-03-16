@@ -152,6 +152,7 @@ impl MeAiCore {
         Ok(storage::schema::remove_setting(db, key).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = logAuditExecution)]
     pub async fn log_audit_execution(
         &self,
@@ -474,6 +475,7 @@ impl MeAiCore {
         Ok(storage::rules::clear_events(db).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = insertEvent)]
     pub async fn insert_event(
         &self,
@@ -557,6 +559,7 @@ impl MeAiCore {
         Ok(storage::classifications::delete_classifications_by_action(db, action).await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = putEmailClassification)]
     pub async fn put_email_classification(
         &self,

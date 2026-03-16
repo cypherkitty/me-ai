@@ -457,6 +457,7 @@ pub async fn clear_events(db: DbRef<'_>) -> Result<(), CoreError> {
 }
 
 /// Insert one event.
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_event(
     db: DbRef<'_>,
     id: &str,
