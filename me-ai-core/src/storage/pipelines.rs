@@ -39,8 +39,8 @@ struct EventTypeStoreRow {
     label: Option<String>,
     #[serde(rename = "category_name")]
     category_name: Option<String>,
-    #[serde(rename = "auto_created")]
-    auto_created: Option<bool>,
+    #[serde(rename = "auto_created", default)]
+    auto_created: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -13,8 +13,8 @@ pub struct EventTypeRow {
     pub label: Option<String>,
     #[serde(rename = "category_name")]
     pub category_name: Option<String>,
-    #[serde(rename = "auto_created")]
-    pub auto_created: Option<bool>,
+    #[serde(rename = "auto_created", default)]
+    pub auto_created: bool,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -49,8 +49,8 @@ struct EventTypeStoreRow {
     label: Option<String>,
     #[serde(rename = "category_name")]
     category_name: Option<String>,
-    #[serde(rename = "auto_created")]
-    auto_created: Option<bool>,
+    #[serde(rename = "auto_created", default)]
+    auto_created: bool,
 }
 
 /// Insert event type if not present (for LLM-seeded types).
@@ -68,7 +68,7 @@ pub async fn upsert_event_type(
         name: name.to_string(),
         label: Some(label.to_string()),
         category_name: Some(category_name.to_string()),
-        auto_created: Some(auto_created),
+        auto_created,
     };
     db.store_put(store::SM_EVENT_TYPES, &row, Some(name)).await
 }

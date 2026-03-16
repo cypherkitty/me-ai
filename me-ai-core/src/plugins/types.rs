@@ -27,7 +27,7 @@ pub struct EventInput {
 #[derive(Clone, Debug, Serialize)]
 pub struct PluginResult {
     pub success: bool,
-    pub message: Option<String>,
+    pub message: String,
     pub data: Option<serde_json::Value>,
 }
 
@@ -35,7 +35,7 @@ impl PluginResult {
     pub fn ok(message: impl Into<String>, data: Option<serde_json::Value>) -> Self {
         Self {
             success: true,
-            message: Some(message.into()),
+            message: message.into(),
             data,
         }
     }
@@ -47,7 +47,7 @@ impl PluginResult {
     pub fn err(message: impl Into<String>) -> Self {
         Self {
             success: false,
-            message: Some(message.into()),
+            message: message.into(),
             data: None,
         }
     }
@@ -67,7 +67,7 @@ pub struct ActionResult {
     #[wasm_bindgen(js_name = "commandId")]
     pub command_id: Option<String>,
     pub success: bool,
-    pub message: Option<String>,
+    pub message: String,
     /// Serialized action data as a JS value (object or null).
     pub data: JsValue,
 }
@@ -80,7 +80,7 @@ mod tests {
     fn plugin_result_ok() {
         let r = PluginResult::ok("done", None);
         assert!(r.success);
-        assert_eq!(r.message, Some("done".to_string()));
+        assert_eq!(r.message, "done".to_string());
         assert!(r.data.is_none());
     }
 
@@ -88,7 +88,7 @@ mod tests {
     fn plugin_result_err() {
         let r = PluginResult::err("bad");
         assert!(!r.success);
-        assert_eq!(r.message, Some("bad".to_string()));
+        assert_eq!(r.message, "bad".to_string());
         assert!(r.data.is_none());
     }
 
@@ -96,7 +96,7 @@ mod tests {
     fn plugin_result_ok_with_data() {
         let r = PluginResult::ok_with_data("ok", 42u32);
         assert!(r.success);
-        assert_eq!(r.message, Some("ok".to_string()));
+        assert_eq!(r.message, "ok".to_string());
         let data = r.data.as_ref().expect("data must be Some");
         assert_eq!(*data, serde_json::json!(42));
     }
