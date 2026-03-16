@@ -205,6 +205,150 @@ pub fn get_api_model_info(model_id: &str) -> Option<ApiModel> {
     get_api_models().into_iter().find(|m| m.id == model_id)
 }
 
+// ── ONNX models ─────────────────────────────────────────────────────────────
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnnxModel {
+    pub id: String,
+    pub name: String,
+    pub size: String,
+    #[wasm_bindgen(js_name = "contextWindow")]
+    pub context_window: u32,
+    #[wasm_bindgen(js_name = "maxEmailTokens")]
+    pub max_email_tokens: u32,
+    pub description: String,
+    #[wasm_bindgen(js_name = "gpuWarning")]
+    pub gpu_warning: String,       // empty string when no warning
+    #[wasm_bindgen(js_name = "isExperimental")]
+    pub is_experimental: bool,
+    #[wasm_bindgen(js_name = "recommendedForEmailProcessing")]
+    pub recommended_for_email_processing: bool,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnnxModelGroup {
+    pub label: String,
+    pub models: Vec<OnnxModel>,
+}
+
+pub fn get_onnx_model_groups() -> Vec<OnnxModelGroup> {
+    vec![
+        OnnxModelGroup {
+            label: "GPT-OSS".to_string(),
+            models: vec![OnnxModel {
+                id: "onnx-community/gpt-oss-20b-ONNX".to_string(),
+                name: "20B".to_string(),
+                size: "~12 GB".to_string(),
+                context_window: 131_072,
+                max_email_tokens: 16_000,
+                description: "OpenAI open-source, 128k context, built-in reasoning".to_string(),
+                gpu_warning: "Requires powerful GPU (12 GB+ VRAM). ~12 GB download.".to_string(),
+                is_experimental: true,
+                recommended_for_email_processing: true,
+            }],
+        },
+        OnnxModelGroup {
+            label: "Qwen 3.5".to_string(),
+            models: vec![
+                OnnxModel {
+                    id: "onnx-community/Qwen3.5-0.8B-ONNX".to_string(),
+                    name: "0.8B".to_string(),
+                    size: "~647 MB".to_string(),
+                    context_window: 262_144,
+                    max_email_tokens: 4_000,
+                    description: "Fastest, 256k context, hybrid attention".to_string(),
+                    gpu_warning: String::new(),
+                    is_experimental: false,
+                    recommended_for_email_processing: false,
+                },
+                OnnxModel {
+                    id: "onnx-community/Qwen3.5-2B-ONNX".to_string(),
+                    name: "2B".to_string(),
+                    size: "~1.6 GB".to_string(),
+                    context_window: 262_144,
+                    max_email_tokens: 6_000,
+                    description: "Balanced speed and quality, 256k context".to_string(),
+                    gpu_warning: String::new(),
+                    is_experimental: false,
+                    recommended_for_email_processing: true,
+                },
+                OnnxModel {
+                    id: "onnx-community/Qwen3.5-4B-ONNX".to_string(),
+                    name: "4B".to_string(),
+                    size: "~3 GB".to_string(),
+                    context_window: 262_144,
+                    max_email_tokens: 12_000,
+                    description: "Best reasoning, 256k context".to_string(),
+                    gpu_warning: "Requires good GPU (8 GB+ VRAM recommended)".to_string(),
+                    is_experimental: false,
+                    recommended_for_email_processing: true,
+                },
+            ],
+        },
+    ]
+}
+
+pub fn get_onnx_models() -> Vec<OnnxModel> {
+    get_onnx_model_groups().into_iter().flat_map(|g| g.models).collect()
+}
+
+pub fn get_onnx_model_info(model_id: &str) -> Option<OnnxModel> {
+    get_onnx_models().into_iter().find(|m| m.id == model_id)
+}
+
+// ── Ollama models ────────────────────────────────────────────────────────────
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaModel {
+    pub name: String,
+    #[wasm_bindgen(js_name = "displayName")]
+    pub display_name: String,
+    pub params: String,
+    #[wasm_bindgen(js_name = "contextWindow")]
+    pub context_window: u32,
+    #[wasm_bindgen(js_name = "maxEmailTokens")]
+    pub max_email_tokens: u32,
+    pub description: String,
+    pub tags: String,   // comma-separated list e.g. "multilingual,reasoning,general"
+    pub recommended: bool,
+    #[wasm_bindgen(js_name = "recommendedForEmailProcessing")]
+    pub recommended_for_email_processing: bool,
+}
+
+pub fn get_ollama_models() -> Vec<OllamaModel> {
+    vec![
+        OllamaModel { name: "qwen3:4b".to_string(), display_name: "Qwen3 4B".to_string(), params: "4B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Latest Qwen, 128k context, enhanced reasoning".to_string(), tags: "multilingual,reasoning,general".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "qwen3:8b".to_string(), display_name: "Qwen3 8B".to_string(), params: "8B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Powerful reasoning, 128k context, 100+ languages".to_string(), tags: "multilingual,reasoning,advanced".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "qwen3:14b".to_string(), display_name: "Qwen3 14B".to_string(), params: "14B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Most capable Qwen3, best for complex tasks".to_string(), tags: "multilingual,reasoning,advanced".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "ministral-3:3b".to_string(), display_name: "Ministral 3 3B".to_string(), params: "3B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Mistral's smallest, 256k context, Apache 2.0".to_string(), tags: "fast,long-context,efficient".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "ministral-3:8b".to_string(), display_name: "Ministral 3 8B".to_string(), params: "8B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Balanced performance, 256k context, vision capable".to_string(), tags: "general,long-context,vision".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "ministral-3:14b".to_string(), display_name: "Ministral 3 14B".to_string(), params: "14B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Most capable Ministral, 256k context, function calling".to_string(), tags: "advanced,long-context,vision".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "gpt-oss:20b".to_string(), display_name: "GPT-OSS 20B".to_string(), params: "20B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "OpenAI's open model, strong reasoning, Apache 2.0".to_string(), tags: "reasoning,cot,openai".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "gemma3:4b".to_string(), display_name: "Gemma3 4B".to_string(), params: "4B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google, 128k context, multimodal (text + images)".to_string(), tags: "multimodal,vision,multilingual".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "gemma3:12b".to_string(), display_name: "Gemma3 12B".to_string(), params: "12B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Powerful multimodal, 128k context, 140+ languages".to_string(), tags: "multimodal,vision,multilingual,advanced".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "gemma3n:e2b".to_string(), display_name: "Gemma3N E2B".to_string(), params: "2B effective".to_string(), context_window: 32_768, max_email_tokens: 25_000, description: "Efficient 2B, multimodal, MatFormer architecture".to_string(), tags: "efficient,multimodal,fast".to_string(), recommended: false, recommended_for_email_processing: false },
+        OllamaModel { name: "gemma3n:e4b".to_string(), display_name: "Gemma3N E4B".to_string(), params: "4B effective".to_string(), context_window: 32_768, max_email_tokens: 25_000, description: "Efficient 4B, multimodal, selective parameter activation".to_string(), tags: "efficient,multimodal,balanced".to_string(), recommended: false, recommended_for_email_processing: false },
+        OllamaModel { name: "deepseek-r1:7b".to_string(), display_name: "DeepSeek R1 7B".to_string(), params: "7B".to_string(), context_window: 65_536, max_email_tokens: 50_000, description: "Strong chain-of-thought reasoning, research-focused".to_string(), tags: "reasoning,cot".to_string(), recommended: true, recommended_for_email_processing: true },
+        OllamaModel { name: "deepseek-r1:14b".to_string(), display_name: "DeepSeek R1 14B".to_string(), params: "14B".to_string(), context_window: 65_536, max_email_tokens: 50_000, description: "Advanced CoT reasoning, slower but thorough".to_string(), tags: "reasoning,cot,advanced".to_string(), recommended: true, recommended_for_email_processing: true },
+    ]
+}
+
+pub fn get_ollama_model_info(model_name: &str) -> Option<OllamaModel> {
+    get_ollama_models().into_iter().find(|m| {
+        m.name == model_name || model_name.starts_with(&format!("{}:", m.name.split(':').next().unwrap_or("")))
+    })
+}
+
+pub fn get_recommended_ollama_models() -> Vec<OllamaModel> {
+    get_ollama_models().into_iter().filter(|m| m.recommended).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

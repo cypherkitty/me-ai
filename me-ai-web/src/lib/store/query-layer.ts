@@ -9,9 +9,9 @@ import {
   getItemsGmailByDateDesc,
   getEmailClassifications,
   getItemsCountGmail,
-  getContactsCount,
-  getItemsDateMin,
-  getItemsDateMax,
+  getDataSummary as coreGetDataSummary,
+  getDetailedSummary as coreGetDetailedSummary,
+  getRecentEmailsContext,
 } from "../core.js";
 import { fromJson } from "./db.js";
 import { truncate } from "../format.js";
@@ -23,65 +23,29 @@ import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, Pending
 /**
  * Get a high-level summary of all stored data.
  * Suitable for always-on system prompt context (small token footprint).
+ * Delegates to me-ai-core.
  */
 export async function getDataSummary(): Promise<string | null> {
-  const [totalEmails, totalContacts] = await Promise.all([
-    getItemsCountGmail().then((n) => Number(n ?? 0)),
-    getContactsCount().then((n) => Number(n ?? 0)),
-  ]);
-
-  if (totalEmails === 0) return null;
-
-  const lines = [`Stored data: ${totalEmails} emails, ${totalContacts} contacts.`];
-
-  const { oldest, newest } = await getDateRange();
-  if (oldest && newest) {
-    const from = new Date(oldest.date).toLocaleDateString();
-    const to = new Date(newest.date).toLocaleDateString();
-    lines.push(`Date range: ${from} to ${to}.`);
-  }
-
-  return lines.join(" ");
+  const s = await coreGetDataSummary();
+  return s || null;
 }
 
 /**
  * Get a detailed summary with label distribution, top senders, etc.
+ * Delegates to me-ai-core.
  */
 export async function getDetailedSummary(): Promise<string> {
-  const [totalEmails, totalContacts] = await Promise.all([
-    getItemsCountGmail().then((n) => Number(n ?? 0)),
-    getContactsCount().then((n) => Number(n ?? 0)),
-  ]);
-
-  if (totalEmails === 0) return "No emails stored locally.";
-
-  const parts = [
-    `## Data Summary`,
-    `- **Emails:** ${totalEmails}`,
-    `- **Contacts:** ${totalContacts}`,
-  ];
-
-  const { oldest, newest } = await getDateRange();
-  if (oldest && newest) {
-    const from = new Date(oldest.date).toLocaleDateString();
-    const to = new Date(newest.date).toLocaleDateString();
-    parts.push(`- **Date range:** ${from} — ${to}`);
-  }
-
-  return parts.join("\n");
+  return coreGetDetailedSummary();
 }
 
 // ── Email queries ───────────────────────────────────────────────────
 
 /**
  * Get recent emails formatted for LLM context.
+ * Delegates to me-ai-core.
  */
 export async function getRecentEmails(limit = 10): Promise<string> {
-  const items = ((await getItemsGmailByDateDesc(limit)) as unknown) as Record<string, unknown>[];
-  if (!items?.length) return "No emails stored locally.";
-  return items
-    .map((r) => formatItemForLLM(normaliseRow(r)))
-    .join("\n\n---\n\n");
+  return getRecentEmailsContext(limit);
 }
 
 /**
@@ -150,24 +114,7 @@ export async function getStoredEmails({
   return { items: page.map((r) => normaliseRow(r)), total };
 }
 
-// ── Internal helpers (core builds SQL and passes to adapter) ────────────────
-
-/** Date range of gmail items. WASM core builds the queries and passes them to the adapter. */
-async function getDateRange(): Promise<{
-  oldest: { date: number } | null;
-  newest: { date: number } | null;
-}> {
-  const [minVal, maxVal] = await Promise.all([
-    getItemsDateMin(),
-    getItemsDateMax(),
-  ]);
-  const min = minVal != null ? Number(minVal) : null;
-  const max = maxVal != null ? Number(maxVal) : null;
-  return {
-    oldest: min != null ? { date: min } : null,
-    newest: max != null ? { date: max } : null,
-  };
-}
+// ── Internal helpers ────────────────────────────────────────────────────────
 
 function normaliseRow(row: Record<string, unknown>): StoredItem {
   return {

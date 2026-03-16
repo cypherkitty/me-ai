@@ -1,41 +1,32 @@
-/** Format bytes with 1 decimal (e.g. "1.1 GB") */
-export function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return (bytes / Math.pow(k, i)).toFixed(1) + " " + sizes[i];
-}
+/** Formatting utilities — pure functions delegate to me-ai-core. */
+export { formatBytes, formatBytesPrecise, progressPct, truncate, stringToHue } from "./core.js";
 
-/** Format bytes with 2 decimals for MB/GB (e.g. "1.07 GB") */
-export function formatBytesPrecise(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  const value = bytes / Math.pow(k, i);
-  const decimals = i >= 2 ? 2 : i >= 1 ? 1 : 0;
-  return value.toFixed(decimals) + " " + sizes[i];
-}
-
-/** Calculate progress percentage, returns null if total is unknown */
-export function progressPct(loaded: number, total: number): number | null {
-  if (!total || total <= 0) return null;
-  return Math.min(100, (loaded / total) * 100);
-}
-
-/** Truncate a string to maxLen characters, appending "..." if truncated */
-export function truncate(str: string | null | undefined, maxLen: number): string {
-  if (!str) return "";
-  if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + "...";
-}
-
-/** Generate a stable hue (0-360) from a string via simple hash */
-export function stringToHue(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+/** Format a date string/number for display (browser locale). */
+export function formatDate(dateStr: string | number | null | undefined): string {
+  if (!dateStr) return "";
+  try {
+    return new Date(dateStr as string | number).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(dateStr);
   }
-  return Math.abs(hash) % 360;
+}
+
+/** Format a date as YYYY-MM-DD for filenames. */
+export function shortDate(dateStr: string | number | null | undefined): string {
+  if (!dateStr) return "email";
+  try {
+    const d = new Date(dateStr as string | number);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  } catch {
+    return "email";
+  }
 }

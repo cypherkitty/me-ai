@@ -8,6 +8,7 @@ import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory } from "me-ai-core";
+export type { OnnxModel, OnnxModelGroup, OllamaModel, OllamaConnectionResult, OllamaModelTag, TriageClassification } from "me-ai-core";
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
@@ -384,4 +385,113 @@ export async function streamChat(
   onToken: (payload: { content: string; done: boolean; inputTokens: number; outputTokens: number }) => void
 ): Promise<void> {
   return requireCore().streamChat(provider, modelName, messages, options, onToken);
+}
+
+// ── ONNX model catalog ──────────────────────────────────────────────────────
+
+export function getOnnxModels() {
+  return requireCore().getOnnxModels();
+}
+export function getOnnxModelGroups() {
+  return requireCore().getOnnxModelGroups();
+}
+export function getOnnxModelInfo(id: string) {
+  return requireCore().getOnnxModelInfo(id);
+}
+
+// ── Ollama model catalog ────────────────────────────────────────────────────
+
+export function getOllamaModels() {
+  return requireCore().getOllamaModels();
+}
+export function getOllamaModelInfo(name: string) {
+  return requireCore().getOllamaModelInfo(name);
+}
+export function getRecommendedOllamaModels() {
+  return requireCore().getRecommendedOllamaModels();
+}
+export async function testOllamaConnection(url: string): Promise<import("me-ai-core").OllamaConnectionResult> {
+  return requireCore().testOllamaConnection(url);
+}
+export async function listOllamaModels(url: string): Promise<import("me-ai-core").OllamaModelTag[]> {
+  return requireCore().listOllamaModels(url);
+}
+
+// ── Formatting utilities ────────────────────────────────────────────────────
+
+export function formatBytes(bytes: number): string {
+  return requireCore().formatBytes(BigInt(bytes));
+}
+export function formatBytesPrecise(bytes: number): string {
+  return requireCore().formatBytesPrecise(BigInt(bytes));
+}
+export function progressPct(loaded: number, total: number): number {
+  return requireCore().progressPct(BigInt(loaded), BigInt(total));
+}
+export function truncate(s: string, maxLen: number): string {
+  return requireCore().truncate(s, maxLen);
+}
+export function stringToHue(s: string): number {
+  return requireCore().stringToHue(s);
+}
+
+// ── Email utilities ─────────────────────────────────────────────────────────
+
+export function extractName(fromStr: string): string {
+  return requireCore().extractName(fromStr);
+}
+export function initial(fromStr: string): string {
+  return requireCore().initial(fromStr);
+}
+export function slugify(subject: string): string {
+  return requireCore().slugify(subject);
+}
+export function shortDate(dateMs: number): string {
+  return requireCore().shortDate(dateMs);
+}
+export function exportFilename(subject: string, dateMs: number, ext: string): string {
+  return requireCore().exportFilename(subject, dateMs, ext);
+}
+
+// ── Triage utilities ────────────────────────────────────────────────────────
+
+export function buildSystemPrompt(pluginNames: string): string {
+  return requireCore().buildSystemPrompt(pluginNames);
+}
+export function parseClassification(response: string): import("me-ai-core").TriageClassification | undefined {
+  return requireCore().parseClassification(response);
+}
+export function formatEmailPrompt(
+  subject: string,
+  from: string,
+  to: string,
+  dateMs: number,
+  labels: string,
+  body: string
+): string {
+  return requireCore().formatEmailPrompt(subject, from, to, dateMs, labels, body);
+}
+export function actionColor(action: string): string {
+  return requireCore().actionColor(action);
+}
+export function tagColor(tag: string): string {
+  return requireCore().tagColor(tag);
+}
+
+// ── LLM context ─────────────────────────────────────────────────────────────
+
+export async function getDataSummary(): Promise<string> {
+  return requireCore().getDataSummary();
+}
+export async function getDetailedSummary(): Promise<string> {
+  return requireCore().getDetailedSummary();
+}
+export async function getRecentEmailsContext(limit: number): Promise<string> {
+  return requireCore().getRecentEmailsContext(limit);
+}
+export async function buildLlmContext(): Promise<string> {
+  return requireCore().buildLlmContext();
+}
+export async function buildEmailContext(userQuery?: string): Promise<string> {
+  return requireCore().buildEmailContext(userQuery ?? null);
 }

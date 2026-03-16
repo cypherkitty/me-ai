@@ -1,9 +1,19 @@
-/** Format a date string for display */
+/**
+ * Email utilities — pure functions delegate to me-ai-core.
+ * Local wrappers preserve existing call signatures.
+ */
+import {
+  extractName as coreExtractName,
+  initial as coreInitial,
+  slugify as coreSluglify,
+  exportFilename as coreExportFilename,
+} from "./core.js";
+
+/** Format a date string/number for display (browser locale). */
 export function formatDate(dateStr: string | number | null | undefined): string {
   if (!dateStr) return "";
   try {
-    const d = new Date(dateStr as string | number);
-    return d.toLocaleDateString("en-US", {
+    return new Date(dateStr as string | number).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -15,21 +25,9 @@ export function formatDate(dateStr: string | number | null | undefined): string 
   }
 }
 
-/** Extract display name from a "Name <email>" string */
-export function extractName(fromStr: string | null | undefined): string {
-  if (!fromStr) return "Unknown";
-  const match = fromStr.match(/^"?([^"<]+)"?\s*</);
-  return match ? match[1].trim() : fromStr.split("@")[0];
-}
-
-/** Get the first letter of a sender's name */
-export function initial(fromStr: string | null | undefined): string {
-  const name = extractName(fromStr);
-  return name.charAt(0).toUpperCase();
-}
-
-/** Format a date as YYYY-MM-DD for filenames */
+/** Format a date as YYYY-MM-DD for filenames. */
 export function shortDate(dateStr: string | number | null | undefined): string {
+  if (!dateStr) return "email";
   try {
     const d = new Date(dateStr as string | number);
     const y = d.getFullYear();
@@ -41,16 +39,22 @@ export function shortDate(dateStr: string | number | null | undefined): string {
   }
 }
 
-/** Generate a safe filename slug from a subject string (max 60 chars) */
-export function slugify(subject: string | null | undefined): string {
-  return (subject || "email")
-    .replace(/[^a-zA-Z0-9 _-]/g, "")
-    .replace(/\s+/g, "-")
-    .slice(0, 60)
-    .replace(/-+$/, "");
+/** Extract display name from a "Name <email>" string. */
+export function extractName(fromStr: string | null | undefined): string {
+  return coreExtractName(fromStr ?? "");
 }
 
-/** Message-like shape for export filename */
+/** Get the first letter of a sender's name. */
+export function initial(fromStr: string | null | undefined): string {
+  return coreInitial(fromStr ?? "");
+}
+
+/** Generate a safe filename slug from a subject string. */
+export function slugify(subject: string | null | undefined): string {
+  return coreSluglify(subject ?? "");
+}
+
+/** Message-like shape for export filename. */
 export interface MessageLike {
   subject?: string;
   date?: string | number;
@@ -58,12 +62,19 @@ export interface MessageLike {
 
 /**
  * Generate a safe export filename from an email message.
+ * Wraps core exportFilename(subject, dateMs, ext).
  */
 export function exportFilename(message: MessageLike, ext: string): string {
-  return `${shortDate(message.date)}_${slugify(message.subject)}.${ext}`;
+  const dateMs =
+    message.date == null
+      ? 0
+      : typeof message.date === "number"
+        ? message.date
+        : new Date(message.date).getTime();
+  return coreExportFilename(message.subject ?? "", dateMs, ext);
 }
 
-/** Item with optional action and date for grouping */
+/** Item with optional action and date for grouping. */
 export interface ItemWithAction {
   action?: string;
   date?: number | null;

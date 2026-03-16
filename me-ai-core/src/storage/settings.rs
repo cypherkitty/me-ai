@@ -399,6 +399,10 @@ pub async fn load_settings(db: DbRef<'_>) -> Result<SettingValue, CoreError> {
         sv.ai_backend = AiBackend::from_str(&s);
     }
     load_str!(selected_model, KEY_SELECTED_MODEL);
+    // Migrate legacy bare model IDs that predate reasoning-effort variants.
+    if sv.selected_model.as_deref() == Some("gpt-5.4") {
+        sv.selected_model = Some("gpt-5.4-medium".to_string());
+    }
     load_str!(load_dtype, KEY_LOAD_DTYPE);
     load_str!(load_device, KEY_LOAD_DEVICE);
     load_str!(google_client_id, KEY_GOOGLE_CLIENT_ID);

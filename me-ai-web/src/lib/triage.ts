@@ -16,9 +16,13 @@ import {
   clearEmailClassifications as coreClearEmailClassifications,
   deleteEmailClassificationsByAction as coreDeleteEmailClassificationsByAction,
   deleteEmailClassification as coreDeleteEmailClassification,
+  buildSystemPrompt as coreBuildSystemPrompt,
+  parseClassification as coreParseClassification,
+  formatEmailPrompt as coreFormatEmailPrompt,
+  actionColor as coreActionColor,
+  tagColor as coreTagColor,
 } from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
-import { stringToHue } from "./format.js";
 import { groupByAction } from "./email-utils.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
@@ -46,7 +50,7 @@ export interface TriageEngine {
   ): Promise<{ text: string; tps: number | null; numTokens: number; inputTokens: number }>;
 }
 
-/** Plugin metadata passed to buildSystemPrompt. */
+/** Plugin metadata used internally for prompt building. */
 interface PluginForPrompt {
   pluginId: string;
   pluginName: string;
@@ -127,63 +131,6 @@ export interface ClassificationRow {
   [key: string]: unknown;
 }
 
-/**
- * Build the system prompt dynamically from the currently registered plugins.
- */
-export function buildSystemPrompt(plugins: PluginForPrompt[]): string {
-  const pluginNames = plugins
-    .filter((p) => p.actions.length)
-    .map((p) => p.pluginName)
-    .join(", ");
-
-  return `You are a message classifier. Analyze this message and produce a classification.
-
-Output ONLY a valid JSON object — no markdown, no explanation, no extra text.
-
-Format:
-{
-  "action": "EVENT_TYPE_NAME",
-  "category": "noise",
-  "reason": "One sentence explaining why",
-  "summary": "2-3 sentence summary of the message content",
-  "tags": ["tag1", "tag2", "tag3"]
-}
-
-Guidelines for "action" (Event Type):
-- Condense the message's core purpose into a distinct, high-level event type.
-- This MUST be a flexible, dynamically generated string categorizing the *nature* of the message.
-- Examples: RECEIPT, SHIPPING_UPDATE, NEWSLETTER, SECURITY_ALERT, ACCOUNT_NOTICE, PROMOTION, BILLING_REMINDER, JOB_ALERT, SOCIAL_MENTION
-- Do not use verbs. Use noun phrases that describe the event type.
-- Reuse existing event types when the message fits — avoid creating very similar types.
-
-Guidelines for "category" (Event Category — exactly three tiers):
-- "noise"    — Pure spam, mass marketing, social media digests, promotional blasts. Will be automatically deleted. Use ONLY when you are certain.
-- "info"     — Useful but not urgent: newsletters, shipping updates, social notifications, automated confirmations. Will be silently archived.
-- "critical" — Requires attention: personal messages, work emails, invoices, account changes, financial transactions, security alerts. User must review.
-- When in doubt, always use "critical" — it is safer.
-- "noise" auto-deletes, so be extremely conservative with it.
-
-Guidelines for "tags":
-- 2-5 short lowercase tags describing the message's nature
-- Examples: ad, promotion, newsletter, delivery, billing, personal, work, social, receipt, shipping, subscription, security, update, notification, finance, travel
-- Be descriptive and specific
-
-Guidelines for "summary":
-- 2-3 sentences capturing the key information
-- Include specific details: amounts, dates, names, tracking numbers, deadlines
-- Write from the perspective of what matters to the recipient
-
-Active integrations: ${pluginNames || "(none)"}
-
-Rules:
-- Output ONLY the JSON object, nothing else. No prefixes like ---set or --set, no markdown, no code fences.
-- "action" must be UPPER_SNAKE_CASE and describe the message type (e.g. PROMOTION, RECEIPT). Never use connection strings, config values, or technical jargon.
-- "category" must be exactly one of: "noise", "info", "critical"
-- "reason" and "summary" must be plain English about the message content only. Do not insert config variables or technical strings.
-- "tags" must be an array of lowercase strings
-- "summary" must be a string`;
-}
-
 function getPluginsForPrompt(): PluginForPrompt[] {
   const raw = coreGetPluginsForPrompt();
   if (!Array.isArray(raw)) return [];
@@ -196,9 +143,11 @@ function getPluginsForPrompt(): PluginForPrompt[] {
   );
 }
 
-/** System prompt for classification. Built lazily when core is initialized. */
+/** System prompt for classification. Built from core using registered plugin names. */
 export function getSystemPrompt(): string {
-  return buildSystemPrompt(getPluginsForPrompt());
+  const plugins = getPluginsForPrompt();
+  const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
+  return coreBuildSystemPrompt(pluginNames);
 }
 
 
@@ -250,8 +199,8 @@ export async function scanEmails(
   const results: unknown[] = [];
 
   const plugins = getPluginsForPrompt();
-  const systemPrompt = buildSystemPrompt(plugins);
-  const validActionIds = new Set(plugins.flatMap((p) => p.actions.map((a) => a.actionId)));
+  const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
+  const systemPrompt = coreBuildSystemPrompt(pluginNames);
 
   const currentModel = engine.modelId;
   const modelInfo = getModelInfo(currentModel ?? "") ?? getOllamaModelInfo(currentModel ?? "");
@@ -278,7 +227,14 @@ export async function scanEmails(
     if (signal?.aborted) break;
 
     const email = toProcess[i];
-    const emailPrompt = formatEmailPrompt(email);
+    const emailPrompt = coreFormatEmailPrompt(
+      email.subject || "",
+      email.from || "",
+      (email as { to?: string }).to || "",
+      email.date ?? 0,
+      ((email as { labels?: string[] }).labels ?? []).join(", "),
+      (email as { body?: string }).body ?? (email as { snippet?: string }).snippet ?? ""
+    );
     const promptMessages = [
       { role: "system", content: systemPrompt },
       { role: "user", content: emailPrompt },
@@ -324,7 +280,23 @@ export async function scanEmails(
       totalOutputTokens += numTokens;
       totalInputTokens += inputTokens;
 
-      const classification = parseClassification(response, validActionIds);
+      const coreResult = coreParseClassification(response);
+      const classification: ClassificationResult | null = coreResult
+        ? {
+            action: coreResult.action,
+            category: coreResult.category as "noise" | "info" | "critical",
+            categoryTier: coreResult.categoryTier as "NOISE" | "INFO" | "CRITICAL",
+            suggestedActions: [],
+            reason: coreResult.reason,
+            summary: coreResult.summary,
+            tags: (() => {
+              try {
+                const parsed = JSON.parse(coreResult.tags) as unknown;
+                return Array.isArray(parsed) ? (parsed as string[]) : [];
+              } catch { return []; }
+            })(),
+          }
+        : null;
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
@@ -522,154 +494,49 @@ function normaliseClassificationRow(row: Record<string, unknown>): Classificatio
   } as ClassificationRow;
 }
 
+/** Format an email as a prompt string for the LLM classifier. */
 export function formatEmailPrompt(email: StoredItem | { subject?: string; from?: string; to?: string; date?: number | null; body?: string; snippet?: string; labels?: string[] }): string {
-  const date =
-    email.date != null
-      ? new Date(email.date).toLocaleDateString("en-US", {
-          weekday: "short",
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        })
-      : "Unknown date";
-  const body = (email as { body?: string }).body ?? (email as { snippet?: string }).snippet ?? "";
-
-  return [
-    `Subject: ${(email as { subject?: string }).subject}`,
-    `From: ${(email as { from?: string }).from}`,
-    `To: ${(email as { to?: string }).to ?? "me"}`,
-    `Date: ${date}`,
-    `Labels: ${((email as { labels?: string[] }).labels ?? []).join(", ")}`,
-    "",
-    body,
-  ].join("\n");
+  return coreFormatEmailPrompt(
+    (email as { subject?: string }).subject || "",
+    (email as { from?: string }).from || "",
+    (email as { to?: string }).to || "",
+    email.date ?? 0,
+    ((email as { labels?: string[] }).labels ?? []).join(", "),
+    (email as { body?: string }).body ?? (email as { snippet?: string }).snippet ?? ""
+  );
 }
 
 /**
  * Parse the LLM's JSON response for a single message classification.
+ * Delegates to me-ai-core.
  */
 export function parseClassification(
   response: string | null | undefined,
   _knownActionIds?: Set<string>
 ): ClassificationResult | null {
   if (response == null || typeof response !== "string" || !response.trim()) return null;
-
-  let text = response.trim();
-  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  text = text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "");
-  text = text.replace(/^[\s-]*set\s+/gi, "").replace(/^---+\s*/, "");
-  text = text.trim();
-
-  const firstBracket = text.indexOf("[");
-  const firstBrace = text.indexOf("{");
-  const lastBracket = text.lastIndexOf("]");
-  const lastBrace = text.lastIndexOf("}");
-
-  if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
-    const arrayStr = text.slice(firstBracket, lastBracket + 1);
-    try {
-      const parsed = JSON.parse(arrayStr);
-      if (Array.isArray(parsed)) return null;
-    } catch {
-      /* fall through */
-    }
-  }
-
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    console.warn("Triage: no JSON object found in response");
-    return null;
-  }
-
-  let jsonStr = text.slice(firstBrace, lastBrace + 1);
-  jsonStr = jsonStr.replace(/\s*--set\s+/gi, " ");
-
+  const result = coreParseClassification(response);
+  if (!result) return null;
+  let tags: string[] = [];
   try {
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-
-    const rawAction = String(parsed.action ?? "").trim();
-    if (/[=]|postgres|sslmode|require|connection|config/i.test(rawAction)) {
-      console.warn("Triage: invalid action (looks like config/jargon):", rawAction.slice(0, 60));
-      return null;
-    }
-
-    const action = normalizeAction(rawAction);
-    if (!action) {
-      console.warn("Triage: missing or invalid action field");
-      return null;
-    }
-    if (action.length > 50 || /POSTGRES|SSLMODE|REQUIRE|CONNECTION/.test(action)) {
-      console.warn("Triage: action rejected as jargon:", action.slice(0, 40));
-      return null;
-    }
-
-    const VALID_CATEGORIES = ["noise", "info", "critical"];
-    const rawCategory = (String(parsed.category ?? "")).toLowerCase().trim();
-    const parsedCategoryTier = parsed.categoryTier as string | undefined;
-    let category: "noise" | "info" | "critical";
-    if (VALID_CATEGORIES.includes(rawCategory)) {
-      category = rawCategory as "noise" | "info" | "critical";
-    } else if (rawCategory === "noise" || parsedCategoryTier === "NOISE") {
-      category = "noise";
-    } else if (rawCategory === "informational") {
-      category = "info";
-    } else if (
-      rawCategory === "important" ||
-      rawCategory === "urgent" ||
-      parsedCategoryTier === "CRITICAL" ||
-      parsedCategoryTier === "IMPORTANT" ||
-      parsedCategoryTier === "URGENT"
-    ) {
-      category = "critical";
-    } else {
-      category = "critical";
-    }
-
-    const categoryTier = category === "noise" ? "NOISE" : category === "info" ? "INFO" : "CRITICAL";
-    const suggestedActions: string[] = [];
-
-    let tags: string[] = [];
-    if (Array.isArray(parsed.tags)) {
-      tags = parsed.tags
-        .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
-        .map((t) => t.trim().toLowerCase())
-        .slice(0, 10);
-    }
-
-    const sanitize = (s: unknown): string => {
-      let out = String(s ?? "").trim();
-      out = out.replace(/\bpostgres[-\s]?sslmode\s*=\s*require\b/gi, "");
-      out = out.replace(/\s*--set\s+/gi, " ").replace(/\s{2,}/g, " ").trim();
-      return out.slice(0, 500);
-    };
-    const reason = sanitize(parsed.reason).slice(0, 300);
-    const summary = sanitize(parsed.summary).slice(0, 500);
-
-    return {
-      action,
-      category,
-      categoryTier,
-      suggestedActions,
-      reason,
-      summary,
-      tags,
-    };
-  } catch (e) {
-    console.warn("Triage: failed to parse JSON response:", e instanceof Error ? e.message : e);
-    return null;
-  }
-}
-
-function normalizeAction(raw: unknown): string | null {
-  if (!raw || typeof raw !== "string") return null;
-  const cleaned = raw.trim().toUpperCase().replace(/[\s-]+/g, "_").replace(/[^A-Z0-9_]/g, "");
-  return cleaned || null;
+    const parsed = JSON.parse(result.tags) as unknown;
+    if (Array.isArray(parsed)) tags = parsed as string[];
+  } catch { /* keep empty */ }
+  return {
+    action: result.action,
+    category: result.category as "noise" | "info" | "critical",
+    categoryTier: result.categoryTier as "NOISE" | "INFO" | "CRITICAL",
+    suggestedActions: [],
+    reason: result.reason,
+    summary: result.summary,
+    tags,
+  };
 }
 
 export function actionColor(action: string): string {
-  return `hsl(${stringToHue(action)}, 55%, 55%)`;
+  return coreActionColor(action);
 }
 
 export function tagColor(tag: string): string {
-  return `hsl(${stringToHue(tag)}, 40%, 35%)`;
+  return coreTagColor(tag);
 }

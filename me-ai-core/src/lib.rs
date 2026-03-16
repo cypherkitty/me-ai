@@ -10,6 +10,7 @@
 mod db;
 mod storage;
 mod error;
+mod formatting;
 mod llm;
 mod plugins;
 
@@ -18,7 +19,9 @@ use wasm_bindgen::prelude::*;
 
 use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
-use crate::llm::models::ApiModel;
+use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
+use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
+use crate::llm::triage::TriageClassification;
 use crate::plugins::{ActionInput, ActionMetadata, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
 use crate::storage::settings::SettingValue;
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
@@ -604,6 +607,269 @@ impl MeAiCore {
         Ok(llm::models::get_api_model_info(model_id))
     }
 
+    // ── ONNX model catalog ───────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = getOnnxModels)]
+    pub fn get_onnx_models(&self) -> Vec<OnnxModel> {
+        llm::models::get_onnx_models()
+    }
+
+    #[wasm_bindgen(js_name = getOnnxModelGroups)]
+    pub fn get_onnx_model_groups(&self) -> Vec<OnnxModelGroup> {
+        llm::models::get_onnx_model_groups()
+    }
+
+    #[wasm_bindgen(js_name = getOnnxModelInfo)]
+    pub fn get_onnx_model_info(&self, model_id: &str) -> Option<OnnxModel> {
+        llm::models::get_onnx_model_info(model_id)
+    }
+
+    // ── Ollama model catalog ─────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = getOllamaModels)]
+    pub fn get_ollama_models(&self) -> Vec<OllamaModel> {
+        llm::models::get_ollama_models()
+    }
+
+    #[wasm_bindgen(js_name = getOllamaModelInfo)]
+    pub fn get_ollama_model_info(&self, model_name: &str) -> Option<OllamaModel> {
+        llm::models::get_ollama_model_info(model_name)
+    }
+
+    #[wasm_bindgen(js_name = getRecommendedOllamaModels)]
+    pub fn get_recommended_ollama_models(&self) -> Vec<OllamaModel> {
+        llm::models::get_recommended_ollama_models()
+    }
+
+    // ── Ollama HTTP client ───────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = testOllamaConnection)]
+    pub async fn test_ollama_connection(&self, url: &str) -> Result<OllamaConnectionResult, JsValue> {
+        Ok(llm::ollama::test_ollama_connection(url).await?)
+    }
+
+    #[wasm_bindgen(js_name = listOllamaModels)]
+    pub async fn list_ollama_models(&self, url: &str) -> Result<Vec<OllamaModelTag>, JsValue> {
+        Ok(llm::ollama::list_ollama_models(url).await?)
+    }
+
+    // ── Formatting utilities ─────────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = formatBytes)]
+    pub fn format_bytes(&self, bytes: u64) -> String {
+        formatting::format_bytes(bytes)
+    }
+
+    #[wasm_bindgen(js_name = formatBytesPrecise)]
+    pub fn format_bytes_precise(&self, bytes: u64) -> String {
+        formatting::format_bytes_precise(bytes)
+    }
+
+    #[wasm_bindgen(js_name = progressPct)]
+    pub fn progress_pct(&self, loaded: u64, total: u64) -> f64 {
+        formatting::progress_pct(loaded, total)
+    }
+
+    #[wasm_bindgen(js_name = truncate)]
+    pub fn truncate(&self, s: &str, max_len: u32) -> String {
+        formatting::truncate(s, max_len as usize)
+    }
+
+    #[wasm_bindgen(js_name = stringToHue)]
+    pub fn string_to_hue(&self, s: &str) -> u32 {
+        formatting::string_to_hue(s)
+    }
+
+    #[wasm_bindgen(js_name = extractName)]
+    pub fn extract_name(&self, from_str: &str) -> String {
+        formatting::extract_name(from_str)
+    }
+
+    #[wasm_bindgen(js_name = initial)]
+    pub fn initial(&self, from_str: &str) -> String {
+        formatting::initial(from_str)
+    }
+
+    #[wasm_bindgen(js_name = slugify)]
+    pub fn slugify(&self, subject: &str) -> String {
+        formatting::slugify(subject)
+    }
+
+    #[wasm_bindgen(js_name = shortDate)]
+    pub fn short_date(&self, date_ms: f64) -> String {
+        formatting::short_date(date_ms as i64)
+    }
+
+    #[wasm_bindgen(js_name = exportFilename)]
+    pub fn export_filename(&self, subject: &str, date_ms: f64, ext: &str) -> String {
+        formatting::export_filename(subject, date_ms as i64, ext)
+    }
+
+    // ── Triage ───────────────────────────────────────────────────────────────────
+
+    /// Build the LLM classification system prompt.
+    /// `plugin_names`: comma-separated list of active plugin names (e.g. "Gmail, Twitter/X")
+    #[wasm_bindgen(js_name = buildSystemPrompt)]
+    pub fn build_system_prompt(&self, plugin_names: &str) -> String {
+        llm::triage::build_system_prompt(plugin_names)
+    }
+
+    /// Parse an LLM classification response. Returns None if invalid.
+    #[wasm_bindgen(js_name = parseClassification)]
+    pub fn parse_classification(&self, response: &str) -> Option<TriageClassification> {
+        llm::triage::parse_classification(response)
+    }
+
+    /// Format an email as an LLM prompt.
+    #[wasm_bindgen(js_name = formatEmailPrompt)]
+    pub fn format_email_prompt(
+        &self,
+        subject: &str,
+        from: &str,
+        to: &str,
+        date_ms: f64,
+        labels: &str,
+        body: &str,
+    ) -> String {
+        llm::triage::format_email_prompt(subject, from, to, date_ms as i64, labels, body)
+    }
+
+    /// CSS color for an action name.
+    #[wasm_bindgen(js_name = actionColor)]
+    pub fn action_color(&self, action: &str) -> String {
+        llm::triage::action_color(action)
+    }
+
+    /// CSS color for a tag name.
+    #[wasm_bindgen(js_name = tagColor)]
+    pub fn tag_color(&self, tag: &str) -> String {
+        llm::triage::tag_color(tag)
+    }
+
+    // ── Data queries for LLM context ─────────────────────────────────────────────
+
+    /// Compact data summary for the LLM system prompt. Returns empty string if no data.
+    #[wasm_bindgen(js_name = getDataSummary)]
+    pub async fn get_data_summary(&self) -> Result<String, JsValue> {
+        let db = self.rexie_db.db();
+        let total_emails = storage::items::get_items_count_gmail(db).await.unwrap_or(0);
+        if total_emails == 0 { return Ok(String::new()); }
+        let total_contacts = storage::items::get_contacts_count(db).await.unwrap_or(0);
+        let mut lines = vec![format!("Stored data: {} emails, {} contacts.", total_emails, total_contacts)];
+        let min = storage::items::get_items_date_min(db).await.unwrap_or(None);
+        let max = storage::items::get_items_date_max(db).await.unwrap_or(None);
+        if let (Some(oldest), Some(newest)) = (min, max) {
+            let from = formatting::short_date(oldest);
+            let to = formatting::short_date(newest);
+            lines.push(format!("Date range: {} to {}.", from, to));
+        }
+        Ok(lines.join(" "))
+    }
+
+    /// Detailed markdown summary for LLM email context.
+    #[wasm_bindgen(js_name = getDetailedSummary)]
+    pub async fn get_detailed_summary(&self) -> Result<String, JsValue> {
+        let db = self.rexie_db.db();
+        let total_emails = storage::items::get_items_count_gmail(db).await.unwrap_or(0);
+        if total_emails == 0 { return Ok("No emails stored locally.".to_string()); }
+        let total_contacts = storage::items::get_contacts_count(db).await.unwrap_or(0);
+        let mut parts = vec![
+            "## Data Summary".to_string(),
+            format!("- **Emails:** {}", total_emails),
+            format!("- **Contacts:** {}", total_contacts),
+        ];
+        let min = storage::items::get_items_date_min(db).await.unwrap_or(None);
+        let max = storage::items::get_items_date_max(db).await.unwrap_or(None);
+        if let (Some(oldest), Some(newest)) = (min, max) {
+            parts.push(format!("- **Date range:** {} — {}", formatting::short_date(oldest), formatting::short_date(newest)));
+        }
+        Ok(parts.join("\n"))
+    }
+
+    /// Recent emails formatted for LLM context.
+    #[wasm_bindgen(js_name = getRecentEmailsContext)]
+    pub async fn get_recent_emails_context(&self, limit: u32) -> Result<String, JsValue> {
+        let db = self.rexie_db.db();
+        let items = storage::sync::get_items_gmail_by_date_desc(db, limit).await?;
+        if items.is_empty() { return Ok("No emails stored locally.".to_string()); }
+        let parts: Vec<String> = items.iter().map(|item| format_item_for_llm(item)).collect();
+        Ok(parts.join("\n\n---\n\n"))
+    }
+
+    /// Build compact LLM context string. Returns empty string if no data.
+    #[wasm_bindgen(js_name = buildLlmContext)]
+    pub async fn build_llm_context(&self) -> Result<String, JsValue> {
+        let summary = self.get_data_summary().await?;
+        if summary.is_empty() { return Ok(String::new()); }
+        let mut parts = vec![
+            "You have access to the user's locally stored data.".to_string(),
+            summary,
+            "The user can ask you about their emails. If they do, you can see recent emails and search results that will be provided.".to_string(),
+        ];
+        // Check pending actions
+        let db = self.rexie_db.db();
+        let pending_count = storage::classifications::count_pending_classifications(db).await.unwrap_or(0);
+        if pending_count > 0 {
+            parts.push(format!("Pending emails awaiting manual execution: {} total.", pending_count));
+            parts.push("If the user asks you to execute or handle a pending category, append [EXECUTE:CATEGORY:EVENT_TYPE] to the end of your response.".to_string());
+            parts.push("If the user asks to SEE or MANAGE their events/emails/noise, append [SHOW:DASHBOARD] to the end of your response to spawn a visual dashboard for them.".to_string());
+        }
+        Ok(parts.join(" "))
+    }
+
+    /// Build rich email context string for LLM when user asks about emails.
+    #[wasm_bindgen(js_name = buildEmailContext)]
+    pub async fn build_email_context(&self, user_query: Option<String>) -> Result<String, JsValue> {
+        let detailed = self.get_detailed_summary().await?;
+        let mut parts = vec![detailed];
+
+        let db = self.rexie_db.db();
+        let pending_count = storage::classifications::count_pending_classifications(db).await.unwrap_or(0);
+        if pending_count > 0 {
+            parts.extend([
+                String::new(),
+                "## Pending Actions (Triage)".to_string(),
+                format!("The user has {} emails awaiting manual execution.", pending_count),
+                String::new(),
+                "## AI Control Actions".to_string(),
+                "If the user asks you to execute, process, or handle pending emails by category, you MUST output a special command tag at the very end of your response: [EXECUTE:CATEGORY:EVENT_TYPE]".to_string(),
+                "If the user asks to SEE, MANAGE, or REVIEW their events/noise/emails visually, output this tag at the very end of your response: [SHOW:DASHBOARD]".to_string(),
+                "Only output these tags if the user explicitly requests or confirms the action.".to_string(),
+            ]);
+        }
+
+        let email_section = if let Some(q) = user_query.filter(|q| !q.is_empty()) {
+            let items = storage::sync::get_items_gmail_by_date_desc(db, 50).await?;
+            let q_lower = q.to_lowercase();
+            let matched: Vec<String> = items.iter()
+                .filter(|item| {
+                    item.subject.to_lowercase().contains(&q_lower)
+                        || item.from.to_lowercase().contains(&q_lower)
+                        || item.to.to_lowercase().contains(&q_lower)
+                        || item.snippet.to_lowercase().contains(&q_lower)
+                        || item.body.to_lowercase().contains(&q_lower)
+                })
+                .take(5)
+                .map(|item| format_item_for_llm(item))
+                .collect();
+            if matched.is_empty() {
+                "No matching emails found.".to_string()
+            } else {
+                format!("\n## Relevant Emails\n{}", matched.join("\n\n---\n\n"))
+            }
+        } else {
+            let items = storage::sync::get_items_gmail_by_date_desc(db, 5).await?;
+            if items.is_empty() {
+                "\n## Recent Emails\nNo emails stored locally.".to_string()
+            } else {
+                let formatted: Vec<String> = items.iter().map(|i| format_item_for_llm(i)).collect();
+                format!("\n## Recent Emails\n{}", formatted.join("\n\n---\n\n"))
+            }
+        };
+        parts.push(email_section);
+        Ok(parts.join("\n"))
+    }
+
     /// Test API connection for a provider
     #[wasm_bindgen(js_name = testApiConnection)]
     pub async fn test_api_connection(&self, provider: &str, api_key: &str) -> Result<bool, JsValue> {
@@ -638,4 +904,21 @@ impl MeAiCore {
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
     }
+}
+
+fn format_item_for_llm(item: &crate::storage::sync::ItemRow) -> String {
+    let date = if let Some(d) = item.date {
+        if d > 0 { crate::formatting::short_date(d) } else { "Unknown date".to_string() }
+    } else {
+        "Unknown date".to_string()
+    };
+    let body = crate::formatting::truncate(&item.body, 500);
+    [
+        format!("**Subject:** {}", item.subject),
+        format!("**From:** {}", item.from),
+        format!("**To:** {}", item.to),
+        format!("**Date:** {}", date),
+        String::new(),
+        body,
+    ].join("\n")
 }

@@ -1,7 +1,17 @@
 /**
  * Ollama API client for local LLM inference.
  * @see https://github.com/ollama/ollama/blob/main/docs/api.md
+ *
+ * testOllamaConnection and listOllamaModels delegate to me-ai-core (reqwest/WASM).
+ * Streaming functions remain here (fetch-based streaming not supported in WASM).
  */
+import {
+  testOllamaConnection as coreTestOllamaConnection,
+  listOllamaModels as coreListOllamaModels,
+} from "./core.js";
+
+// Re-export types from core for backwards compatibility
+export type { OllamaConnectionResult, OllamaModelTag } from "./core.js";
 
 const LOCAL_OLLAMA_URL = "http://localhost:11434";
 const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
@@ -36,65 +46,16 @@ export async function setOllamaUrl(url: string): Promise<void> {
   await saveSettings(sv);
 }
 
-export interface OllamaConnectionResult {
-  connected: boolean;
-  version?: string;
-  error?: string;
-  corsError?: boolean;
-}
-
 export async function testOllamaConnection(
   url: string = getOllamaUrl()
-): Promise<OllamaConnectionResult> {
-  try {
-    const response = await fetch(`${url}/api/version`, {
-      method: "GET",
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) {
-      return { connected: false, error: `HTTP ${response.status}` };
-    }
-    const data = (await response.json()) as { version?: string };
-    return { connected: true, version: data.version };
-  } catch (error) {
-    const err = error as Error & { name?: string };
-    const isCorsError =
-      err.message?.includes("CORS") ||
-      err.message?.includes("Failed to fetch") ||
-      err.name === "TypeError";
-    if (isCorsError) {
-      return {
-        connected: false,
-        corsError: true,
-        error:
-          "CORS error: Server must allow requests from this origin. Configure Access-Control-Allow-Origin header.",
-      };
-    }
-    return {
-      connected: false,
-      error: err.name === "TimeoutError" ? "Connection timeout" : err.message ?? String(error),
-    };
-  }
-}
-
-export interface OllamaModelTag {
-  name: string;
-  size?: number;
-  modified_at?: string;
+): Promise<import("./core.js").OllamaConnectionResult> {
+  return coreTestOllamaConnection(url);
 }
 
 export async function listOllamaModels(
   url: string = getOllamaUrl()
-): Promise<OllamaModelTag[]> {
-  const response = await fetch(`${url}/api/tags`, {
-    method: "GET",
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to list models: HTTP ${response.status}`);
-  }
-  const data = (await response.json()) as { models?: OllamaModelTag[] };
-  return data.models ?? [];
+): Promise<import("./core.js").OllamaModelTag[]> {
+  return coreListOllamaModels(url);
 }
 
 export async function pullOllamaModel(

@@ -112,6 +112,15 @@ pub async fn delete_classifications_by_action(db: DbRef<'_>, action: &str) -> Re
     Ok(())
 }
 
+/// Count classifications with status "pending" or "escalated".
+pub async fn count_pending_classifications(db: DbRef<'_>) -> Result<i64, CoreError> {
+    let all: Vec<ClassificationRow> = db.store_get_all(store::EMAIL_CLASSIFICATIONS, None, Some(50000)).await?;
+    let count = all.iter().filter(|r| {
+        r.status.as_deref() == Some("pending") || r.status.as_deref() == Some("escalated")
+    }).count();
+    Ok(count as i64)
+}
+
 /// Insert or replace one classification (for triage scan results).
 #[allow(clippy::too_many_arguments)]
 pub async fn put_classification(
