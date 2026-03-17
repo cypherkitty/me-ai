@@ -1,9 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    getRules, getEventTypes, getEventCategories, getActions, getExecutionPolicies,
-    createRule, updateRule, deleteRule, setRuleEnabled,
-  } from "../lib/rules.js";
+  import { getRules, createRule, updateRule, setRuleEnabled } from "../lib/rules.js";
+  import { getEventTypes, getEventCategories, getActions, deleteRule } from "../lib/core.js";
   import { Button }    from "$lib/components/ui/button/index.js";
   import { Badge }     from "$lib/components/ui/badge/index.js";
   import { Input }     from "$lib/components/ui/input/index.js";
@@ -67,18 +65,16 @@
   async function load() {
     loading = true;
     try {
-      const [rulesRaw, eventTypesRaw, eventCatsRaw, actionsRaw, policiesRaw] = await Promise.all([
+      const [rulesRaw, eventTypesRaw, eventCatsRaw, actionsRaw] = await Promise.all([
         getRules(),
         getEventTypes(),
         getEventCategories(),
         getActions(),
-        getExecutionPolicies(),
       ]);
       rules = rulesRaw as unknown as RuleItem[];
       eventTypes = eventTypesRaw as unknown as EventTypeItem[];
       eventCats = eventCatsRaw as unknown as EventTypeItem[];
       actions = actionsRaw as unknown as ActionItem[];
-      policies = policiesRaw as unknown as PolicyItem[];
     } catch (e) {
       console.error("RulesView load error:", e);
     }

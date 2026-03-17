@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getPlugins, setPluginEnabled } from "../lib/rules.js";
+  import { getPlugins, setPluginEnabled } from "../lib/core.js";
   import { Badge }      from "$lib/components/ui/badge/index.js";
   import { Switch }     from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";

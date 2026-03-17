@@ -4,12 +4,14 @@
     getCategoryPipelines,
     getPendingItemsByCategory,
     getPendingCountByCategory,
+  } from "../lib/rules.js";
+  import {
     updateCategoryPipeline,
     updateCategoryPolicy,
     deleteEventType,
-    moveEventTypeToCategory,
-    unassignEventTypeFromCategory,
-  } from "../lib/rules.js";
+    updateEventTypeCategory as moveEventTypeToCategory,
+    clearEventTypeCategory as unassignEventTypeFromCategory,
+  } from "../lib/core.js";
   import {
     executePipeline,
     isAuthenticated,

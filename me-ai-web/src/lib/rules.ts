@@ -1,62 +1,25 @@
 /**
- * Rule CRUD
+ * Rule CRUD and event-stat aggregation.
  *
- * SQL for seed data (event types, categories, sources, actions) lives in Rust.
- * This layer is thin: it calls core; Rust builds queries and passes them to the JS adapter.
+ * Thin wrappers (getEventTypes, getActions, deleteRule, etc.) have been removed —
+ * consumers import those directly from "$lib/core.js".
+ * This module keeps only functions with real business logic.
  */
 
 import {
-  getEventTypes as coreGetEventTypes,
-  getEventCategories as coreGetEventCategories,
-  getActions as coreGetActions,
-  getPlugins as coreGetPlugins,
   getRules as coreGetRules,
   getRule as coreGetRule,
   saveRule as coreSaveRule,
-  deleteRule as coreDeleteRule,
   getEmailClassifications as coreGetEmailClassifications,
+  getEventCategories as coreGetEventCategories,
   getAuditStats as coreGetAuditStats,
   getItemById as coreGetItemById,
-  updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
   getCategoryPipelineActions as coreGetCategoryPipelineActions,
-  updateCategoryPipeline as coreUpdateCategoryPipeline,
-  updateCategoryPolicy as coreUpdateCategoryPolicy,
-  updateEventTypeCategory as coreUpdateEventTypeCategory,
-  clearEventTypeCategory as coreClearEventTypeCategory,
-  deleteEventType as coreDeleteEventType,
-  setPluginEnabled as coreSetPluginEnabled,
-  findMatchingRules as coreFindMatchingRules,
-  getPipelineForEventResolved,
+  getEventTypes as coreGetEventTypes,
 } from "./core.js";
 import type { Rule, Action, Trigger } from "$lib/types";
-import type { CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay } from "./core.js";
+import type { CreateRuleInput, EventStats, PendingItemByCategory, CategoryPipelineDisplay } from "./core.js";
 export type { PendingItemByCategory, CategoryPipelineDisplay } from "./core.js";
-
-// ── Seed / static data (WASM core builds SQL and passes to adapter) ────────
-
-export async function getEventTypes(): Promise<Record<string, unknown>[]> {
-  const rows = await coreGetEventTypes();
-  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
-}
-
-export async function getEventCategories(): Promise<Record<string, unknown>[]> {
-  const rows = await coreGetEventCategories();
-  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
-}
-
-export async function getExecutionPolicies(): Promise<unknown[]> {
-  return [];
-}
-
-export async function getActions(): Promise<Record<string, unknown>[]> {
-  const rows = await coreGetActions();
-  return Array.isArray(rows) ? (rows as unknown as Record<string, unknown>[]) : [];
-}
-
-export async function getPlugins(): Promise<Record<string, unknown>[]> {
-  const plugins = ((await coreGetPlugins()) as unknown) as Record<string, unknown>[];
-  return Array.isArray(plugins) ? plugins : [];
-}
 
 // ── Rule queries ───────────────────────────────────────────────────────
 
@@ -148,10 +111,6 @@ export async function updateRule(id: string, updates: Partial<Rule>): Promise<vo
 
 export async function setRuleEnabled(id: string, enabled: boolean): Promise<void> {
   await updateRule(id, { enabled });
-}
-
-export async function deleteRule(id: string): Promise<void> {
-  await coreDeleteRule(id);
 }
 
 // ── Event stats ──────────────────────────────────────────────────────
@@ -282,24 +241,7 @@ export async function getPendingItemsByCategory(
   return out;
 }
 
-export async function rejectClassification(id: string): Promise<void> {
-  await coreUpdateEmailClassificationStatus(id, "escalated");
-}
-
-// ── Matching ──────────────────────────────────────────────────────────
-
-export async function findMatchingRules(
-  eventType: string,
-  eventCategory: string
-): Promise<Rule[]> {
-  return coreFindMatchingRules(eventType, eventCategory) as unknown as Promise<Rule[]>;
-}
-
-// ── Category-based pipeline resolution ─────────────────────────────────
-
-export async function getPipelineForEvent(eventType: string): Promise<PipelineForEvent | null> {
-  return getPipelineForEventResolved(eventType) as Promise<PipelineForEvent | null>;
-}
+// ── Category-based pipeline aggregation ─────────────────────────────────
 
 export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {
   const [categories, types] = await Promise.all([
@@ -337,37 +279,3 @@ export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]>
   }
   return result;
 }
-
-export async function updateCategoryPipeline(
-  categoryName: string,
-  actions: Array<{ pluginId: string; commandId: string }>
-): Promise<void> {
-  await coreUpdateCategoryPipeline(categoryName, actions);
-}
-
-export async function updateCategoryPolicy(
-  categoryName: string,
-  policy: string
-): Promise<void> {
-  await coreUpdateCategoryPolicy(categoryName, policy);
-}
-
-export async function moveEventTypeToCategory(
-  eventTypeName: string,
-  newCategory: string
-): Promise<void> {
-  await coreUpdateEventTypeCategory(eventTypeName, newCategory);
-}
-
-export async function unassignEventTypeFromCategory(eventTypeName: string): Promise<void> {
-  await coreClearEventTypeCategory(eventTypeName);
-}
-
-export async function deleteEventType(eventTypeName: string): Promise<void> {
-  await coreDeleteEventType(eventTypeName);
-}
-
-export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
-  await coreSetPluginEnabled(name, enabled);
-}
-

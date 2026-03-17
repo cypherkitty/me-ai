@@ -142,11 +142,12 @@ export async function getActionsForEvent(eventType: string): Promise<Action[]> {
   const userActions = map[normalized];
   if (Array.isArray(userActions) && userActions.length > 0) return userActions;
 
-  const { getPipelineForEvent } = await import("./rules.js");
-  const pipeline = await getPipelineForEvent(eventType);
+  const { getPipelineForEventResolved } = await import("./core.js");
+  const pipeline = await getPipelineForEventResolved(eventType) as
+    { actions?: Array<{ pluginId: string; commandId: string; order: number }> } | null;
   if (!pipeline?.actions?.length) return [];
 
-  return pipeline.actions.map((a, i) => ({
+  return pipeline.actions.map((a: { pluginId: string; commandId: string }, i: number) => ({
     id: (a.commandId || "cmd") + "_" + i,
     pluginId: a.pluginId ?? "",
     commandId: a.commandId ?? "",

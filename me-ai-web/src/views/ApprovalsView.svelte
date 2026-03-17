@@ -1,10 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    getPendingApprovals,
-    rejectClassification,
-    getCategoryPipelines,
-  } from "../lib/rules.js";
+  import { getPendingApprovals, getCategoryPipelines } from "../lib/rules.js";
+  import { updateEmailClassificationStatus } from "../lib/core.js";
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
   import { getItemById } from "../lib/core.js";
@@ -162,7 +159,7 @@
 
   async function reject(evt: ApprovalEvent) {
     try {
-      await rejectClassification(evt.id);
+      await updateEmailClassificationStatus(evt.id, "escalated");
       events = events.filter((e) => e.id !== evt.id);
       if (selected?.id === evt.id) selected = events[0] ?? null;
     } catch (e) {
