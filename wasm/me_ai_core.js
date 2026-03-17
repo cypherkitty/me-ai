@@ -2599,7 +2599,7 @@ export class MeAiCore {
     }
     /**
      * @param {any} actions
-     * @param {any} event
+     * @param {EventInput} event
      * @param {string} access_token
      * @param {Function | null} [on_progress]
      * @param {any | null} [config]
@@ -3616,7 +3616,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @param {any} event
+     * @param {EventInput} event
      * @param {boolean} approved
      * @param {any} actions_override
      * @param {Function | null} [on_progress]
@@ -3656,7 +3656,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @param {any} payload
+     * @param {RuleSavePayload} payload
      * @returns {Promise<void>}
      */
     saveRule(payload) {
