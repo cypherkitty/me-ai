@@ -14,6 +14,29 @@ use wasm_bindgen::prelude::*;
 
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const CLIENT_TYPES: &'static str = r#"
+export type ApiProvider = "openai" | "anthropic" | "google" | "xai";
+
+export interface ChatMessage {
+    role: string;
+    content: string;
+}
+
+export interface TokenPayload {
+    content: string;
+    done: boolean;
+    inputTokens: number;
+    outputTokens: number;
+}
+
+export interface ApiStreamOptions {
+    temperature?: number;
+    maxTokens?: number;
+    reasoningEffort?: string;
+}
+"#;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

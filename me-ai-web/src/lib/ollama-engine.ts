@@ -7,11 +7,9 @@ import {
   testOllamaConnection,
   getOllamaUrl,
 } from "./ollama-client.js";
+import type { EngineStatus, EngineMessage } from "./core.js";
 
-type Status = "idle" | "loading" | "ready" | "generating";
-type EngineMessage = Record<string, unknown>;
-
-let _status: Status = "idle";
+let _status: EngineStatus = "idle";
 let _modelName: string | null = null;
 const _listeners = new Set<(msg: EngineMessage) => void>();
 
@@ -195,7 +193,7 @@ export function getOllamaEngine() {
       _listeners.delete(fn);
     },
 
-    get status(): Status {
+    get status(): EngineStatus {
       return _status;
     },
     get isReady(): boolean {

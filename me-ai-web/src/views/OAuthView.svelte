@@ -10,8 +10,8 @@
     isTokenValid,
     getTokenTTL,
     revokeToken,
-  } from "../lib/google-auth.js";
-  import { loadSettings } from "../lib/core.js";
+  } from "$lib/google-auth";
+  import { loadSettings } from "$lib/core";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
     || "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
@@ -120,7 +120,7 @@
           <AlertCircle class="size-4 text-destructive shrink-0 mt-0.5" />
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-destructive">Authentication failed</p>
-            <p class="text-xs text-muted-foreground mt-0.5 break-words">{errorMsg}</p>
+            <p class="text-xs text-muted-foreground mt-0.5 wrap-break-word">{errorMsg}</p>
           </div>
         </div>
         <Button onclick={signIn} class="w-full gap-2" disabled={!initialized}>

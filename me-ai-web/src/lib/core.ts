@@ -25,6 +25,7 @@ export type {
   MessageLike,
   WorkerMessage, WorkerHandle, Listener,
   TriageEngine, PluginForPrompt,
+  ApiProvider, ChatMessage, TokenPayload, ApiStreamOptions, EngineStatus, EngineMessage, Backend,
 } from "me-ai-core";
 
 /**

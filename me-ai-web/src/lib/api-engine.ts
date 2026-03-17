@@ -9,13 +9,9 @@ import {
   streamChat as coreStreamChat,
   loadSettings,
 } from "./core.js";
+import type { ApiProvider, EngineStatus, EngineMessage } from "./core.js";
 
-type ApiProvider = "openai" | "anthropic" | "google" | "xai";
-
-type Status = "idle" | "loading" | "ready" | "generating";
-type EngineMessage = Record<string, unknown>;
-
-let _status: Status = "idle";
+let _status: EngineStatus = "idle";
 let _modelId: string | null = null;
 let _modelName: string | null = null;
 let _provider: ApiProvider | null = null;
@@ -259,7 +255,7 @@ export function getApiEngine(provider: ApiProvider) {
       _listeners.delete(fn);
     },
 
-    get status(): Status {
+    get status(): EngineStatus {
       return _status;
     },
     get isReady(): boolean {

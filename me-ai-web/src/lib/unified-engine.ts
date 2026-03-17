@@ -8,8 +8,7 @@ import { getApiEngine } from "./api-engine.js";
 import { getModelInfo } from "./models.js";
 import { getOllamaModelInfo } from "./ollama-models.js";
 import { getApiModelInfo } from "./api-models.js";
-
-type Backend = "webgpu" | "ollama" | "openai" | "anthropic" | "xai" | "google";
+import type { Backend } from "./core.js";
 type Engine = {
   loadModel: (modelId: string, options?: Record<string, unknown>) => void;
   check: () => void;

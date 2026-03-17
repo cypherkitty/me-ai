@@ -28,3 +28,12 @@ export interface WorkerHandle {
 
 export type Listener = (msg: WorkerMessage) => void;
 "#;
+
+#[wasm_bindgen(typescript_custom_section)]
+const ENGINE_SHARED_TYPES: &'static str = r#"
+export type EngineStatus = "idle" | "loading" | "ready" | "generating";
+
+export type EngineMessage = Record<string, unknown>;
+
+export type Backend = "webgpu" | "ollama" | "openai" | "anthropic" | "xai" | "google";
+"#;

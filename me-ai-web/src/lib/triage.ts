@@ -30,7 +30,7 @@ import { getApiModelInfo } from "./api-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
-import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions, TriageEngine, PluginForPrompt } from "./core.js";
+import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions, TriageEngine } from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
 
 const DEFAULT_COUNT = 20;
@@ -42,21 +42,9 @@ export const CLASSIFICATION_CONFIG = {
   doSample: false,
 };
 
-function getPluginsForPrompt(): PluginForPrompt[] {
-  const raw = coreGetPluginsForPrompt();
-  if (!Array.isArray(raw)) return [];
-  return (raw as Array<{ plugin_id?: string; pluginName?: string; actions?: Array<{ actionId?: string }> }>).map(
-    (p) => ({
-      pluginId: p.plugin_id ?? "",
-      pluginName: p.pluginName ?? "",
-      actions: (p.actions ?? []).map((a) => ({ actionId: a.actionId ?? "" })),
-    })
-  );
-}
-
 /** System prompt for classification. Built from core using registered plugin names. */
 export function getSystemPrompt(): string {
-  const plugins = getPluginsForPrompt();
+  const plugins = coreGetPluginsForPrompt();
   const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
   return coreBuildSystemPrompt(pluginNames);
 }
@@ -109,7 +97,7 @@ export async function scanEmails(
   let totalInputTokens = 0;
   const results: unknown[] = [];
 
-  const plugins = getPluginsForPrompt();
+  const plugins = coreGetPluginsForPrompt();
   const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
   const systemPrompt = coreBuildSystemPrompt(pluginNames);
 
