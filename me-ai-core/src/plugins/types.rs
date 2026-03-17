@@ -6,12 +6,14 @@ use wasm_bindgen::prelude::*;
 #[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
 #[tsify(from_wasm_abi)]
 pub struct ActionInput {
-    pub id: Option<String>,
-    #[serde(rename = "pluginId")]
-    pub plugin_id: Option<String>,
-    #[serde(rename = "commandId")]
-    pub command_id: Option<String>,
-    pub name: Option<String>,
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "pluginId", default)]
+    pub plugin_id: String,
+    #[serde(rename = "commandId", default)]
+    pub command_id: String,
+    #[serde(default)]
+    pub name: String,
 }
 
 /// Input event for pipeline execution.
@@ -62,13 +64,13 @@ impl PluginResult {
 #[derive(Clone, Debug)]
 pub struct ActionResult {
     #[wasm_bindgen(js_name = "actionId")]
-    pub action_id: Option<String>,
+    pub action_id: String,
     #[wasm_bindgen(js_name = "actionName")]
-    pub action_name: Option<String>,
+    pub action_name: String,
     #[wasm_bindgen(js_name = "pluginId")]
-    pub plugin_id: Option<String>,
+    pub plugin_id: String,
     #[wasm_bindgen(js_name = "commandId")]
-    pub command_id: Option<String>,
+    pub command_id: String,
     pub success: bool,
     pub message: String,
     /// Serialized action data as a JS value (object or null).
@@ -107,10 +109,10 @@ mod tests {
 
 impl ActionResult {
     pub fn from_plugin_result(
-        action_id: Option<String>,
-        action_name: Option<String>,
-        plugin_id: Option<String>,
-        command_id: Option<String>,
+        action_id: String,
+        action_name: String,
+        plugin_id: String,
+        command_id: String,
         result: PluginResult,
     ) -> Self {
         let data = result

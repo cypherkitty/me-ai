@@ -25,39 +25,39 @@ struct PipelineResultSummary {
 enum ProgressEvent {
     Executing {
         #[serde(rename = "actionId")]
-        action_id: Option<String>,
+        action_id: String,
         #[serde(rename = "actionName")]
-        action_name: Option<String>,
+        action_name: String,
     },
     Completed {
         #[serde(rename = "actionId")]
-        action_id: Option<String>,
+        action_id: String,
         #[serde(rename = "actionName")]
-        action_name: Option<String>,
+        action_name: String,
         result: PluginResult,
     },
     Failed {
         #[serde(rename = "actionId")]
-        action_id: Option<String>,
+        action_id: String,
         #[serde(rename = "actionName")]
-        action_name: Option<String>,
+        action_name: String,
         error: String,
     },
     ActionStart {
         #[serde(rename = "actionId")]
-        action_id: Option<String>,
+        action_id: String,
         #[serde(rename = "actionName")]
-        action_name: Option<String>,
+        action_name: String,
         #[serde(rename = "pluginId")]
-        plugin_id: Option<String>,
+        plugin_id: String,
         #[serde(rename = "commandId")]
-        command_id: Option<String>,
+        command_id: String,
     },
     ActionComplete {
         #[serde(rename = "actionId")]
-        action_id: Option<String>,
+        action_id: String,
         #[serde(rename = "actionName")]
-        action_name: Option<String>,
+        action_name: String,
         result: PluginResult,
     },
     BatchEventStart {
@@ -94,19 +94,22 @@ pub(crate) fn emit_progress<T: Serialize>(cb: &Option<Function>, payload: &T) {
 }
 
 fn resolve_action_plugin(action: &ActionInput, event: &EventInput) -> PluginId {
-    match action.plugin_id.as_deref() {
-        Some(id) => PluginId::from_source(id),
-        None => PluginId::from_source(&event.source),
+    if action.plugin_id.is_empty() {
+        PluginId::from_source(&event.source)
+    } else {
+        PluginId::from_source(&action.plugin_id)
     }
 }
 
 async fn execute_action(action: &ActionInput, ctx: &PluginContext) -> PluginResult {
     let plugin = resolve_action_plugin(action, &ctx.event);
-    let mut command_id = action
-        .command_id
-        .clone()
-        .or_else(|| action.id.clone())
-        .unwrap_or_default();
+    let mut command_id = if !action.command_id.is_empty() {
+        action.command_id.clone()
+    } else if !action.id.is_empty() {
+        action.id.clone()
+    } else {
+        String::new()
+    };
 
     let plugin_id = plugin.as_str();
     if !plugin_id.is_empty() {
@@ -213,7 +216,7 @@ pub async fn execute_pipeline(
         let action_result = ActionResult::from_plugin_result(
             action.id.clone(),
             action.name.clone(),
-            Some(resolved_plugin_id),
+            resolved_plugin_id,
             action.command_id.clone(),
             result,
         );
@@ -224,9 +227,7 @@ pub async fn execute_pipeline(
     let failure_messages = failed_results
         .iter()
         .map(|r| {
-            let plugin_id = r.plugin_id.clone().unwrap_or_else(|| "undefined".to_string());
-            let command_id = r.command_id.clone().unwrap_or_else(|| "undefined".to_string());
-                format!("{plugin_id}·{command_id}: {}", r.message)
+                format!("{}·{}: {}", r.plugin_id, r.command_id, r.message)
         })
         .collect::<Vec<String>>()
         .join("; ");
@@ -234,9 +235,7 @@ pub async fn execute_pipeline(
         .iter()
         .filter(|r| r.success)
         .map(|r| {
-            let plugin_id = r.plugin_id.clone().unwrap_or_else(|| "undefined".to_string());
-            let command_id = r.command_id.clone().unwrap_or_else(|| "undefined".to_string());
-            format!("{plugin_id}·{command_id}")
+            format!("{}·{}", r.plugin_id, r.command_id)
         })
         .collect::<Vec<String>>()
         .join(", ");

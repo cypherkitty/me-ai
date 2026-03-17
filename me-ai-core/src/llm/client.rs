@@ -10,6 +10,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::error::CoreError;
@@ -63,7 +64,8 @@ impl FromStr for Provider {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
@@ -78,7 +80,8 @@ pub struct TokenPayload {
     pub output_tokens: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct StreamOptions {
     pub temperature: Option<f64>,

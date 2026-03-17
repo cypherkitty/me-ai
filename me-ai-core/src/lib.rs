@@ -17,17 +17,10 @@ mod llm;
 mod plugins;
 
 use js_sys::Function;
-use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
 
 use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
-
-/// Deserialize a JsValue into a Rust type, mapping errors to JsValue.
-fn from_js<T: DeserializeOwned>(val: JsValue) -> Result<T, JsValue> {
-    serde_wasm_bindgen::from_value(val)
-        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))
-}
 use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
@@ -40,7 +33,7 @@ use crate::storage::classifications::{ClassificationRow, ClassificationDoc, Clas
 use crate::storage::events::{EventCategoryRow, EventTypeRow};
 use crate::storage::pipelines::{PipelineActionInput, PipelineActionRow};
 use crate::storage::rules::{CreateRulePayload, EventRow, RuleSavePayload, RuleUpdateInput, RuleView};
-use crate::storage::sync::{ContactRow, ItemRow, SyncStateRow};
+use crate::storage::sync::{ContactRow, ItemRow, SyncStateRow, ItemInput, SyncStateInput, ContactInput};
 
 /// Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
 #[wasm_bindgen(js_name = MeAiCore)]
@@ -341,9 +334,8 @@ impl MeAiCore {
     }
 
     #[wasm_bindgen(js_name = updateCategoryPipeline)]
-    pub async fn update_category_pipeline(&self, category_name: &str, actions_js: JsValue) -> Result<(), JsValue> {
+    pub async fn update_category_pipeline(&self, category_name: &str, actions: Vec<PipelineActionInput>) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
-        let actions: Vec<PipelineActionInput> = from_js(actions_js)?;
         let pairs: Vec<(String, String)> = actions
             .into_iter()
             .map(|a| (a.plugin_id, a.command_id))
@@ -438,25 +430,25 @@ impl MeAiCore {
     }
 
     #[wasm_bindgen(js_name = insertItemsBatch)]
-    pub async fn insert_items_batch(&self, rows: JsValue) -> Result<(), JsValue> {
+    pub async fn insert_items_batch(&self, rows: Vec<ItemInput>) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::sync::insert_items_batch(db, rows).await?)
     }
 
     #[wasm_bindgen(js_name = insertSyncStateBatch)]
-    pub async fn insert_sync_state_batch(&self, rows: JsValue) -> Result<(), JsValue> {
+    pub async fn insert_sync_state_batch(&self, rows: Vec<SyncStateInput>) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::sync::insert_sync_state_batch(db, rows).await?)
     }
 
     #[wasm_bindgen(js_name = insertContactsBatch)]
-    pub async fn insert_contacts_batch(&self, rows: JsValue) -> Result<(), JsValue> {
+    pub async fn insert_contacts_batch(&self, rows: Vec<ContactInput>) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::sync::insert_contacts_batch(db, rows).await?)
     }
 
     #[wasm_bindgen(js_name = deleteItemsByIds)]
-    pub async fn delete_items_by_ids(&self, ids: JsValue) -> Result<(), JsValue> {
+    pub async fn delete_items_by_ids(&self, ids: Vec<String>) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::sync::delete_items_by_ids(db, ids).await?)
     }
@@ -507,15 +499,17 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = executePipeline)]
     pub async fn execute_pipeline(
         &self,
-        actions: JsValue,
+        actions: Vec<ActionInput>,
         event: EventInput,
         access_token: String,
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineResult, JsValue> {
-        let actions: Vec<ActionInput> = from_js(actions)?;
         let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => Some(from_js(v)?),
+            Some(v) if !v.is_null() && !v.is_undefined() => {
+                Some(serde_wasm_bindgen::from_value(v)
+                    .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
+            }
             _ => None,
         };
         Ok(plugins::execute_pipeline(actions, event, access_token, on_progress, config).await?)
@@ -524,16 +518,17 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = executePipelineBatch)]
     pub async fn execute_pipeline_batch(
         &self,
-        actions: JsValue,
-        events: JsValue,
+        actions: Vec<ActionInput>,
+        events: Vec<EventInput>,
         access_token: String,
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineBatchResult, JsValue> {
-        let actions: Vec<ActionInput> = from_js(actions)?;
-        let events: Vec<EventInput> = from_js(events)?;
         let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => Some(from_js(v)?),
+            Some(v) if !v.is_null() && !v.is_undefined() => {
+                Some(serde_wasm_bindgen::from_value(v)
+                    .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
+            }
             _ => None,
         };
         Ok(plugins::execute_pipeline_batch(actions, events, access_token, on_progress, config).await?)
@@ -552,7 +547,8 @@ impl MeAiCore {
             if actions_override.is_null() || actions_override.is_undefined() {
                 None
             } else {
-                Some(from_js(actions_override)?)
+                Some(serde_wasm_bindgen::from_value(actions_override)
+                    .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
             };
         let result = plugins::resolution::resolve_and_execute_pipeline(
             db,
@@ -571,12 +567,11 @@ impl MeAiCore {
     pub async fn resolve_and_execute_batch(
         &self,
         event_type: &str,
-        events: JsValue,
+        events: Vec<EventInput>,
         approved: bool,
         on_progress: Option<Function>,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
-        let events: Vec<serde_json::Value> = from_js(events)?;
         let result = plugins::resolution::resolve_and_execute_batch(
             db,
             event_type,
@@ -653,11 +648,11 @@ impl MeAiCore {
     }
 
     #[wasm_bindgen(js_name = getPendingApprovals)]
-    pub async fn get_pending_approvals(&self, limit: Option<u32>) -> Result<JsValue, JsValue> {
+    pub async fn get_pending_approvals(&self, limit: u32) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
         let result = storage::aggregations::get_pending_approvals(
             db,
-            limit.unwrap_or(100) as usize,
+            limit as usize,
         )
         .await
         .map_err(|e| error_to_js(&e))?;
@@ -675,13 +670,13 @@ impl MeAiCore {
     pub async fn get_pending_items_by_category(
         &self,
         category_name: &str,
-        limit: Option<u32>,
+        limit: u32,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
         let result = storage::aggregations::get_pending_items_by_category(
             db,
             category_name,
-            limit.unwrap_or(500) as usize,
+            limit as usize,
         )
         .await
         .map_err(|e| error_to_js(&e))?;
@@ -1063,7 +1058,7 @@ impl MeAiCore {
 
     /// Build rich email context string for LLM when user asks about emails.
     #[wasm_bindgen(js_name = buildEmailContext)]
-    pub async fn build_email_context(&self, user_query: Option<String>) -> Result<String, JsValue> {
+    pub async fn build_email_context(&self, user_query: &str) -> Result<String, JsValue> {
         let detailed = self.get_detailed_summary().await?;
         let mut parts = vec![detailed];
 
@@ -1082,9 +1077,9 @@ impl MeAiCore {
             ]);
         }
 
-        let email_section = if let Some(q) = user_query.filter(|q| !q.is_empty()) {
+        let email_section = if !user_query.is_empty() {
             let items = storage::sync::get_items_gmail_by_date_desc(db, 50).await?;
-            let q_lower = q.to_lowercase();
+            let q_lower = user_query.to_lowercase();
             let matched: Vec<String> = items.iter()
                 .filter(|item| {
                     item.subject.to_lowercase().contains(&q_lower)
@@ -1243,14 +1238,12 @@ impl MeAiCore {
         &self,
         provider: &str,
         model_name: &str,
-        messages: JsValue,
-        options: JsValue,
+        messages: Vec<llm::client::ChatMessage>,
+        options: llm::client::StreamOptions,
         on_token: &Function,
     ) -> Result<(), JsValue> {
-        let msgs: Vec<llm::client::ChatMessage> = serde_wasm_bindgen::from_value(messages)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
-        let opts: llm::client::StreamOptions = serde_wasm_bindgen::from_value(options)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let msgs = messages;
+        let opts = options;
 
         // Fetch API key from IndexedDB settings
         let db = self.rexie_db.db();

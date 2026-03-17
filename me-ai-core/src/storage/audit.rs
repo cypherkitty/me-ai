@@ -266,26 +266,26 @@ pub async fn log_and_sync_execution(
         .iter()
         .enumerate()
         .map(|(i, r)| AuditStep {
-            action_id: r
-                .action_id
-                .clone()
-                .or_else(|| actions.get(i).and_then(|a| a.id.clone()))
-                .unwrap_or_default(),
-            action_name: r
-                .action_name
-                .clone()
-                .or_else(|| actions.get(i).and_then(|a| a.name.clone()))
-                .unwrap_or_default(),
-            command_id: r
-                .command_id
-                .clone()
-                .or_else(|| actions.get(i).and_then(|a| a.command_id.clone()))
-                .unwrap_or_default(),
-            plugin_id: r
-                .plugin_id
-                .clone()
-                .or_else(|| actions.get(i).and_then(|a| a.plugin_id.clone()))
-                .unwrap_or_default(),
+            action_id: if !r.action_id.is_empty() {
+                r.action_id.clone()
+            } else {
+                actions.get(i).map(|a| a.id.clone()).unwrap_or_default()
+            },
+            action_name: if !r.action_name.is_empty() {
+                r.action_name.clone()
+            } else {
+                actions.get(i).map(|a| a.name.clone()).unwrap_or_default()
+            },
+            command_id: if !r.command_id.is_empty() {
+                r.command_id.clone()
+            } else {
+                actions.get(i).map(|a| a.command_id.clone()).unwrap_or_default()
+            },
+            plugin_id: if !r.plugin_id.is_empty() {
+                r.plugin_id.clone()
+            } else {
+                actions.get(i).map(|a| a.plugin_id.clone()).unwrap_or_default()
+            },
             success: r.success,
             message: r.message.clone(),
         })
@@ -301,8 +301,8 @@ pub async fn log_and_sync_execution(
     if !email_id.is_empty() {
         let successful_commands: Vec<&str> = results
             .iter()
-            .filter(|r| r.success)
-            .filter_map(|r| r.command_id.as_deref())
+            .filter(|r| r.success && !r.command_id.is_empty())
+            .map(|r| r.command_id.as_str())
             .collect();
         let is_destructive = successful_commands
             .iter()

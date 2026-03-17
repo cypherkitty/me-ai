@@ -165,13 +165,14 @@ pub struct RuleTriggerView {
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct RuleActionView {
-    pub id: Option<String>,
-    #[serde(rename = "pluginId")]
+    #[serde(default)]
+    pub id: String,
+    #[serde(rename = "pluginId", default)]
     #[wasm_bindgen(js_name = "pluginId")]
-    pub plugin_id: Option<String>,
-    #[serde(rename = "commandId")]
+    pub plugin_id: String,
+    #[serde(rename = "commandId", default)]
     #[wasm_bindgen(js_name = "commandId")]
-    pub command_id: Option<String>,
+    pub command_id: String,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -240,11 +241,12 @@ pub struct RuleTriggerInput {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
 pub struct RuleActionInput {
-    pub id: Option<String>,
+    #[serde(default)]
+    pub id: String,
     #[serde(rename = "pluginId", default)]
-    pub plugin_id: Option<String>,
+    pub plugin_id: String,
     #[serde(rename = "commandId", default)]
-    pub command_id: Option<String>,
+    pub command_id: String,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -347,9 +349,9 @@ pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
         let action_views = commands
             .into_iter()
             .map(|c| RuleActionView {
-                id: c.command_id,
-                plugin_id: c.plugin_id,
-                command_id: c.action_id,
+                id: c.command_id.unwrap_or_default(),
+                plugin_id: c.plugin_id.unwrap_or_default(),
+                command_id: c.action_id.unwrap_or_default(),
                 name: c.name,
                 description: c.description,
                 icon: c.icon,
@@ -400,9 +402,9 @@ pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<RuleView>, CoreE
     let action_views = commands
         .into_iter()
         .map(|c| RuleActionView {
-            id: c.command_id,
-            plugin_id: c.plugin_id,
-            command_id: c.action_id,
+            id: c.command_id.unwrap_or_default(),
+            plugin_id: c.plugin_id.unwrap_or_default(),
+            command_id: c.action_id.unwrap_or_default(),
             name: c.name,
             description: c.description,
             icon: c.icon,
@@ -507,9 +509,9 @@ pub async fn save_rule(db: DbRef<'_>, payload: RuleSavePayload) -> Result<(), Co
         let doc = RuleCommandDoc {
             id: cid.clone(),
             rule_id: id.to_string(),
-            command_id: a.id.clone(),
-            plugin_id: a.plugin_id.clone(),
-            action_id: a.command_id.clone(),
+            command_id: Some(a.id.clone()),
+            plugin_id: Some(a.plugin_id.clone()),
+            action_id: Some(a.command_id.clone()),
             name: Some(a.name.clone()),
             description: Some(a.description.clone()),
             icon: Some(a.icon.clone()),
@@ -539,7 +541,7 @@ mod tests {
         assert_eq!(payload.id, "rule_1");
         assert!(!payload.enabled);
         assert_eq!(payload.triggers[0].trigger_type, "event_type");
-        assert_eq!(payload.actions[0].plugin_id, Some("gmail".into()));
+        assert_eq!(payload.actions[0].plugin_id, "gmail");
     }
 }
 

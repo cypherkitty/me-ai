@@ -153,8 +153,10 @@ pub async fn get_pipeline_for_event(
 #[tsify(from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionOverrideInput {
-    pub plugin_id: Option<String>,
-    pub command_id: Option<String>,
+    #[serde(default)]
+    pub plugin_id: String,
+    #[serde(default)]
+    pub command_id: String,
 }
 
 /// Normalised action representation included in the result.
@@ -188,10 +190,10 @@ pub struct ResolveExecuteResult {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionResultSerializable {
-    pub action_id: Option<String>,
-    pub action_name: Option<String>,
-    pub plugin_id: Option<String>,
-    pub command_id: Option<String>,
+    pub action_id: String,
+    pub action_name: String,
+    pub plugin_id: String,
+    pub command_id: String,
     pub success: bool,
     pub message: String,
 }
@@ -210,20 +212,20 @@ impl From<&ActionResult> for ActionResultSerializable {
 }
 
 fn normalise_override(idx: usize, ov: &ActionOverrideInput) -> NormalisedAction {
-    let cmd = ov.command_id.clone().unwrap_or_default();
+    let cmd = ov.command_id.clone();
     NormalisedAction {
         id: format!("{}_{}", cmd, idx),
-        plugin_id: ov.plugin_id.clone().unwrap_or_else(|| "gmail".to_string()),
+        plugin_id: if ov.plugin_id.is_empty() { "gmail".to_string() } else { ov.plugin_id.clone() },
         command_id: cmd.clone(),
         name: cmd.replace('_', " "),
     }
 }
 
 fn normalise_rule_action(a: &crate::storage::rules::RuleActionView) -> NormalisedAction {
-    let cmd = a.command_id.clone().unwrap_or_default();
+    let cmd = a.command_id.clone();
     NormalisedAction {
-        id: a.id.clone().unwrap_or_default(),
-        plugin_id: a.plugin_id.clone().unwrap_or_default(),
+        id: a.id.clone(),
+        plugin_id: a.plugin_id.clone(),
         command_id: cmd.clone(),
         name: if a.name.is_empty() { cmd.replace('_', " ") } else { a.name.clone() },
     }
@@ -240,10 +242,10 @@ fn normalise_pipeline_action(a: &PipelineActionForEvent) -> NormalisedAction {
 
 fn to_action_input(n: &NormalisedAction) -> ActionInput {
     ActionInput {
-        id: Some(n.id.clone()),
-        plugin_id: Some(n.plugin_id.clone()),
-        command_id: Some(n.command_id.clone()),
-        name: Some(n.name.clone()),
+        id: n.id.clone(),
+        plugin_id: n.plugin_id.clone(),
+        command_id: n.command_id.clone(),
+        name: n.name.clone(),
     }
 }
 
@@ -501,7 +503,7 @@ pub struct BatchEventResult {
 pub async fn resolve_and_execute_batch(
     db: DbRef<'_>,
     event_type: &str,
-    events: Vec<serde_json::Value>,
+    events: Vec<EventInput>,
     approved: bool,
     on_progress: Option<Function>,
 ) -> Result<ResolveBatchResult, CoreError> {
@@ -521,9 +523,9 @@ pub async fn resolve_and_execute_batch(
     let category_str = events
         .first()
         .and_then(|ev| {
-            ev.get("metadata")
+            ev.metadata.as_ref()
                 .and_then(|m| m.get("category"))
-                .or_else(|| ev.get("category"))
+                .or_else(|| ev.data.get("category"))
                 .and_then(|v| v.as_str())
         })
         .unwrap_or("")
@@ -642,21 +644,14 @@ pub async fn resolve_and_execute_batch(
     // 10. Loop over events
     let mut batch_results: Vec<BatchEventResult> = Vec::with_capacity(event_count);
 
-    for (i, event_value) in events.iter().enumerate() {
-        let event_input = EventInput {
-            event_type: event_type.to_string(),
-            source: "gmail".to_string(),
-            data: event_value.clone(),
-            metadata: None,
-        };
-
+    for (i, event_input) in events.iter().enumerate() {
         emit_progress(
             &on_progress,
             &serde_json::json!({
                 "phase": "batch_event",
                 "eventIndex": i,
                 "totalEvents": event_count,
-                "event": event_value,
+                "event": event_input.data,
             }),
         );
 
@@ -670,16 +665,16 @@ pub async fn resolve_and_execute_batch(
         .await?;
 
         // 11. Audit logging for each event
-        let email_id = event_value
+        let email_id = event_input.data
             .get("emailId")
-            .or_else(|| event_value.get("id"))
+            .or_else(|| event_input.data.get("id"))
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let subject = event_value
+        let subject = event_input.data
             .get("subject")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let from_addr = event_value
+        let from_addr = event_input.data
             .get("from")
             .and_then(|v| v.as_str())
             .unwrap_or("");
@@ -703,7 +698,7 @@ pub async fn resolve_and_execute_batch(
             .collect();
 
         batch_results.push(BatchEventResult {
-            event: Some(event_value.clone()),
+            event: Some(event_input.data.clone()),
             results: serializable_results,
             success: pipeline_result.success,
             message: pipeline_result.message,

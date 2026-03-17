@@ -50,7 +50,7 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 }
 
 async function saveToken(accessToken: string, refreshToken: string | undefined, expiresIn: number): Promise<void> {
-  await coreSaveTwitterToken(accessToken, refreshToken ?? null, expiresIn);
+  await coreSaveTwitterToken(accessToken, refreshToken, expiresIn);
 }
 
 async function clearSavedToken(): Promise<void> {

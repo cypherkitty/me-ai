@@ -1,7 +1,7 @@
 //! Items, syncState, contacts: CRUD and batch operations via Rexie.
 
 use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen::from_value;
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
@@ -159,7 +159,8 @@ pub struct ItemRow {
     pub synced_at: Option<i64>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct SyncStateInput {
     #[serde(rename = "sourceType")]
     pub source_type: String,
@@ -187,7 +188,8 @@ struct SyncStateDoc {
     oldest_page_token: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct ContactInput {
     pub email: String,
     pub name: String,
@@ -259,61 +261,79 @@ pub async fn upsert_sync_state(
     db.store_put(store::SYNC_STATE, &doc, Some(source_type)).await
 }
 
-#[derive(Deserialize)]
-#[allow(non_snake_case)]
-struct JsItem {
-    id: String,
-    sourceType: String,
-    sourceId: Option<String>,
-    threadKey: Option<String>,
-    r#type: Option<String>,
-    from: Option<String>,
-    to: Option<String>,
-    cc: Option<String>,
-    subject: Option<String>,
-    snippet: Option<String>,
-    body: Option<String>,
-    htmlBody: Option<String>,
-    date: Option<i64>,
-    labels: Option<String>,
-    messageId: Option<String>,
-    inReplyTo: Option<String>,
-    references: Option<String>,
-    raw: Option<String>,
-    syncedAt: Option<i64>,
+
+/// Input struct for batch insert from JS — mirrors ItemRow fields with camelCase serde renames.
+#[derive(Clone, Debug, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemInput {
+    pub id: String,
+    pub source_type: String,
+    #[serde(default)]
+    pub source_id: String,
+    #[serde(default)]
+    pub thread_key: String,
+    #[serde(rename = "type", default)]
+    pub r#type: String,
+    #[serde(default)]
+    pub from: String,
+    #[serde(default)]
+    pub to: String,
+    #[serde(default)]
+    pub cc: String,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub snippet: String,
+    #[serde(default)]
+    pub body: String,
+    pub html_body: Option<String>,
+    pub date: Option<i64>,
+    #[serde(default)]
+    pub labels: String,
+    #[serde(default)]
+    pub message_id: String,
+    #[serde(default)]
+    pub in_reply_to: String,
+    #[serde(default)]
+    pub references: String,
+    pub raw: Option<String>,
+    pub synced_at: Option<i64>,
 }
 
-pub async fn insert_items_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<JsItem> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
-    let docs: Vec<ItemRow> = arr
-        .into_iter()
-        .map(|r| ItemRow {
+impl From<ItemInput> for ItemRow {
+    fn from(r: ItemInput) -> Self {
+        Self {
             id: r.id,
-            source_type: r.sourceType,
-            source_id: r.sourceId.unwrap_or_default(),
-            thread_key: r.threadKey.unwrap_or_default(),
-            r#type: r.r#type.unwrap_or_default(),
-            from: r.from.unwrap_or_default(),
-            to: r.to.unwrap_or_default(),
-            cc: r.cc.unwrap_or_default(),
-            subject: r.subject.unwrap_or_default(),
-            snippet: r.snippet.unwrap_or_default(),
-            body: r.body.unwrap_or_default(),
-            html_body: r.htmlBody,
+            source_type: r.source_type,
+            source_id: r.source_id,
+            thread_key: r.thread_key,
+            r#type: r.r#type,
+            from: r.from,
+            to: r.to,
+            cc: r.cc,
+            subject: r.subject,
+            snippet: r.snippet,
+            body: r.body,
+            html_body: r.html_body,
             date: r.date,
-            labels: r.labels.unwrap_or_default(),
-            message_id: r.messageId.unwrap_or_default(),
-            in_reply_to: r.inReplyTo.unwrap_or_default(),
-            references: r.references.unwrap_or_default(),
+            labels: r.labels,
+            message_id: r.message_id,
+            in_reply_to: r.in_reply_to,
+            references: r.references,
             raw: r.raw,
-            synced_at: r.syncedAt,
-        })
-        .collect();
+            synced_at: r.synced_at,
+        }
+    }
+}
+
+pub async fn insert_items_batch(db: DbRef<'_>, rows: Vec<ItemInput>) -> Result<(), CoreError> {
+    let docs: Vec<ItemRow> = rows.into_iter().map(ItemRow::from).collect();
     db.store_put_all(store::ITEMS, &docs).await
 }
 
-pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<SyncStateInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: Vec<SyncStateInput>) -> Result<(), CoreError> {
+    let arr = rows;
     for r in arr {
         let key = r.source_type.clone();
         let existing = db.store_get::<SyncStateRow>(store::SYNC_STATE, &key).await?;
@@ -331,8 +351,8 @@ pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue)
     Ok(())
 }
 
-pub async fn insert_contacts_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<ContactInput> = from_value(rows).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+pub async fn insert_contacts_batch(db: DbRef<'_>, rows: Vec<ContactInput>) -> Result<(), CoreError> {
+    let arr = rows;
     for r in arr {
         let doc = ContactDoc {
             email: r.email.clone(),
@@ -348,8 +368,8 @@ pub async fn insert_contacts_batch(db: DbRef<'_>, rows: wasm_bindgen::JsValue) -
     Ok(())
 }
 
-pub async fn delete_items_by_ids(db: DbRef<'_>, ids: wasm_bindgen::JsValue) -> Result<(), CoreError> {
-    let arr: Vec<String> = from_value(ids).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+pub async fn delete_items_by_ids(db: DbRef<'_>, ids: Vec<String>) -> Result<(), CoreError> {
+    let arr = ids;
     for id in arr {
         db.store_delete(store::ITEMS, &id).await?;
     }

@@ -5,7 +5,11 @@
  */
 
 import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
-import type { EventInput, RuleSavePayload, ClassificationDoc, CreateRulePayload, RuleUpdateInput, ClassificationsByCategory, ClassificationCounts } from "me-ai-core";
+import type {
+  EventInput, RuleSavePayload, ClassificationDoc, CreateRulePayload, RuleUpdateInput,
+  ClassificationsByCategory, ClassificationCounts, ActionOverrideInput,
+  StoredItemRow,
+} from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel } from "me-ai-core";
@@ -138,8 +142,8 @@ export async function getEventTypeCategory(type_name: string) {
 export async function getEventCategoryPolicy(category_name: string) {
   return requireCore().getEventCategoryPolicy(category_name);
 }
-export async function updateCategoryPipeline(category_name: string, actions_js: unknown) {
-  return requireCore().updateCategoryPipeline(category_name, actions_js);
+export async function updateCategoryPipeline(category_name: string, actions: Array<{ pluginId: string; commandId: string }>) {
+  return requireCore().updateCategoryPipeline(category_name, actions);
 }
 export async function updateCategoryPolicy(category_name: string, policy: string) {
   return requireCore().updateCategoryPolicy(category_name, policy);
@@ -183,10 +187,10 @@ export async function upsertSyncState(
 ) {
   return requireCore().upsertSyncState(source_type, history_id, last_sync_at, total_items, oldest_page_token);
 }
-export async function insertItemsBatch(rows: unknown) {
+export async function insertItemsBatch(rows: StoredItemRow[]) {
   return requireCore().insertItemsBatch(rows);
 }
-export async function deleteItemsByIds(ids: unknown) {
+export async function deleteItemsByIds(ids: string[]) {
   return requireCore().deleteItemsByIds(ids);
 }
 export async function getContactByEmail(email: string) {
@@ -211,13 +215,13 @@ export function getPluginsForPrompt() {
   return requireCore().getPluginsForPrompt();
 }
 export async function executePipeline(
-  actions: unknown[],
-  event: unknown,
+  actions: Array<{ id?: string; pluginId?: string; commandId?: string; name?: string }>,
+  event: EventInput,
   accessToken: string,
   onProgress?: (progress: unknown) => void,
   config?: unknown
 ) {
-  return requireCore().executePipeline(actions, event as EventInput, accessToken, onProgress, config);
+  return requireCore().executePipeline(actions, event, accessToken, onProgress, config);
 }
 export async function getRules() {
   return requireCore().getRules();
@@ -225,17 +229,17 @@ export async function getRules() {
 export async function getRule(id: string) {
   return requireCore().getRule(id);
 }
-export async function saveRule(payload: unknown) {
-  return requireCore().saveRule(payload as RuleSavePayload);
+export async function saveRule(payload: RuleSavePayload) {
+  return requireCore().saveRule(payload);
 }
 export async function deleteRule(id: string) {
   return requireCore().deleteRule(id);
 }
-export async function createRule(payload: unknown) {
-  return requireCore().createRule(payload as CreateRulePayload);
+export async function createRule(payload: CreateRulePayload) {
+  return requireCore().createRule(payload);
 }
-export async function updateRule(id: string, updates: unknown) {
-  return requireCore().updateRule(id, updates as RuleUpdateInput);
+export async function updateRule(id: string, updates: RuleUpdateInput) {
+  return requireCore().updateRule(id, updates);
 }
 export async function setRuleEnabled(id: string, enabled: boolean) {
   return requireCore().setRuleEnabled(id, enabled);
@@ -243,14 +247,14 @@ export async function setRuleEnabled(id: string, enabled: boolean) {
 export async function getEventStats() {
   return requireCore().getEventStats() as Promise<import("me-ai-core").EventStats>;
 }
-export async function getPendingApprovals(limit?: number) {
-  return requireCore().getPendingApprovals(limit ?? undefined) as Promise<Record<string, unknown>[]>;
+export async function getPendingApprovals(limit: number = 100) {
+  return requireCore().getPendingApprovals(limit) as Promise<Record<string, unknown>[]>;
 }
 export async function getPendingCountByCategory(categoryName: string) {
   return requireCore().getPendingCountByCategory(categoryName);
 }
-export async function getPendingItemsByCategory(categoryName: string, limit?: number) {
-  return requireCore().getPendingItemsByCategory(categoryName, limit ?? undefined) as Promise<import("me-ai-core").PendingItemByCategory[]>;
+export async function getPendingItemsByCategory(categoryName: string, limit: number = 500) {
+  return requireCore().getPendingItemsByCategory(categoryName, limit) as Promise<import("me-ai-core").PendingItemByCategory[]>;
 }
 export async function getCategoryPipelines() {
   return requireCore().getCategoryPipelines() as Promise<import("me-ai-core").CategoryPipelineDisplay[]>;
@@ -264,8 +268,8 @@ export async function getItemsGmailByDateDesc(limit: number) {
 export async function getItemsBySource(source_type: string, limit: number, offset: number) {
   return requireCore().getItemsBySource(source_type, limit, offset);
 }
-export async function getEmailClassifications(action_filter?: string | null, limit?: number | null) {
-  return requireCore().getEmailClassifications(action_filter ?? undefined, limit ?? undefined);
+export async function getEmailClassifications(action_filter?: string, limit?: number) {
+  return requireCore().getEmailClassifications(action_filter, limit);
 }
 export async function updateEmailClassificationStatus(email_id: string, status: string) {
   return requireCore().updateEmailClassificationStatus(email_id, status);
@@ -496,8 +500,8 @@ export function categoryTierToName(tier: string): string {
 export async function buildLlmContext(): Promise<string> {
   return requireCore().buildLlmContext();
 }
-export async function buildEmailContext(userQuery?: string): Promise<string> {
-  return requireCore().buildEmailContext(userQuery ?? null);
+export async function buildEmailContext(userQuery: string = ""): Promise<string> {
+  return requireCore().buildEmailContext(userQuery);
 }
 
 // ── Token management (core) ──────────────────────────────────────────────────
@@ -509,7 +513,7 @@ export async function isGoogleTokenValid(): Promise<boolean> { return requireCor
 export async function getGoogleTokenTTL(): Promise<number> { return requireCore().getGoogleTokenTTL(); }
 export async function getTwitterToken() { return requireCore().getTwitterToken(); }
 export async function getTwitterTokenRaw() { return requireCore().getTwitterTokenRaw(); }
-export async function saveTwitterToken(accessToken: string, refreshToken: string | null, expiresIn: number) { return requireCore().saveTwitterToken(accessToken, refreshToken ?? undefined, expiresIn); }
+export async function saveTwitterToken(accessToken: string, refreshToken: string | undefined, expiresIn: number) { return requireCore().saveTwitterToken(accessToken, refreshToken, expiresIn); }
 export async function clearTwitterToken() { return requireCore().clearTwitterToken(); }
 
 // ── Pipeline resolution & execution (core) ──────────────────────────────────
@@ -523,17 +527,17 @@ export async function getPipelineForEventResolved(eventType: string) {
 }
 
 export async function resolveAndExecutePipeline(
-  event: unknown,
+  event: EventInput,
   approved: boolean,
-  actionsOverride: unknown,
+  actionsOverride: ActionOverrideInput[] | null,
   onProgress?: (p: unknown) => void
 ) {
-  return requireCore().resolveAndExecutePipeline(event as EventInput, approved, actionsOverride ?? null, onProgress);
+  return requireCore().resolveAndExecutePipeline(event, approved, actionsOverride, onProgress);
 }
 
 export async function resolveAndExecuteBatch(
   eventType: string,
-  events: unknown[],
+  events: EventInput[],
   approved: boolean,
   onProgress?: (p: unknown) => void
 ) {
