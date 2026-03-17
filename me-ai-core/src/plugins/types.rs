@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-/// Input for a single action in a pipeline. Deserialized from JS via serde_wasm_bindgen.
-#[derive(Clone, Debug, Deserialize)]
+/// Input for a single action in a pipeline.
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct ActionInput {
     pub id: Option<String>,
     #[serde(rename = "pluginId")]
@@ -12,8 +14,9 @@ pub struct ActionInput {
     pub name: Option<String>,
 }
 
-/// Input event for pipeline execution. Deserialized from JS via serde_wasm_bindgen.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// Input event for pipeline execution.
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct EventInput {
     #[serde(rename = "type")]
     pub event_type: String,

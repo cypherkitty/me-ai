@@ -5,9 +5,7 @@
 import { getEngine as getWebGPUEngine } from "./llm-engine.js";
 import { getOllamaEngine } from "./ollama-engine.js";
 import { getApiEngine } from "./api-engine.js";
-import { getModelInfo } from "./models.js";
-import { getOllamaModelInfo } from "./ollama-models.js";
-import { getApiModelInfo } from "./api-models.js";
+import { getOnnxModelInfo as getModelInfo, getOllamaModelInfo, getApiModelInfo } from "./core.js";
 import type { Backend } from "./core.js";
 type Engine = {
   loadModel: (modelId: string, options?: Record<string, unknown>) => void;

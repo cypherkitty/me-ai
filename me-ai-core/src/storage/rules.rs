@@ -1,6 +1,7 @@
 //! Rules and events CRUD via Rexie (sm_rules, sm_rule_triggers, sm_rule_commands, sm_events).
 
 use serde::{Deserialize, Serialize};
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, DbRef};
@@ -202,8 +203,9 @@ pub struct RuleView {
     pub policy: Option<String>,
 }
 
-/// Payload from JS for saving a rule. Deserialize only — not returned from WASM.
-#[derive(Clone, Debug, Deserialize)]
+/// Payload from JS for saving a rule.
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
+#[tsify(from_wasm_abi)]
 pub struct RuleSavePayload {
     pub id: String,
     #[serde(default)]
@@ -228,7 +230,7 @@ fn default_priority() -> i64 {
     5
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
 pub struct RuleTriggerInput {
     #[serde(rename = "type", default)]
     pub trigger_type: String,
@@ -236,7 +238,7 @@ pub struct RuleTriggerInput {
     pub name: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
 pub struct RuleActionInput {
     pub id: Option<String>,
     #[serde(rename = "pluginId", default)]

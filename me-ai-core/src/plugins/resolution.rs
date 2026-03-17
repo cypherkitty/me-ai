@@ -3,6 +3,7 @@
 
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::db::DbRef;
@@ -18,11 +19,6 @@ export interface NormalisedAction {
     pluginId: string;
     commandId: string;
     name: string;
-}
-
-export interface ActionOverrideInput {
-    pluginId?: string;
-    commandId?: string;
 }
 
 export interface ResolveExecuteResult {
@@ -153,7 +149,8 @@ pub async fn get_pipeline_for_event(
 // ---------------------------------------------------------------------------
 
 /// Input for an action override from the caller (e.g. `options.actionsOverride` in TS).
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, Tsify)]
+#[tsify(from_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionOverrideInput {
     pub plugin_id: Option<String>,

@@ -1,4 +1,4 @@
-import { GmailApiError } from "./gmail-api.js";
+import { GmailApiError } from "./core.js";
 import { getCore } from "./store/core-store.js";
 import type { ParsedError } from "./core.js";
 

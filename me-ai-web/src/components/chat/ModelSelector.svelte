@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { getModels, getModelGroups } from "../../lib/models.js";
+  import { getOnnxModels as getModels, getOnnxModelGroups as getModelGroups } from "../../lib/core.js";
   import { formatBytes } from "../../lib/format.js";
   import { mountLog } from "../../lib/debug.js";
   import { Button } from "$lib/components/ui/button/index.js";

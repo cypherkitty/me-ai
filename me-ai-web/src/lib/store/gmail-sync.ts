@@ -33,7 +33,7 @@ import {
   getHtmlBody,
   listHistory,
   GmailApiError,
-} from "../gmail-api.js";
+} from "../core.js";
 import type { SyncState, SyncProgress } from "$lib/types";
 import type { StoredItem } from "$lib/types";
 

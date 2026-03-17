@@ -21,14 +21,14 @@ import {
   formatEmailPrompt as coreFormatEmailPrompt,
   actionColor as coreActionColor,
   tagColor as coreTagColor,
+  getOnnxModelInfo as getModelInfo,
+  getOllamaModelInfo,
+  getApiModelInfo,
+  getPluginsForPrompt as coreGetPluginsForPrompt,
 } from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
 import { groupByAction } from "./email-utils.js";
-import { getModelInfo } from "./models.js";
-import { getOllamaModelInfo } from "./ollama-models.js";
-import { getApiModelInfo } from "./api-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
-import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
 import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions, TriageEngine } from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
@@ -109,8 +109,8 @@ export async function scanEmails(
 
   const modelDisplayName = (modelInfo as { displayName?: string; name?: string }).displayName ?? (modelInfo as { name?: string }).name;
   if (!(modelInfo as { recommendedForEmailProcessing?: boolean }).recommendedForEmailProcessing && toProcess.length > 0) {
-    const { getModels } = await import("./models.js");
-    const { getOllamaModels } = await import("./ollama-models.js");
+    const { getOnnxModels: getModels } = await import("./core.js");
+    const { getOllamaModels } = await import("./core.js");
     const recommendedModels = [
       ...getModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { name: string }) => m.name),
       ...getOllamaModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { displayName: string }) => m.displayName),

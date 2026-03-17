@@ -3,7 +3,7 @@
   import DOMPurify from "dompurify";
   import { onMount } from "svelte";
   import { mountLog } from "../../lib/debug.js";
-  import { getModelInfo } from "../../lib/models.js";
+  import { getOnnxModelInfo as getModelInfo } from "../../lib/core.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronRight } from "lucide-svelte";
   import { cn } from "$lib/utils.js";

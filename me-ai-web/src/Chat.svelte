@@ -1,10 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { loadSettings, saveSettings, SettingValue, AiBackend } from "./lib/core.js";
-  import { getModels } from "./lib/models.js";
-  import { getOllamaModels } from "./lib/ollama-models.js";
+  import { getOnnxModels as getModels, getOllamaModels, type ApiModel } from "./lib/core.js";
   import { coreStore } from "./lib/store/core-store.js";
-  import type { ApiModel } from "./lib/api-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
   import { buildLlmContext, buildEmailContext } from "./lib/core.js";

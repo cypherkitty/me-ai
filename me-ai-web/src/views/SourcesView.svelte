@@ -10,7 +10,7 @@
     getTokenTTL,
     refreshToken,
   } from "../lib/google-auth.js";
-  import { getProfile } from "../lib/gmail-api.js";
+  import { getProfile } from "../lib/core.js";
   import {
     syncGmail,
     syncGmailMore,

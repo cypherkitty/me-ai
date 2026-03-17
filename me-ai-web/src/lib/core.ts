@@ -5,6 +5,7 @@
  */
 
 import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
+import type { EventInput, RuleSavePayload } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel } from "me-ai-core";
@@ -17,7 +18,6 @@ export type {
   Action, Trigger, Rule, CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
   EventCategory, EmailEvent, ExecutionProgress, ByCategory, ClassificationLike, EmailLike,
   ClassificationResult, ScanProgress, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions,
-  ListMessagesOptions, ListHistoryOptions,
   GoogleTokenResponse,
   TwitterUser, Tweet, ApiResponse, TimelineOptions, TwitterUserInfo,
   TwitterTokenData,
@@ -27,7 +27,22 @@ export type {
   TriageEngine, PluginForPrompt,
   ApiProvider, ChatMessage, TokenPayload, ApiStreamOptions, EngineStatus, EngineMessage, Backend,
   NormalisedAction, ActionOverrideInput, ResolveExecuteResult, BatchEventResult, ResolveBatchResult,
+  EventInput, RuleSavePayload,
 } from "me-ai-core";
+
+/** Options for listing Gmail messages. */
+export interface ListMessagesOptions {
+  maxResults?: number;
+  pageToken?: string;
+  q?: string;
+}
+
+/** Options for listing Gmail history. */
+export interface ListHistoryOptions {
+  startHistoryId: string;
+  pageToken?: string;
+  maxResults?: number;
+}
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
@@ -200,7 +215,7 @@ export async function executePipeline(
   onProgress?: (progress: unknown) => void,
   config?: unknown
 ) {
-  return requireCore().executePipeline(actions, event, accessToken, onProgress, config);
+  return requireCore().executePipeline(actions, event as EventInput, accessToken, onProgress, config);
 }
 export async function getRules() {
   return requireCore().getRules();
@@ -209,7 +224,7 @@ export async function getRule(id: string) {
   return requireCore().getRule(id);
 }
 export async function saveRule(payload: unknown) {
-  return requireCore().saveRule(payload);
+  return requireCore().saveRule(payload as RuleSavePayload);
 }
 export async function deleteRule(id: string) {
   return requireCore().deleteRule(id);
@@ -308,8 +323,12 @@ export async function clearAllDataAndCheckpoint(): Promise<void> {
   await clearAllData();
 }
 
-export function getApiModelInfo(modelId: string) {
-  return requireCore().getApiModelInfo(modelId);
+export function getApiModelInfo(modelId: string): import("me-ai-core").ApiModel | null {
+  try {
+    return requireCore().getApiModelInfo(modelId) as import("me-ai-core").ApiModel | null;
+  } catch {
+    return null;
+  }
 }
 export async function testApiConnection(provider: string, apiKey: string): Promise<boolean> {
   return requireCore().testApiConnection(provider, apiKey);
@@ -322,6 +341,61 @@ export async function streamChat(
   onToken: (payload: { content: string; done: boolean; inputTokens: number; outputTokens: number }) => void
 ): Promise<void> {
   return requireCore().streamChat(provider, modelName, messages, options, onToken);
+}
+
+// ── Gmail API ────────────────────────────────────────────────────────────────
+
+export class GmailApiError extends Error {
+  status: number;
+  code: string | null;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "GmailApiError";
+    this.status = status;
+    this.code = code ?? null;
+  }
+}
+
+export function getProfile(token: string): Promise<Record<string, unknown>> {
+  return requireCore().getGmailProfile(token) as unknown as Promise<Record<string, unknown>>;
+}
+
+export function listMessages(
+  token: string,
+  { maxResults = 20, pageToken, q }: ListMessagesOptions = {}
+): Promise<Record<string, unknown>> {
+  return requireCore().listGmailMessages(token, maxResults, pageToken ?? null, q ?? null) as unknown as Promise<Record<string, unknown>>;
+}
+
+export function getMessage(
+  token: string,
+  messageId: string,
+  format: string = "full"
+): Promise<Record<string, unknown>> {
+  return requireCore().getGmailMessage(token, messageId, format) as unknown as Promise<Record<string, unknown>>;
+}
+
+export function listHistory(
+  token: string,
+  { startHistoryId, pageToken, maxResults = 500 }: ListHistoryOptions
+): Promise<Record<string, unknown>> {
+  return requireCore().listGmailHistory(token, startHistoryId, pageToken ?? null, maxResults) as unknown as Promise<Record<string, unknown>>;
+}
+
+export function getHeader(
+  message: Record<string, unknown>,
+  name: string
+): string {
+  return requireCore().getGmailHeader(JSON.stringify(message), name);
+}
+
+export function getBody(message: Record<string, unknown>): string {
+  return requireCore().parseGmailBody(JSON.stringify(message));
+}
+
+export function getHtmlBody(message: Record<string, unknown>): string | null {
+  return requireCore().parseGmailHtmlBody(JSON.stringify(message)) ?? null;
 }
 
 // ── ONNX model catalog ──────────────────────────────────────────────────────
@@ -443,7 +517,7 @@ export async function resolveAndExecutePipeline(
   actionsOverride: unknown,
   onProgress?: (p: unknown) => void
 ) {
-  return requireCore().resolveAndExecutePipeline(event, approved, actionsOverride ?? null, onProgress);
+  return requireCore().resolveAndExecutePipeline(event as EventInput, approved, actionsOverride ?? null, onProgress);
 }
 
 export async function resolveAndExecuteBatch(

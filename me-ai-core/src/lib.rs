@@ -17,10 +17,17 @@ mod llm;
 mod plugins;
 
 use js_sys::Function;
+use serde::de::DeserializeOwned;
 use wasm_bindgen::prelude::*;
 
 use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
+
+/// Deserialize a JsValue into a Rust type, mapping errors to JsValue.
+fn from_js<T: DeserializeOwned>(val: JsValue) -> Result<T, JsValue> {
+    serde_wasm_bindgen::from_value(val)
+        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))
+}
 use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
@@ -341,8 +348,7 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = updateCategoryPipeline)]
     pub async fn update_category_pipeline(&self, category_name: &str, actions_js: JsValue) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
-        let actions: Vec<PipelineActionInput> = serde_wasm_bindgen::from_value(actions_js)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let actions: Vec<PipelineActionInput> = from_js(actions_js)?;
         let pairs: Vec<(String, String)> = actions
             .into_iter()
             .map(|a| (a.plugin_id, a.command_id))
@@ -507,19 +513,14 @@ impl MeAiCore {
     pub async fn execute_pipeline(
         &self,
         actions: JsValue,
-        event: JsValue,
+        event: EventInput,
         access_token: String,
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineResult, JsValue> {
-        let actions: Vec<ActionInput> = serde_wasm_bindgen::from_value(actions)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
-        let event: EventInput = serde_wasm_bindgen::from_value(event)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let actions: Vec<ActionInput> = from_js(actions)?;
         let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => {
-                Some(serde_wasm_bindgen::from_value(v).map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
-            }
+            Some(v) if !v.is_null() && !v.is_undefined() => Some(from_js(v)?),
             _ => None,
         };
         Ok(plugins::execute_pipeline(actions, event, access_token, on_progress, config).await?)
@@ -534,14 +535,10 @@ impl MeAiCore {
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineBatchResult, JsValue> {
-        let actions: Vec<ActionInput> = serde_wasm_bindgen::from_value(actions)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
-        let events: Vec<EventInput> = serde_wasm_bindgen::from_value(events)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let actions: Vec<ActionInput> = from_js(actions)?;
+        let events: Vec<EventInput> = from_js(events)?;
         let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => {
-                Some(serde_wasm_bindgen::from_value(v).map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
-            }
+            Some(v) if !v.is_null() && !v.is_undefined() => Some(from_js(v)?),
             _ => None,
         };
         Ok(plugins::execute_pipeline_batch(actions, events, access_token, on_progress, config).await?)
@@ -550,22 +547,17 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = resolveAndExecutePipeline)]
     pub async fn resolve_and_execute_pipeline(
         &self,
-        event: JsValue,
+        event: EventInput,
         approved: bool,
         actions_override: JsValue,
         on_progress: Option<Function>,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
-        let event: plugins::EventInput = serde_wasm_bindgen::from_value(event)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
         let actions_override: Option<Vec<ActionOverrideInput>> =
             if actions_override.is_null() || actions_override.is_undefined() {
                 None
             } else {
-                Some(
-                    serde_wasm_bindgen::from_value(actions_override)
-                        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?,
-                )
+                Some(from_js(actions_override)?)
             };
         let result = plugins::resolution::resolve_and_execute_pipeline(
             db,
@@ -589,8 +581,7 @@ impl MeAiCore {
         on_progress: Option<Function>,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
-        let events: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(events)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let events: Vec<serde_json::Value> = from_js(events)?;
         let result = plugins::resolution::resolve_and_execute_batch(
             db,
             event_type,
@@ -627,11 +618,9 @@ impl MeAiCore {
     }
 
     #[wasm_bindgen(js_name = saveRule)]
-    pub async fn save_rule(&self, payload: JsValue) -> Result<(), JsValue> {
+    pub async fn save_rule(&self, payload: RuleSavePayload) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
-        let v: RuleSavePayload = serde_wasm_bindgen::from_value(payload)
-            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
-        Ok(storage::rules::save_rule(db, v).await?)
+        Ok(storage::rules::save_rule(db, payload).await?)
     }
 
     #[wasm_bindgen(js_name = deleteRule)]

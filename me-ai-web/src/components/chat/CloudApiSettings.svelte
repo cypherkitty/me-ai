@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { coreStore } from "$lib/store/core-store";
-  import type { ApiModel } from "$lib/api-models";
+  import type { ApiModel } from "$lib/core";
   import { loadSettings, saveSettings, SettingValue } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";

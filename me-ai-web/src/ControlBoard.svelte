@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
-  import { getModels } from "./lib/models.js";
-  import { getOllamaModels } from "./lib/ollama-models.js";
+  import { getOnnxModels as getModels, getOllamaModels } from "./lib/core.js";
   import {
     scanEmails,
     getClassificationsByCategory,

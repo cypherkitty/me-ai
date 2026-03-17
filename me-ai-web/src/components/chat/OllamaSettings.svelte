@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getOllamaModels, getRecommendedOllamaModels } from "../../lib/ollama-models.js";
+  import { getOllamaModels, getRecommendedOllamaModels } from "../../lib/core.js";
   import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels, type OllamaConnectionResult } from "../../lib/ollama-client.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
