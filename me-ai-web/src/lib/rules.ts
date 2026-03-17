@@ -15,6 +15,8 @@ import {
   getPendingCountByCategory as coreGetPendingCountByCategory,
   getPendingItemsByCategory as coreGetPendingItemsByCategory,
   getCategoryPipelines as coreGetCategoryPipelines,
+  type CreateRulePayload,
+  type RuleUpdateInput,
 } from "./core.js";
 import type { Rule } from "$lib/types";
 
@@ -26,11 +28,11 @@ export async function getRules(): Promise<Rule[]> {
   return (await coreGetRules()) as unknown as Rule[];
 }
 
-export async function createRule(input: unknown): Promise<string> {
+export async function createRule(input: CreateRulePayload): Promise<string> {
   return coreCreateRule(input);
 }
 
-export async function updateRule(id: string, updates: unknown): Promise<void> {
+export async function updateRule(id: string, updates: RuleUpdateInput): Promise<void> {
   return coreUpdateRule(id, updates);
 }
 
@@ -47,7 +49,7 @@ export async function getEventStats() {
 // ── Approvals & Manual Execution ───────────────────────────────────────
 
 export async function getPendingApprovals({
-  limit,
+  limit = 100,
 }: { limit?: number } = {}): Promise<Record<string, unknown>[]> {
   return coreGetPendingApprovals(limit);
 }
@@ -58,7 +60,7 @@ export async function getPendingCountByCategory(categoryName: string): Promise<n
 
 export async function getPendingItemsByCategory(
   categoryName: string,
-  { limit }: { limit?: number } = {}
+  { limit = 500 }: { limit?: number } = {}
 ) {
   return coreGetPendingItemsByCategory(categoryName, limit);
 }

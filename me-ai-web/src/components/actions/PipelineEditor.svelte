@@ -234,6 +234,7 @@
                         name: rule.name,
                         description: rule.description,
                         priority: rule.priority,
+                        enabled: rule.enabled,
                     });
                     onSave?.();
                 }

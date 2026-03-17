@@ -15,7 +15,7 @@ import { getDefaultDirectory } from "./filesystem-store.js";
 import { executeFilesystemAction } from "./filesystem-executor.js";
 import { EVENT_CATEGORY_TIERS } from "../events.js";
 import type { EmailEvent, ExecutionProgress, ActionExecutionResult } from "$lib/types";
-import type { ResolveExecuteResult, ResolveBatchResult } from "../core.js";
+import type { ResolveExecuteResult, ResolveBatchResult, EventInput } from "../core.js";
 
 interface ExecutePipelineOptions {
   actionsOverride?: Array<{ pluginId: string; commandId: string }>;
@@ -58,7 +58,7 @@ export async function executePipeline(
 }> {
   try {
     const result = (await coreResolveAndExecute(
-      event,
+      event as EventInput,
       approved,
       options.actionsOverride ?? null,
       onProgress as ((p: unknown) => void) | undefined
@@ -101,7 +101,7 @@ export async function executePipelineBatch(
   try {
     const result = (await coreResolveAndExecuteBatch(
       eventType,
-      events,
+      events as unknown as EventInput[],
       approved,
       onProgress as ((p: unknown) => void) | undefined
     )) as ResolveBatchResult;

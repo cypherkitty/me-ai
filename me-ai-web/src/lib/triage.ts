@@ -72,7 +72,7 @@ export async function scanEmails(
   } else {
     const [allItems, allClassifications] = await Promise.all([
       (getItemsGmailByDateDesc(5000) as unknown) as Promise<Record<string, unknown>[]>,
-      (coreGetEmailClassifications(null, 5000) as unknown) as Promise<{ emailId?: string }[]>,
+      (coreGetEmailClassifications(undefined, 5000) as unknown) as Promise<{ emailId?: string }[]>,
     ]);
     const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
     toProcess = (allItems ?? [])
