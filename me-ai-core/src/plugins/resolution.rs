@@ -273,13 +273,11 @@ fn empty_result(
 /// and log the result to the audit store.
 ///
 /// Ports `execution-service.ts:134-259` into Rust.
-#[allow(clippy::too_many_arguments)]
 pub async fn resolve_and_execute_pipeline(
     db: DbRef<'_>,
     event: EventInput,
     approved: bool,
     actions_override: Option<Vec<ActionOverrideInput>>,
-    access_token: Option<String>,
     on_progress: Option<Function>,
 ) -> Result<ResolveExecuteResult, CoreError> {
     let mut actions: Vec<NormalisedAction> = Vec::new();
@@ -392,13 +390,29 @@ pub async fn resolve_and_execute_pipeline(
         .collect();
 
     // ------------------------------------------------------------------
-    // 7. Execute core actions
+    // 7. Fetch access token from DB if core actions need it
+    // ------------------------------------------------------------------
+    let access_token = if !core_actions.is_empty() {
+        match storage::settings::get_google_token(db).await? {
+            Some(t) => t.access_token(),
+            None => {
+                return Err(CoreError::Auth(
+                    "Not authenticated. Please sign in to Gmail first.".to_string(),
+                ))
+            }
+        }
+    } else {
+        String::new()
+    };
+
+    // ------------------------------------------------------------------
+    // 8. Execute core actions
     // ------------------------------------------------------------------
     let action_inputs: Vec<ActionInput> = core_actions.iter().map(to_action_input).collect();
     let pipeline_result: PipelineResult = execute_pipeline(
         action_inputs.clone(),
         event.clone(),
-        access_token.unwrap_or_default(),
+        access_token,
         on_progress,
         None,
     )
@@ -487,13 +501,11 @@ pub struct BatchEventResult {
 /// Resolve pipeline actions for an event type and execute them over a batch of events.
 ///
 /// Ports `execution-service.ts:261-435` into Rust.
-#[allow(clippy::too_many_arguments)]
 pub async fn resolve_and_execute_batch(
     db: DbRef<'_>,
     event_type: &str,
     events: Vec<serde_json::Value>,
     approved: bool,
-    access_token: Option<String>,
     on_progress: Option<Function>,
 ) -> Result<ResolveBatchResult, CoreError> {
     let event_count = events.len();
@@ -604,12 +616,19 @@ pub async fn resolve_and_execute_batch(
         .cloned()
         .collect();
 
-    // 8. Check auth: if any core actions exist, verify access_token
-    if !core_actions.is_empty() && access_token.is_none() {
-        return Err(CoreError::Plugin(
-            "Access token required for core plugin actions".to_string(),
-        ));
-    }
+    // 8. Fetch access token from DB if core actions need it
+    let access_token = if !core_actions.is_empty() {
+        match storage::settings::get_google_token(db).await? {
+            Some(t) => t.access_token(),
+            None => {
+                return Err(CoreError::Auth(
+                    "Not authenticated. Please sign in to Gmail first.".to_string(),
+                ))
+            }
+        }
+    } else {
+        String::new()
+    };
 
     let core_action_inputs: Vec<ActionInput> = core_actions.iter().map(to_action_input).collect();
 
@@ -647,7 +666,7 @@ pub async fn resolve_and_execute_batch(
         let pipeline_result: PipelineResult = execute_pipeline(
             core_action_inputs.clone(),
             event_input.clone(),
-            access_token.clone().unwrap_or_default(),
+            access_token.clone(),
             on_progress.clone(),
             None,
         )

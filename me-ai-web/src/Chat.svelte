@@ -7,7 +7,7 @@
   import type { ApiModel } from "./lib/api-models.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
-  import { buildLLMContext, buildEmailContext } from "./lib/llm-context.js";
+  import { buildLlmContext, buildEmailContext } from "./lib/core.js";
   import {
     buildBatchEventMessage,
     buildEventsByCategoryMessage,
@@ -873,7 +873,7 @@
         /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       const context = emailKeywords.test(text)
         ? await buildEmailContext(text)
-        : await buildLLMContext();
+        : await buildLlmContext() || null;
 
       if (context) {
         systemMessages = [{ role: "system", content: context }];

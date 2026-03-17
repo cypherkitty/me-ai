@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::db::{store, DbRef};
 use crate::error::CoreError;
-use crate::storage::schema::{set_setting, SettingRow};
+use crate::storage::schema::{remove_setting, set_setting, SettingRow};
 
 // ── AiBackend enum ─────────────────────────────────────────────────────────
 
@@ -474,4 +474,106 @@ pub async fn save_settings(db: DbRef<'_>, sv: &SettingValue) -> Result<(), CoreE
     save_obj!(sv.scan_history, KEY_SCAN_HISTORY);
 
     Ok(())
+}
+
+// ── Dedicated token accessors ────────────────────────────────────────────────
+
+const EXPIRY_MARGIN_MS: f64 = 300_000.0; // 5 minutes
+
+/// Get the Google OAuth token from Rexie settings. Returns `None` if expired or not set.
+pub async fn get_google_token(db: DbRef<'_>) -> Result<Option<GoogleToken>, CoreError> {
+    let sv = load_settings(db).await?;
+    match sv.google_token {
+        Some(ref t)
+            if t.expires_at > 0.0
+                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+        {
+            Ok(Some(t.clone()))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Get Google token without expiry check (for TTL calculation etc.).
+pub async fn get_google_token_raw(db: DbRef<'_>) -> Result<Option<GoogleToken>, CoreError> {
+    let sv = load_settings(db).await?;
+    Ok(sv.google_token)
+}
+
+/// Save a Google OAuth token.
+pub async fn save_google_token(
+    db: DbRef<'_>,
+    access_token: &str,
+    expires_at: f64,
+) -> Result<(), CoreError> {
+    let token = GoogleToken {
+        access_token: access_token.to_string(),
+        expires_at,
+    };
+    let json = serde_json::to_string(&token)
+        .map_err(|e| CoreError::Serialize(e.to_string()))?;
+    set_setting(db, KEY_GOOGLE_TOKEN, &json).await
+}
+
+/// Clear the Google OAuth token.
+pub async fn clear_google_token(db: DbRef<'_>) -> Result<(), CoreError> {
+    remove_setting(db, KEY_GOOGLE_TOKEN).await
+}
+
+/// Check if Google token is valid (not expired, with 5 min margin).
+pub async fn is_google_token_valid(db: DbRef<'_>) -> Result<bool, CoreError> {
+    Ok(get_google_token(db).await?.is_some())
+}
+
+/// Get milliseconds until Google token expires. Returns 0 if expired/missing.
+pub async fn get_google_token_ttl(db: DbRef<'_>) -> Result<f64, CoreError> {
+    match get_google_token_raw(db).await? {
+        Some(t) if t.expires_at > 0.0 => {
+            let remaining = t.expires_at - EXPIRY_MARGIN_MS - js_sys::Date::now();
+            Ok(if remaining > 0.0 { remaining } else { 0.0 })
+        }
+        _ => Ok(0.0),
+    }
+}
+
+/// Get the Twitter OAuth token from Rexie settings. Returns `None` if expired or not set.
+pub async fn get_twitter_token(db: DbRef<'_>) -> Result<Option<TwitterToken>, CoreError> {
+    let sv = load_settings(db).await?;
+    match sv.twitter_token {
+        Some(ref t)
+            if t.expires_at > 0.0
+                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+        {
+            Ok(Some(t.clone()))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Get Twitter token without expiry check (for refresh flow).
+pub async fn get_twitter_token_raw(db: DbRef<'_>) -> Result<Option<TwitterToken>, CoreError> {
+    let sv = load_settings(db).await?;
+    Ok(sv.twitter_token)
+}
+
+/// Save a Twitter OAuth token.
+pub async fn save_twitter_token(
+    db: DbRef<'_>,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: f64,
+) -> Result<(), CoreError> {
+    let token = TwitterToken {
+        access_token: access_token.to_string(),
+        refresh_token: refresh_token.map(|s| s.to_string()),
+        expires_at,
+    };
+    let json = serde_json::to_string(&token)
+        .map_err(|e| CoreError::Serialize(e.to_string()))?;
+    set_setting(db, KEY_TWITTER_TOKEN, &json).await
+}
+
+/// Clear the Twitter OAuth token.
+pub async fn clear_twitter_token(db: DbRef<'_>) -> Result<(), CoreError> {
+    remove_setting(db, KEY_TWITTER_TOKEN).await
 }

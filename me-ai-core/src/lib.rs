@@ -159,6 +159,102 @@ impl MeAiCore {
         Ok(storage::schema::remove_setting(db, key).await?)
     }
 
+    // ── Token accessors ────────────────────────────────────────────────
+
+    #[wasm_bindgen(js_name = getGoogleToken)]
+    pub async fn get_google_token(&self) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let token = storage::settings::get_google_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&token)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = saveGoogleToken)]
+    pub async fn save_google_token(
+        &self,
+        access_token: &str,
+        expires_in: f64,
+    ) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        let expires_at = js_sys::Date::now() + expires_in * 1000.0;
+        storage::settings::save_google_token(db, access_token, expires_at)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = clearGoogleToken)]
+    pub async fn clear_google_token(&self) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        storage::settings::clear_google_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = isGoogleTokenValid)]
+    pub async fn is_google_token_valid(&self) -> Result<bool, JsValue> {
+        let db = self.rexie_db.db();
+        storage::settings::is_google_token_valid(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getGoogleTokenTTL)]
+    pub async fn get_google_token_ttl(&self) -> Result<f64, JsValue> {
+        let db = self.rexie_db.db();
+        storage::settings::get_google_token_ttl(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = getTwitterToken)]
+    pub async fn get_twitter_token(&self) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let token = storage::settings::get_twitter_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&token)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getTwitterTokenRaw)]
+    pub async fn get_twitter_token_raw(&self) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let token = storage::settings::get_twitter_token_raw(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&token)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = saveTwitterToken)]
+    pub async fn save_twitter_token(
+        &self,
+        access_token: &str,
+        refresh_token: JsValue,
+        expires_in: f64,
+    ) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        let refresh = if refresh_token.is_null() || refresh_token.is_undefined() {
+            None
+        } else {
+            refresh_token.as_string()
+        };
+        let expires_at = js_sys::Date::now() + expires_in * 1000.0;
+        storage::settings::save_twitter_token(db, access_token, refresh.as_deref(), expires_at)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = clearTwitterToken)]
+    pub async fn clear_twitter_token(&self) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        storage::settings::clear_twitter_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = logAuditExecution)]
     pub async fn log_audit_execution(
@@ -457,7 +553,6 @@ impl MeAiCore {
         event: JsValue,
         approved: bool,
         actions_override: JsValue,
-        access_token: JsValue,
         on_progress: Option<Function>,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
@@ -472,18 +567,11 @@ impl MeAiCore {
                         .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?,
                 )
             };
-        let access_token: Option<String> =
-            if access_token.is_null() || access_token.is_undefined() {
-                None
-            } else {
-                access_token.as_string()
-            };
         let result = plugins::resolution::resolve_and_execute_pipeline(
             db,
             event,
             approved,
             actions_override,
-            access_token,
             on_progress,
         )
         .await
@@ -498,24 +586,16 @@ impl MeAiCore {
         event_type: &str,
         events: JsValue,
         approved: bool,
-        access_token: JsValue,
         on_progress: Option<Function>,
     ) -> Result<JsValue, JsValue> {
         let db = self.rexie_db.db();
         let events: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(events)
             .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
-        let access_token: Option<String> =
-            if access_token.is_null() || access_token.is_undefined() {
-                None
-            } else {
-                access_token.as_string()
-            };
         let result = plugins::resolution::resolve_and_execute_batch(
             db,
             event_type,
             events,
             approved,
-            access_token,
             on_progress,
         )
         .await

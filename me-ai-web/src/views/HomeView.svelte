@@ -44,7 +44,7 @@
   onMount(async () => {
     try {
       const token = await getSavedToken();
-      if (token && isTokenValid()) {
+      if (token && await isTokenValid()) {
         gmailConnected = true;
       }
     } catch { /* no-op */ }

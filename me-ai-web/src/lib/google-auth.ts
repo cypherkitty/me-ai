@@ -5,12 +5,17 @@
  * Uses the "implicit grant" flow via google.accounts.oauth2.initTokenClient
  * to get an access_token directly in the browser.
  *
- * Token is persisted in two places for reliability:
- *   1. localStorage  — synchronous, survives reloads instantly (primary read source)
- *   2. IndexedDB     — async, kept in sync for consistency with the rest of the app
+ * Token is persisted in IndexedDB via me-ai-core WASM token management.
  */
 
 import type { GoogleTokenResponse } from "./core.js";
+import {
+  getGoogleToken as coreGetGoogleToken,
+  saveGoogleToken as coreSaveGoogleToken,
+  clearGoogleToken as coreClearGoogleToken,
+  isGoogleTokenValid as coreIsGoogleTokenValid,
+  getGoogleTokenTTL as coreGetGoogleTokenTTL,
+} from "./core.js";
 
 declare global {
   interface Window {
@@ -31,105 +36,33 @@ declare global {
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
-const LS_KEY = "me-ai:oauth-token";
-const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 type TokenClient = { requestAccessToken: (opts?: { prompt?: string }) => void };
 let tokenClient: TokenClient | null = null;
 let _pendingResolve: ((response: GoogleTokenResponse) => void) | null = null;
-let _expiresAt = 0;
-
-function _lsSave(accessToken: string, expiresAt: number): void {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ access_token: accessToken, expires_at: expiresAt }));
-  } catch {
-    /* ignore */
-  }
-}
-
-function _lsClear(): void {
-  try {
-    localStorage.removeItem(LS_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-function _lsRead(): { access_token: string; expires_at: number } | null {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as { access_token: string; expires_at: number };
-  } catch {
-    return null;
-  }
-}
 
 async function saveToken(accessToken: string, expiresIn: number): Promise<void> {
-  _expiresAt = Date.now() + expiresIn * 1000;
-  _lsSave(accessToken, _expiresAt);
-  try {
-    const { saveSettings, SettingValue, GoogleToken } = await import("./core.js");
-    const token = new GoogleToken(accessToken, _expiresAt);
-    const sv = new SettingValue();
-    sv.googleToken = token;
-    await saveSettings(sv);
-  } catch {
-    /* ignore */
-  }
+  await coreSaveGoogleToken(accessToken, expiresIn);
 }
 
 async function clearSavedToken(): Promise<void> {
-  _expiresAt = 0;
-  _lsClear();
-  try {
-    const { removeSetting } = await import("./core.js");
-    await removeSetting("me-ai:oauth-token");
-  } catch {
-    /* ignore */
-  }
+  await coreClearGoogleToken();
 }
 
 /**
  * Restore a previously saved token if it hasn't expired.
  */
 export async function getSavedToken(): Promise<{ access_token: string } | null> {
-  const ls = _lsRead();
-  if (ls?.access_token && Date.now() < ls.expires_at - EXPIRY_MARGIN_MS) {
-    _expiresAt = ls.expires_at;
-    return { access_token: ls.access_token };
-  }
-
-  try {
-    const { loadSettings } = await import("./core.js");
-    const sv = await loadSettings();
-    const data = sv.googleToken;
-    if (!data) {
-      _lsClear();
-      return null;
-    }
-    const access_token = data.accessToken;
-    const expires_at = data.expiresAt;
-    if (!access_token || !expires_at || Date.now() > expires_at - EXPIRY_MARGIN_MS) {
-      await clearSavedToken();
-      return null;
-    }
-    _expiresAt = expires_at;
-    _lsSave(access_token, expires_at);
-    return { access_token };
-  } catch {
-    await clearSavedToken();
-    return null;
-  }
+  const token = await coreGetGoogleToken();
+  return token ?? null;
 }
 
-export function isTokenValid(): boolean {
-  return _expiresAt > 0 && Date.now() < _expiresAt - EXPIRY_MARGIN_MS;
+export async function isTokenValid(): Promise<boolean> {
+  return coreIsGoogleTokenValid();
 }
 
-export function getTokenTTL(): number {
-  if (_expiresAt <= 0) return 0;
-  return Math.max(0, _expiresAt - EXPIRY_MARGIN_MS - Date.now());
+export async function getTokenTTL(): Promise<number> {
+  return coreGetGoogleTokenTTL();
 }
 
 export function refreshToken(): Promise<{ access_token: string; expires_in: number }> {

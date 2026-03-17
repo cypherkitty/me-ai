@@ -198,9 +198,9 @@
     }
   });
 
-  function scheduleTokenRefresh() {
+  async function scheduleTokenRefresh() {
     if (refreshTimer) clearTimeout(refreshTimer);
-    const ttl = getTokenTTL();
+    const ttl = await getTokenTTL();
     if (ttl <= 0) return;
     const delay = Math.max(0, ttl - 2 * 60 * 1000);
     refreshTimer = setTimeout(async () => {
@@ -217,7 +217,7 @@
   }
 
   async function ensureValidToken() {
-    if (isTokenValid()) return accessToken;
+    if (await isTokenValid()) return accessToken;
     try {
       const r = await refreshToken();
       accessToken = r.access_token;

@@ -1,33 +1,17 @@
 import { describe, it, expect } from "vitest";
-import * as llmContext from "../llm-context.js";
+import * as core from "../core.js";
 
-describe("llm-context exports", () => {
-  it("exports buildLLMContext", () => {
-    expect(typeof llmContext.buildLLMContext).toBe("function");
+describe("llm-context core exports", () => {
+  it("exports buildLlmContext", () => {
+    expect(typeof core.buildLlmContext).toBe("function");
   });
 
   it("exports buildEmailContext", () => {
-    expect(typeof llmContext.buildEmailContext).toBe("function");
-  });
-
-  it("must NOT export buildPendingActionsContext", () => {
-    expect(llmContext).not.toHaveProperty("buildPendingActionsContext");
-  });
-
-  it("must NOT export any function with 'pending' in the name", () => {
-    const pendingExports = Object.keys(llmContext).filter((k) =>
-      /pending/i.test(k)
-    );
-    expect(pendingExports).toEqual([]);
+    expect(typeof core.buildEmailContext).toBe("function");
   });
 });
 
 describe("no full table scans in lightweight context path", () => {
-  it("buildLLMContext source must not call toArray()", async () => {
-    const src = await importSource("../llm-context.ts");
-    expect(src).not.toMatch(/buildLLMContext[\s\S]*?toArray/);
-  });
-
   it("query-layer must not export getTopSenders", async () => {
     const src = await importSource("../store/query-layer.ts");
     expect(src).not.toMatch(/export\s+.*getTopSenders/);

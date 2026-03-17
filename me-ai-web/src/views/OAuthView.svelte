@@ -27,10 +27,10 @@
       await initGoogleAuth(DEFAULT_CLIENT_ID);
       initialized = true;
       const token = await getSavedToken();
-      if (token && isTokenValid()) {
+      if (token && await isTokenValid()) {
         const sv = await loadSettings();
         profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
-        tokenTTLMin = Math.floor(getTokenTTL() / 60_000);
+        tokenTTLMin = Math.floor(await getTokenTTL() / 60_000);
         status = "success";
       }
     } catch (e) {
@@ -46,7 +46,7 @@
       await requestAccessToken();
       const sv = await loadSettings();
       profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
-      tokenTTLMin = Math.floor(getTokenTTL() / 60_000);
+      tokenTTLMin = Math.floor(await getTokenTTL() / 60_000);
       status = "success";
     } catch (e) {
       errorMsg = e instanceof Error ? e.message : String(e);

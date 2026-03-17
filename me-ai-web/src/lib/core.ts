@@ -415,6 +415,18 @@ export async function buildEmailContext(userQuery?: string): Promise<string> {
   return requireCore().buildEmailContext(userQuery ?? null);
 }
 
+// ── Token management (core) ──────────────────────────────────────────────────
+
+export async function getGoogleToken() { return requireCore().getGoogleToken(); }
+export async function saveGoogleToken(accessToken: string, expiresIn: number) { return requireCore().saveGoogleToken(accessToken, expiresIn); }
+export async function clearGoogleToken() { return requireCore().clearGoogleToken(); }
+export async function isGoogleTokenValid(): Promise<boolean> { return requireCore().isGoogleTokenValid(); }
+export async function getGoogleTokenTTL(): Promise<number> { return requireCore().getGoogleTokenTTL(); }
+export async function getTwitterToken() { return requireCore().getTwitterToken(); }
+export async function getTwitterTokenRaw() { return requireCore().getTwitterTokenRaw(); }
+export async function saveTwitterToken(accessToken: string, refreshToken: string | null, expiresIn: number) { return requireCore().saveTwitterToken(accessToken, refreshToken, expiresIn); }
+export async function clearTwitterToken() { return requireCore().clearTwitterToken(); }
+
 // ── Pipeline resolution & execution (core) ──────────────────────────────────
 
 export async function findMatchingRules(eventType: string, eventCategory: string) {
@@ -429,18 +441,16 @@ export async function resolveAndExecutePipeline(
   event: unknown,
   approved: boolean,
   actionsOverride: unknown,
-  accessToken: string | null,
   onProgress?: (p: unknown) => void
 ) {
-  return requireCore().resolveAndExecutePipeline(event, approved, actionsOverride ?? null, accessToken ?? null, onProgress);
+  return requireCore().resolveAndExecutePipeline(event, approved, actionsOverride ?? null, onProgress);
 }
 
 export async function resolveAndExecuteBatch(
   eventType: string,
   events: unknown[],
   approved: boolean,
-  accessToken: string | null,
   onProgress?: (p: unknown) => void
 ) {
-  return requireCore().resolveAndExecuteBatch(eventType, events, approved, accessToken ?? null, onProgress);
+  return requireCore().resolveAndExecuteBatch(eventType, events, approved, onProgress);
 }

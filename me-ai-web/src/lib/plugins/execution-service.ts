@@ -57,12 +57,10 @@ export async function executePipeline(
   error?: unknown;
 }> {
   try {
-    const token = (await getSavedToken())?.access_token ?? null;
     const result = (await coreResolveAndExecute(
       event,
       approved,
       options.actionsOverride ?? null,
-      token as string | null,
       onProgress as ((p: unknown) => void) | undefined
     )) as ResolveExecuteResult;
 
@@ -101,12 +99,10 @@ export async function executePipelineBatch(
   error?: unknown;
 }> {
   try {
-    const token = (await getSavedToken())?.access_token ?? null;
     const result = (await coreResolveAndExecuteBatch(
       eventType,
       events,
       approved,
-      token as string | null,
       onProgress as ((p: unknown) => void) | undefined
     )) as ResolveBatchResult;
 

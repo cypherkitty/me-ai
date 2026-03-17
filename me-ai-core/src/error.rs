@@ -20,6 +20,9 @@ pub enum CoreError {
 
     #[error("llm: {0}")]
     Llm(String),
+
+    #[error("auth: {0}")]
+    Auth(String),
 }
 
 /// Format rexie/idb error message with user-friendly hints. Extracted for testability.

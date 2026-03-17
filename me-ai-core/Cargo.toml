@@ -23,6 +23,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 async-openai = { version = "0.33", default-features = false, features = ["responses"] }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
 regex-lite = "0.1"
+tsify-next = { version = "0.5", default-features = false, features = ["js"] }
 
 [profile.release]
 lto = true

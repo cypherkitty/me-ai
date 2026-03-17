@@ -5,22 +5,23 @@
  * Uses the Authorization Code Flow with PKCE (Proof Key for Code Exchange)
  * for public clients (SPAs). No client_secret needed.
  *
- * Token is persisted in two places for reliability:
- *   1. localStorage  — synchronous, survives reloads instantly
- *   2. IndexedDB     — async, kept in sync for consistency
+ * Token is persisted in IndexedDB via me-ai-core WASM token management.
  */
 
-import type { TwitterTokenData } from "./core.js";
+import {
+  getTwitterToken as coreGetTwitterToken,
+  getTwitterTokenRaw as coreGetTwitterTokenRaw,
+  saveTwitterToken as coreSaveTwitterToken,
+  clearTwitterToken as coreClearTwitterToken,
+} from "./core.js";
 
 const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const TWITTER_REVOKE_URL = "https://api.twitter.com/2/oauth2/revoke";
 
 const SCOPES = ["tweet.read", "users.read", "like.read", "like.write", "bookmark.read", "bookmark.write", "offline.access"].join(" ");
-const LS_TOKEN_KEY = "me-ai:twitter-token";
 const LS_VERIFIER_KEY = "me-ai:twitter-pkce-verifier";
 const LS_STATE_KEY = "me-ai:twitter-pkce-state";
-const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 let _clientId: string | null = null;
 let _redirectUri: string | null = null;
@@ -48,56 +49,12 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
   return base64UrlEncode(hash);
 }
 
-function _lsSave(tokenData: TwitterTokenData): void {
-  try {
-    localStorage.setItem(LS_TOKEN_KEY, JSON.stringify(tokenData));
-  } catch {
-    /* ignore */
-  }
-}
-
-function _lsClear(): void {
-  try {
-    localStorage.removeItem(LS_TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-function _lsRead(): TwitterTokenData | null {
-  try {
-    const raw = localStorage.getItem(LS_TOKEN_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as TwitterTokenData;
-  } catch {
-    return null;
-  }
-}
-
-async function saveToken(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
-  const expiresAt = Date.now() + expiresIn * 1000;
-  const data: TwitterTokenData = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt };
-  _lsSave(data);
-  try {
-    const { saveSettings, SettingValue, TwitterToken } = await import("./core.js");
-    const token = new TwitterToken(accessToken, expiresAt);
-    if (refreshToken) token.refreshToken = refreshToken;
-    const sv = new SettingValue();
-    sv.twitterToken = token;
-    await saveSettings(sv);
-  } catch {
-    /* ignore */
-  }
+async function saveToken(accessToken: string, refreshToken: string | undefined, expiresIn: number): Promise<void> {
+  await coreSaveTwitterToken(accessToken, refreshToken ?? null, expiresIn);
 }
 
 async function clearSavedToken(): Promise<void> {
-  _lsClear();
-  try {
-    const { removeSetting } = await import("./core.js");
-    await removeSetting("me-ai:twitter-token");
-  } catch {
-    /* ignore */
-  }
+  await coreClearTwitterToken();
 }
 
 /**
@@ -182,40 +139,22 @@ export async function handleTwitterCallback(
 /**
  * Restore a previously saved token if it hasn't expired.
  */
-export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token: string } | null> {
-  const ls = _lsRead();
-  if (ls?.access_token && Date.now() < ls.expires_at - EXPIRY_MARGIN_MS) {
-    return { access_token: ls.access_token, refresh_token: ls.refresh_token ?? "" };
-  }
-
-  try {
-    const { loadSettings } = await import("./core.js");
-    const sv = await loadSettings();
-    const t = sv.twitterToken;
-    if (!t?.accessToken) {
-      _lsClear();
+export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token?: string } | null> {
+  const token = await coreGetTwitterToken();
+  if (token) return token;
+  // Try raw (possibly expired) — attempt refresh
+  const raw = await coreGetTwitterTokenRaw();
+  if (raw?.refresh_token) {
+    try {
+      await refreshTwitterToken(raw.refresh_token);
+      return coreGetTwitterToken();
+    } catch (_e) {
+      console.warn("Twitter token refresh failed:", _e);
+      await coreClearTwitterToken();
       return null;
     }
-    const expiresAt = t.expiresAt;
-    const refreshTok = t.refreshToken;
-    if (Date.now() > expiresAt - EXPIRY_MARGIN_MS) {
-      if (refreshTok) {
-        try {
-          return await refreshTwitterToken(refreshTok);
-        } catch {
-          await clearSavedToken();
-          return null;
-        }
-      }
-      await clearSavedToken();
-      return null;
-    }
-    _lsSave({ access_token: t.accessToken, refresh_token: refreshTok, expires_at: expiresAt });
-    return { access_token: t.accessToken, refresh_token: refreshTok ?? "" };
-  } catch {
-    await clearSavedToken();
-    return null;
   }
+  return null;
 }
 
 /**
@@ -226,8 +165,8 @@ async function refreshTwitterToken(
 ): Promise<{ access_token: string; refresh_token: string }> {
   let refreshTok = refreshTokenOverride;
   if (!refreshTok) {
-    const ls = _lsRead();
-    refreshTok = ls?.refresh_token;
+    const raw = await coreGetTwitterTokenRaw();
+    refreshTok = raw?.refresh_token;
   }
   if (!refreshTok) throw new Error("No refresh token available.");
 
@@ -254,13 +193,13 @@ async function refreshTwitterToken(
 }
 
 export async function revokeTwitterToken(): Promise<void> {
-  const ls = _lsRead();
-  if (ls?.access_token && _clientId) {
+  const token = await coreGetTwitterTokenRaw();
+  if (token?.access_token && _clientId) {
     try {
       await fetch(TWITTER_REVOKE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: ls.access_token, client_id: _clientId }),
+        body: new URLSearchParams({ token: token.access_token, client_id: _clientId }),
       });
     } catch {
       /* ignore */
