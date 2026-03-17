@@ -2504,8 +2504,22 @@ export class MeAiCore {
     /**
      * @returns {Promise<void>}
      */
+    clearGoogleToken() {
+        const ret = wasm.meaicore_clearGoogleToken(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
     clearItemsSyncContacts() {
         const ret = wasm.meaicore_clearItemsSyncContacts(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
+    clearTwitterToken() {
+        const ret = wasm.meaicore_clearTwitterToken(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -2960,6 +2974,20 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @returns {Promise<any>}
+     */
+    getGoogleToken() {
+        const ret = wasm.meaicore_getGoogleToken(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<number>}
+     */
+    getGoogleTokenTTL() {
+        const ret = wasm.meaicore_getGoogleTokenTTL(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} id
      * @returns {Promise<ItemRow | undefined>}
      */
@@ -3250,6 +3278,20 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @returns {Promise<any>}
+     */
+    getTwitterToken() {
+        const ret = wasm.meaicore_getTwitterToken(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getTwitterTokenRaw() {
+        const ret = wasm.meaicore_getTwitterTokenRaw(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} token
      * @param {string} tweet_id
      * @returns {Promise<any>}
@@ -3353,6 +3395,13 @@ export class MeAiCore {
      */
     insertSyncStateBatch(rows) {
         const ret = wasm.meaicore_insertSyncStateBatch(this.__wbg_ptr, rows);
+        return ret;
+    }
+    /**
+     * @returns {Promise<boolean>}
+     */
+    isGoogleTokenValid() {
+        const ret = wasm.meaicore_isGoogleTokenValid(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -3557,26 +3606,24 @@ export class MeAiCore {
      * @param {string} event_type
      * @param {any} events
      * @param {boolean} approved
-     * @param {any} access_token
      * @param {Function | null} [on_progress]
      * @returns {Promise<any>}
      */
-    resolveAndExecuteBatch(event_type, events, approved, access_token, on_progress) {
+    resolveAndExecuteBatch(event_type, events, approved, on_progress) {
         const ptr0 = passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.meaicore_resolveAndExecuteBatch(this.__wbg_ptr, ptr0, len0, events, approved, access_token, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
+        const ret = wasm.meaicore_resolveAndExecuteBatch(this.__wbg_ptr, ptr0, len0, events, approved, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
         return ret;
     }
     /**
      * @param {any} event
      * @param {boolean} approved
      * @param {any} actions_override
-     * @param {any} access_token
      * @param {Function | null} [on_progress]
      * @returns {Promise<any>}
      */
-    resolveAndExecutePipeline(event, approved, actions_override, access_token, on_progress) {
-        const ret = wasm.meaicore_resolveAndExecutePipeline(this.__wbg_ptr, event, approved, actions_override, access_token, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
+    resolveAndExecutePipeline(event, approved, actions_override, on_progress) {
+        const ret = wasm.meaicore_resolveAndExecutePipeline(this.__wbg_ptr, event, approved, actions_override, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
         return ret;
     }
     /**
@@ -3598,6 +3645,17 @@ export class MeAiCore {
         }
     }
     /**
+     * @param {string} access_token
+     * @param {number} expires_in
+     * @returns {Promise<void>}
+     */
+    saveGoogleToken(access_token, expires_in) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_saveGoogleToken(this.__wbg_ptr, ptr0, len0, expires_in);
+        return ret;
+    }
+    /**
      * @param {any} payload
      * @returns {Promise<void>}
      */
@@ -3613,6 +3671,18 @@ export class MeAiCore {
         _assertClass(sv, SettingValue);
         var ptr0 = sv.__destroy_into_raw();
         const ret = wasm.meaicore_saveSettings(this.__wbg_ptr, ptr0);
+        return ret;
+    }
+    /**
+     * @param {string} access_token
+     * @param {any} refresh_token
+     * @param {number} expires_in
+     * @returns {Promise<void>}
+     */
+    saveTwitterToken(access_token, refresh_token, expires_in) {
+        const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_saveTwitterToken(this.__wbg_ptr, ptr0, len0, refresh_token, expires_in);
         return ret;
     }
     /**
@@ -7908,22 +7978,22 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1021, function: Function { arguments: [Externref], shim_idx: 1180, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1058, function: Function { arguments: [Externref], shim_idx: 1217, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1133, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1134, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1170, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1171, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { dtor_idx: 5, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 6, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h1e7ae839838f20bc, wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3);
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hea31878c4df09b43, wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 952, function: Function { arguments: [], shim_idx: 953, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 989, function: Function { arguments: [], shim_idx: 990, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
@@ -8048,8 +8118,8 @@ function wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg
     wasm.wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hfc4e85cdbe0fabb3(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757(arg0, arg1, arg2);
 }
 
 function wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0(arg0, arg1, arg2) {
