@@ -82,6 +82,25 @@ export interface GetClassificationsByCategoryOptions {
 }
 "#;
 
+#[wasm_bindgen(typescript_custom_section)]
+const TRIAGE_ENGINE_TYPES: &'static str = r#"
+export interface TriageEngine {
+    readonly isReady: boolean;
+    readonly modelId: string | null;
+    generateFull(
+        messages: Array<{ role: string; content: string }>,
+        options: { maxTokens?: number; enableThinking?: boolean; temperature?: number },
+        onToken?: (info: { tps: number | null; numTokens: number; text: string }) => void
+    ): Promise<{ text: string; tps: number | null; numTokens: number; inputTokens: number }>;
+}
+
+export interface PluginForPrompt {
+    pluginId: string;
+    pluginName: string;
+    actions: Array<{ actionId: string }>;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

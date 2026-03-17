@@ -1,11 +1,5 @@
 import { exportFilename } from "./email-utils.js";
-
-/** Message-like shape for export (subject, date, raw). */
-interface MessageLike {
-  subject?: string;
-  date?: number | string | null;
-  raw?: unknown;
-}
+import type { MessageLike } from "./core.js";
 
 /**
  * Extract the raw Gmail API JSON from a stored message.

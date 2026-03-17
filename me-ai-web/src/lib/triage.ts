@@ -30,7 +30,7 @@ import { getApiModelInfo } from "./api-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
-import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions } from "./core.js";
+import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions, TriageEngine, PluginForPrompt } from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
 
 const DEFAULT_COUNT = 20;
@@ -41,24 +41,6 @@ export const CLASSIFICATION_CONFIG = {
   enableThinking: false,
   doSample: false,
 };
-
-/** Minimal engine interface used for scanning (llm-engine or unified-engine). */
-interface TriageEngine {
-  readonly isReady: boolean;
-  readonly modelId: string | null;
-  generateFull(
-    messages: Array<{ role: string; content: string }>,
-    options: { maxTokens?: number; enableThinking?: boolean; temperature?: number },
-    onToken?: (info: { tps: number | null; numTokens: number; text: string }) => void
-  ): Promise<{ text: string; tps: number | null; numTokens: number; inputTokens: number }>;
-}
-
-/** Plugin metadata used internally for prompt building. */
-interface PluginForPrompt {
-  pluginId: string;
-  pluginName: string;
-  actions: Array<{ actionId: string }>;
-}
 
 function getPluginsForPrompt(): PluginForPrompt[] {
   const raw = coreGetPluginsForPrompt();

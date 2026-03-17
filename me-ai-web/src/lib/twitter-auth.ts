@@ -10,6 +10,8 @@
  *   2. IndexedDB     — async, kept in sync for consistency
  */
 
+import type { TwitterTokenData } from "./core.js";
+
 const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const TWITTER_REVOKE_URL = "https://api.twitter.com/2/oauth2/revoke";
@@ -22,12 +24,6 @@ const EXPIRY_MARGIN_MS = 5 * 60 * 1000;
 
 let _clientId: string | null = null;
 let _redirectUri: string | null = null;
-
-interface TokenData {
-  access_token: string;
-  refresh_token?: string;
-  expires_at: number;
-}
 
 function generateRandomString(length: number = 64): string {
   const array = new Uint8Array(length);
@@ -52,7 +48,7 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
   return base64UrlEncode(hash);
 }
 
-function _lsSave(tokenData: TokenData): void {
+function _lsSave(tokenData: TwitterTokenData): void {
   try {
     localStorage.setItem(LS_TOKEN_KEY, JSON.stringify(tokenData));
   } catch {
@@ -68,11 +64,11 @@ function _lsClear(): void {
   }
 }
 
-function _lsRead(): TokenData | null {
+function _lsRead(): TwitterTokenData | null {
   try {
     const raw = localStorage.getItem(LS_TOKEN_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as TokenData;
+    return JSON.parse(raw) as TwitterTokenData;
   } catch {
     return null;
   }
@@ -80,7 +76,7 @@ function _lsRead(): TokenData | null {
 
 async function saveToken(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
   const expiresAt = Date.now() + expiresIn * 1000;
-  const data: TokenData = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt };
+  const data: TwitterTokenData = { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt };
   _lsSave(data);
   try {
     const { saveSettings, SettingValue, TwitterToken } = await import("./core.js");

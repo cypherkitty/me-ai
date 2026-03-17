@@ -14,32 +14,7 @@
  *   const { text, tps, numTokens, inputTokens } = await engine.generateFull(messages);
  */
 
-import type { GenerateFullResult } from "./core.js";
-
-interface WorkerMessage {
-  status: string;
-  data?: string;
-  modelId?: string | null;
-  loaded?: boolean;
-  phase?: string;
-  output?: string;
-  content?: string;
-  tps?: number | null;
-  numTokens?: number;
-  inputTokens?: number;
-  file?: string;
-  progress?: number;
-  name?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
-
-interface WorkerHandle {
-  postMessage: (msg: object, transfer?: Transferable[]) => void;
-  terminate: () => void;
-}
-
-type Listener = (msg: WorkerMessage) => void;
+import type { GenerateFullResult, WorkerMessage, WorkerHandle, Listener } from "./core.js";
 
 let _workerPromise: Promise<WorkerHandle> | null = null;
 let _status: "idle" | "loading" | "ready" | "generating" = "idle";

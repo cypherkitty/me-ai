@@ -10,6 +10,8 @@
  *   2. IndexedDB     — async, kept in sync for consistency with the rest of the app
  */
 
+import type { GoogleTokenResponse } from "./core.js";
+
 declare global {
   interface Window {
     google?: {
@@ -25,13 +27,6 @@ declare global {
       };
     };
   }
-}
-
-interface GoogleTokenResponse {
-  access_token: string;
-  expires_in: number;
-  error?: string;
-  error_description?: string;
 }
 
 const GIS_SCRIPT_URL = "https://accounts.google.com/gsi/client";

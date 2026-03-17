@@ -17,6 +17,14 @@ export type {
   Action, Trigger, Rule, CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
   EventCategory, EmailEvent, ExecutionProgress, ByCategory, ClassificationLike, EmailLike,
   ClassificationResult, ScanProgress, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions,
+  ListMessagesOptions, ListHistoryOptions,
+  GoogleTokenResponse,
+  TwitterUser, Tweet, ApiResponse, TimelineOptions, TwitterUserInfo,
+  TwitterTokenData,
+  ParsedError,
+  MessageLike,
+  WorkerMessage, WorkerHandle, Listener,
+  TriageEngine, PluginForPrompt,
 } from "me-ai-core";
 
 /**
@@ -28,7 +36,7 @@ export async function initCore(): Promise<void> {
     const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
     const wasmUrl = `${base}wasm/me_ai_core_bg.wasm`;
     await initDefault({ module_or_path: wasmUrl });
-    const core = await new MeAiCore();
+    const core = new MeAiCore();
     await core.createSchemaAndMigrations();
     coreStore.set({ core, initFailed: false });
   } catch (e) {

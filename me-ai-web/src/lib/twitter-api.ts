@@ -3,43 +3,10 @@
  */
 
 import { getCore } from "./store/core-store.js";
+import type { TwitterUser, Tweet, ApiResponse, TimelineOptions, TwitterUserInfo } from "./core.js";
 
 function requireCore() {
   return getCore();
-}
-
-interface TwitterUser {
-  id: string;
-  name: string;
-  username: string;
-  profile_image_url?: string;
-  public_metrics?: unknown;
-}
-
-interface Tweet {
-  id: string;
-  text: string;
-  author_id?: string;
-  created_at?: string;
-  public_metrics?: unknown;
-  referenced_tweets?: unknown[];
-  conversation_id?: string;
-}
-
-interface ApiResponse<T> {
-  data?: T;
-  includes?: { users?: TwitterUser[] };
-  meta?: { next_token?: string; result_count?: number };
-}
-
-interface TimelineOptions {
-  maxResults?: number;
-  paginationToken?: string;
-}
-
-interface UserInfo {
-  username: string;
-  name: string;
 }
 
 /**
@@ -64,8 +31,8 @@ export function getUserTimeline(
 /**
  * Resolve author usernames from the `includes.users` expansion.
  */
-export function buildUserMap(response: ApiResponse<unknown>): Map<string, UserInfo> {
-  const map = new Map<string, UserInfo>();
+export function buildUserMap(response: ApiResponse<unknown>): Map<string, TwitterUserInfo> {
+  const map = new Map<string, TwitterUserInfo>();
   const users = response?.includes?.users as { id: string; username: string; name: string }[] | undefined;
   if (users) {
     for (const u of users) {

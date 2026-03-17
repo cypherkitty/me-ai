@@ -1,13 +1,6 @@
 import { GmailApiError } from "./gmail-api.js";
 import { getCore } from "./store/core-store.js";
-
-interface ParsedError {
-  title: string;
-  description: string;
-  fix?: string | null;
-  link?: { url: string; label: string };
-  action?: string;
-}
+import type { ParsedError } from "./core.js";
 
 /**
  * Parses raw errors into user-friendly structured guidance.

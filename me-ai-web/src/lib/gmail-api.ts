@@ -3,6 +3,7 @@
  */
 
 import { getCore } from "./store/core-store.js";
+import type { ListMessagesOptions, ListHistoryOptions } from "./core.js";
 
 function requireCore() {
   return getCore();
@@ -18,18 +19,6 @@ export class GmailApiError extends Error {
     this.status = status;
     this.code = code ?? null;
   }
-}
-
-interface ListMessagesOptions {
-  maxResults?: number;
-  pageToken?: string;
-  q?: string;
-}
-
-interface ListHistoryOptions {
-  startHistoryId: string;
-  pageToken?: string;
-  maxResults?: number;
 }
 
 export function getProfile(token: string): Promise<Record<string, unknown>> {

@@ -67,6 +67,12 @@ export interface PendingActionsResult {
     order: string[];
     total: number;
 }
+
+export interface MessageLike {
+    subject?: string;
+    date?: number | string | null;
+    raw?: unknown;
+}
 "#;
 
 #[wasm_bindgen(getter_with_clone)]

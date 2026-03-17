@@ -9,6 +9,7 @@
 
 mod api;
 mod db;
+mod integrations;
 mod storage;
 mod error;
 mod formatting;

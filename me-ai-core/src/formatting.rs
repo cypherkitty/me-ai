@@ -98,6 +98,17 @@ pub fn export_filename(subject: &str, date_ms: i64, ext: &str) -> String {
 use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 
+#[wasm_bindgen(typescript_custom_section)]
+const ERROR_TYPES: &'static str = r#"
+export interface ParsedError {
+    title: string;
+    description: string;
+    fix?: string | null;
+    link?: { url: string; label: string };
+    action?: string;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
