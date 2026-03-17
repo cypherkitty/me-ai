@@ -9,9 +9,10 @@ import {
   testOllamaConnection as coreTestOllamaConnection,
   listOllamaModels as coreListOllamaModels,
 } from "./core.js";
+import type { OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "./core.js";
 
 // Re-export types from core for backwards compatibility
-export type { OllamaConnectionResult } from "./core.js";
+export type { OllamaConnectionResult, OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "./core.js";
 
 const LOCAL_OLLAMA_URL = "http://localhost:11434";
 const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
@@ -58,25 +59,6 @@ export async function listOllamaModels(
   return coreListOllamaModels(url);
 }
 
-
-interface OllamaChatMessage {
-  role: string;
-  content?: string;
-}
-
-interface StreamOllamaOptions {
-  temperature?: number;
-  maxTokens?: number;
-  keepAlive?: string;
-}
-
-interface OllamaTokenData {
-  content: string;
-  done: boolean;
-  total_duration?: number;
-  eval_count?: number;
-  eval_duration?: number;
-}
 
 export async function streamOllamaChat(
   modelName: string,

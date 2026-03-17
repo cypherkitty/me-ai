@@ -6,6 +6,28 @@ use wasm_bindgen::prelude::*;
 
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const OLLAMA_STREAMING_TYPES: &'static str = r#"
+export interface OllamaChatMessage {
+    role: string;
+    content?: string;
+}
+
+export interface StreamOllamaOptions {
+    temperature?: number;
+    maxTokens?: number;
+    keepAlive?: string;
+}
+
+export interface OllamaTokenData {
+    content: string;
+    done: boolean;
+    total_duration?: number;
+    eval_count?: number;
+    eval_duration?: number;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -8,7 +8,7 @@ import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory } from "me-ai-core";
-export type { OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag } from "me-ai-core";
+export type { OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag, OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "me-ai-core";
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.
