@@ -4181,19 +4181,11 @@ export class OllamaModel {
         return ret !== 0;
     }
     /**
-     * @returns {string}
+     * @returns {Array<any>}
      */
     get tags() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_ollamamodel_tags(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
+        const ret = wasm.ollamamodel_tags(this.__wbg_ptr);
+        return ret;
     }
     /**
      * @param {number} arg0
@@ -4250,14 +4242,6 @@ export class OllamaModel {
      */
     set recommended(arg0) {
         wasm.__wbg_set_ollamamodel_recommended(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set tags(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_ollamamodel_tags(this.__wbg_ptr, ptr0, len0);
     }
 }
 if (Symbol.dispose) OllamaModel.prototype[Symbol.dispose] = OllamaModel.prototype.free;
