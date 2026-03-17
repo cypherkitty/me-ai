@@ -2457,6 +2457,25 @@ export class MeAiCore {
         }
     }
     /**
+     * Convert category tier ("NOISE") to lowercase name ("noise").
+     * @param {string} tier
+     * @returns {string}
+     */
+    categoryTierToName(tier) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(tier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_categoryTierToName(this.__wbg_ptr, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
      * @returns {Promise<void>}
      */
     clearAllData() {
@@ -2831,6 +2850,23 @@ export class MeAiCore {
      */
     getCategoryPipelines() {
         const ret = wasm.meaicore_getCategoryPipelines(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Count classifications by action.
+     * @returns {Promise<ClassificationCounts>}
+     */
+    getClassificationCounts() {
+        const ret = wasm.meaicore_getClassificationCounts(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Get classifications grouped by action, optionally filtered to pending/escalated only.
+     * @param {boolean} pending_only
+     * @returns {Promise<ClassificationsByCategory>}
+     */
+    getClassificationsByCategory(pending_only) {
+        const ret = wasm.meaicore_getClassificationsByCategory(this.__wbg_ptr, pending_only);
         return ret;
     }
     /**
@@ -3608,7 +3644,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @param {any} doc
+     * @param {ClassificationDoc} doc
      * @returns {Promise<void>}
      */
     putEmailClassification(doc) {
@@ -3698,14 +3734,16 @@ export class MeAiCore {
     }
     /**
      * @param {string} access_token
-     * @param {any} refresh_token
+     * @param {string | null | undefined} refresh_token
      * @param {number} expires_in
      * @returns {Promise<void>}
      */
     saveTwitterToken(access_token, refresh_token, expires_in) {
         const ptr0 = passStringToWasm0(access_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.meaicore_saveTwitterToken(this.__wbg_ptr, ptr0, len0, refresh_token, expires_in);
+        var ptr1 = isLikeNone(refresh_token) ? 0 : passStringToWasm0(refresh_token, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_saveTwitterToken(this.__wbg_ptr, ptr0, len0, ptr1, len1, expires_in);
         return ret;
     }
     /**
@@ -8023,17 +8061,17 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1032, function: Function { arguments: [], shim_idx: 1033, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1047, function: Function { arguments: [], shim_idx: 1048, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1101, function: Function { arguments: [Externref], shim_idx: 1260, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1116, function: Function { arguments: [Externref], shim_idx: 1275, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1213, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1214, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1228, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1229, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
