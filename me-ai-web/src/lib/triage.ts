@@ -25,12 +25,13 @@ import {
   getOllamaModelInfo,
   getApiModelInfo,
   getPluginsForPrompt as coreGetPluginsForPrompt,
+  getClassificationsByCategory as coreGetClassificationsByCategory,
+  getClassificationCounts as coreGetClassificationCounts,
 } from "./core.js";
 import { toJson, fromJson } from "./store/db.js";
-import { groupByAction } from "./email-utils.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import type { StoredItem } from "$lib/types";
-import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions, TriageEngine } from "./core.js";
+import type { ClassificationResult, ScanResult, ScanOptions, ClassificationView, GetClassificationsByCategoryOptions, TriageEngine } from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
 
 const DEFAULT_COUNT = 20;
@@ -208,7 +209,7 @@ export async function scanEmails(
           tags: toJson(classification.tags),
           subject: email.subject || "(no subject)",
           from: email.from || "",
-          date: email.date ?? null,
+          date: email.date ?? undefined,
           scannedAt,
           status: "pending",
         });
@@ -299,24 +300,14 @@ export async function scanEmails(
 
 export async function getClassificationsByCategory(
   opts: GetClassificationsByCategoryOptions = {}
-): Promise<{ categories: Record<string, ClassificationRow[]>; order: string[] }> {
-  const rows = ((await coreGetEmailClassifications(null, 5000)) as unknown) as Record<string, unknown>[];
-  let list = (rows ?? []).map((r) => normaliseClassificationRow(r));
-  if (opts.pendingOnly === true) {
-    list = list.filter((r) => r.status === "pending" || r.status === "escalated");
-  }
-  return groupByAction(list);
+): Promise<{ categories: Record<string, ClassificationView[]>; order: string[] }> {
+  return coreGetClassificationsByCategory(opts.pendingOnly === true);
 }
 
 export async function getClassificationCounts(): Promise<Record<string, number>> {
-  const rows = (await coreGetEmailClassifications(null, 50000)) as { action?: string }[];
-  const total = (rows ?? []).length;
-  const counts: Record<string, number> = { total };
-  for (const r of rows ?? []) {
-    const k = r.action ?? "UNKNOWN";
-    counts[k] = (counts[k] ?? 0) + 1;
-  }
-  return counts;
+  const result = await coreGetClassificationCounts();
+  // Flatten { counts, total } to a single Record for backward compat
+  return { ...result.counts, total: result.total };
 }
 
 export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {
@@ -361,14 +352,8 @@ function normaliseItemRow(row: Record<string, unknown>): StoredItem {
   } as StoredItem;
 }
 
-function normaliseClassificationRow(row: Record<string, unknown>): ClassificationRow {
-  return {
-    ...row,
-    date: row.date != null ? Number(row.date) : null,
-    scannedAt: row.scannedAt != null ? Number(row.scannedAt) : null,
-    tags: fromJson(row.tags != null ? String(row.tags) : null, []) as string[],
-  } as ClassificationRow;
-}
+// normaliseClassificationRow — removed: normalisation now happens in Rust
+// (tags JSON parsing + field defaulting is done by ClassificationView in me-ai-core)
 
 /** Format an email as a prompt string for the LLM classifier. */
 export function formatEmailPrompt(email: StoredItem | { subject?: string; from?: string; to?: string; date?: number | null; body?: string; snippet?: string; labels?: string[] }): string {

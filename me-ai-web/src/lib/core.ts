@@ -5,7 +5,7 @@
  */
 
 import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
-import type { EventInput, RuleSavePayload, ClassificationDoc, CreateRulePayload, RuleUpdateInput } from "me-ai-core";
+import type { EventInput, RuleSavePayload, ClassificationDoc, CreateRulePayload, RuleUpdateInput, ClassificationsByCategory, ClassificationCounts } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel } from "me-ai-core";
@@ -29,6 +29,7 @@ export type {
   NormalisedAction, ActionOverrideInput, ResolveExecuteResult, BatchEventResult, ResolveBatchResult,
   EventInput, RuleSavePayload,
   ClassificationDoc,
+  ClassificationView, ClassificationsByCategory, ClassificationCounts,
 } from "me-ai-core";
 
 /** Options for listing Gmail messages. */
@@ -281,6 +282,12 @@ export async function deleteEmailClassificationsByAction(action: string) {
 export async function putEmailClassification(doc: ClassificationDoc) {
   return requireCore().putEmailClassification(doc);
 }
+export async function getClassificationsByCategory(pendingOnly: boolean): Promise<ClassificationsByCategory> {
+  return requireCore().getClassificationsByCategory(pendingOnly);
+}
+export async function getClassificationCounts(): Promise<ClassificationCounts> {
+  return requireCore().getClassificationCounts();
+}
 
 export async function getStorageStats(): Promise<{
   supported: boolean;
@@ -480,6 +487,9 @@ export function actionColor(action: string): string {
 export function tagColor(tag: string): string {
   return requireCore().tagColor(tag);
 }
+export function categoryTierToName(tier: string): string {
+  return requireCore().categoryTierToName(tier);
+}
 
 // ── LLM context ─────────────────────────────────────────────────────────────
 
@@ -499,7 +509,7 @@ export async function isGoogleTokenValid(): Promise<boolean> { return requireCor
 export async function getGoogleTokenTTL(): Promise<number> { return requireCore().getGoogleTokenTTL(); }
 export async function getTwitterToken() { return requireCore().getTwitterToken(); }
 export async function getTwitterTokenRaw() { return requireCore().getTwitterTokenRaw(); }
-export async function saveTwitterToken(accessToken: string, refreshToken: string | null, expiresIn: number) { return requireCore().saveTwitterToken(accessToken, refreshToken, expiresIn); }
+export async function saveTwitterToken(accessToken: string, refreshToken: string | null, expiresIn: number) { return requireCore().saveTwitterToken(accessToken, refreshToken ?? undefined, expiresIn); }
 export async function clearTwitterToken() { return requireCore().clearTwitterToken(); }
 
 // ── Pipeline resolution & execution (core) ──────────────────────────────────

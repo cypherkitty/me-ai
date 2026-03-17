@@ -36,7 +36,7 @@ use crate::formatting::ParsedApiError;
 use crate::storage::settings::SettingValue;
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
-use crate::storage::classifications::ClassificationRow;
+use crate::storage::classifications::{ClassificationRow, ClassificationDoc, ClassificationsByCategory, ClassificationCounts};
 use crate::storage::events::{EventCategoryRow, EventTypeRow};
 use crate::storage::pipelines::{PipelineActionInput, PipelineActionRow};
 use crate::storage::rules::{CreateRulePayload, EventRow, RuleSavePayload, RuleUpdateInput, RuleView};
@@ -239,17 +239,12 @@ impl MeAiCore {
     pub async fn save_twitter_token(
         &self,
         access_token: &str,
-        refresh_token: JsValue,
+        refresh_token: Option<String>,
         expires_in: f64,
     ) -> Result<(), JsValue> {
         let db = self.rexie_db.db();
-        let refresh = if refresh_token.is_null() || refresh_token.is_undefined() {
-            None
-        } else {
-            refresh_token.as_string()
-        };
         let expires_at = js_sys::Date::now() + expires_in * 1000.0;
-        storage::settings::save_twitter_token(db, access_token, refresh.as_deref(), expires_at)
+        storage::settings::save_twitter_token(db, access_token, refresh_token.as_deref(), expires_at)
             .await
             .map_err(|e| error_to_js(&e))
     }
@@ -809,11 +804,29 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = putEmailClassification)]
     pub async fn put_email_classification(
         &self,
-        doc: JsValue,
+        doc: ClassificationDoc,
     ) -> Result<(), JsValue> {
-        let doc: storage::classifications::ClassificationDoc = from_js(doc)?;
         let db = self.rexie_db.db();
         Ok(storage::classifications::put_classification(db, doc).await?)
+    }
+
+    // ── Classification aggregations ──────────────────────────────────────────
+
+    /// Get classifications grouped by action, optionally filtered to pending/escalated only.
+    #[wasm_bindgen(js_name = getClassificationsByCategory)]
+    pub async fn get_classifications_by_category(
+        &self,
+        pending_only: bool,
+    ) -> Result<ClassificationsByCategory, JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::classifications::get_classifications_by_category(db, pending_only).await?)
+    }
+
+    /// Count classifications by action.
+    #[wasm_bindgen(js_name = getClassificationCounts)]
+    pub async fn get_classification_counts(&self) -> Result<ClassificationCounts, JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::classifications::get_classification_counts(db).await?)
     }
 
     // -----------------------------------------------------------------------
@@ -969,6 +982,12 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = tagColor)]
     pub fn tag_color(&self, tag: &str) -> String {
         llm::triage::tag_color(tag)
+    }
+
+    /// Convert category tier ("NOISE") to lowercase name ("noise").
+    #[wasm_bindgen(js_name = categoryTierToName)]
+    pub fn category_tier_to_name(&self, tier: &str) -> String {
+        llm::triage::category_tier_to_name(tier)
     }
 
     // ── Data queries for LLM context ─────────────────────────────────────────────

@@ -54,38 +54,5 @@ export function exportFilename(message: MessageLike, ext: string): string {
   return coreExportFilename(message.subject ?? "", dateMs, ext);
 }
 
-/** Item with optional action and date for grouping. */
-interface ItemWithAction {
-  action?: string;
-  date?: number | null;
-  [k: string]: unknown;
-}
-
-interface GroupByActionResult<T extends ItemWithAction> {
-  categories: Record<string, T[]>;
-  order: string[];
-}
-
-/**
- * Group an array of items by their action field.
- * Returns { categories, order } where categories is { action: items[] }
- * and order is action keys sorted by count descending.
- */
-export function groupByAction<T extends ItemWithAction>(items: T[]): GroupByActionResult<T> {
-  const categories: Record<string, T[]> = {};
-  for (const item of items) {
-    const key = item.action || "UNKNOWN";
-    if (!categories[key]) categories[key] = [];
-    categories[key].push(item);
-  }
-
-  for (const key of Object.keys(categories)) {
-    categories[key].sort((a, b) => (b.date || 0) - (a.date || 0));
-  }
-
-  const order = Object.keys(categories).sort(
-    (a, b) => categories[b].length - categories[a].length
-  );
-
-  return { categories, order };
-}
+// groupByAction — removed: logic moved to me-ai-core
+// (see storage::classifications::get_classifications_by_category in Rust)

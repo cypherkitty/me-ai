@@ -7,6 +7,7 @@
 
 import type { Action, EventCategory } from "$lib/types";
 import type { ClassificationLike, EmailLike, ByCategory } from "./core.js";
+import { categoryTierToName as coreCategoryTierToName } from "./core.js";
 export type { ByCategory } from "./core.js";
 
 const STORAGE_KEY = "me-ai-events";
@@ -56,11 +57,7 @@ export const EVENT_CATEGORIES: Record<
 };
 
 export function categoryTierToName(category: EventCategory): string {
-  const c = (category || "").toUpperCase();
-  if (c === "NOISE") return "noise";
-  if (c === "INFO") return "info";
-  if (c === "CRITICAL") return "critical";
-  return "critical";
+  return coreCategoryTierToName(category || "");
 }
 
 // ── Persistence ─────────────────────────────────────────────────────

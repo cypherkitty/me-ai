@@ -7,11 +7,10 @@
 
 import {
   getItemsGmailByDateDesc,
-  getEmailClassifications,
   getItemsCountGmail,
+  getClassificationsByCategory,
 } from "../core.js";
 import { fromJson } from "./db.js";
-import { groupByAction } from "../email-utils.js";
 import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
 
 // ── Pending actions ─────────────────────────────────────────────────
@@ -21,12 +20,9 @@ import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, Pending
  * Returns null if there are no pending items.
  */
 export async function getPendingActions(): Promise<PendingActionsResult | null> {
-  const rows = ((await getEmailClassifications()) as unknown) as Record<string, unknown>[];
-  const pending = (rows ?? []).filter((r) => r.status === "pending");
-  if (pending.length === 0) return null;
-  const all = pending.map((r) => ({ ...r, tags: fromJson<unknown[]>(r.tags as string, []) }));
-  const { categories, order } = groupByAction(all);
-  return { categories, order, total: all.length };
+  const result = await getClassificationsByCategory(true);
+  if (result.total === 0) return null;
+  return { categories: result.categories, order: result.order, total: result.total };
 }
 
 // ── Raw data queries (for UI, not LLM) ─────────────────────────────

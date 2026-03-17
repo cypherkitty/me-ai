@@ -1,8 +1,8 @@
 //! Email classification logic: system prompt building, LLM response parsing,
 //! email prompt formatting. Pure functions — no DB access.
 
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 use crate::formatting::string_to_hue;
 
@@ -106,12 +106,12 @@ export interface PluginForPrompt {
 #[serde(rename_all = "camelCase")]
 pub struct TriageClassification {
     pub action: String,
-    pub category: String,           // "noise" | "info" | "critical"
+    pub category: String, // "noise" | "info" | "critical"
     #[wasm_bindgen(js_name = "categoryTier")]
-    pub category_tier: String,      // "NOISE" | "INFO" | "CRITICAL"
+    pub category_tier: String, // "NOISE" | "INFO" | "CRITICAL"
     pub reason: String,
     pub summary: String,
-    pub tags: String,               // JSON-encoded string array e.g. `["tag1","tag2"]`
+    pub tags: String, // JSON-encoded string array e.g. `["tag1","tag2"]`
 }
 
 /// Build the LLM system prompt from a comma-separated list of active plugin names.
@@ -163,7 +163,11 @@ Rules:
 - "reason" and "summary" must be plain English about the message content only. Do not insert config variables or technical strings.
 - "tags" must be an array of lowercase strings
 - "summary" must be a string"#,
-        plugin_names = if plugin_names.is_empty() { "(none)" } else { plugin_names }
+        plugin_names = if plugin_names.is_empty() {
+            "(none)"
+        } else {
+            plugin_names
+        }
     )
 }
 
@@ -204,7 +208,10 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
     text = strip_think_blocks(&text).trim().to_string();
 
     // Strip markdown code fences
-    if let Some(stripped) = text.strip_prefix("```json").or_else(|| text.strip_prefix("```")) {
+    if let Some(stripped) = text
+        .strip_prefix("```json")
+        .or_else(|| text.strip_prefix("```"))
+    {
         text = stripped.trim_start_matches('\n').to_string();
     }
     if let Some(stripped) = text.strip_suffix("```") {
@@ -228,14 +235,23 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
     let parsed: serde_json::Value = serde_json::from_str(&json_str).ok()?;
     let obj = parsed.as_object()?;
 
-    let raw_action = obj.get("action").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    let raw_action = obj
+        .get("action")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
     // Reject config/jargon in action
     if raw_action.is_empty() {
         return None;
     }
     let action_lower = raw_action.to_lowercase();
-    if action_lower.contains('=') || action_lower.contains("postgres") || action_lower.contains("sslmode")
-        || action_lower.contains("connection") || action_lower.contains("config") {
+    if action_lower.contains('=')
+        || action_lower.contains("postgres")
+        || action_lower.contains("sslmode")
+        || action_lower.contains("connection")
+        || action_lower.contains("config")
+    {
         return None;
     }
     let action = normalize_action(&raw_action)?;
@@ -243,35 +259,52 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
         return None;
     }
 
-    let raw_category = obj.get("category").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
-    let raw_tier = obj.get("categoryTier").and_then(|v| v.as_str()).unwrap_or("").to_uppercase();
+    let raw_category = obj
+        .get("category")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let raw_tier = obj
+        .get("categoryTier")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_uppercase();
     let category = normalize_category_str(&raw_category, &raw_tier);
     let category_tier = match category.as_str() {
         "noise" => "NOISE",
         "info" => "INFO",
         _ => "CRITICAL",
-    }.to_string();
+    }
+    .to_string();
 
     let sanitize = |s: &str| -> String {
         let mut out = s.trim().to_string();
         out = out.replace("postgres sslmode=require", "");
         out = out.replace(" --set ", " ");
         // Collapse multiple spaces
-        while out.contains("  ") { out = out.replace("  ", " "); }
+        while out.contains("  ") {
+            out = out.replace("  ", " ");
+        }
         out.trim().chars().take(500).collect()
     };
 
-    let reason: String = sanitize(obj.get("reason").and_then(|v| v.as_str()).unwrap_or("")).chars().take(300).collect();
+    let reason: String = sanitize(obj.get("reason").and_then(|v| v.as_str()).unwrap_or(""))
+        .chars()
+        .take(300)
+        .collect();
     let summary = sanitize(obj.get("summary").and_then(|v| v.as_str()).unwrap_or(""));
 
-    let tags: Vec<String> = obj.get("tags")
+    let tags: Vec<String> = obj
+        .get("tags")
         .and_then(|v| v.as_array())
-        .map(|arr| arr.iter()
-            .filter_map(|t| t.as_str())
-            .filter(|t| !t.trim().is_empty())
-            .map(|t| t.trim().to_lowercase())
-            .take(10)
-            .collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|t| t.as_str())
+                .filter(|t| !t.trim().is_empty())
+                .map(|t| t.trim().to_lowercase())
+                .take(10)
+                .collect()
+        })
         .unwrap_or_default();
     let tags_json = serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string());
 
@@ -286,15 +319,27 @@ pub fn parse_classification(response: &str) -> Option<TriageClassification> {
 }
 
 fn normalize_action(raw: &str) -> Option<String> {
-    let cleaned: String = raw.trim().to_uppercase()
+    let cleaned: String = raw
+        .trim()
+        .to_uppercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .split('_')
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("_");
-    if cleaned.is_empty() { None } else { Some(cleaned) }
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
 }
 
 fn normalize_category_str(raw: &str, tier: &str) -> String {
@@ -313,7 +358,14 @@ fn normalize_category_str(raw: &str, tier: &str) -> String {
 
 /// Format an email as an LLM prompt string.
 /// `date_ms`: epoch ms (0 = unknown), `labels`: comma-separated string
-pub fn format_email_prompt(subject: &str, from: &str, to: &str, date_ms: i64, labels: &str, body: &str) -> String {
+pub fn format_email_prompt(
+    subject: &str,
+    from: &str,
+    to: &str,
+    date_ms: i64,
+    labels: &str,
+    body: &str,
+) -> String {
     let date_str = if date_ms > 0 {
         let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(date_ms as f64));
         d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::undefined())
@@ -336,4 +388,16 @@ pub fn action_color(action: &str) -> String {
 /// CSS color string for a tag name.
 pub fn tag_color(tag: &str) -> String {
     format!("hsl({}, 40%, 35%)", string_to_hue(tag))
+}
+
+/// Convert a category tier (e.g. "NOISE") to its lowercase category name (e.g. "noise").
+/// Defaults to "critical" for unknown tiers.
+pub fn category_tier_to_name(tier: &str) -> String {
+    match tier.to_uppercase().as_str() {
+        "NOISE" => "noise",
+        "INFO" => "info",
+        "CRITICAL" => "critical",
+        _ => "critical",
+    }
+    .to_string()
 }
