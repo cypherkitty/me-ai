@@ -1,5 +1,6 @@
 //! Storage layer: Rexie-backed data access (schema, catalog, rules, pipelines, sync).
 
+pub mod aggregations;
 pub mod audit;
 pub mod catalog;
 pub mod classifications;

@@ -39,7 +39,7 @@ use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
 use crate::storage::classifications::ClassificationRow;
 use crate::storage::events::{EventCategoryRow, EventTypeRow};
 use crate::storage::pipelines::{PipelineActionInput, PipelineActionRow};
-use crate::storage::rules::{EventRow, RuleSavePayload, RuleView};
+use crate::storage::rules::{CreateRulePayload, EventRow, RuleSavePayload, RuleUpdateInput, RuleView};
 use crate::storage::sync::{ContactRow, ItemRow, SyncStateRow};
 
 /// Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
@@ -629,6 +629,81 @@ impl MeAiCore {
         Ok(storage::rules::delete_rule(db, id).await?)
     }
 
+    #[wasm_bindgen(js_name = createRule)]
+    pub async fn create_rule(&self, payload: CreateRulePayload) -> Result<String, JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::rules::create_rule(db, payload).await?)
+    }
+
+    #[wasm_bindgen(js_name = updateRule)]
+    pub async fn update_rule(&self, id: &str, updates: RuleUpdateInput) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::rules::update_rule(db, id, updates).await?)
+    }
+
+    #[wasm_bindgen(js_name = setRuleEnabled)]
+    pub async fn set_rule_enabled(&self, id: &str, enabled: bool) -> Result<(), JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::rules::set_rule_enabled(db, id, enabled).await?)
+    }
+
+    #[wasm_bindgen(js_name = getEventStats)]
+    pub async fn get_event_stats(&self) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let result = storage::aggregations::get_event_stats(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getPendingApprovals)]
+    pub async fn get_pending_approvals(&self, limit: Option<u32>) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let result = storage::aggregations::get_pending_approvals(
+            db,
+            limit.unwrap_or(100) as usize,
+        )
+        .await
+        .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getPendingCountByCategory)]
+    pub async fn get_pending_count_by_category(&self, category_name: &str) -> Result<u32, JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::aggregations::get_pending_count_by_category(db, category_name).await?)
+    }
+
+    #[wasm_bindgen(js_name = getPendingItemsByCategory)]
+    pub async fn get_pending_items_by_category(
+        &self,
+        category_name: &str,
+        limit: Option<u32>,
+    ) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let result = storage::aggregations::get_pending_items_by_category(
+            db,
+            category_name,
+            limit.unwrap_or(500) as usize,
+        )
+        .await
+        .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = getCategoryPipelines)]
+    pub async fn get_category_pipelines(&self) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let result = storage::aggregations::get_category_pipelines(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
     #[wasm_bindgen(js_name = getEvents)]
     pub async fn get_events(&self, limit: u32, offset: u32) -> Result<Vec<EventRow>, JsValue> {
         let db = self.rexie_db.db();
@@ -731,32 +806,14 @@ impl MeAiCore {
         Ok(storage::classifications::delete_classifications_by_action(db, action).await?)
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = putEmailClassification)]
     pub async fn put_email_classification(
         &self,
-        email_id: &str,
-        action: Option<String>,
-        category: Option<String>,
-        reason: Option<String>,
-        summary: Option<String>,
-        tags: Option<String>,
-        subject: Option<String>,
-        from: Option<String>,
-        date: Option<f64>,
-        scanned_at: Option<f64>,
-        status: Option<String>,
+        doc: JsValue,
     ) -> Result<(), JsValue> {
+        let doc: storage::classifications::ClassificationDoc = from_js(doc)?;
         let db = self.rexie_db.db();
-        Ok(storage::classifications::put_classification(
-            db, email_id,
-            action.as_deref(), category.as_deref(), reason.as_deref(),
-            summary.as_deref(), tags.as_deref(),
-            subject.as_deref(), from.as_deref(),
-            date.map(|f| f as i64), scanned_at.map(|f| f as i64),
-            status.as_deref(),
-        )
-        .await?)
+        Ok(storage::classifications::put_classification(db, doc).await?)
     }
 
     // -----------------------------------------------------------------------

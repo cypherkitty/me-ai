@@ -1,281 +1,70 @@
 /**
- * Rule CRUD and event-stat aggregation.
+ * Rule CRUD and event-stat wrappers.
  *
- * Thin wrappers (getEventTypes, getActions, deleteRule, etc.) have been removed —
- * consumers import those directly from "$lib/core.js".
- * This module keeps only functions with real business logic.
+ * All business logic (ID generation, merging, filtering, aggregation) lives in
+ * Rust (me-ai-core). This module is a thin pass-through to core.ts.
  */
 
 import {
   getRules as coreGetRules,
-  getRule as coreGetRule,
-  saveRule as coreSaveRule,
-  getEmailClassifications as coreGetEmailClassifications,
-  getEventCategories as coreGetEventCategories,
-  getAuditStats as coreGetAuditStats,
-  getItemById as coreGetItemById,
-  getCategoryPipelineActions as coreGetCategoryPipelineActions,
-  getEventTypes as coreGetEventTypes,
+  createRule as coreCreateRule,
+  updateRule as coreUpdateRule,
+  setRuleEnabled as coreSetRuleEnabled,
+  getEventStats as coreGetEventStats,
+  getPendingApprovals as coreGetPendingApprovals,
+  getPendingCountByCategory as coreGetPendingCountByCategory,
+  getPendingItemsByCategory as coreGetPendingItemsByCategory,
+  getCategoryPipelines as coreGetCategoryPipelines,
 } from "./core.js";
-import type { Rule, Action, Trigger } from "$lib/types";
-import type { CreateRuleInput, EventStats, PendingItemByCategory, CategoryPipelineDisplay } from "./core.js";
+import type { Rule } from "$lib/types";
+
 export type { PendingItemByCategory, CategoryPipelineDisplay } from "./core.js";
 
 // ── Rule queries ───────────────────────────────────────────────────────
 
 export async function getRules(): Promise<Rule[]> {
-  const rules = ((await coreGetRules()) as unknown) as Record<string, unknown>[];
-  return (rules ?? []).map((r) => ({
-    ...r,
-    enabled: Boolean(r.enabled),
-    triggers: (r.triggers as Trigger[]) ?? [],
-    actions: (r.actions as Action[]) ?? [],
-  })) as Rule[];
+  return (await coreGetRules()) as unknown as Rule[];
 }
 
-async function getRule(id: string): Promise<Rule | null> {
-  const r = await coreGetRule(id);
-  if (r == null || r === undefined) return null;
-  const row = (r as unknown) as Record<string, unknown>;
-  return {
-    id: row.id as string,
-    name: row.name as string,
-    description: (row.description as string) ?? "",
-    enabled: Boolean(row.enabled),
-    priority: (row.priority as number) ?? 5,
-    created_at: row.created_at as number | undefined,
-    triggers: (row.triggers as Trigger[]) ?? [],
-    actions: (row.actions as Action[]) ?? [],
-  } as Rule;
+export async function createRule(input: unknown): Promise<string> {
+  return coreCreateRule(input);
 }
 
-export async function createRule({
-  name,
-  description,
-  enabled = true,
-  priority = 5,
-  triggers = [],
-  actions = [],
-}: CreateRuleInput): Promise<string> {
-  const id = `rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const now = Date.now();
-  const payload = {
-    id,
-    name,
-    description: description ?? "",
-    enabled,
-    priority,
-    created_at: now,
-    triggers: triggers.map((t) => ({ type: t.type, name: t.name })),
-    actions: actions.map((a) => ({
-      id: a.id,
-      pluginId: a.pluginId,
-      commandId: a.commandId,
-      name: a.name,
-      description: a.description,
-      icon: a.icon ?? null,
-    })),
-  };
-  await coreSaveRule(payload);
-  return id;
-}
-
-export async function updateRule(id: string, updates: Partial<Rule>): Promise<void> {
-  const existing = await getRule(id);
-  if (!existing) return;
-  const merged: Rule = {
-    ...existing,
-    ...updates,
-    triggers: updates.triggers ?? existing.triggers,
-    actions: updates.actions ?? existing.actions,
-  };
-  const payload = {
-    id,
-    name: merged.name,
-    description: merged.description ?? "",
-    enabled: merged.enabled,
-    priority: merged.priority ?? 5,
-    created_at: merged.created_at,
-    triggers: merged.triggers.map((t) => ({ type: t.type, name: t.name })),
-    actions: merged.actions.map((a) => ({
-      id: a.id,
-      pluginId: a.pluginId,
-      commandId: a.commandId,
-      name: a.name,
-      description: a.description,
-      icon: a.icon ?? null,
-    })),
-  };
-  await coreSaveRule(payload);
+export async function updateRule(id: string, updates: unknown): Promise<void> {
+  return coreUpdateRule(id, updates);
 }
 
 export async function setRuleEnabled(id: string, enabled: boolean): Promise<void> {
-  await updateRule(id, { enabled });
+  return coreSetRuleEnabled(id, enabled);
 }
 
 // ── Event stats ──────────────────────────────────────────────────────
 
-export async function getEventStats(): Promise<EventStats> {
-  const [classifications, categories, auditStats] = await Promise.all([
-    coreGetEmailClassifications(),
-    coreGetEventCategories(),
-    coreGetAuditStats(),
-  ]);
-  const rows = ((classifications ?? []) as unknown) as Record<string, unknown>[];
-  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
-  const manualSet = new Set(
-    cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
-  );
-  let awaiting_user = 0;
-  let escalated = 0;
-  for (const r of rows) {
-    const status = String(r.status ?? "");
-    const cat = String(r.category ?? "").toLowerCase();
-    if (status === "pending" && manualSet.has(cat)) awaiting_user += 1;
-    else if (status === "escalated") escalated += 1;
-  }
-  const completed = Number((auditStats as { completed?: number })?.completed ?? 0);
-  const failed = Number((auditStats as { failed?: number })?.failed ?? 0);
-  return {
-    awaiting_user,
-    escalated,
-    completed,
-    failed,
-    total: awaiting_user + escalated + completed + failed,
-  };
+export async function getEventStats() {
+  return coreGetEventStats();
 }
 
 // ── Approvals & Manual Execution ───────────────────────────────────────
 
 export async function getPendingApprovals({
-  limit = 100,
+  limit,
 }: { limit?: number } = {}): Promise<Record<string, unknown>[]> {
-  const [classifications, categories] = await Promise.all([
-    coreGetEmailClassifications(),
-    coreGetEventCategories(),
-  ]);
-  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
-  const manualSet = new Set(
-    cats.filter((c) => String(c.policy ?? "").toLowerCase() === "manual").map((c) => String(c.name ?? "").toLowerCase())
-  );
-  const rows = ((classifications ?? []) as unknown) as Record<string, unknown>[];
-  const pending = rows
-    .filter(
-      (r) =>
-        r.status === "pending" &&
-        manualSet.has(String(r.category ?? "").toLowerCase())
-    )
-    .sort((a, b) => Number(b.date ?? 0) - Number(a.date ?? 0))
-    .slice(0, limit);
-  const out: Record<string, unknown>[] = [];
-  for (const r of pending) {
-    const emailId = (r.emailId ?? r.id) as string | undefined;
-    let item: Record<string, unknown> | null = null;
-    if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
-      item = (await coreGetItemById(emailId) as unknown) as Record<string, unknown> | null;
-    }
-    const subject = (item?.subject ?? r.subject) as string;
-    const from = (item?.from ?? r.from) as string;
-    out.push({
-      id: emailId,
-      subject,
-      source_name: from,
-      content: (item as Record<string, unknown>)?.body ?? "",
-      timestamp: r.date ?? (item as Record<string, unknown>)?.date ?? 0,
-      event_category: r.category,
-      event_type: r.action,
-      reason: r.reason,
-      summary: r.summary,
-      status: r.status,
-      sender: from,
-      from,
-      actions_taken: [],
-      rule_name: `Manual Review: ${r.category}`,
-    });
-  }
-  return out;
+  return coreGetPendingApprovals(limit);
 }
 
 export async function getPendingCountByCategory(categoryName: string): Promise<number> {
-  const rows = ((await coreGetEmailClassifications()) as unknown) as Record<string, unknown>[];
-  const want = categoryName.trim().toLowerCase();
-  return (rows ?? []).filter((r) => {
-    const cat = String(r.category ?? "").trim().toLowerCase();
-    const status = String(r.status ?? "");
-    return cat === want && (status === "pending" || status === "escalated");
-  }).length;
+  return coreGetPendingCountByCategory(categoryName);
 }
 
 export async function getPendingItemsByCategory(
   categoryName: string,
-  { limit = 500 }: { limit?: number } = {}
-): Promise<PendingItemByCategory[]> {
-  const rows = ((await coreGetEmailClassifications()) as unknown) as Record<string, unknown>[];
-  const want = categoryName.trim().toLowerCase();
-  const filtered = (rows ?? [])
-    .filter((r) => {
-      const cat = String(r.category ?? "").trim().toLowerCase();
-      const status = String(r.status ?? "");
-      return cat === want && (status === "pending" || status === "escalated");
-    })
-    .sort((a, b) => Number(b.date ?? 0) - Number(a.date ?? 0))
-    .slice(0, limit);
-  const out: PendingItemByCategory[] = [];
-  for (const r of filtered) {
-    const emailId = (r.emailId ?? r.id) as string | undefined;
-    let item: Record<string, unknown> | null = null;
-    if (emailId && typeof emailId === "string" && emailId.trim().length > 0 && emailId !== "null" && emailId !== "undefined") {
-      item = (await coreGetItemById(emailId) as unknown) as Record<string, unknown> | null;
-    }
-    out.push({
-      id: emailId ?? "",
-      emailId: emailId ?? "",
-      subject: (r.subject ?? (item as Record<string, unknown>)?.subject ?? "") as string,
-      from: (r.from ?? (item as Record<string, unknown>)?.from ?? "") as string,
-      eventType: (r.action ?? "UNKNOWN") as string,
-      event_category: (r.category ?? categoryName) as string,
-      sourceType: ((item as Record<string, unknown>)?.sourceType ?? "gmail") as string,
-      status: (r.status ?? "pending") as string,
-    });
-  }
-  return out;
+  { limit }: { limit?: number } = {}
+) {
+  return coreGetPendingItemsByCategory(categoryName, limit);
 }
 
 // ── Category-based pipeline aggregation ─────────────────────────────────
 
-export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {
-  const [categories, types] = await Promise.all([
-    coreGetEventCategories(),
-    coreGetEventTypes(),
-  ]);
-  const cats = ((categories ?? []) as unknown) as Record<string, unknown>[];
-  const typeRows = ((types ?? []) as unknown) as Record<string, unknown>[];
-  const result: CategoryPipelineDisplay[] = [];
-  for (const c of cats) {
-    const name = c.name as string;
-    const actions = ((await coreGetCategoryPipelineActions(name)) as unknown) as Array<{
-      plugin_id: string;
-      command_id: string;
-      action_idx: number;
-    }>;
-    result.push({
-      category: name,
-      label: (c.label ?? name) as string,
-      priority: (c.priority ?? 0) as number,
-      policy: (c.policy ?? "manual") as string,
-      actions: (actions ?? []).map((r) => ({
-        pluginId: r.plugin_id,
-        commandId: r.command_id,
-        order: r.action_idx,
-      })),
-      eventTypes: typeRows
-        .filter((t) => String(t.category_name ?? "") === name)
-        .map((t) => ({
-          name: t.name as string,
-          label: (t.label ?? t.name) as string,
-          autoCreated: (t.auto_created ?? false) as boolean,
-        })),
-    });
-  }
-  return result;
+export async function getCategoryPipelines() {
+  return coreGetCategoryPipelines();
 }

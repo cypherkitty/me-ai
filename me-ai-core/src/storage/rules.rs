@@ -543,6 +543,110 @@ mod tests {
     }
 }
 
+/// Payload for creating a new rule (ID is generated server-side).
+#[derive(Clone, Debug, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+pub struct CreateRulePayload {
+    pub name: String,
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+    pub priority: Option<i64>,
+    pub triggers: Option<Vec<RuleTriggerInput>>,
+    pub actions: Option<Vec<RuleActionInput>>,
+}
+
+/// Partial update fields for an existing rule.
+#[derive(Clone, Debug, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+pub struct RuleUpdateInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub enabled: Option<bool>,
+    pub priority: Option<i64>,
+    pub triggers: Option<Vec<RuleTriggerInput>>,
+    pub actions: Option<Vec<RuleActionInput>>,
+}
+
+/// Create a new rule with a generated ID. Returns the generated ID.
+pub async fn create_rule(db: DbRef<'_>, payload: CreateRulePayload) -> Result<String, CoreError> {
+    let now = js_sys::Date::now() as i64;
+    let rand = js_sys::Math::random().to_string();
+    let rand_part = rand.trim_start_matches("0.").chars().take(5).collect::<String>();
+    let id = format!("rule_{}_{}", now, rand_part);
+    let save = RuleSavePayload {
+        id: id.clone(),
+        name: payload.name,
+        description: payload.description.unwrap_or_default(),
+        enabled: payload.enabled.unwrap_or(true),
+        priority: payload.priority.unwrap_or(5),
+        created_at: Some(now),
+        triggers: payload.triggers.unwrap_or_default(),
+        actions: payload.actions.unwrap_or_default(),
+    };
+    save_rule(db, save).await?;
+    Ok(id)
+}
+
+/// Update an existing rule by merging optional fields onto the current state.
+pub async fn update_rule(db: DbRef<'_>, id: &str, updates: RuleUpdateInput) -> Result<(), CoreError> {
+    let Some(existing) = get_rule(db, id).await? else {
+        return Ok(());
+    };
+    let payload = RuleSavePayload {
+        id: id.to_string(),
+        name: updates.name.unwrap_or_else(|| existing.name.unwrap_or_default()),
+        description: updates.description.unwrap_or_else(|| existing.description.unwrap_or_default()),
+        enabled: updates.enabled.unwrap_or(existing.enabled),
+        priority: updates.priority.unwrap_or(existing.priority),
+        created_at: existing.created_at,
+        triggers: updates.triggers.unwrap_or_else(|| {
+            existing.triggers.into_iter().map(|t| RuleTriggerInput {
+                trigger_type: t.trigger_type,
+                name: t.name,
+            }).collect()
+        }),
+        actions: updates.actions.unwrap_or_else(|| {
+            existing.actions.into_iter().map(|a| RuleActionInput {
+                id: a.id,
+                plugin_id: a.plugin_id,
+                command_id: a.command_id,
+                name: a.name,
+                description: a.description,
+                icon: a.icon,
+            }).collect()
+        }),
+    };
+    save_rule(db, payload).await
+}
+
+/// Toggle the enabled flag on a rule, preserving all other fields.
+pub async fn set_rule_enabled(db: DbRef<'_>, id: &str, enabled: bool) -> Result<(), CoreError> {
+    let Some(existing) = get_rule(db, id).await? else {
+        return Ok(());
+    };
+    let payload = RuleSavePayload {
+        id: id.to_string(),
+        name: existing.name.unwrap_or_default(),
+        description: existing.description.unwrap_or_default(),
+        enabled,
+        priority: existing.priority,
+        created_at: existing.created_at,
+        triggers: existing.triggers.into_iter().map(|t| RuleTriggerInput {
+            trigger_type: t.trigger_type,
+            name: t.name,
+        }).collect(),
+        actions: existing.actions.into_iter().map(|a| RuleActionInput {
+            id: a.id,
+            plugin_id: a.plugin_id,
+            command_id: a.command_id,
+            name: a.name,
+            description: a.description,
+            icon: a.icon,
+        }).collect(),
+    };
+    save_rule(db, payload).await
+}
+
 /// Delete rule and its triggers and commands.
 pub async fn delete_rule(db: DbRef<'_>, id: &str) -> Result<(), CoreError> {
     let range = key_range_only(id)?;

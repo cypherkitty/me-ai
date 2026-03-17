@@ -29,22 +29,39 @@ pub struct ClassificationRow {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct ClassificationDoc {
+pub struct ClassificationDoc {
     #[serde(rename = "emailId")]
-    email_id: String,
-    action: Option<String>,
-    category: Option<String>,
-    reason: Option<String>,
-    summary: Option<String>,
-    tags: Option<String>,
-    subject: Option<String>,
+    pub email_id: String,
+    pub action: Option<String>,
+    pub category: Option<String>,
+    pub reason: Option<String>,
+    pub summary: Option<String>,
+    pub tags: Option<String>,
+    pub subject: Option<String>,
     #[serde(rename = "from")]
-    from: Option<String>,
-    date: Option<i64>,
+    pub from: Option<String>,
+    pub date: Option<i64>,
     #[serde(rename = "scannedAt")]
-    scanned_at: Option<i64>,
-    status: Option<String>,
+    pub scanned_at: Option<i64>,
+    pub status: Option<String>,
 }
+
+#[wasm_bindgen(typescript_custom_section)]
+const TS_CLASSIFICATION_DOC: &str = r#"
+export interface ClassificationDoc {
+  emailId: string;
+  action?: string | null;
+  category?: string | null;
+  reason?: string | null;
+  summary?: string | null;
+  tags?: string | null;
+  subject?: string | null;
+  from?: string | null;
+  date?: number | null;
+  scannedAt?: number | null;
+  status?: string | null;
+}
+"#;
 
 /// Get all classifications, optionally filtered by action. Sorted by date desc in Rust.
 pub async fn get_classifications(
@@ -122,33 +139,10 @@ pub async fn count_pending_classifications(db: DbRef<'_>) -> Result<i64, CoreErr
 }
 
 /// Insert or replace one classification (for triage scan results).
-#[allow(clippy::too_many_arguments)]
 pub async fn put_classification(
     db: DbRef<'_>,
-    email_id: &str,
-    action: Option<&str>,
-    category: Option<&str>,
-    reason: Option<&str>,
-    summary: Option<&str>,
-    tags: Option<&str>,
-    subject: Option<&str>,
-    from: Option<&str>,
-    date: Option<i64>,
-    scanned_at: Option<i64>,
-    status: Option<&str>,
+    doc: ClassificationDoc,
 ) -> Result<(), CoreError> {
-    let doc = ClassificationDoc {
-        email_id: email_id.to_string(),
-        action: action.map(String::from),
-        category: category.map(String::from),
-        reason: reason.map(String::from),
-        summary: summary.map(String::from),
-        tags: tags.map(String::from),
-        subject: subject.map(String::from),
-        from: from.map(String::from),
-        date,
-        scanned_at,
-        status: status.map(String::from),
-    };
-    db.store_put(store::EMAIL_CLASSIFICATIONS, &doc, Some(email_id)).await
+    let key = doc.email_id.clone();
+    db.store_put(store::EMAIL_CLASSIFICATIONS, &doc, Some(&key)).await
 }

@@ -199,19 +199,19 @@ export async function scanEmails(
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
-        await corePutEmailClassification(
-          email.id,
-          classification.action,
-          classification.categoryTier,
-          classification.reason,
-          classification.summary,
-          toJson(classification.tags),
-          email.subject || "(no subject)",
-          email.from || "",
-          email.date ?? null,
+        await corePutEmailClassification({
+          emailId: email.id,
+          action: classification.action,
+          category: classification.categoryTier,
+          reason: classification.reason,
+          summary: classification.summary,
+          tags: toJson(classification.tags),
+          subject: email.subject || "(no subject)",
+          from: email.from || "",
+          date: email.date ?? null,
           scannedAt,
-          "pending"
-        );
+          status: "pending",
+        });
 
         await seedEventTypeFromLLM(
           classification.action,

@@ -5,7 +5,7 @@
  */
 
 import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
-import type { EventInput, RuleSavePayload } from "me-ai-core";
+import type { EventInput, RuleSavePayload, ClassificationDoc, CreateRulePayload, RuleUpdateInput } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
 export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel } from "me-ai-core";
@@ -15,7 +15,7 @@ export type {
   GenerateFullResult,
   StoredItem, StoredItemRow, SyncState, SyncProgress, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult,
   PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry, LogExecutionParams, GetAuditLogOptions,
-  Action, Trigger, Rule, CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
+  Action, Trigger, Rule, CreateRuleInput, CreateRulePayload, RuleUpdateInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
   EventCategory, EmailEvent, ExecutionProgress, ByCategory, ClassificationLike, EmailLike,
   ClassificationResult, ScanProgress, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions,
   GoogleTokenResponse,
@@ -28,6 +28,7 @@ export type {
   ApiProvider, ChatMessage, TokenPayload, ApiStreamOptions, EngineStatus, EngineMessage, Backend,
   NormalisedAction, ActionOverrideInput, ResolveExecuteResult, BatchEventResult, ResolveBatchResult,
   EventInput, RuleSavePayload,
+  ClassificationDoc,
 } from "me-ai-core";
 
 /** Options for listing Gmail messages. */
@@ -229,6 +230,30 @@ export async function saveRule(payload: unknown) {
 export async function deleteRule(id: string) {
   return requireCore().deleteRule(id);
 }
+export async function createRule(payload: unknown) {
+  return requireCore().createRule(payload as CreateRulePayload);
+}
+export async function updateRule(id: string, updates: unknown) {
+  return requireCore().updateRule(id, updates as RuleUpdateInput);
+}
+export async function setRuleEnabled(id: string, enabled: boolean) {
+  return requireCore().setRuleEnabled(id, enabled);
+}
+export async function getEventStats() {
+  return requireCore().getEventStats() as Promise<import("me-ai-core").EventStats>;
+}
+export async function getPendingApprovals(limit?: number) {
+  return requireCore().getPendingApprovals(limit ?? undefined) as Promise<Record<string, unknown>[]>;
+}
+export async function getPendingCountByCategory(categoryName: string) {
+  return requireCore().getPendingCountByCategory(categoryName);
+}
+export async function getPendingItemsByCategory(categoryName: string, limit?: number) {
+  return requireCore().getPendingItemsByCategory(categoryName, limit ?? undefined) as Promise<import("me-ai-core").PendingItemByCategory[]>;
+}
+export async function getCategoryPipelines() {
+  return requireCore().getCategoryPipelines() as Promise<import("me-ai-core").CategoryPipelineDisplay[]>;
+}
 export async function getItemById(id: string) {
   return requireCore().getItemById(id);
 }
@@ -253,32 +278,8 @@ export async function deleteEmailClassification(email_id: string) {
 export async function deleteEmailClassificationsByAction(action: string) {
   return requireCore().deleteEmailClassificationsByAction(action);
 }
-export async function putEmailClassification(
-  email_id: string,
-  action?: string | null,
-  category?: string | null,
-  reason?: string | null,
-  summary?: string | null,
-  tags?: string | null,
-  subject?: string | null,
-  from?: string | null,
-  date?: number | null,
-  scanned_at?: number | null,
-  status?: string | null
-) {
-  return requireCore().putEmailClassification(
-    email_id,
-    action ?? undefined,
-    category ?? undefined,
-    reason ?? undefined,
-    summary ?? undefined,
-    tags ?? undefined,
-    subject ?? undefined,
-    from ?? undefined,
-    date ?? undefined,
-    scanned_at ?? undefined,
-    status ?? undefined
-  );
+export async function putEmailClassification(doc: ClassificationDoc) {
+  return requireCore().putEmailClassification(doc);
 }
 
 export async function getStorageStats(): Promise<{
