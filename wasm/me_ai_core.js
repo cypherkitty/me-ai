@@ -2523,6 +2523,14 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {CreateRulePayload} payload
+     * @returns {Promise<string>}
+     */
+    createRule(payload) {
+        const ret = wasm.meaicore_createRule(this.__wbg_ptr, payload);
+        return ret;
+    }
+    /**
      * @returns {Promise<void>}
      */
     createSchemaAndMigrations() {
@@ -2819,6 +2827,13 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @returns {Promise<any>}
+     */
+    getCategoryPipelines() {
+        const ret = wasm.meaicore_getCategoryPipelines(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} email
      * @returns {Promise<ContactRow | undefined>}
      */
@@ -2884,6 +2899,13 @@ export class MeAiCore {
         const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_getEventCategoryPolicy(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {Promise<any>}
+     */
+    getEventStats() {
+        const ret = wasm.meaicore_getEventStats(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -3111,6 +3133,35 @@ export class MeAiCore {
         var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
         wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
         return v1;
+    }
+    /**
+     * @param {number | null} [limit]
+     * @returns {Promise<any>}
+     */
+    getPendingApprovals(limit) {
+        const ret = wasm.meaicore_getPendingApprovals(this.__wbg_ptr, isLikeNone(limit) ? 0x100000001 : (limit) >>> 0);
+        return ret;
+    }
+    /**
+     * @param {string} category_name
+     * @returns {Promise<number>}
+     */
+    getPendingCountByCategory(category_name) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getPendingCountByCategory(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @param {string} category_name
+     * @param {number | null} [limit]
+     * @returns {Promise<any>}
+     */
+    getPendingItemsByCategory(category_name, limit) {
+        const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getPendingItemsByCategory(this.__wbg_ptr, ptr0, len0, isLikeNone(limit) ? 0x100000001 : (limit) >>> 0);
+        return ret;
     }
     /**
      * @param {string} event_type
@@ -3557,39 +3608,11 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @param {string} email_id
-     * @param {string | null} [action]
-     * @param {string | null} [category]
-     * @param {string | null} [reason]
-     * @param {string | null} [summary]
-     * @param {string | null} [tags]
-     * @param {string | null} [subject]
-     * @param {string | null} [from]
-     * @param {number | null} [date]
-     * @param {number | null} [scanned_at]
-     * @param {string | null} [status]
+     * @param {any} doc
      * @returns {Promise<void>}
      */
-    putEmailClassification(email_id, action, category, reason, summary, tags, subject, from, date, scanned_at, status) {
-        const ptr0 = passStringToWasm0(email_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        var ptr1 = isLikeNone(action) ? 0 : passStringToWasm0(action, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len1 = WASM_VECTOR_LEN;
-        var ptr2 = isLikeNone(category) ? 0 : passStringToWasm0(category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len2 = WASM_VECTOR_LEN;
-        var ptr3 = isLikeNone(reason) ? 0 : passStringToWasm0(reason, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len3 = WASM_VECTOR_LEN;
-        var ptr4 = isLikeNone(summary) ? 0 : passStringToWasm0(summary, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len4 = WASM_VECTOR_LEN;
-        var ptr5 = isLikeNone(tags) ? 0 : passStringToWasm0(tags, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len5 = WASM_VECTOR_LEN;
-        var ptr6 = isLikeNone(subject) ? 0 : passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len6 = WASM_VECTOR_LEN;
-        var ptr7 = isLikeNone(from) ? 0 : passStringToWasm0(from, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len7 = WASM_VECTOR_LEN;
-        var ptr8 = isLikeNone(status) ? 0 : passStringToWasm0(status, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len8 = WASM_VECTOR_LEN;
-        const ret = wasm.meaicore_putEmailClassification(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, ptr7, len7, !isLikeNone(date), isLikeNone(date) ? 0 : date, !isLikeNone(scanned_at), isLikeNone(scanned_at) ? 0 : scanned_at, ptr8, len8);
+    putEmailClassification(doc) {
+        const ret = wasm.meaicore_putEmailClassification(this.__wbg_ptr, doc);
         return ret;
     }
     /**
@@ -3708,6 +3731,17 @@ export class MeAiCore {
         const ptr0 = passStringToWasm0(name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_setPluginEnabled(this.__wbg_ptr, ptr0, len0, enabled);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @param {boolean} enabled
+     * @returns {Promise<void>}
+     */
+    setRuleEnabled(id, enabled) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_setRuleEnabled(this.__wbg_ptr, ptr0, len0, enabled);
         return ret;
     }
     /**
@@ -4045,6 +4079,17 @@ export class MeAiCore {
         const ptr1 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_updateEventTypeCategory(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} id
+     * @param {RuleUpdateInput} updates
+     * @returns {Promise<void>}
+     */
+    updateRule(id, updates) {
+        const ptr0 = passStringToWasm0(id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_updateRule(this.__wbg_ptr, ptr0, len0, updates);
         return ret;
     }
     /**
@@ -7978,23 +8023,23 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1058, function: Function { arguments: [Externref], shim_idx: 1217, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1032, function: Function { arguments: [], shim_idx: 1033, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1170, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1171, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1101, function: Function { arguments: [Externref], shim_idx: 1260, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 5, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 6, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hea31878c4df09b43, wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1213, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1214, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 989, function: Function { arguments: [], shim_idx: 990, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 5, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 6, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hea31878c4df09b43, wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757);
             return ret;
         },
         __wbindgen_cast_0000000000000005: function(arg0) {
