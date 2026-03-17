@@ -26,6 +26,7 @@ export type {
   WorkerMessage, WorkerHandle, Listener,
   TriageEngine, PluginForPrompt,
   ApiProvider, ChatMessage, TokenPayload, ApiStreamOptions, EngineStatus, EngineMessage, Backend,
+  NormalisedAction, ActionOverrideInput, ResolveExecuteResult, BatchEventResult, ResolveBatchResult,
 } from "me-ai-core";
 
 /**
@@ -412,4 +413,34 @@ export async function buildLlmContext(): Promise<string> {
 }
 export async function buildEmailContext(userQuery?: string): Promise<string> {
   return requireCore().buildEmailContext(userQuery ?? null);
+}
+
+// ── Pipeline resolution & execution (core) ──────────────────────────────────
+
+export async function findMatchingRules(eventType: string, eventCategory: string) {
+  return requireCore().findMatchingRules(eventType, eventCategory);
+}
+
+export async function getPipelineForEventResolved(eventType: string) {
+  return requireCore().getPipelineForEventResolved(eventType);
+}
+
+export async function resolveAndExecutePipeline(
+  event: unknown,
+  approved: boolean,
+  actionsOverride: unknown,
+  accessToken: string | null,
+  onProgress?: (p: unknown) => void
+) {
+  return requireCore().resolveAndExecutePipeline(event, approved, actionsOverride ?? null, accessToken ?? null, onProgress);
+}
+
+export async function resolveAndExecuteBatch(
+  eventType: string,
+  events: unknown[],
+  approved: boolean,
+  accessToken: string | null,
+  onProgress?: (p: unknown) => void
+) {
+  return requireCore().resolveAndExecuteBatch(eventType, events, approved, accessToken ?? null, onProgress);
 }

@@ -6,6 +6,7 @@ mod gmail;
 mod http;
 mod pipeline;
 mod registry;
+pub mod resolution;
 mod twitter;
 mod types;
 mod utils;
@@ -21,7 +22,9 @@ pub use registry::{
 #[allow(unused_imports)]
 pub use twitter::TwitterAction;
 #[allow(unused_imports)]
-pub use types::{ActionInput, EventInput, PipelineBatchResult, PipelineResult};
+pub use resolution::{ActionOverrideInput, ResolveBatchResult, ResolveExecuteResult};
+#[allow(unused_imports)]
+pub use types::{ActionInput, ActionResult, EventInput, PipelineBatchResult, PipelineResult};
 
 /// Plugin identifier. Normalizes source strings (case, whitespace) for dispatch.
 #[derive(Clone, Debug, PartialEq, Eq)]

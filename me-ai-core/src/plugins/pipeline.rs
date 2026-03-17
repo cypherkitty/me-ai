@@ -85,7 +85,7 @@ struct PluginContext {
     on_progress: Option<Function>,
 }
 
-fn emit_progress<T: Serialize>(cb: &Option<Function>, payload: &T) {
+pub(crate) fn emit_progress<T: Serialize>(cb: &Option<Function>, payload: &T) {
     if let Some(f) = cb {
         if let Ok(js_val) = serde_wasm_bindgen::to_value(payload) {
             let _ = f.call1(&JsValue::NULL, &js_val);

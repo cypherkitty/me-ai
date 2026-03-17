@@ -228,6 +228,95 @@ pub async fn clear_audit_log(db: DbRef<'_>) -> Result<(), CoreError> {
     db.store_clear(store::AUDIT_LOG).await
 }
 
+/// Destructive command IDs that delete the email from the mailbox.
+const DESTRUCTIVE_COMMANDS: &[&str] = &["trash", "delete", "mark_spam"];
+/// Archiving command IDs that remove the email from inbox.
+const ARCHIVING_COMMANDS: &[&str] = &["archive"];
+
+/// Audit step for serialization into the steps JSON blob.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AuditStep {
+    action_id: String,
+    action_name: String,
+    command_id: String,
+    plugin_id: String,
+    success: bool,
+    message: String,
+}
+
+/// Combined audit log + sync-after-execution helper.
+///
+/// 1. Builds `AuditStep` entries from the action inputs and results.
+/// 2. Writes an audit log row via [`log_execution`].
+/// 3. Determines whether the stored item should be deleted (destructive/archiving
+///    commands succeeded) and calls [`sync_after_execution`].
+pub async fn log_and_sync_execution(
+    db: DbRef<'_>,
+    email_id: &str,
+    subject: &str,
+    from: &str,
+    event_type: &str,
+    actions: &[crate::plugins::ActionInput],
+    results: &[crate::plugins::ActionResult],
+    success: bool,
+) -> Result<(), CoreError> {
+    // 1. Build audit steps from results
+    let steps: Vec<AuditStep> = results
+        .iter()
+        .enumerate()
+        .map(|(i, r)| AuditStep {
+            action_id: r
+                .action_id
+                .clone()
+                .or_else(|| actions.get(i).and_then(|a| a.id.clone()))
+                .unwrap_or_default(),
+            action_name: r
+                .action_name
+                .clone()
+                .or_else(|| actions.get(i).and_then(|a| a.name.clone()))
+                .unwrap_or_default(),
+            command_id: r
+                .command_id
+                .clone()
+                .or_else(|| actions.get(i).and_then(|a| a.command_id.clone()))
+                .unwrap_or_default(),
+            plugin_id: r
+                .plugin_id
+                .clone()
+                .or_else(|| actions.get(i).and_then(|a| a.plugin_id.clone()))
+                .unwrap_or_default(),
+            success: r.success,
+            message: r.message.clone(),
+        })
+        .collect();
+
+    // 2. Generate ID and timestamp, then log
+    let id = js_sys::Math::random().to_string().replace("0.", "audit_");
+    let now = js_sys::Date::now() as i64;
+    let steps_json = serde_json::to_string(&steps).unwrap_or_else(|_| "[]".to_string());
+    log_execution(db, &id, email_id, subject, from, event_type, now, success, "", &steps_json).await?;
+
+    // 3. Determine if we should delete the stored item
+    if !email_id.is_empty() {
+        let successful_commands: Vec<&str> = results
+            .iter()
+            .filter(|r| r.success)
+            .filter_map(|r| r.command_id.as_deref())
+            .collect();
+        let is_destructive = successful_commands
+            .iter()
+            .any(|c| DESTRUCTIVE_COMMANDS.contains(c));
+        let is_archiving = successful_commands
+            .iter()
+            .any(|c| ARCHIVING_COMMANDS.contains(c));
+        let delete_item = is_destructive || is_archiving;
+        sync_after_execution(db, email_id, delete_item).await?;
+    }
+
+    Ok(())
+}
+
 /// Count audit entries by success (for event stats).
 pub async fn get_audit_stats(db: DbRef<'_>) -> Result<AuditStats, CoreError> {
     let rows: Vec<AuditLogRow> = db.store_get_all(store::AUDIT_LOG, None, None).await?;

@@ -18,9 +18,6 @@ import {
   getAuditStats as coreGetAuditStats,
   getItemById as coreGetItemById,
   updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
-  getTypePipelineActions as coreGetTypePipelineActions,
-  getEventTypeCategory as coreGetEventTypeCategory,
-  getEventCategoryPolicy as coreGetEventCategoryPolicy,
   getCategoryPipelineActions as coreGetCategoryPipelineActions,
   updateCategoryPipeline as coreUpdateCategoryPipeline,
   updateCategoryPolicy as coreUpdateCategoryPolicy,
@@ -28,6 +25,8 @@ import {
   clearEventTypeCategory as coreClearEventTypeCategory,
   deleteEventType as coreDeleteEventType,
   setPluginEnabled as coreSetPluginEnabled,
+  findMatchingRules as coreFindMatchingRules,
+  getPipelineForEventResolved,
 } from "./core.js";
 import type { Rule, Action, Trigger } from "$lib/types";
 import type { CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay } from "./core.js";
@@ -293,61 +292,13 @@ export async function findMatchingRules(
   eventType: string,
   eventCategory: string
 ): Promise<Rule[]> {
-  const allRules = await getRules();
-  const enabled = allRules.filter((r) => r.enabled);
-
-  return enabled
-    .filter((rule) => {
-      const typeTriggers = rule.triggers.filter((t) => t.type === "event_type");
-      const catTriggers = rule.triggers.filter((t) => t.type === "event_category");
-      const typeMatch =
-        typeTriggers.length === 0 || typeTriggers.some((t) => t.name === eventType);
-      const catMatch =
-        catTriggers.length === 0 || catTriggers.some((t) => t.name === eventCategory);
-      return typeMatch && catMatch;
-    })
-    .sort((a, b) => b.priority - a.priority);
+  return coreFindMatchingRules(eventType, eventCategory) as unknown as Promise<Rule[]>;
 }
 
 // ── Category-based pipeline resolution ─────────────────────────────────
 
 export async function getPipelineForEvent(eventType: string): Promise<PipelineForEvent | null> {
-  const normalized =
-    eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
-  const [typeActions, categoryName] = await Promise.all([
-    coreGetTypePipelineActions(normalized),
-    coreGetEventTypeCategory(normalized),
-  ]);
-  const category = categoryName ?? "critical";
-  const policy = await coreGetEventCategoryPolicy(category);
-  const pol = policy ?? "manual";
-  if (typeActions?.length > 0) {
-    return {
-      actions: (typeActions as unknown as Array<{ plugin_id: string; command_id: string; action_idx: number }>).map((r) => ({
-        pluginId: r.plugin_id,
-        commandId: r.command_id,
-        order: r.action_idx,
-      })),
-      policy: pol,
-      category,
-      isOverride: true,
-    };
-  }
-  const catActions = ((await coreGetCategoryPipelineActions(category)) as unknown) as Array<{
-    plugin_id: string;
-    command_id: string;
-    action_idx: number;
-  }>;
-  return {
-    actions: (catActions ?? []).map((r) => ({
-      pluginId: r.plugin_id,
-      commandId: r.command_id,
-      order: r.action_idx,
-    })),
-    policy: pol,
-    category,
-    isOverride: false,
-  };
+  return getPipelineForEventResolved(eventType) as Promise<PipelineForEvent | null>;
 }
 
 export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {

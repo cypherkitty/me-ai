@@ -179,6 +179,13 @@ pub struct RuleActionView {
     pub icon: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RulePolicyRow {
+    #[serde(rename = "rule_id")]
+    pub rule_id: Option<String>,
+    pub policy: Option<String>,
+}
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize)]
 pub struct RuleView {
@@ -192,6 +199,7 @@ pub struct RuleView {
     pub created_at: Option<i64>,
     pub triggers: Vec<RuleTriggerView>,
     pub actions: Vec<RuleActionView>,
+    pub policy: Option<String>,
 }
 
 /// Payload from JS for saving a rule. Deserialize only — not returned from WASM.
@@ -345,6 +353,13 @@ pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
                 icon: c.icon,
             })
             .collect();
+        let policy = if let Some(id) = id {
+            db.store_get::<RulePolicyRow>(store::SM_RULE_POLICIES, id)
+                .await?
+                .and_then(|row| row.policy)
+        } else {
+            None
+        };
         out.push(RuleView {
             id: r.id,
             name: r.name,
@@ -354,6 +369,7 @@ pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
             created_at: r.created_at,
             triggers: trigger_views,
             actions: action_views,
+            policy,
         });
     }
     out.sort_by(|a, b| b.priority.cmp(&a.priority));
@@ -390,6 +406,10 @@ pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<RuleView>, CoreE
             icon: c.icon,
         })
         .collect();
+    let policy = db
+        .store_get::<RulePolicyRow>(store::SM_RULE_POLICIES, id)
+        .await?
+        .and_then(|row| row.policy);
     Ok(Some(RuleView {
         id: r.id,
         name: r.name,
@@ -399,7 +419,42 @@ pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<RuleView>, CoreE
         created_at: r.created_at,
         triggers: trigger_views,
         actions: action_views,
+        policy,
     }))
+}
+
+/// Find enabled rules whose triggers match the given event type and category.
+/// Returns rules sorted by priority desc (from `get_rules`).
+pub async fn find_matching_rules(
+    db: DbRef<'_>,
+    event_type: &str,
+    event_category: &str,
+) -> Result<Vec<RuleView>, CoreError> {
+    let all_rules = get_rules(db).await?;
+    let matching: Vec<RuleView> = all_rules
+        .into_iter()
+        .filter(|rule| {
+            if !rule.enabled {
+                return false;
+            }
+            let type_triggers: Vec<_> = rule
+                .triggers
+                .iter()
+                .filter(|t| t.trigger_type == "event_type")
+                .collect();
+            let cat_triggers: Vec<_> = rule
+                .triggers
+                .iter()
+                .filter(|t| t.trigger_type == "event_category")
+                .collect();
+            let type_match =
+                type_triggers.is_empty() || type_triggers.iter().any(|t| t.name == event_type);
+            let cat_match =
+                cat_triggers.is_empty() || cat_triggers.iter().any(|t| t.name == event_category);
+            type_match && cat_match
+        })
+        .collect();
+    Ok(matching)
 }
 
 /// Save rule (upsert) with triggers and commands.

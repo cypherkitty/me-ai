@@ -24,7 +24,7 @@ use crate::error::{to_js as error_to_js, CoreError};
 use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
-use crate::plugins::{ActionInput, ActionMetadata, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
+use crate::plugins::{ActionInput, ActionMetadata, ActionOverrideInput, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
 use crate::formatting::ParsedApiError;
 use crate::storage::settings::SettingValue;
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
@@ -227,6 +227,19 @@ impl MeAiCore {
     pub async fn get_event_category_policy(&self, category_name: &str) -> Result<Option<String>, JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::pipelines::get_event_category_policy(db, category_name).await?)
+    }
+
+    #[wasm_bindgen(js_name = getPipelineForEventResolved)]
+    pub async fn get_pipeline_for_event_resolved(
+        &self,
+        event_type: &str,
+    ) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let result = plugins::resolution::get_pipeline_for_event(db, event_type)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
     }
 
     #[wasm_bindgen(js_name = updateCategoryPipeline)]
@@ -438,6 +451,79 @@ impl MeAiCore {
         Ok(plugins::execute_pipeline_batch(actions, events, access_token, on_progress, config).await?)
     }
 
+    #[wasm_bindgen(js_name = resolveAndExecutePipeline)]
+    pub async fn resolve_and_execute_pipeline(
+        &self,
+        event: JsValue,
+        approved: bool,
+        actions_override: JsValue,
+        access_token: JsValue,
+        on_progress: Option<Function>,
+    ) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let event: plugins::EventInput = serde_wasm_bindgen::from_value(event)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let actions_override: Option<Vec<ActionOverrideInput>> =
+            if actions_override.is_null() || actions_override.is_undefined() {
+                None
+            } else {
+                Some(
+                    serde_wasm_bindgen::from_value(actions_override)
+                        .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?,
+                )
+            };
+        let access_token: Option<String> =
+            if access_token.is_null() || access_token.is_undefined() {
+                None
+            } else {
+                access_token.as_string()
+            };
+        let result = plugins::resolution::resolve_and_execute_pipeline(
+            db,
+            event,
+            approved,
+            actions_override,
+            access_token,
+            on_progress,
+        )
+        .await
+        .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    #[wasm_bindgen(js_name = resolveAndExecuteBatch)]
+    pub async fn resolve_and_execute_batch(
+        &self,
+        event_type: &str,
+        events: JsValue,
+        approved: bool,
+        access_token: JsValue,
+        on_progress: Option<Function>,
+    ) -> Result<JsValue, JsValue> {
+        let db = self.rexie_db.db();
+        let events: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(events)
+            .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?;
+        let access_token: Option<String> =
+            if access_token.is_null() || access_token.is_undefined() {
+                None
+            } else {
+                access_token.as_string()
+            };
+        let result = plugins::resolution::resolve_and_execute_batch(
+            db,
+            event_type,
+            events,
+            approved,
+            access_token,
+            on_progress,
+        )
+        .await
+        .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
     #[wasm_bindgen(js_name = getRules)]
     pub async fn get_rules(&self) -> Result<Vec<RuleView>, JsValue> {
         let db = self.rexie_db.db();
@@ -448,6 +534,16 @@ impl MeAiCore {
     pub async fn get_rule(&self, id: &str) -> Result<Option<RuleView>, JsValue> {
         let db = self.rexie_db.db();
         Ok(storage::rules::get_rule(db, id).await?)
+    }
+
+    #[wasm_bindgen(js_name = findMatchingRules)]
+    pub async fn find_matching_rules(
+        &self,
+        event_type: &str,
+        event_category: &str,
+    ) -> Result<Vec<RuleView>, JsValue> {
+        let db = self.rexie_db.db();
+        Ok(storage::rules::find_matching_rules(db, event_type, event_category).await?)
     }
 
     #[wasm_bindgen(js_name = saveRule)]
