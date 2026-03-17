@@ -6,6 +6,82 @@ use serde::{Deserialize, Serialize};
 
 use crate::formatting::string_to_hue;
 
+#[wasm_bindgen(typescript_custom_section)]
+const TRIAGE_TYPES: &'static str = r#"
+export interface ClassificationResult {
+    action: string;
+    category: "noise" | "info" | "critical";
+    categoryTier: "NOISE" | "INFO" | "CRITICAL";
+    suggestedActions: string[];
+    reason: string;
+    summary: string;
+    tags: string[];
+}
+
+export interface ScanProgress {
+    phase: string;
+    message?: string;
+    current?: number;
+    total?: number;
+    classified?: number;
+    errors?: number;
+    results?: unknown[];
+    email?: { subject?: string; from?: string; date?: string };
+    prompt?: { system?: string; user?: string };
+    systemPromptLength?: number;
+    live?: { tps?: number | null; numTokens?: number } | null;
+    lastResult?: unknown;
+    totals?: { outputTokens?: number; inputTokens?: number; elapsed?: number };
+    streamingText?: string;
+    result?: ClassificationResult;
+    rawResponse?: string;
+    emailStats?: { tps: number | null; numTokens: number; inputTokens: number; elapsed: number };
+    summary?: {
+        avgPromptSize?: number;
+        avgTps?: number | null;
+        systemPromptSize?: number;
+        processed?: number;
+        skipped?: number;
+        modelName?: string;
+        modelContextWindow?: number;
+        modelMaxEmailTokens?: number;
+    };
+}
+
+export interface ScanResult {
+    scanned: number;
+    classified: number;
+    skipped: number;
+    errors: number;
+}
+
+export interface ScanOptions {
+    count?: number;
+    force?: boolean;
+    onProgress?: (p: ScanProgress) => void;
+    signal?: AbortSignal;
+}
+
+export interface ClassificationRow {
+    emailId: string;
+    action: string;
+    category: string;
+    reason: string;
+    summary: string;
+    tags: string[];
+    subject: string;
+    from: string;
+    date: number | null;
+    scannedAt: number | null;
+    status?: string;
+    [key: string]: unknown;
+}
+
+export interface GetClassificationsByCategoryOptions {
+    pendingOnly?: boolean;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -6,6 +6,8 @@
  */
 
 import type { Action, EventCategory } from "$lib/types";
+import type { ClassificationLike, EmailLike, ByCategory } from "./core.js";
+export type { ByCategory } from "./core.js";
 
 const STORAGE_KEY = "me-ai-events";
 const CATEGORIES_KEY = "me-ai-event-categories";
@@ -197,22 +199,6 @@ export async function seedEventTypeFromLLM(
 
 import type { EmailEvent } from "$lib/types";
 
-interface ClassificationLike {
-  action: string;
-  reason?: string;
-  summary?: string;
-  tags?: string[];
-  categoryTier?: EventCategory;
-}
-
-interface EmailLike {
-  subject?: string;
-  from?: string;
-  date?: string | number;
-  snippet?: string;
-  body?: string;
-}
-
 async function buildEmailEvent(
   classification: ClassificationLike,
   email: EmailLike
@@ -258,11 +244,6 @@ export async function buildBatchEventMessage(
     items,
     content: "",
   };
-}
-
-export interface ByCategory {
-  categories: Record<string, Array<{ emailId?: string; subject?: string; from?: string; date?: number; summary?: string; reason?: string; tags?: string[]; status?: string }>>;
-  order: string[];
 }
 
 export async function buildEventsByCategoryMessage(byCategory: ByCategory): Promise<{

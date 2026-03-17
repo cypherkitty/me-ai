@@ -7,8 +7,17 @@
 import initDefault, { MeAiCore, SettingValue } from "me-ai-core";
 import { coreStore, getCore } from "./store/core-store.js";
 
-export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory } from "me-ai-core";
-export type { OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag, OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "me-ai-core";
+export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel } from "me-ai-core";
+export type {
+  OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag,
+  OllamaChatMessage, StreamOllamaOptions, OllamaTokenData,
+  GenerateFullResult,
+  StoredItem, StoredItemRow, SyncState, SyncProgress, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult,
+  PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry, LogExecutionParams, GetAuditLogOptions,
+  Action, Trigger, Rule, CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
+  EventCategory, EmailEvent, ExecutionProgress, ByCategory, ClassificationLike, EmailLike,
+  ClassificationResult, ScanProgress, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions,
+} from "me-ai-core";
 
 /**
  * Initialize the core: load WASM, create MeAiCore (builds Rexie once), run schema/migrations.

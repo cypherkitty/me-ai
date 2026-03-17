@@ -30,6 +30,8 @@ import { getApiModelInfo } from "./api-models.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import { getPluginsForPrompt as coreGetPluginsForPrompt } from "./core.js";
 import type { StoredItem } from "$lib/types";
+import type { ClassificationResult, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions } from "./core.js";
+export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
 
 const DEFAULT_COUNT = 20;
 
@@ -56,80 +58,6 @@ interface PluginForPrompt {
   pluginId: string;
   pluginName: string;
   actions: Array<{ actionId: string }>;
-}
-
-/** Progress callback payload during scan (varied shapes by phase). */
-export interface ScanProgress {
-  phase: string;
-  message?: string;
-  current?: number;
-  total?: number;
-  classified?: number;
-  errors?: number;
-  results?: unknown[];
-  email?: { subject?: string; from?: string; date?: string };
-  prompt?: { system?: string; user?: string };
-  systemPromptLength?: number;
-  live?: { tps?: number | null; numTokens?: number } | null;
-  lastResult?: unknown;
-  totals?: { outputTokens?: number; inputTokens?: number; elapsed?: number };
-  streamingText?: string;
-  result?: ClassificationResult;
-  rawResponse?: string;
-  emailStats?: { tps: number | null; numTokens: number; inputTokens: number; elapsed: number };
-  summary?: {
-    avgPromptSize?: number;
-    avgTps?: number | null;
-    systemPromptSize?: number;
-    processed?: number;
-    skipped?: number;
-    modelName?: string;
-    modelContextWindow?: number;
-    modelMaxEmailTokens?: number;
-  };
-}
-
-/** Parsed classification from LLM response. */
-export interface ClassificationResult {
-  action: string;
-  category: "noise" | "info" | "critical";
-  categoryTier: "NOISE" | "INFO" | "CRITICAL";
-  suggestedActions: string[];
-  reason: string;
-  summary: string;
-  tags: string[];
-}
-
-/** Options for scanEmails. */
-interface ScanOptions {
-  count?: number;
-  force?: boolean;
-  onProgress?: (p: ScanProgress) => void;
-  signal?: AbortSignal;
-}
-
-/** Result of scanEmails. */
-interface ScanResult {
-  scanned: number;
-  classified: number;
-  skipped: number;
-  errors: number;
-}
-
-/** Row shape from emailClassifications table (normalised). */
-interface ClassificationRow {
-  emailId: string;
-  action: string;
-  category: string;
-  reason: string;
-  summary: string;
-  tags: string[];
-  subject: string;
-  from: string;
-  date: number | null;
-  scannedAt: number | null;
-  status?: string;
-  [key: string]: unknown;
 }
 
 function getPluginsForPrompt(): PluginForPrompt[] {
@@ -397,10 +325,6 @@ export async function scanEmails(
   });
 
   return { scanned: toProcess.length, classified, skipped, errors };
-}
-
-interface GetClassificationsByCategoryOptions {
-  pendingOnly?: boolean;
 }
 
 export async function getClassificationsByCategory(

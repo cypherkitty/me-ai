@@ -30,6 +30,8 @@ import {
   setPluginEnabled as coreSetPluginEnabled,
 } from "./core.js";
 import type { Rule, Action, Trigger } from "$lib/types";
+import type { CreateRuleInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay } from "./core.js";
+export type { PendingItemByCategory, CategoryPipelineDisplay } from "./core.js";
 
 // ── Seed / static data (WASM core builds SQL and passes to adapter) ────────
 
@@ -83,15 +85,6 @@ async function getRule(id: string): Promise<Rule | null> {
     triggers: (row.triggers as Trigger[]) ?? [],
     actions: (row.actions as Action[]) ?? [],
   } as Rule;
-}
-
-interface CreateRuleInput {
-  name: string;
-  description?: string;
-  enabled?: boolean;
-  priority?: number;
-  triggers?: Trigger[];
-  actions?: Action[];
 }
 
 export async function createRule({
@@ -163,14 +156,6 @@ export async function deleteRule(id: string): Promise<void> {
 }
 
 // ── Event stats ──────────────────────────────────────────────────────
-
-interface EventStats {
-  awaiting_user: number;
-  escalated: number;
-  completed: number;
-  failed: number;
-  total: number;
-}
 
 export async function getEventStats(): Promise<EventStats> {
   const [classifications, categories, auditStats] = await Promise.all([
@@ -263,17 +248,6 @@ export async function getPendingCountByCategory(categoryName: string): Promise<n
   }).length;
 }
 
-interface PendingItemByCategory {
-  id: string;
-  emailId: string;
-  subject: string;
-  from: string;
-  eventType: string;
-  event_category: string;
-  sourceType: string;
-  status: string;
-}
-
 export async function getPendingItemsByCategory(
   categoryName: string,
   { limit = 500 }: { limit?: number } = {}
@@ -337,13 +311,6 @@ export async function findMatchingRules(
 
 // ── Category-based pipeline resolution ─────────────────────────────────
 
-interface PipelineForEvent {
-  actions: Array<{ pluginId: string; commandId: string; order: number }>;
-  policy: string;
-  category: string;
-  isOverride?: boolean;
-}
-
 export async function getPipelineForEvent(eventType: string): Promise<PipelineForEvent | null> {
   const normalized =
     eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
@@ -381,15 +348,6 @@ export async function getPipelineForEvent(eventType: string): Promise<PipelineFo
     category,
     isOverride: false,
   };
-}
-
-interface CategoryPipelineDisplay {
-  category: string;
-  label: string;
-  priority: number;
-  policy: string;
-  actions: Array<{ pluginId: string; commandId: string; order: number }>;
-  eventTypes: Array<{ name: string; label: string; autoCreated: boolean }>;
 }
 
 export async function getCategoryPipelines(): Promise<CategoryPipelineDisplay[]> {

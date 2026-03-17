@@ -14,6 +14,8 @@
  *   const { text, tps, numTokens, inputTokens } = await engine.generateFull(messages);
  */
 
+import type { GenerateFullResult } from "./core.js";
+
 interface WorkerMessage {
   status: string;
   data?: string;
@@ -100,13 +102,6 @@ function ensureWorker(): Promise<WorkerHandle> {
   }
 
   return _workerPromise;
-}
-
-interface GenerateFullResult {
-  text: string;
-  tps: number | null;
-  numTokens: number;
-  inputTokens: number;
 }
 
 /**

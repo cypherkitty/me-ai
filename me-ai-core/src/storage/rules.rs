@@ -6,6 +6,79 @@ use wasm_bindgen::prelude::*;
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const RULES_TYPES: &'static str = r#"
+export interface Action {
+    id: string;
+    pluginId: string;
+    commandId: string;
+    name: string;
+    description: string;
+    icon?: string;
+}
+
+export interface Trigger {
+    type: "event_type" | "event_category";
+    name: string;
+}
+
+export interface Rule {
+    id: string;
+    name: string;
+    description: string;
+    enabled: boolean;
+    priority: number;
+    created_at: number;
+    triggers: Trigger[];
+    actions: Action[];
+    policy?: string;
+}
+
+export interface CreateRuleInput {
+    name: string;
+    description?: string;
+    enabled?: boolean;
+    priority?: number;
+    triggers?: Trigger[];
+    actions?: Action[];
+}
+
+export interface EventStats {
+    awaiting_user: number;
+    escalated: number;
+    completed: number;
+    failed: number;
+    total: number;
+}
+
+export interface PendingItemByCategory {
+    id: string;
+    emailId: string;
+    subject: string;
+    from: string;
+    eventType: string;
+    event_category: string;
+    sourceType: string;
+    status: string;
+}
+
+export interface PipelineForEvent {
+    actions: Array<{ pluginId: string; commandId: string; order: number }>;
+    policy: string;
+    category: string;
+    isOverride?: boolean;
+}
+
+export interface CategoryPipelineDisplay {
+    category: string;
+    label: string;
+    priority: number;
+    policy: string;
+    actions: Array<{ pluginId: string; commandId: string; order: number }>;
+    eventTypes: Array<{ name: string; label: string; autoCreated: boolean }>;
+}
+"#;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RuleRow {
     pub id: Option<String>,

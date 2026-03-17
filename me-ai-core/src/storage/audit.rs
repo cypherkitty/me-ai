@@ -8,6 +8,63 @@ use rexie::Direction;
 use crate::db::{store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const AUDIT_TYPES: &'static str = r#"
+export interface PipelineAction {
+    id?: string;
+    name?: string;
+    commandId?: string;
+    pluginId?: string;
+}
+
+export interface ActionExecutionResult {
+    actionId?: string;
+    actionName?: string;
+    commandId?: string;
+    pluginId?: string;
+    success: boolean;
+    message: string;
+}
+
+export interface AuditStep {
+    actionId: string;
+    actionName: string;
+    commandId: string;
+    pluginId: string;
+    success: boolean;
+    message: string;
+}
+
+export interface AuditLogEntry {
+    id: string;
+    emailId: string;
+    subject: string;
+    from: string;
+    eventType: string;
+    executedAt: number;
+    success: boolean;
+    error: string;
+    steps: AuditStep[];
+}
+
+export interface LogExecutionParams {
+    emailId: string;
+    subject?: string;
+    from?: string;
+    eventType: string;
+    actions?: PipelineAction[];
+    results?: ActionExecutionResult[];
+    success: boolean;
+    error?: string;
+}
+
+export interface GetAuditLogOptions {
+    limit?: number;
+    offset?: number;
+    failuresOnly?: boolean;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AuditLogRow {

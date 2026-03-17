@@ -7,6 +7,68 @@ use wasm_bindgen::prelude::*;
 use crate::db::{key_range_only, store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const SYNC_TYPES: &'static str = r#"
+export interface StoredItem {
+    id: string;
+    sourceType: string;
+    sourceId: string;
+    threadKey: string;
+    type: string;
+    from: string;
+    to: string;
+    cc: string;
+    subject: string;
+    snippet: string;
+    body: string;
+    htmlBody: string | null;
+    date: number | null;
+    labels: string[];
+    messageId: string;
+    inReplyTo: string;
+    references: string;
+    raw: unknown;
+    syncedAt: number | null;
+}
+
+export interface StoredItemRow extends Omit<StoredItem, 'labels' | 'raw'> {
+    labels: string;
+    raw: string;
+}
+
+export interface SyncState {
+    sourceType: string;
+    historyId: string;
+    lastSyncAt: number | null;
+    totalItems: number;
+    oldestPageToken: string;
+}
+
+export interface SyncProgress {
+    phase: string;
+    message: string;
+    current?: number;
+    total?: number;
+}
+
+export interface GetStoredEmailsOptions {
+    query?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export interface GetStoredEmailsResult {
+    items: StoredItem[];
+    total: number;
+}
+
+export interface PendingActionsResult {
+    categories: Record<string, unknown[]>;
+    order: string[];
+    total: number;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncStateRow {

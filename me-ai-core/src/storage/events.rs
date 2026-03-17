@@ -6,6 +6,57 @@ use wasm_bindgen::prelude::*;
 use crate::db::{store, DbRef};
 use crate::error::CoreError;
 
+#[wasm_bindgen(typescript_custom_section)]
+const EVENTS_TYPES: &'static str = r#"
+export type EventCategory = "NOISE" | "INFO" | "CRITICAL";
+
+export interface EmailEvent {
+    type: string;
+    source: string;
+    data: { subject?: string; from?: string; date?: string; snippet?: string; [k: string]: unknown };
+    metadata?: { reason?: string; summary?: string; tags?: string[]; category?: EventCategory; [k: string]: unknown };
+}
+
+export interface ExecutionProgress {
+    phase: string;
+    actionId?: string;
+    actionName?: string;
+    pluginId?: string;
+    commandId?: string;
+    result?: unknown;
+    error?: string;
+    category?: EventCategory;
+    eventIndex?: number;
+    totalEvents?: number;
+    event?: EmailEvent;
+    eventType?: string;
+    eventCount?: number;
+    actions?: unknown[];
+    actionCount?: number;
+}
+
+export interface ByCategory {
+    categories: Record<string, Array<{ emailId?: string; subject?: string; from?: string; date?: number; summary?: string; reason?: string; tags?: string[]; status?: string }>>;
+    order: string[];
+}
+
+export interface ClassificationLike {
+    action: string;
+    reason?: string;
+    summary?: string;
+    tags?: string[];
+    categoryTier?: EventCategory;
+}
+
+export interface EmailLike {
+    subject?: string;
+    from?: string;
+    date?: string | number;
+    snippet?: string;
+    body?: string;
+}
+"#;
+
 #[wasm_bindgen(getter_with_clone)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EventTypeRow {

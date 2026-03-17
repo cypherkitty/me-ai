@@ -13,21 +13,10 @@ import {
   clearAuditLog as coreClearAuditLog,
 } from "../core.js";
 import { toJson, fromJson } from "./db.js";
-import type { PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry } from "$lib/types";
+import type { ActionExecutionResult, AuditStep, AuditLogEntry, LogExecutionParams, GetAuditLogOptions } from "../core.js";
 
 const DESTRUCTIVE_COMMAND_IDS = new Set(["trash", "delete", "mark_spam"]);
 const ARCHIVING_COMMAND_IDS = new Set(["archive"]);
-
-interface LogExecutionParams {
-  emailId: string;
-  subject?: string;
-  from?: string;
-  eventType: string;
-  actions?: PipelineAction[];
-  results?: ActionExecutionResult[];
-  success: boolean;
-  error?: string;
-}
 
 /**
  * Write one audit log entry after a pipeline execution completes.
@@ -83,12 +72,6 @@ export async function syncAfterExecution(
   const deleteItem = isDestructive || isArchiving;
 
   await coreSyncAfterAuditExecution(emailId, deleteItem);
-}
-
-interface GetAuditLogOptions {
-  limit?: number;
-  offset?: number;
-  failuresOnly?: boolean;
 }
 
 interface GetAuditLogResult {
