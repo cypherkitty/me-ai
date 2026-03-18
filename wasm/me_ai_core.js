@@ -113,180 +113,6 @@ export class ActionMetadata {
 }
 if (Symbol.dispose) ActionMetadata.prototype[Symbol.dispose] = ActionMetadata.prototype.free;
 
-/**
- * Result of a single action in a pipeline. Returned as part of PipelineResult.
- * `data` is a JsValue (serialized JSON or null) because serde_json::Value is not wasm-bindgen-compatible.
- */
-export class ActionResult {
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(ActionResult.prototype);
-        obj.__wbg_ptr = ptr;
-        ActionResultFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-    static __unwrap(jsValue) {
-        if (!(jsValue instanceof ActionResult)) {
-            return 0;
-        }
-        return jsValue.__destroy_into_raw();
-    }
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        ActionResultFinalization.unregister(this);
-        return ptr;
-    }
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_actionresult_free(ptr, 0);
-    }
-    /**
-     * @returns {string}
-     */
-    get actionId() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_actionresult_actionId(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {string}
-     */
-    get actionName() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_actionresult_actionName(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {string}
-     */
-    get commandId() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_actionresult_commandId(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * Serialized action data as a JS value (object or null).
-     * @returns {any}
-     */
-    get data() {
-        const ret = wasm.__wbg_get_actionresult_data(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @returns {string}
-     */
-    get message() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_actionresult_message(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {string}
-     */
-    get pluginId() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_actionresult_pluginId(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {boolean}
-     */
-    get success() {
-        const ret = wasm.__wbg_get_actionresult_success(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * @param {string} arg0
-     */
-    set actionId(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_actionresult_actionId(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set actionName(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_actionresult_actionName(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set commandId(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_actionresult_commandId(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * Serialized action data as a JS value (object or null).
-     * @param {any} arg0
-     */
-    set data(arg0) {
-        wasm.__wbg_set_actionresult_data(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set message(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_actionresult_message(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set pluginId(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_actionresult_pluginId(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {boolean} arg0
-     */
-    set success(arg0) {
-        wasm.__wbg_set_actionresult_success(this.__wbg_ptr, arg0);
-    }
-}
-if (Symbol.dispose) ActionResult.prototype[Symbol.dispose] = ActionResult.prototype.free;
-
 export class ActionRow {
     static __wrap(ptr) {
         ptr = ptr >>> 0;
@@ -2866,7 +2692,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @returns {Promise<any>}
+     * @returns {Promise<CategoryPipelineView[]>}
      */
     getCategoryPipelines() {
         const ret = wasm.meaicore_getCategoryPipelines(this.__wbg_ptr);
@@ -2958,7 +2784,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @returns {Promise<any>}
+     * @returns {Promise<EventStatsResult>}
      */
     getEventStats() {
         const ret = wasm.meaicore_getEventStats(this.__wbg_ptr);
@@ -3052,7 +2878,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @returns {Promise<any>}
+     * @returns {Promise<GoogleToken | undefined>}
      */
     getGoogleToken() {
         const ret = wasm.meaicore_getGoogleToken(this.__wbg_ptr);
@@ -3192,7 +3018,7 @@ export class MeAiCore {
     }
     /**
      * @param {number} limit
-     * @returns {Promise<any>}
+     * @returns {Promise<PendingApprovalView[]>}
      */
     getPendingApprovals(limit) {
         const ret = wasm.meaicore_getPendingApprovals(this.__wbg_ptr, limit);
@@ -3211,7 +3037,7 @@ export class MeAiCore {
     /**
      * @param {string} category_name
      * @param {number} limit
-     * @returns {Promise<any>}
+     * @returns {Promise<PendingItemByCategoryResult[]>}
      */
     getPendingItemsByCategory(category_name, limit) {
         const ptr0 = passStringToWasm0(category_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3221,7 +3047,7 @@ export class MeAiCore {
     }
     /**
      * @param {string} event_type
-     * @returns {Promise<any>}
+     * @returns {Promise<PipelineForEventResult | undefined>}
      */
     getPipelineForEventResolved(event_type) {
         const ptr0 = passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3385,14 +3211,14 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * @returns {Promise<any>}
+     * @returns {Promise<TwitterToken | undefined>}
      */
     getTwitterToken() {
         const ret = wasm.meaicore_getTwitterToken(this.__wbg_ptr);
         return ret;
     }
     /**
-     * @returns {Promise<any>}
+     * @returns {Promise<TwitterToken | undefined>}
      */
     getTwitterTokenRaw() {
         const ret = wasm.meaicore_getTwitterTokenRaw(this.__wbg_ptr);
@@ -3692,7 +3518,7 @@ export class MeAiCore {
      * @param {EventInput[]} events
      * @param {boolean} approved
      * @param {Function | null} [on_progress]
-     * @returns {Promise<any>}
+     * @returns {Promise<ResolveBatchResult>}
      */
     resolveAndExecuteBatch(event_type, events, approved, on_progress) {
         const ptr0 = passStringToWasm0(event_type, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3705,12 +3531,14 @@ export class MeAiCore {
     /**
      * @param {EventInput} event
      * @param {boolean} approved
-     * @param {any} actions_override
+     * @param {ActionOverrideInput[] | null} [actions_override]
      * @param {Function | null} [on_progress]
-     * @returns {Promise<any>}
+     * @returns {Promise<ResolveExecuteResult>}
      */
     resolveAndExecutePipeline(event, approved, actions_override, on_progress) {
-        const ret = wasm.meaicore_resolveAndExecutePipeline(this.__wbg_ptr, event, approved, actions_override, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
+        var ptr0 = isLikeNone(actions_override) ? 0 : passArrayJsValueToWasm0(actions_override, wasm.__wbindgen_malloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_resolveAndExecutePipeline(this.__wbg_ptr, event, approved, ptr0, len0, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress));
         return ret;
     }
     /**
@@ -5053,288 +4881,6 @@ export class PipelineActionRow {
     }
 }
 if (Symbol.dispose) PipelineActionRow.prototype[Symbol.dispose] = PipelineActionRow.prototype.free;
-
-export class PipelineBatchResult {
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(PipelineBatchResult.prototype);
-        obj.__wbg_ptr = ptr;
-        PipelineBatchResultFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        PipelineBatchResultFinalization.unregister(this);
-        return ptr;
-    }
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_pipelinebatchresult_free(ptr, 0);
-    }
-    /**
-     * @returns {number}
-     */
-    get failed() {
-        const ret = wasm.__wbg_get_pipelinebatchresult_failed(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
-     * @returns {string}
-     */
-    get message() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_pipelinebatchresult_message(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {PipelineBatchResultEntry[]}
-     */
-    get results() {
-        const ret = wasm.__wbg_get_pipelinebatchresult_results(this.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * @returns {boolean}
-     */
-    get success() {
-        const ret = wasm.__wbg_get_pipelinebatchresult_success(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * @returns {number}
-     */
-    get successful() {
-        const ret = wasm.__wbg_get_pipelinebatchresult_successful(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
-     * @returns {number}
-     */
-    get total() {
-        const ret = wasm.__wbg_get_pipelinebatchresult_total(this.__wbg_ptr);
-        return ret >>> 0;
-    }
-    /**
-     * @param {number} arg0
-     */
-    set failed(arg0) {
-        wasm.__wbg_set_pipelinebatchresult_failed(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set message(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelinebatchresult_message(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {PipelineBatchResultEntry[]} arg0
-     */
-    set results(arg0) {
-        const ptr0 = passArrayJsValueToWasm0(arg0, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelinebatchresult_results(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {boolean} arg0
-     */
-    set success(arg0) {
-        wasm.__wbg_set_pipelinebatchresult_success(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {number} arg0
-     */
-    set successful(arg0) {
-        wasm.__wbg_set_pipelinebatchresult_successful(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {number} arg0
-     */
-    set total(arg0) {
-        wasm.__wbg_set_pipelinebatchresult_total(this.__wbg_ptr, arg0);
-    }
-}
-if (Symbol.dispose) PipelineBatchResult.prototype[Symbol.dispose] = PipelineBatchResult.prototype.free;
-
-export class PipelineBatchResultEntry {
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(PipelineBatchResultEntry.prototype);
-        obj.__wbg_ptr = ptr;
-        PipelineBatchResultEntryFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-    static __unwrap(jsValue) {
-        if (!(jsValue instanceof PipelineBatchResultEntry)) {
-            return 0;
-        }
-        return jsValue.__destroy_into_raw();
-    }
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        PipelineBatchResultEntryFinalization.unregister(this);
-        return ptr;
-    }
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_pipelinebatchresultentry_free(ptr, 0);
-    }
-    /**
-     * The event that was processed, serialized as a JS value.
-     * @returns {any}
-     */
-    get event() {
-        const ret = wasm.__wbg_get_pipelinebatchresultentry_event(this.__wbg_ptr);
-        return ret;
-    }
-    /**
-     * @returns {string}
-     */
-    get message() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_pipelinebatchresultentry_message(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {ActionResult[]}
-     */
-    get results() {
-        const ret = wasm.__wbg_get_pipelinebatchresultentry_results(this.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * @returns {boolean}
-     */
-    get success() {
-        const ret = wasm.__wbg_get_pipelinebatchresultentry_success(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * The event that was processed, serialized as a JS value.
-     * @param {any} arg0
-     */
-    set event(arg0) {
-        wasm.__wbg_set_pipelinebatchresultentry_event(this.__wbg_ptr, arg0);
-    }
-    /**
-     * @param {string} arg0
-     */
-    set message(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelinebatchresultentry_message(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {ActionResult[]} arg0
-     */
-    set results(arg0) {
-        const ptr0 = passArrayJsValueToWasm0(arg0, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelinebatchresultentry_results(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {boolean} arg0
-     */
-    set success(arg0) {
-        wasm.__wbg_set_pipelinebatchresultentry_success(this.__wbg_ptr, arg0);
-    }
-}
-if (Symbol.dispose) PipelineBatchResultEntry.prototype[Symbol.dispose] = PipelineBatchResultEntry.prototype.free;
-
-export class PipelineResult {
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(PipelineResult.prototype);
-        obj.__wbg_ptr = ptr;
-        PipelineResultFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
-    __destroy_into_raw() {
-        const ptr = this.__wbg_ptr;
-        this.__wbg_ptr = 0;
-        PipelineResultFinalization.unregister(this);
-        return ptr;
-    }
-    free() {
-        const ptr = this.__destroy_into_raw();
-        wasm.__wbg_pipelineresult_free(ptr, 0);
-    }
-    /**
-     * @returns {string}
-     */
-    get message() {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.__wbg_get_pipelineresult_message(this.__wbg_ptr);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
-        }
-    }
-    /**
-     * @returns {ActionResult[]}
-     */
-    get results() {
-        const ret = wasm.__wbg_get_pipelineresult_results(this.__wbg_ptr);
-        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
-        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
-        return v1;
-    }
-    /**
-     * @returns {boolean}
-     */
-    get success() {
-        const ret = wasm.__wbg_get_pipelineresult_success(this.__wbg_ptr);
-        return ret !== 0;
-    }
-    /**
-     * @param {string} arg0
-     */
-    set message(arg0) {
-        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelineresult_message(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {ActionResult[]} arg0
-     */
-    set results(arg0) {
-        const ptr0 = passArrayJsValueToWasm0(arg0, wasm.__wbindgen_malloc);
-        const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_pipelineresult_results(this.__wbg_ptr, ptr0, len0);
-    }
-    /**
-     * @param {boolean} arg0
-     */
-    set success(arg0) {
-        wasm.__wbg_set_pipelineresult_success(this.__wbg_ptr, arg0);
-    }
-}
-if (Symbol.dispose) PipelineResult.prototype[Symbol.dispose] = PipelineResult.prototype.free;
 
 export class PluginActionRef {
     static __wrap(ptr) {
@@ -7268,14 +6814,6 @@ function __wbg_get_imports() {
             const ret = ActionMetadata.__unwrap(arg0);
             return ret;
         },
-        __wbg_actionresult_new: function(arg0) {
-            const ret = ActionResult.__wrap(arg0);
-            return ret;
-        },
-        __wbg_actionresult_unwrap: function(arg0) {
-            const ret = ActionResult.__unwrap(arg0);
-            return ret;
-        },
         __wbg_actionrow_new: function(arg0) {
             const ret = ActionRow.__wrap(arg0);
             return ret;
@@ -7516,6 +7054,10 @@ function __wbg_get_imports() {
         },
         __wbg_getauditlogresult_new: function(arg0) {
             const ret = GetAuditLogResult.__wrap(arg0);
+            return ret;
+        },
+        __wbg_googletoken_new: function(arg0) {
+            const ret = GoogleToken.__wrap(arg0);
             return ret;
         },
         __wbg_has_926ef2ff40b308cf: function() { return handleError(function (arg0, arg1) {
@@ -7832,22 +7374,6 @@ function __wbg_get_imports() {
             const ret = PipelineActionRow.__wrap(arg0);
             return ret;
         },
-        __wbg_pipelinebatchresult_new: function(arg0) {
-            const ret = PipelineBatchResult.__wrap(arg0);
-            return ret;
-        },
-        __wbg_pipelinebatchresultentry_new: function(arg0) {
-            const ret = PipelineBatchResultEntry.__wrap(arg0);
-            return ret;
-        },
-        __wbg_pipelinebatchresultentry_unwrap: function(arg0) {
-            const ret = PipelineBatchResultEntry.__unwrap(arg0);
-            return ret;
-        },
-        __wbg_pipelineresult_new: function(arg0) {
-            const ret = PipelineResult.__wrap(arg0);
-            return ret;
-        },
         __wbg_pluginactionref_new: function(arg0) {
             const ret = PluginActionRef.__wrap(arg0);
             return ret;
@@ -8078,6 +7604,10 @@ function __wbg_get_imports() {
             const ret = arg0.transaction;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
+        __wbg_twittertoken_new: function(arg0) {
+            const ret = TwitterToken.__wrap(arg0);
+            return ret;
+        },
         __wbg_unique_3329c63c37e586a7: function(arg0) {
             const ret = arg0.unique;
             return ret;
@@ -8102,22 +7632,22 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1047, function: Function { arguments: [], shim_idx: 1048, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1050, function: Function { arguments: [], shim_idx: 1051, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hdee6723c1e41845a, wasm_bindgen__convert__closures_____invoke__h108f5ebfbc69dca6);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1116, function: Function { arguments: [Externref], shim_idx: 1275, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1119, function: Function { arguments: [Externref], shim_idx: 1278, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hd7aa754f7eab6356, wasm_bindgen__convert__closures_____invoke__hc3a248c08dc2c5c0);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 1228, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1229, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 1231, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1232, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__h7796a847bad25fcf, wasm_bindgen__convert__closures_____invoke__h27525b78e45cb9ed);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { dtor_idx: 5, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 6, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { dtor_idx: 6, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 7, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm.wasm_bindgen__closure__destroy__hea31878c4df09b43, wasm_bindgen__convert__closures_____invoke__h5ff31f54bcbf1757);
             return ret;
         },
@@ -8151,67 +7681,88 @@ function __wbg_get_imports() {
         __wbindgen_cast_000000000000000a: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("ClassificationRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("CategoryPipelineView")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_000000000000000b: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("EventCategoryRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("ClassificationRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_000000000000000c: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("EventRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("EventCategoryRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_000000000000000d: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("EventTypeRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("EventRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_000000000000000e: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("ItemRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("EventTypeRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_000000000000000f: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("OllamaModelTag")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("ItemRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000010: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("PipelineActionRow")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("OllamaModelTag")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000011: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("PluginSummary")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("PendingApprovalView")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000012: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
-            // Cast intrinsic for `Vector(NamedExternref("RuleView")) -> Externref`.
+            // Cast intrinsic for `Vector(NamedExternref("PendingItemByCategoryResult")) -> Externref`.
             const ret = v0;
             return ret;
         },
         __wbindgen_cast_0000000000000013: function(arg0, arg1) {
+            var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
+            wasm.__wbindgen_free(arg0, arg1 * 4, 4);
+            // Cast intrinsic for `Vector(NamedExternref("PipelineActionRow")) -> Externref`.
+            const ret = v0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000014: function(arg0, arg1) {
+            var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
+            wasm.__wbindgen_free(arg0, arg1 * 4, 4);
+            // Cast intrinsic for `Vector(NamedExternref("PluginSummary")) -> Externref`.
+            const ret = v0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000015: function(arg0, arg1) {
+            var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
+            wasm.__wbindgen_free(arg0, arg1 * 4, 4);
+            // Cast intrinsic for `Vector(NamedExternref("RuleView")) -> Externref`.
+            const ret = v0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000016: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("SourceRow")) -> Externref`.
@@ -8277,9 +7828,6 @@ const __wbindgen_enum_RequestMode = ["same-origin", "no-cors", "cors", "navigate
 const ActionMetadataFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_actionmetadata_free(ptr >>> 0, 1));
-const ActionResultFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_actionresult_free(ptr >>> 0, 1));
 const ActionRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_actionrow_free(ptr >>> 0, 1));
@@ -8355,15 +7903,6 @@ const ParsedApiErrorFinalization = (typeof FinalizationRegistry === 'undefined')
 const PipelineActionRowFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_pipelineactionrow_free(ptr >>> 0, 1));
-const PipelineBatchResultFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_pipelinebatchresult_free(ptr >>> 0, 1));
-const PipelineBatchResultEntryFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_pipelinebatchresultentry_free(ptr >>> 0, 1));
-const PipelineResultFinalization = (typeof FinalizationRegistry === 'undefined')
-    ? { register: () => {}, unregister: () => {} }
-    : new FinalizationRegistry(ptr => wasm.__wbg_pipelineresult_free(ptr >>> 0, 1));
 const PluginActionRefFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_pluginactionref_free(ptr >>> 0, 1));
