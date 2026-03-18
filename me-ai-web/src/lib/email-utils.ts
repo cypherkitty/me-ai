@@ -3,6 +3,7 @@
  * Local wrappers preserve existing call signatures.
  */
 import { getCore } from "./store/core-store.js";
+import type { MessageLike } from "./core.js";
 
 /** Format a date string/number for display (browser locale). */
 export function formatDate(dateStr: string | number | null | undefined): string {
@@ -28,12 +29,6 @@ export function extractName(fromStr: string | null | undefined): string {
 /** Get the first letter of a sender's name. */
 export function initial(fromStr: string | null | undefined): string {
   return getCore().initial(fromStr ?? "");
-}
-
-/** Message-like shape for export filename. */
-interface MessageLike {
-  subject?: string;
-  date?: string | number;
 }
 
 /**

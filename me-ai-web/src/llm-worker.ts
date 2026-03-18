@@ -11,6 +11,7 @@ import {
   TextStreamer,
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
+import type { ChatMessage } from "me-ai-core";
 
 
 
@@ -158,11 +159,6 @@ async function load(
     console.error("[llm-worker] Load error:", e);
     reply({ status: "error", data: String(e) });
   }
-}
-
-interface ChatMessage {
-  role: string;
-  content: string;
 }
 
 interface GenerateOptions {
