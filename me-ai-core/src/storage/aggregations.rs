@@ -175,7 +175,7 @@ pub async fn get_pending_approvals(
             .as_ref()
             .map(|i| i.subject.as_str())
             .filter(|s| !s.is_empty())
-            .or_else(|| r.subject.as_deref())
+            .or(r.subject.as_deref())
             .unwrap_or("")
             .to_string();
 
@@ -183,7 +183,7 @@ pub async fn get_pending_approvals(
             .as_ref()
             .map(|i| i.from.as_str())
             .filter(|s| !s.is_empty())
-            .or_else(|| r.from.as_deref())
+            .or(r.from.as_deref())
             .unwrap_or("")
             .to_string();
 

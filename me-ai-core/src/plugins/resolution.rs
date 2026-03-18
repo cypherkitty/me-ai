@@ -395,7 +395,7 @@ pub async fn resolve_and_execute_pipeline(
     // 9. Build result
     // ------------------------------------------------------------------
     let serializable_results: Vec<ActionResultSerializable> =
-        pipeline_result.results.iter().cloned().collect();
+        pipeline_result.results.to_vec();
 
     Ok(ResolveExecuteResult {
         success: pipeline_result.success,
@@ -636,7 +636,7 @@ pub async fn resolve_and_execute_batch(
         .await?;
 
         let serializable_results: Vec<ActionResultSerializable> =
-            pipeline_result.results.iter().cloned().collect();
+            pipeline_result.results.to_vec();
 
         batch_results.push(BatchEventResult {
             event: Some(event_input.data.clone()),

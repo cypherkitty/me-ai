@@ -251,6 +251,7 @@ struct AuditStep {
 /// 2. Writes an audit log row via [`log_execution`].
 /// 3. Determines whether the stored item should be deleted (destructive/archiving
 ///    commands succeeded) and calls [`sync_after_execution`].
+#[allow(clippy::too_many_arguments)]
 pub async fn log_and_sync_execution(
     db: DbRef<'_>,
     email_id: &str,

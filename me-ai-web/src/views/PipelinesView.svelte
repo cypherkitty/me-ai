@@ -134,7 +134,7 @@
             subject: item.subject,
             from: item.from,
           },
-          metadata: { category: item.event_category as import("$lib/types").EventCategory },
+          metadata: { category: item.eventCategory as import("$lib/types").EventCategory },
         };
         const result = await executePipeline(
           event,

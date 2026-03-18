@@ -136,13 +136,15 @@ export async function handleTwitterCallback(
  */
 export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token?: string } | null> {
   const token = await getCore().getTwitterToken();
-  if (token) return token;
+  if (token) return { access_token: token.accessToken, refresh_token: token.refreshToken };
   // Try raw (possibly expired) — attempt refresh
   const raw = await getCore().getTwitterTokenRaw();
-  if (raw?.refresh_token) {
+  if (raw?.refreshToken) {
     try {
-      await refreshTwitterToken(raw.refresh_token);
-      return getCore().getTwitterToken();
+      await refreshTwitterToken(raw.refreshToken);
+      const refreshed = await getCore().getTwitterToken();
+      if (!refreshed) return null;
+      return { access_token: refreshed.accessToken, refresh_token: refreshed.refreshToken };
     } catch (_e) {
       console.warn("Twitter token refresh failed:", _e);
       await getCore().clearTwitterToken();
@@ -161,7 +163,7 @@ async function refreshTwitterToken(
   let refreshTok = refreshTokenOverride;
   if (!refreshTok) {
     const raw = await getCore().getTwitterTokenRaw();
-    refreshTok = raw?.refresh_token;
+    refreshTok = raw?.refreshToken;
   }
   if (!refreshTok) throw new Error("No refresh token available.");
 
@@ -189,12 +191,12 @@ async function refreshTwitterToken(
 
 export async function revokeTwitterToken(): Promise<void> {
   const token = await getCore().getTwitterTokenRaw();
-  if (token?.access_token && _clientId) {
+  if (token?.accessToken && _clientId) {
     try {
       await fetch(TWITTER_REVOKE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: token.access_token, client_id: _clientId }),
+        body: new URLSearchParams({ token: token.accessToken, client_id: _clientId }),
       });
     } catch {
       /* ignore */

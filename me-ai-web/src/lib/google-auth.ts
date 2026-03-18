@@ -48,7 +48,8 @@ async function clearSavedToken(): Promise<void> {
  */
 export async function getSavedToken(): Promise<{ access_token: string } | null> {
   const token = await getCore().getGoogleToken();
-  return (token as { access_token: string } | null) ?? null;
+  if (!token) return null;
+  return { access_token: token.accessToken };
 }
 
 export async function isTokenValid(): Promise<boolean> {
