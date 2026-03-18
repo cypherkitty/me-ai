@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   /**
    * OAuth redirect landing page — handles the implicit-grant redirect from Google.
    *
@@ -11,7 +12,7 @@
   import { onMount } from "svelte";
   import { Button }  from "$lib/components/ui/button/index.js";
   import { CheckCircle, AlertCircle, Loader, Mail } from "lucide-svelte";
-  import { saveGoogleToken } from "../lib/core.js";
+  
 
   let phase       = $state<"processing" | "success" | "error" | "idle">("idle");
   let errorMsg    = $state("");
@@ -49,7 +50,7 @@
 
     try {
       const expiresIn = parseInt(params.expires_in, 10);
-      await saveGoogleToken(params.access_token, expiresIn);
+      await getCore().saveGoogleToken(params.access_token, expiresIn);
       tokenTTLMin = Math.floor(expiresIn / 60);
       savedOk = true;
       // Clean the token out of the URL bar

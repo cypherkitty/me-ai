@@ -8,12 +8,7 @@
  * Token is persisted in IndexedDB via me-ai-core WASM token management.
  */
 
-import {
-  getTwitterToken as coreGetTwitterToken,
-  getTwitterTokenRaw as coreGetTwitterTokenRaw,
-  saveTwitterToken as coreSaveTwitterToken,
-  clearTwitterToken as coreClearTwitterToken,
-} from "./core.js";
+import { getCore } from "./store/core-store.js";
 
 const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
@@ -50,11 +45,11 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 }
 
 async function saveToken(accessToken: string, refreshToken: string | undefined, expiresIn: number): Promise<void> {
-  await coreSaveTwitterToken(accessToken, refreshToken, expiresIn);
+  await getCore().saveTwitterToken(accessToken, refreshToken, expiresIn);
 }
 
 async function clearSavedToken(): Promise<void> {
-  await coreClearTwitterToken();
+  await getCore().clearTwitterToken();
 }
 
 /**
@@ -140,17 +135,17 @@ export async function handleTwitterCallback(
  * Restore a previously saved token if it hasn't expired.
  */
 export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token?: string } | null> {
-  const token = await coreGetTwitterToken();
+  const token = await getCore().getTwitterToken();
   if (token) return token;
   // Try raw (possibly expired) — attempt refresh
-  const raw = await coreGetTwitterTokenRaw();
+  const raw = await getCore().getTwitterTokenRaw();
   if (raw?.refresh_token) {
     try {
       await refreshTwitterToken(raw.refresh_token);
-      return coreGetTwitterToken();
+      return getCore().getTwitterToken();
     } catch (_e) {
       console.warn("Twitter token refresh failed:", _e);
-      await coreClearTwitterToken();
+      await getCore().clearTwitterToken();
       return null;
     }
   }
@@ -165,7 +160,7 @@ async function refreshTwitterToken(
 ): Promise<{ access_token: string; refresh_token: string }> {
   let refreshTok = refreshTokenOverride;
   if (!refreshTok) {
-    const raw = await coreGetTwitterTokenRaw();
+    const raw = await getCore().getTwitterTokenRaw();
     refreshTok = raw?.refresh_token;
   }
   if (!refreshTok) throw new Error("No refresh token available.");
@@ -193,7 +188,7 @@ async function refreshTwitterToken(
 }
 
 export async function revokeTwitterToken(): Promise<void> {
-  const token = await coreGetTwitterTokenRaw();
+  const token = await getCore().getTwitterTokenRaw();
   if (token?.access_token && _clientId) {
     try {
       await fetch(TWITTER_REVOKE_URL, {

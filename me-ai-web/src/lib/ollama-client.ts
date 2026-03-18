@@ -5,10 +5,7 @@
  * testOllamaConnection and listOllamaModels delegate to me-ai-core (reqwest/WASM).
  * Streaming functions remain here (fetch-based streaming not supported in WASM).
  */
-import {
-  testOllamaConnection as coreTestOllamaConnection,
-  listOllamaModels as coreListOllamaModels,
-} from "./core.js";
+import { getCore } from "./store/core-store.js";
 import type { OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "./core.js";
 
 // Re-export types from core for backwards compatibility
@@ -35,28 +32,27 @@ export function getOllamaUrl(): string {
 }
 
 export async function getOllamaUrlAsync(): Promise<string> {
-  const { loadSettings } = await import("./core.js");
-  const sv = await loadSettings();
+  const sv = await getCore().loadSettings();
   return sv.ollamaUrl ?? getDefaultOllamaUrl();
 }
 
 export async function setOllamaUrl(url: string): Promise<void> {
-  const { saveSettings, SettingValue } = await import("./core.js");
+  const { SettingValue } = await import("./core.js");
   const sv = new SettingValue();
   sv.ollamaUrl = url;
-  await saveSettings(sv);
+  await getCore().saveSettings(sv);
 }
 
 export async function testOllamaConnection(
   url: string = getOllamaUrl()
 ): Promise<import("./core.js").OllamaConnectionResult> {
-  return coreTestOllamaConnection(url);
+  return getCore().testOllamaConnection(url);
 }
 
 export async function listOllamaModels(
   url: string = getOllamaUrl()
 ): Promise<import("./core.js").OllamaModelTag[]> {
-  return coreListOllamaModels(url);
+  return getCore().listOllamaModels(url);
 }
 
 

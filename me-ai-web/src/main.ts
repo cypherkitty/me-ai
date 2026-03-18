@@ -1,8 +1,7 @@
 import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
-import { loadSettings, saveSettings } from "$lib/core";
-import { initCore } from "$lib/core";
+import { initCore, getCore } from "$lib/core";
 
 // Init core after document is ready so IndexedDB open runs in a valid browser context.
 async function startCoreInit() {
@@ -26,10 +25,10 @@ if (document.readyState === "loading") {
 // These are no-ops in production but harmless.
 declare global {
   interface Window {
-    __loadSettings: typeof loadSettings;
-    __saveSettings: typeof saveSettings;
+    __loadSettings: () => ReturnType<ReturnType<typeof getCore>["loadSettings"]>;
+    __saveSettings: (...args: Parameters<ReturnType<typeof getCore>["saveSettings"]>) => ReturnType<ReturnType<typeof getCore>["saveSettings"]>;
   }
 }
-window.__loadSettings = loadSettings;
-window.__saveSettings = saveSettings;
+window.__loadSettings = () => getCore().loadSettings();
+window.__saveSettings = (...args) => getCore().saveSettings(...args);
 

@@ -9,13 +9,7 @@
  */
 
 import type { GoogleTokenResponse } from "./core.js";
-import {
-  getGoogleToken as coreGetGoogleToken,
-  saveGoogleToken as coreSaveGoogleToken,
-  clearGoogleToken as coreClearGoogleToken,
-  isGoogleTokenValid as coreIsGoogleTokenValid,
-  getGoogleTokenTTL as coreGetGoogleTokenTTL,
-} from "./core.js";
+import { getCore } from "./store/core-store.js";
 
 declare global {
   interface Window {
@@ -42,27 +36,27 @@ let tokenClient: TokenClient | null = null;
 let _pendingResolve: ((response: GoogleTokenResponse) => void) | null = null;
 
 async function saveToken(accessToken: string, expiresIn: number): Promise<void> {
-  await coreSaveGoogleToken(accessToken, expiresIn);
+  await getCore().saveGoogleToken(accessToken, expiresIn);
 }
 
 async function clearSavedToken(): Promise<void> {
-  await coreClearGoogleToken();
+  await getCore().clearGoogleToken();
 }
 
 /**
  * Restore a previously saved token if it hasn't expired.
  */
 export async function getSavedToken(): Promise<{ access_token: string } | null> {
-  const token = await coreGetGoogleToken();
-  return token ?? null;
+  const token = await getCore().getGoogleToken();
+  return (token as { access_token: string } | null) ?? null;
 }
 
 export async function isTokenValid(): Promise<boolean> {
-  return coreIsGoogleTokenValid();
+  return getCore().isGoogleTokenValid();
 }
 
 export async function getTokenTTL(): Promise<number> {
-  return coreGetGoogleTokenTTL();
+  return getCore().getGoogleTokenTTL();
 }
 
 export function refreshToken(): Promise<{ access_token: string; expires_in: number }> {

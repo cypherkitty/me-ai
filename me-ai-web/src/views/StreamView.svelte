@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import type { AuditLogEntry, EventCategory } from "$lib/types.js";
+  import type { EventCategory } from "$lib/types.js";
   import { getEventStats, getPendingApprovals } from "../lib/rules.js";
   import { getAuditLog } from "../lib/store/audit.js";
-  import { getItemById } from "../lib/core.js";
+  
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
@@ -27,8 +28,9 @@
   interface ExecStep {
     id?: string;
     label?: string;
+    commandId?: string;
+    message?: string;
     status?: string;
-    [key: string]: unknown;
   }
   interface StreamEvent {
     id?: string;
@@ -36,15 +38,19 @@
     executedAt?: number;
     timestamp?: number;
     _streamStatus?: string;
+    _execId?: string;
     subject?: string;
     from?: string;
     sender?: string;
     source_name?: string;
     eventType?: string;
     event_type?: string;
-    event_category?: unknown;
+    event_category?: string;
     steps?: ExecStep[];
-    [key: string]: unknown;
+    success?: boolean | null;
+    error?: string;
+    sourceType?: string;
+    content?: string;
   }
   let events = $state<StreamEvent[]>([]);
   let stats = $state({
@@ -79,20 +85,14 @@
       ]);
 
       // Tag executed entries (audit entries have emailId, executedAt, etc.)
-      const executed = (auditEntries as unknown as AuditLogEntry[]).map((e) => ({
+      const executed: StreamEvent[] = auditEntries.map((e) => ({
         ...e,
         _streamStatus: e.success ? "completed" : "failed",
-      })) as unknown as StreamEvent[];
+      }));
       // Tag pending entries
-      interface PendingRow {
-        id?: string;
-        sender?: string;
-        status?: string;
-        [key: string]: unknown;
-      }
-      const pending: StreamEvent[] = (pendingRows as PendingRow[]).map((r) => ({
+      const pending: StreamEvent[] = (pendingRows as unknown as Record<string, unknown>[]).map((r) => ({
         ...r,
-        from: r.sender,
+        from: r.from as string | undefined,
         _streamStatus: r.status === "escalated" ? "escalated" : "awaiting_user",
         success: null,
         steps: [],
@@ -160,7 +160,7 @@
     let emailData: Record<string, unknown> = {};
     try {
       if (id && typeof id === "string" && id.trim().length > 0) {
-        const item = await getItemById(id);
+        const item = await getCore().getItemById(id);
         emailData = (item ?? {}) as Record<string, unknown>;
       }
     } catch { /* no-op */ }
@@ -190,13 +190,9 @@
         if (progress.phase === "pipeline_loaded") {
           execState[id] = {
             ...st,
-            steps: (progress.actions ?? []).map((a: unknown) => {
+            steps: (progress.actions ?? []).map((a) => {
               const act = a as { name?: string; commandId?: string };
-              return {
-              label: act.name ?? act.commandId,
-              commandId: act.commandId,
-              status: "pending",
-            };
+              return { label: act.name ?? act.commandId, commandId: act.commandId, status: "pending" };
             }),
           };
         } else if (progress.phase === "action_start") {

@@ -5,18 +5,23 @@
 import { getEngine as getWebGPUEngine } from "./llm-engine.js";
 import { getOllamaEngine } from "./ollama-engine.js";
 import { getApiEngine } from "./api-engine.js";
-import { getOnnxModelInfo as getModelInfo, getOllamaModelInfo, getApiModelInfo } from "./core.js";
-import type { Backend } from "./core.js";
+import { getCore } from "./store/core-store.js";
+import type { Backend, ChatMessage, GenerateFullResult, EngineMessage } from "./core.js";
+
+type GenerateOptions = { maxTokens?: number; enableThinking?: boolean; temperature?: number; [key: string]: unknown };
+
+type TokenUpdate = Omit<GenerateFullResult, 'inputTokens'>;
+
 type Engine = {
   loadModel: (modelId: string, options?: Record<string, unknown>) => void;
   check: () => void;
-  generate: (messages: unknown[], options?: unknown) => void;
-  generateFull: (messages: unknown[], options: unknown, onToken?: (x: unknown) => void) => Promise<unknown>;
+  generate: (messages: ChatMessage[], options?: GenerateOptions) => void;
+  generateFull: (messages: ChatMessage[], options: GenerateOptions, onToken?: (x: TokenUpdate) => void) => Promise<GenerateFullResult>;
   clearCache?: (modelId: string | null) => Promise<void>;
   interrupt: () => void;
   reset: () => void;
-  onMessage: (fn: (msg: unknown) => void) => () => void;
-  offMessage: (fn: (msg: unknown) => void) => void;
+  onMessage: (fn: (msg: EngineMessage) => void) => () => void;
+  offMessage: (fn: (msg: EngineMessage) => void) => void;
   status: string;
   isReady: boolean;
   isGenerating: boolean;
@@ -27,13 +32,13 @@ type Engine = {
 
 let _currentBackend: Backend | null = null;
 let _currentEngine: Engine | null = null;
-const _unifiedListeners = new Set<(msg: unknown) => void>();
+const _unifiedListeners = new Set<(msg: EngineMessage) => void>();
 
 function detectBackend(modelId: string): Backend {
   if (modelId.startsWith("onnx-community/") || modelId.startsWith("microsoft/")) {
     return "webgpu";
   }
-  const apiModel = getApiModelInfo(modelId);
+  const apiModel = getCore().getApiModelInfo(modelId);
   if (apiModel) return apiModel.provider as Backend;
   return "ollama";
 }
@@ -67,16 +72,16 @@ export function getUnifiedEngine() {
       _currentEngine.check();
     },
 
-    generate(messages: unknown[], options?: unknown): void {
+    generate(messages: ChatMessage[], options?: GenerateOptions): void {
       if (!_currentEngine) throw new Error("No engine loaded. Call loadModel() first.");
       _currentEngine.generate(messages, options);
     },
 
     generateFull(
-      messages: unknown[],
-      options: unknown,
-      onToken?: (x: unknown) => void
-    ): Promise<unknown> {
+      messages: ChatMessage[],
+      options: GenerateOptions,
+      onToken?: (x: TokenUpdate) => void
+    ): Promise<GenerateFullResult> {
       if (!_currentEngine)
         return Promise.reject(new Error("No engine loaded. Call loadModel() first."));
       return _currentEngine.generateFull(messages, options, onToken);
@@ -97,7 +102,7 @@ export function getUnifiedEngine() {
       _currentEngine?.reset();
     },
 
-    onMessage(fn: (msg: unknown) => void): () => void {
+    onMessage(fn: (msg: EngineMessage) => void): () => void {
       if (!_currentEngine) {
         _currentEngine = getWebGPUEngine() as unknown as Engine;
         _currentBackend = "webgpu";
@@ -106,7 +111,7 @@ export function getUnifiedEngine() {
       return _currentEngine.onMessage(fn);
     },
 
-    offMessage(fn: (msg: unknown) => void): void {
+    offMessage(fn: (msg: EngineMessage) => void): void {
       _unifiedListeners.delete(fn);
       _currentEngine?.offMessage(fn);
     },
@@ -127,12 +132,13 @@ export function getUnifiedEngine() {
       return _currentBackend;
     },
 
-    getModelInfo(): ReturnType<typeof getModelInfo> | ReturnType<typeof getOllamaModelInfo> | ReturnType<typeof getApiModelInfo> {
+    getModelInfo() {
       const modelId = this.modelId;
       if (!modelId) return null;
-      if (_currentBackend === "webgpu") return getModelInfo(modelId);
-      if (_currentBackend === "ollama") return getOllamaModelInfo(modelId);
-      return getApiModelInfo(modelId);
+      const c = getCore();
+      if (_currentBackend === "webgpu") return c.getOnnxModelInfo(modelId);
+      if (_currentBackend === "ollama") return c.getOllamaModelInfo(modelId);
+      return c.getApiModelInfo(modelId);
     },
 
     terminate(): void {

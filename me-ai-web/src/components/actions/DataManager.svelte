@@ -1,14 +1,10 @@
 <script lang="ts">
+  import { getCore } from "../../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
   import {
     getStorageStats,
-    clearAllDataAndCheckpoint,
-    getItemsCountGmail,
-    getContactsCount,
-    getEmailClassificationsCount,
-    clearContacts,
-  } from "../../lib/core.js";
+    clearAllDataAndCheckpoint} from "../../lib/core.js";
   import {
     clearClassifications,
     clearClassificationsByAction,
@@ -43,9 +39,9 @@
     loading = true;
     try {
       const [emailCount, classCount, contactCount] = await Promise.all([
-        getItemsCountGmail().then((n) => Number(n ?? 0)),
-        getEmailClassificationsCount().then((n) => Number(n ?? 0)),
-        getContactsCount().then((n) => Number(n ?? 0)),
+        getCore().getItemsCountGmail().then((n) => Number(n ?? 0)),
+        getCore().getEmailClassificationsCount().then((n) => Number(n ?? 0)),
+        getCore().getContactsCount().then((n) => Number(n ?? 0)),
       ]);
       let idbBytes = 0;
       try {
@@ -312,7 +308,7 @@
                     confirm = null;
                     busy = true;
                     wipeAllData();
-                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await clearContacts(); }, ) }] as item (item.key)}
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await getCore().clearContacts(); }, ) }] as item (item.key)}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

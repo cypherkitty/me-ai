@@ -5,11 +5,7 @@
  * results. Rust builds queries and passes them to the JS adapter for execution.
  */
 
-import {
-  getItemsGmailByDateDesc,
-  getItemsCountGmail,
-  getClassificationsByCategory,
-} from "../core.js";
+import { getCore } from "./core-store.js";
 import { fromJson } from "./db.js";
 import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
 
@@ -20,7 +16,7 @@ import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, Pending
  * Returns null if there are no pending items.
  */
 export async function getPendingActions(): Promise<PendingActionsResult | null> {
-  const result = await getClassificationsByCategory(true);
+  const result = await getCore().getClassificationsByCategory(true);
   if (result.total === 0) return null;
   return { categories: result.categories, order: result.order, total: result.total };
 }
@@ -36,7 +32,7 @@ export async function getStoredEmails({
   offset = 0,
 }: GetStoredEmailsOptions = {}): Promise<GetStoredEmailsResult> {
   const fetchSize = searchQuery ? 2000 : limit + offset;
-  const rows = ((await getItemsGmailByDateDesc(fetchSize)) as unknown) as Record<string, unknown>[];
+  const rows = ((await getCore().getItemsGmailByDateDesc(fetchSize)) as unknown) as Record<string, unknown>[];
 
   let items = rows ?? [];
   if (searchQuery) {
@@ -50,7 +46,7 @@ export async function getStoredEmails({
     });
   }
 
-  const total = searchQuery ? items.length : Number(await getItemsCountGmail() ?? 0);
+  const total = searchQuery ? items.length : Number(await getCore().getItemsCountGmail() ?? 0);
   const page = items.slice(offset, offset + limit);
   return { items: page.map((r) => normaliseRow(r)), total };
 }

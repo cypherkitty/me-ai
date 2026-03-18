@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseClassification, actionColor, tagColor } from "../triage.js";
 
-vi.mock("../core.js", () => ({
+const mockCore = {
   getOnnxModels: () => [],
   getOnnxModelGroups: () => [],
   getOllamaModels: () => [],
@@ -58,6 +58,11 @@ vi.mock("../core.js", () => ({
     for (let i = 0; i < tag.length; i++) hash = (Math.imul(31, hash) + tag.charCodeAt(i)) | 0;
     return `hsl(${Math.abs(hash) % 360}, 40%, 35%)`;
   },
+};
+
+vi.mock("../store/core-store.js", () => ({
+  getCore: () => mockCore,
+  coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
 
 describe("parseClassification", () => {

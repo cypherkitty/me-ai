@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import { getPlugins, setPluginEnabled } from "../lib/core.js";
+  
   import { Badge }      from "$lib/components/ui/badge/index.js";
   import { Switch }     from "$lib/components/ui/switch/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
@@ -31,7 +32,7 @@
 
   async function load() {
     loading = true;
-    try { plugins = (await getPlugins()) as unknown as PluginItem[]; }
+    try { plugins = (await getCore().getPlugins()) as unknown as PluginItem[]; }
     catch (e) { console.error("PluginsView load error:", e); }
     loading = false;
   }
@@ -40,7 +41,7 @@
 
   async function togglePlugin(plugin: PluginItem) {
     if (plugin.name === "ai_classifier") return;
-    await setPluginEnabled(plugin.name, !plugin.enabled);
+    await getCore().setPluginEnabled(plugin.name, !plugin.enabled);
     plugin.enabled = !plugin.enabled;
   }
 </script>

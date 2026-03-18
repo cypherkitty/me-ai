@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import { loadSettings, saveSettings, SettingValue, AiBackend } from "./lib/core.js";
-  import { getOnnxModels as getModels, getOllamaModels, type ApiModel } from "./lib/core.js";
-  import { coreStore } from "./lib/store/core-store.js";
+  import { SettingValue, AiBackend } from "./lib/core.js";
+  import type { ApiModel } from "./lib/core.js";
+  import { coreStore, getCore } from "./lib/store/core-store.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
   import { getPendingActions } from "./lib/store/query-layer.js";
-  import { buildLlmContext, buildEmailContext } from "./lib/core.js";
   import {
     buildBatchEventMessage,
     buildEventsByCategoryMessage,
@@ -102,7 +101,7 @@
     (async () => {
     // Restore saved backend, model, and options from settings (IndexedDB)
     try {
-      const sv = await loadSettings();
+      const sv = await getCore().loadSettings();
       if (sv.aiBackend !== undefined) backend = sv.aiBackend;
       if (sv.selectedModel) selectedModel = sv.selectedModel;
       if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
@@ -724,7 +723,7 @@
       sv.aiBackend = backend;
       sv.loadDtype = loadDtype;
       sv.loadDevice = loadDevice;
-      await saveSettings(sv);
+      await getCore().saveSettings(sv);
     } catch {
       storageUnavailable = true;
     }
@@ -746,8 +745,8 @@
 
   // Watch backend changes and update default model
   $effect(() => {
-    const models = getModels();
-    const ollamaModels = getOllamaModels();
+    const models = getCore().getOnnxModels();
+    const ollamaModels = getCore().getOllamaModels();
     if (backend === AiBackend.WebGpu && !models.find((m) => m.id === selectedModel)) {
       if (models[0]) selectedModel = models[0].id;
     } else if (
@@ -778,7 +777,7 @@
         sv.doSample = c;
         sv.temperature = d;
         sv.repetitionPenalty = e;
-        await saveSettings(sv);
+        await getCore().saveSettings(sv);
       } catch {
         storageUnavailable = true;
       }
@@ -870,8 +869,8 @@
       const emailKeywords =
         /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       const context = emailKeywords.test(text)
-        ? await buildEmailContext(text)
-        : await buildLlmContext() || null;
+        ? await getCore().buildEmailContext(text)
+        : await getCore().buildLlmContext() || null;
 
       if (context) {
         systemMessages = [{ role: "system", content: context }];
@@ -889,7 +888,8 @@
           m.type !== "event-batch" &&
           m.type !== "event",
       )
-      .map((m) => ({ role: m.role, content: m.content }));
+      .filter((m) => m.role != null && m.content != null)
+      .map((m) => ({ role: m.role as string, content: m.content as string }));
     engine.generate([...systemMessages, ...plain], {
       enableThinking,
       maxTokens,

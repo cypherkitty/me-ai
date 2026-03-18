@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import * as core from "../core.js";
+import { initCore, getCore } from "../store/core-store.js";
 
 describe("llm-context core exports", () => {
-  it("exports buildLlmContext", () => {
-    expect(typeof core.buildLlmContext).toBe("function");
+  it("initCore is exported from core-store", () => {
+    expect(typeof initCore).toBe("function");
   });
 
-  it("exports buildEmailContext", () => {
-    expect(typeof core.buildEmailContext).toBe("function");
+  it("getCore is exported from core-store", () => {
+    expect(typeof getCore).toBe("function");
   });
 });
 

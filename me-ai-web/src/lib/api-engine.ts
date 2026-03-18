@@ -3,12 +3,7 @@
  * Delegates streaming to Rust WASM core; keeps engine state & listener pattern in TS.
  */
 
-import {
-  getApiModelInfo as coreGetApiModelInfo,
-  testApiConnection as coreTestApiConnection,
-  streamChat as coreStreamChat,
-  loadSettings,
-} from "./core.js";
+import { getCore } from "./store/core-store.js";
 import type { ApiProvider, EngineStatus, EngineMessage } from "./core.js";
 
 let _status: EngineStatus = "idle";
@@ -34,7 +29,7 @@ export function getApiEngine(provider: ApiProvider) {
       _status = "loading";
       _provider = provider;
       broadcast({ status: "loading", data: `Checking ${provider} connection...` });
-      const _sv1 = await loadSettings();
+      const _sv1 = await getCore().loadSettings();
       const apiKey = (
         provider === "openai" ? _sv1.openaiApiKey :
         provider === "anthropic" ? _sv1.anthropicApiKey :
@@ -50,7 +45,7 @@ export function getApiEngine(provider: ApiProvider) {
         return;
       }
       try {
-        const ok = await coreTestApiConnection(provider, apiKey);
+        const ok = await getCore().testApiConnection(provider, apiKey);
         if (ok) {
           _status = "idle";
           broadcast({ status: "ready", data: { type: "api", provider } });
@@ -71,7 +66,7 @@ export function getApiEngine(provider: ApiProvider) {
     },
 
     async loadModel(modelId: string): Promise<void> {
-      const info = coreGetApiModelInfo(modelId) as { name?: string } | null;
+      const info = getCore().getApiModelInfo(modelId) as { name?: string } | null;
       const providerModelName = info?.name ?? modelId;
       _modelId = modelId;
       _modelName = providerModelName;
@@ -81,7 +76,7 @@ export function getApiEngine(provider: ApiProvider) {
         status: "loading",
         data: `Connecting to ${provider} model: ${providerModelName}...`,
       });
-      const _sv2 = await loadSettings();
+      const _sv2 = await getCore().loadSettings();
       const apiKey = (
         provider === "openai" ? _sv2.openaiApiKey :
         provider === "anthropic" ? _sv2.anthropicApiKey :
@@ -118,7 +113,7 @@ export function getApiEngine(provider: ApiProvider) {
 
       try {
         const modelInfo = _modelId
-          ? (coreGetApiModelInfo(_modelId) as { reasoningEffort?: string } | null)
+          ? (getCore().getApiModelInfo(_modelId) as { reasoningEffort?: string } | null)
           : null;
 
         const streamOpts = {
@@ -132,12 +127,12 @@ export function getApiEngine(provider: ApiProvider) {
           content: m.content,
         }));
 
-        await coreStreamChat(
+        await getCore().streamChat(
           _provider,
           _modelName,
           chatMessages,
           streamOpts,
-          (data) => {
+          (data: { content: string; done: boolean; inputTokens: number; outputTokens: number }) => {
             if (_abortController?.signal.aborted) return;
             if (!data.done) {
               tokenCount++;

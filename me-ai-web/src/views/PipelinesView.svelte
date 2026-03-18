@@ -1,17 +1,12 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import {
     getCategoryPipelines,
     getPendingItemsByCategory,
     getPendingCountByCategory,
   } from "../lib/rules.js";
-  import {
-    updateCategoryPipeline,
-    updateCategoryPolicy,
-    deleteEventType,
-    updateEventTypeCategory as moveEventTypeToCategory,
-    clearEventTypeCategory as unassignEventTypeFromCategory,
-  } from "../lib/core.js";
+  
   import {
     executePipeline,
     isAuthenticated,
@@ -53,14 +48,13 @@
   let executingCategory = $state<string | null>(null);
 
   interface EditingRuleAction {
-    id?: string;
+    id: string;
     pluginId: string;
     commandId: string;
-    name?: string;
-    description?: string;
+    name: string;
+    description: string;
     icon?: string;
     order?: number;
-    [key: string]: unknown;
   }
   interface EditingRule {
     id: string;
@@ -72,7 +66,6 @@
     priority: number;
     policy: string;
     _eventTypes?: Array<{ name: string; label: string; autoCreated: boolean }>;
-    [key: string]: unknown;
   }
   // Editor state
   let showEditor = $state(false);
@@ -143,12 +136,12 @@
           },
           metadata: { category: item.event_category as import("$lib/types").EventCategory },
         };
-        const result = (await executePipeline(
+        const result = await executePipeline(
           event,
           undefined,
           true,
           { actionsOverride: cat.actions },
-        )) as { success?: boolean };
+        );
         if (result.success) ok += 1;
         else failed += 1;
       }
@@ -169,7 +162,7 @@
   }
 
   async function handlePolicyChange(cat: string, newPolicy: string) {
-    await updateCategoryPolicy(cat, newPolicy);
+    await getCore().updateCategoryPolicy(cat, newPolicy);
     await load();
   }
 
@@ -183,7 +176,14 @@
       name: `Category: ${cat.label}`,
       description: "",
       triggers: [{ type: "event_category", name: cat.category }],
-      actions: JSON.parse(JSON.stringify(cat.actions)),
+      actions: cat.actions.map((a, i) => ({
+        id: `${a.commandId}_${i}`,
+        pluginId: a.pluginId,
+        commandId: a.commandId,
+        name: a.commandId.replace(/_/g, " "),
+        description: "",
+        order: a.order,
+      })),
       enabled: true,
       priority: cat.priority,
       policy: cat.policy,
@@ -193,7 +193,7 @@
   }
 
   async function handleEditorSave(
-    actions?: Array<{ id?: string; pluginId: string; commandId: string; name?: string; description?: string; icon?: string; order?: number; [key: string]: unknown }>,
+    actions?: Array<{ id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }>,
     typesToMove?: string[],
     typesToDelete?: string[],
   ) {
@@ -206,19 +206,19 @@
       order: i,
     }));
 
-    await updateCategoryPipeline(catName, newActions);
+    await getCore().updateCategoryPipeline(catName, newActions);
 
     // Assign any added event types to this category mapping
     if (typesToMove && typesToMove.length > 0) {
       for (const t of typesToMove) {
-        await moveEventTypeToCategory(t, catName);
+        await getCore().updateEventTypeCategory(t, catName);
       }
     }
 
     // Unassign any event types marked for removal
     if (typesToDelete && typesToDelete.length > 0) {
       for (const t of typesToDelete) {
-        await unassignEventTypeFromCategory(t);
+        await getCore().clearEventTypeCategory(t);
       }
     }
 
@@ -227,7 +227,7 @@
 
   async function handleDeleteType(typeName: string) {
     if (confirm(`Are you sure you want to delete event type '${typeName}'?`)) {
-      await deleteEventType(typeName);
+      await getCore().deleteEventType(typeName);
       await load();
     }
   }
@@ -433,8 +433,8 @@
 
   <PipelineEditor
     bind:open={showEditor}
-    rule={editingRule as unknown as { id: string; name: string; description: string; enabled: boolean; priority: number; triggers: { type: "event_type" | "event_category"; name: string }[]; actions: { id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }[]; policy: string; _eventTypes?: { name: string; label: string; autoCreated: boolean }[] } | null}
+    rule={editingRule}
     customSave={true}
-    onSave={handleEditorSave as unknown as (actions?: { id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }[], typesToMove?: string[], typesToDelete?: string[]) => void | Promise<void>}
+    onSave={handleEditorSave}
   />
 </div>

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { coreStore } from "$lib/store/core-store";
+  import { coreStore, getCore } from "$lib/store/core-store";
   import type { ApiModel } from "$lib/core";
-  import { loadSettings, saveSettings, SettingValue } from "../../lib/core.js";
+  import { SettingValue } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -44,7 +44,7 @@
   let providerModels = $derived(allModels.filter(m => m.provider === activeProvider));
 
   onMount(async () => {
-    const sv = await loadSettings();
+    const sv = await getCore().loadSettings();
     apiKeys.openai    = sv.openaiApiKey    ?? "";
     apiKeys.anthropic = sv.anthropicApiKey ?? "";
     apiKeys.google    = sv.googleApiKey    ?? "";
@@ -78,7 +78,7 @@
     else if (activeProvider === "anthropic") keySv.anthropicApiKey = keyVal;
     else if (activeProvider === "google") keySv.googleApiKey = keyVal;
     else if (activeProvider === "xai") keySv.xaiApiKey = keyVal;
-    await saveSettings(keySv);
+    await getCore().saveSettings(keySv);
     isChecking = false;
     onload?.();
   }

@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getRules, createRule, updateRule, setRuleEnabled } from "../lib/rules.js";
-  import { getEventTypes, getEventCategories, getActions, deleteRule } from "../lib/core.js";
+  
   import { Button }    from "$lib/components/ui/button/index.js";
   import { Badge }     from "$lib/components/ui/badge/index.js";
   import { Input }     from "$lib/components/ui/input/index.js";
@@ -13,7 +14,7 @@
   import { cn }        from "$lib/utils.js";
   import { Plus, Pencil, Trash2, X, ArrowUp, ArrowDown, ChevronRight, GitBranch } from "lucide-svelte";
 
-  interface RuleTrigger { type: string; name: string; [key: string]: unknown }
+  interface RuleTrigger { type: string; name: string }
   interface RuleItem {
     id?: string | number;
     name: string;
@@ -21,13 +22,12 @@
     enabled: boolean;
     priority: number;
     triggers: RuleTrigger[];
-    actions: unknown[];
+    actions: string[];
     policy: string;
-    [key: string]: unknown;
   }
-  interface EventTypeItem { name: string; label?: string; [key: string]: unknown }
-  interface ActionItem { name: string; label?: string; [key: string]: unknown }
-  interface PolicyItem { name: string; description?: string; [key: string]: unknown }
+  interface EventTypeItem { name: string; label?: string }
+  interface ActionItem { name: string; label?: string }
+  interface PolicyItem { name: string; description?: string }
 
   let rules      = $state<RuleItem[]>([]);
   let eventTypes = $state<EventTypeItem[]>([]);
@@ -36,8 +36,8 @@
   let policies   = $state<PolicyItem[]>([]);
   let loading    = $state(true);
 
-  function clone(obj: unknown): unknown {
-    return JSON.parse(JSON.stringify(obj, (_: string, v: unknown) => typeof v === "bigint" ? Number(v) : v));
+  function clone<T>(obj: T): T {
+    return JSON.parse(JSON.stringify(obj, (_: string, v: unknown) => typeof v === "bigint" ? Number(v) : v)) as T;
   }
 
   let editing    = $state<RuleItem | null>(null);
@@ -67,14 +67,14 @@
     try {
       const [rulesRaw, eventTypesRaw, eventCatsRaw, actionsRaw] = await Promise.all([
         getRules(),
-        getEventTypes(),
-        getEventCategories(),
-        getActions(),
+        getCore().getEventTypes(),
+        getCore().getEventCategories(),
+        getCore().getActions(),
       ]);
       rules = rulesRaw as unknown as RuleItem[];
-      eventTypes = eventTypesRaw as unknown as EventTypeItem[];
-      eventCats = eventCatsRaw as unknown as EventTypeItem[];
-      actions = actionsRaw as unknown as ActionItem[];
+      eventTypes = eventTypesRaw as EventTypeItem[];
+      eventCats = eventCatsRaw as EventTypeItem[];
+      actions = actionsRaw as ActionItem[];
     } catch (e) {
       console.error("RulesView load error:", e);
     }
@@ -90,7 +90,7 @@
   }
 
   function startEdit(rule: RuleItem) {
-    editing = clone(rule) as RuleItem;
+    editing = clone(rule);
     isNew = false;
     editorOpen = true;
   }
@@ -107,6 +107,7 @@
     try {
       if (isNew) await createRule(editing as unknown as Parameters<typeof createRule>[0]);
       else       await updateRule(String(editing.id), editing as unknown as Parameters<typeof updateRule>[1]);
+
       cancelEdit();
       await load();
     } catch (e) {
@@ -122,7 +123,7 @@
 
   async function doDelete() {
     if (!deleteId) return;
-    await deleteRule(String(deleteId));
+    await getCore().deleteRule(String(deleteId));
     deleteId = null;
     deleteOpen = false;
     await load();
@@ -135,7 +136,7 @@
   function removeTrigger(i: number) { if (editing) editing.triggers = editing.triggers.filter((_, idx) => idx !== i); }
   function addAction(name: string) {
     if (!editing || editing.actions.includes(name)) return;
-    editing.actions = [...editing.actions, name] as unknown[];
+    editing.actions = [...editing.actions, name];
   }
   function removeAction(i: number) { if (editing) editing.actions = editing.actions.filter((_, idx) => idx !== i); }
   function moveAction(i: number, dir: number) {
@@ -151,9 +152,8 @@
     const list = t.type === "event_type" ? eventTypes : eventCats;
     return list.find((x: EventTypeItem) => x.name === t.name)?.label ?? t.name;
   }
-  function actionLabel(name: unknown) {
-    const n = String(name ?? "");
-    return actions.find((a: ActionItem) => a.name === n)?.label ?? n;
+  function actionLabel(name: string) {
+    return actions.find((a) => a.name === name)?.label ?? name;
   }
 </script>
 

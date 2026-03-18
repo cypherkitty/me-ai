@@ -5,13 +5,13 @@
  * All data operations go through core (direct WASM exports).
  */
 
-import { clearAllData } from "../core.js";
+import { getCore } from "./core-store.js";
 
 /**
  * Clear all user data via core (items, syncState, contacts, rules, events, etc.) and reload.
  */
 export async function wipeAllData(): Promise<void> {
-  await clearAllData();
+  await getCore().clearAllData();
   if (typeof window !== "undefined") {
     window.location.reload();
   }

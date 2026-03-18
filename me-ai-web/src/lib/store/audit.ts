@@ -6,12 +6,7 @@
  * All SQL runs in me-ai-core (Rust); this module calls the core.
  */
 
-import {
-  logAuditExecution as coreLogAuditExecution,
-  syncAfterAuditExecution as coreSyncAfterAuditExecution,
-  getAuditLog as coreGetAuditLog,
-  clearAuditLog as coreClearAuditLog,
-} from "../core.js";
+import { getCore } from "./core-store.js";
 import { toJson, fromJson } from "./db.js";
 import type { ActionExecutionResult, AuditStep, AuditLogEntry, LogExecutionParams, GetAuditLogOptions } from "../core.js";
 
@@ -40,7 +35,7 @@ export async function logExecution({
     message: (r.message ?? "") as string,
   }));
 
-  await coreLogAuditExecution(
+  await getCore().logAuditExecution(
     crypto.randomUUID(),
     emailId,
     subject ?? "(no subject)",
@@ -71,7 +66,7 @@ export async function syncAfterExecution(
   const isArchiving = successfulCommandIds.some((id) => ARCHIVING_COMMAND_IDS.has(id));
   const deleteItem = isDestructive || isArchiving;
 
-  await coreSyncAfterAuditExecution(emailId, deleteItem);
+  await getCore().syncAfterAuditExecution(emailId, deleteItem);
 }
 
 interface GetAuditLogResult {
@@ -87,12 +82,12 @@ export async function getAuditLog({
   offset = 0,
   failuresOnly = false,
 }: GetAuditLogOptions = {}): Promise<GetAuditLogResult> {
-  const result = (await coreGetAuditLog(limit, offset, failuresOnly) as unknown) as { entries: Record<string, unknown>[]; total: number };
-  const entries = (result.entries ?? []).map((r) => ({
+  const result = await getCore().getAuditLog(limit, offset, failuresOnly) as unknown as { entries: AuditLogEntry[]; total: number };
+  const entries: AuditLogEntry[] = (result.entries ?? []).map((r) => ({
     ...r,
-    steps: fromJson<AuditStep[]>(r.steps as string, []),
+    steps: fromJson<AuditStep[]>(r.steps as unknown as string, []),
     success: Boolean(r.success),
-  })) as unknown as AuditLogEntry[];
+  }));
   return { entries, total: result.total ?? 0 };
 }
 
@@ -100,5 +95,5 @@ export async function getAuditLog({
  * Delete all audit log entries.
  */
 export async function clearAuditLog(): Promise<void> {
-  await coreClearAuditLog();
+  await getCore().clearAuditLog();
 }

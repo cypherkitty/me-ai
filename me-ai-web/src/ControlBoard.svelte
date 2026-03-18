@@ -1,7 +1,7 @@
 <script lang="ts">
+  import { getCore } from "./lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
-  import { getOnnxModels as getModels, getOllamaModels } from "./lib/core.js";
   import {
     scanEmails,
     getClassificationsByCategory,
@@ -13,7 +13,7 @@
   } from "$lib/triage";
   import { getCategoryForEventType, categoryTierToName } from "$lib/events";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
-  import { loadSettings, saveSettings, SettingValue, ScanHistory, removeSetting } from "./lib/core.js";
+  import { SettingValue, ScanHistory } from "./lib/core.js";
 
   const engine = getUnifiedEngine();
 
@@ -37,7 +37,7 @@
   const SCAN_HISTORY_KEY = "me-ai-scan-history";
 
   async function loadScanHistory() {
-    const sv = await loadSettings();
+    const sv = await getCore().loadSettings();
     return sv.scanHistory ?? null;
   }
 
@@ -50,7 +50,7 @@
       Number(progress.errors) || 0,
       Number(progress.total) || 0,
     );
-    await saveSettings(sv);
+    await getCore().saveSettings(sv);
   }
 
   // ── Track engine status ────────────────────────────────────────────
@@ -61,8 +61,8 @@
       const msg = rawMsg as Record<string, unknown>;
       if (msg.status === "ready") {
         engineStatus = "ready";
-        const webgpuModel = getModels().find((m) => m.id === engine.modelId);
-        const ollamaModel = getOllamaModels().find(
+        const webgpuModel = getCore().getOnnxModels().find((m) => m.id === engine.modelId);
+        const ollamaModel = getCore().getOllamaModels().find(
           (m) => m.name === engine.modelId,
         );
         modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
@@ -72,8 +72,8 @@
 
     engineStatus = engine.status;
     if (engine.modelId) {
-      const webgpuModel = getModels().find((m) => m.id === engine.modelId);
-      const ollamaModel = getOllamaModels().find((m) => m.name === engine.modelId);
+      const webgpuModel = getCore().getOnnxModels().find((m) => m.id === engine.modelId);
+      const ollamaModel = getCore().getOllamaModels().find((m) => m.name === engine.modelId);
       modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
     }
 
@@ -249,7 +249,7 @@
     onstop={stopScan}
     oncloseprogress={async () => {
       scanProgress = null;
-      await removeSetting(SCAN_HISTORY_KEY);
+      await getCore().removeSetting(SCAN_HISTORY_KEY);
     }}
     bind:scanCount
   />

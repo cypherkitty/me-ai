@@ -213,7 +213,7 @@
         approved,
       );
 
-      if (result.requiresApproval) {
+      if (result.success !== false && result.requiresApproval) {
         executionState[stateKey] = {
           running: false,
           progress: null,
@@ -278,7 +278,7 @@
         approved,
       );
 
-      if (result.requiresApproval) {
+      if (result.success !== false && result.requiresApproval) {
         executionState[stateKey] = {
           running: false,
           progress: null,

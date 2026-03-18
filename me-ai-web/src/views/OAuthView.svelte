@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { Button }  from "$lib/components/ui/button/index.js";
   import { Badge }   from "$lib/components/ui/badge/index.js";
@@ -11,7 +12,7 @@
     getTokenTTL,
     revokeToken,
   } from "$lib/google-auth";
-  import { loadSettings } from "$lib/core";
+  
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
     || "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
@@ -28,7 +29,7 @@
       initialized = true;
       const token = await getSavedToken();
       if (token && await isTokenValid()) {
-        const sv = await loadSettings();
+        const sv = await getCore().loadSettings();
         profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
         tokenTTLMin = Math.floor(await getTokenTTL() / 60_000);
         status = "success";
@@ -44,7 +45,7 @@
     errorMsg = "";
     try {
       await requestAccessToken();
-      const sv = await loadSettings();
+      const sv = await getCore().loadSettings();
       profile = sv.gmailProfile ? { emailAddress: sv.gmailProfile.emailAddress } : null;
       tokenTTLMin = Math.floor(await getTokenTTL() / 60_000);
       status = "success";

@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import { loadSettings, saveSettings, SettingValue, GmailProfile, TwitterProfile } from "../lib/core.js";
+  import { SettingValue, GmailProfile, TwitterProfile } from "../lib/core.js";
   import {
     initGoogleAuth,
     requestAccessToken,
@@ -10,7 +11,7 @@
     getTokenTTL,
     refreshToken,
   } from "../lib/google-auth.js";
-  import { getProfile } from "../lib/core.js";
+  
   import {
     syncGmail,
     syncGmailMore,
@@ -31,7 +32,7 @@
     getTwitterSyncStatus,
     clearTwitterData,
   } from "../lib/store/twitter-sync.js";
-  import { getItemsBySource, getItemsCountBySource } from "../lib/core.js";
+  
   import { wipeAllData } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
@@ -157,7 +158,7 @@
   const hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
   onMount(() => {
-    loadSettings().then((sv) => {
+    getCore().loadSettings().then((sv) => {
       const saved = sv.googleClientId ?? null;
       clientId = saved || DEFAULT_CLIENT_ID;
       clientIdInput = saved || DEFAULT_CLIENT_ID;
@@ -236,7 +237,7 @@
     if (!t) return;
     const sv = new SettingValue();
     sv.googleClientId = t;
-    await saveSettings(sv);
+    await getCore().saveSettings(sv);
     clientId = t;
     gmailError = null;
     showClientIdEdit = false;
@@ -279,13 +280,13 @@
   async function fetchProfile() {
     if (!accessToken) return;
     try {
-      const r = await getProfile(accessToken);
+      const r = await getCore().getGmailProfile(accessToken);
       profile = r;
       const gmailProf = new GmailProfile();
       if (r.emailAddress) gmailProf.emailAddress = r.emailAddress as string;
       const sv = new SettingValue();
       sv.gmailProfile = gmailProf;
-      await saveSettings(sv);
+      await getCore().saveSettings(sv);
     } catch (e) {
       if (!accessToken) return;
       gmailError = `Profile fetch failed: ${errMsg(e)}`;
@@ -432,7 +433,7 @@
   // Init on mount
   onMount(async () => {
     // Restore saved client ID
-    const initSv = await loadSettings();
+    const initSv = await getCore().loadSettings();
     const savedTwId = initSv.twitterClientId ?? null;
     twClientId = savedTwId || "";
     twClientIdInput = savedTwId || "";
@@ -477,7 +478,7 @@
     if (!t) return;
     const sv = new SettingValue();
     sv.twitterClientId = t;
-    await saveSettings(sv);
+    await getCore().saveSettings(sv);
     twClientId = t;
     initTwitterAuth(t);
     twShowClientIdEdit = false;
@@ -523,7 +524,7 @@
       if (rd.username) twProf.username = rd.username;
       const sv = new SettingValue();
       sv.twitterProfile = twProf;
-      await saveSettings(sv);
+      await getCore().saveSettings(sv);
       await twRefreshSyncStatus();
       await twLoadLocalMessages(false);
     } catch (e) {
@@ -536,7 +537,7 @@
     try {
       const offset = append ? twLocalOffset : 0;
       const fetchSize = twSearchQuery ? 2000 : TW_LOCAL_PAGE_SIZE + offset;
-      const rows = ((await getItemsBySource("twitter", fetchSize, 0)) as unknown) as Record<string, unknown>[];
+      const rows = ((await getCore().getItemsBySource("twitter", fetchSize, 0)) as unknown) as Record<string, unknown>[];
       let list = rows ?? [];
       if (twSearchQuery) {
         const q = twSearchQuery.toLowerCase();
@@ -547,7 +548,7 @@
             String(r.from ?? "").toLowerCase().includes(q)
         );
       }
-      const total = twSearchQuery ? list.length : Number(await getItemsCountBySource("twitter") ?? 0);
+      const total = twSearchQuery ? list.length : Number(await getCore().getItemsCountBySource("twitter") ?? 0);
       const page = list.slice(offset, offset + TW_LOCAL_PAGE_SIZE);
       twMessages = append ? [...twMessages, ...page] : page;
       twTotalMessages = total;

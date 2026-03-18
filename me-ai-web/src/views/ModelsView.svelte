@@ -5,7 +5,9 @@
   import { Badge }      from "$lib/components/ui/badge/index.js";
   import { RefreshCw, Trash2, HardDrive, Cpu, AlertTriangle, CheckCircle2 } from "lucide-svelte";
   import { cn }         from "$lib/utils.js";
-  import { getOnnxModels as getModels, type OnnxModel as Model } from "../lib/core.js";
+  import { getCore } from "../lib/store/core-store.js";
+  import type { OnnxModel as Model } from "../lib/core.js";
+  const getModels = () => getCore().getOnnxModels();
 
   const CACHE_NAME = "transformers-cache";
   const HF_PREFIX  = "https://huggingface.co/";

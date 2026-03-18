@@ -13,27 +13,9 @@
  * - totalItems      — count of locally stored items
  */
 
-import {
-  deleteSyncState,
-  getItemsCountBySource,
-  upsertSyncState,
-  insertItemsBatch,
-  deleteItemsByIds,
-  getContactByEmail,
-  upsertContact,
-  getSyncState as getSyncStateRaw,
-} from "../core.js";
+import { getCore } from "./core-store.js";
 import { makeItemId, toJson } from "./db.js";
-import {
-  getProfile,
-  listMessages,
-  getMessage,
-  getHeader,
-  getBody,
-  getHtmlBody,
-  listHistory,
-  GmailApiError,
-} from "../core.js";
+import { GmailApiError } from "../core.js";
 import type { SyncState, SyncProgress } from "$lib/types";
 import type { StoredItem } from "$lib/types";
 
@@ -98,7 +80,7 @@ export async function syncGmail(
           phase: "info",
           message: "History expired, performing full re-sync...",
         });
-        await deleteSyncState(SOURCE_TYPE);
+        await getCore().deleteSyncState(SOURCE_TYPE);
       } else {
         throw e;
       }
@@ -140,7 +122,7 @@ export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
 }
 
 async function getGmailItemCount(): Promise<number> {
-  return Number(await getItemsCountBySource(SOURCE_TYPE) ?? 0);
+  return Number(await getCore().getItemsCountBySource(SOURCE_TYPE) ?? 0);
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -154,7 +136,7 @@ async function fullSync(
   onProgress({ phase: "counting", message: "Getting mailbox info..." });
   throwIfAborted(signal);
 
-  const profile = (await getProfile(token)) as { messagesTotal?: number; historyId?: string };
+  const profile = (await getCore().getGmailProfile(token)) as { messagesTotal?: number; historyId?: string };
 
   onProgress({
     phase: "listing",
@@ -170,10 +152,7 @@ async function fullSync(
   while (allIds.length < limit) {
     throwIfAborted(signal);
     const remaining = limit - allIds.length;
-    const result = (await listMessages(token, {
-      maxResults: Math.min(PAGE_SIZE, remaining),
-      pageToken,
-    })) as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    const result = (await getCore().listGmailMessages(token, Math.min(PAGE_SIZE, remaining), pageToken, null)) as { messages?: Array<{ id: string }>; nextPageToken?: string };
 
     const ids = (result.messages || []).map((m) => m.id);
     allIds.push(...ids);
@@ -242,10 +221,7 @@ async function continueFetch(
   while (allIds.length < limit) {
     throwIfAborted(signal);
     const remaining = limit - allIds.length;
-    const result = (await listMessages(token, {
-      maxResults: Math.min(PAGE_SIZE, remaining),
-      pageToken,
-    })) as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    const result = (await getCore().listGmailMessages(token, Math.min(PAGE_SIZE, remaining), pageToken, null)) as { messages?: Array<{ id: string }>; nextPageToken?: string };
 
     const ids = (result.messages || []).map((m) => m.id);
     allIds.push(...ids);
@@ -263,7 +239,7 @@ async function continueFetch(
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
+    await getCore().upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
@@ -271,7 +247,7 @@ async function continueFetch(
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
   const totalItems = await getGmailItemCount();
 
-  await upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
+  await getCore().upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
 
   onProgress({
     phase: "done",
@@ -305,10 +281,7 @@ async function incrementalSync(
   do {
     throwIfAborted(signal);
 
-    const history = (await listHistory(token, {
-      startHistoryId: state.historyId,
-      pageToken: nextPageToken,
-    })) as {
+    const history = (await getCore().listGmailHistory(token, state.historyId, nextPageToken, 500)) as {
       historyId?: string;
       nextPageToken?: string;
       history?: Array<{
@@ -329,7 +302,7 @@ async function incrementalSync(
 
         if (uniqueIds.length > 0) {
           const results = await Promise.allSettled(
-            uniqueIds.map((id: string) => getMessage(token, id))
+            uniqueIds.map((id: string) => getCore().getGmailMessage(token, id, "full"))
           );
 
           const items: StoredItem[] = [];
@@ -413,7 +386,7 @@ async function batchFetchAndStore(
     throwIfAborted(signal);
 
     const batch = ids.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map((id) => getMessage(token, id)));
+    const results = await Promise.allSettled(batch.map((id) => getCore().getGmailMessage(token, id, "full")));
 
     const items: StoredItem[] = [];
     for (const result of results) {
@@ -445,14 +418,14 @@ async function batchFetchAndStore(
 
 function normalizeGmailMessage(msg: GmailMessage): StoredItem {
   const m = msg as unknown as Record<string, unknown>;
-  const from = getHeader(m, "From") ?? "";
-  const to = getHeader(m, "To") ?? "";
-  const cc = getHeader(m, "Cc") ?? "";
-  const subject = getHeader(m, "Subject") || "(no subject)";
-  const dateStr = getHeader(m, "Date");
-  const messageId = getHeader(m, "Message-ID") ?? "";
-  const inReplyTo = getHeader(m, "In-Reply-To") ?? "";
-  const references = getHeader(m, "References") ?? "";
+  const from = getCore().getGmailHeader(JSON.stringify(m), "From") ?? "";
+  const to = getCore().getGmailHeader(JSON.stringify(m), "To") ?? "";
+  const cc = getCore().getGmailHeader(JSON.stringify(m), "Cc") ?? "";
+  const subject = getCore().getGmailHeader(JSON.stringify(m), "Subject") || "(no subject)";
+  const dateStr = getCore().getGmailHeader(JSON.stringify(m), "Date");
+  const messageId = getCore().getGmailHeader(JSON.stringify(m), "Message-ID") ?? "";
+  const inReplyTo = getCore().getGmailHeader(JSON.stringify(m), "In-Reply-To") ?? "";
+  const references = getCore().getGmailHeader(JSON.stringify(m), "References") ?? "";
 
   let date: number;
   try {
@@ -476,8 +449,8 @@ function normalizeGmailMessage(msg: GmailMessage): StoredItem {
     cc,
     subject,
     snippet: msg.snippet || "",
-    body: getBody(m) ?? "",
-    htmlBody: getHtmlBody(m) ?? "",
+    body: getCore().parseGmailBody(JSON.stringify(m)) ?? "",
+    htmlBody: getCore().parseGmailHtmlBody(JSON.stringify(m)) ?? "",
     date,
     labels: msg.labelIds || [],
     messageId,
@@ -512,11 +485,11 @@ async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
     raw: toJson(item.raw),
     syncedAt: item.syncedAt ?? null,
   }));
-  await insertItemsBatch(rows);
+  await getCore().insertItemsBatch(rows);
 }
 
 async function bulkDeleteItems(ids: string[]): Promise<void> {
-  await deleteItemsByIds(ids);
+  await getCore().deleteItemsByIds(ids);
 }
 
 // ── Contact extraction ──────────────────────────────────────────────
@@ -546,17 +519,17 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
   }
 
   for (const [email, { name, date }] of contactMap) {
-    const existing = await getContactByEmail(email);
+    const existing = await getCore().getContactByEmail(email);
     if (existing != null) {
       const row = (existing as unknown) as Record<string, unknown>;
-      await upsertContact(
+      await getCore().upsertContact(
         email,
         (row.name as string) || name || "",
         Number(row.firstSeen) || date,
         Math.max(date, Number(row.lastSeen) || 0)
       );
     } else {
-      await upsertContact(email, name || "", date, date);
+      await getCore().upsertContact(email, name || "", date, date);
     }
   }
 }
@@ -577,7 +550,7 @@ function parseEmailAddress(str: string): ParsedEmail | null {
 // ── syncState helpers ───────────────────────────────────────────────
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
-  const r = await getSyncStateRaw(sourceType);
+  const r = await getCore().getSyncState(sourceType);
   if (r == null) return null;
   const row = (r as unknown) as Record<string, unknown>;
   return {
@@ -596,7 +569,7 @@ async function writeSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
+  await getCore().upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
 }
 
 // ── Utilities ───────────────────────────────────────────────────────

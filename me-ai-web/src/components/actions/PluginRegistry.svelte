@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getPluginRegistry } from "../../lib/core.js";
+  import { getCore } from "../../lib/store/core-store.js";
+  
   import { SvelteSet } from "svelte/reactivity";
 
   interface Props {
@@ -22,7 +23,7 @@
 
   const plugins = $derived.by(() => {
     if (!open) return [];
-    const raw = getPluginRegistry() as PluginRegistryEntry[];
+    const raw = getCore().getPluginRegistry() as PluginRegistryEntry[];
     if (!Array.isArray(raw)) return [];
     return raw.map((plugin) => ({
       id: plugin.pluginId ?? "",
@@ -152,7 +153,6 @@
                 </div>
               {/each}
             </div>
-
 
           </div>
         {/each}

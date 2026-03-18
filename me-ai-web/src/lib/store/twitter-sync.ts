@@ -11,14 +11,7 @@
  * Stores syncState in the same `syncState` table.
  */
 
-import {
-  deleteItemsBySource,
-  deleteSyncState,
-  insertItemsBatch,
-  getSyncState as getSyncStateRaw,
-  upsertSyncState,
-  getNewestSourceId,
-} from "../core.js";
+import { getCore } from "./core-store.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
 import type { SyncState, SyncProgress, StoredItemRow } from "$lib/types";
 
@@ -108,8 +101,8 @@ export async function getTwitterSyncStatus(): Promise<TwitterSyncStatus> {
 }
 
 export async function clearTwitterData(): Promise<void> {
-  await deleteItemsBySource("twitter");
-  await deleteSyncState("twitter");
+  await getCore().deleteItemsBySource("twitter");
+  await getCore().deleteSyncState("twitter");
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -425,7 +418,7 @@ async function bulkUpsertItems(items: StoredItemRow[]): Promise<void> {
     syncedAt: item.syncedAt ?? null,
   }));
   try {
-    await insertItemsBatch(rows);
+    await getCore().insertItemsBatch(rows);
   } catch {
     /* ignore */
   }
@@ -435,7 +428,7 @@ async function bulkUpsertItems(items: StoredItemRow[]): Promise<void> {
 
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
   try {
-    const r = await getSyncStateRaw(sourceType);
+    const r = await getCore().getSyncState(sourceType);
     if (r == null) return null;
     const row = (r as unknown) as Record<string, unknown>;
     return {
@@ -457,12 +450,12 @@ async function writeSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
+  await getCore().upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
 }
 
 async function getNewestTweetId(): Promise<string | null> {
   try {
-    return (await getNewestSourceId("twitter")) ?? null;
+    return (await getCore().getNewestSourceId("twitter")) ?? null;
   } catch {
     return null;
   }

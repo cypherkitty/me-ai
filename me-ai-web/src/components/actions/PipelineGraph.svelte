@@ -40,7 +40,7 @@
     description?: string;
   }
   const PLUGIN_ACTIONS: { pluginId: string; pluginName: string; actions: ActionHandler[] }[] = (() => {
-    const gmail = getAvailableActions("gmail") as ActionHandler[];
+    const gmail = getAvailableActions("gmail") as unknown as ActionHandler[];
     return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
   })();
 

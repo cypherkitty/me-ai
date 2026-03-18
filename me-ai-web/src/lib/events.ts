@@ -7,7 +7,7 @@
 
 import type { Action, EventCategory } from "$lib/types";
 import type { ClassificationLike, EmailLike, ByCategory } from "./core.js";
-import { categoryTierToName as coreCategoryTierToName } from "./core.js";
+import { getCore } from "./store/core-store.js";
 export type { ByCategory } from "./core.js";
 
 const STORAGE_KEY = "me-ai-events";
@@ -57,7 +57,7 @@ export const EVENT_CATEGORIES: Record<
 };
 
 export function categoryTierToName(category: EventCategory): string {
-  return coreCategoryTierToName(category || "");
+  return getCore().categoryTierToName(category || "");
 }
 
 // ── Persistence ─────────────────────────────────────────────────────
@@ -101,8 +101,7 @@ async function saveCategoriesMap(map: Record<string, EventCategory>): Promise<vo
 
 async function getEventTypesFromDB(): Promise<string[]> {
   try {
-    const { getEmailClassifications } = await import("./core.js");
-    const rows = (await getEmailClassifications()) as Array<{ action?: string | null }>;
+    const rows = (await getCore().getEmailClassifications()) as Array<{ action?: string | null }>;
     const actions = new Set((rows ?? []).map((r) => r.action).filter(Boolean) as string[]);
     return [...actions].sort();
   } catch {
@@ -139,8 +138,7 @@ export async function getActionsForEvent(eventType: string): Promise<Action[]> {
   const userActions = map[normalized];
   if (Array.isArray(userActions) && userActions.length > 0) return userActions;
 
-  const { getPipelineForEventResolved } = await import("./core.js");
-  const pipeline = await getPipelineForEventResolved(eventType) as
+  const pipeline = await getCore().getPipelineForEventResolved(eventType) as
     { actions?: Array<{ pluginId: string; commandId: string; order: number }> } | null;
   if (!pipeline?.actions?.length) return [];
 
@@ -179,9 +177,8 @@ export async function seedEventTypeFromLLM(
   }
 
   try {
-    const { upsertEventType } = await import("./core.js");
     const label = normalized.replace(/_/g, " ");
-    await upsertEventType(normalized, label, cat, true);
+    await getCore().upsertEventType(normalized, label, cat, true);
   } catch (e) {
     console.warn("[events] Failed to persist event type in DB:", normalized, (e as Error)?.message ?? e);
   }
@@ -244,10 +241,21 @@ export async function buildBatchEventMessage(
   };
 }
 
+interface CategoryEmail {
+  emailId: string;
+  subject: string;
+  from: string;
+  date: number | null | undefined;
+  summary: string;
+  reason: string;
+  tags: string[];
+  status: string;
+}
+
 export async function buildEventsByCategoryMessage(byCategory: ByCategory): Promise<{
   role: string;
   type: string;
-  categories: Array<{ eventType: string; category: EventCategory; emails: unknown[]; commands: Action[] }>;
+  categories: Array<{ eventType: string; category: EventCategory; emails: CategoryEmail[]; commands: Action[] }>;
   total: number;
   content: string;
 }> {
@@ -256,8 +264,8 @@ export async function buildEventsByCategoryMessage(byCategory: ByCategory): Prom
       const items = byCategory.categories[eventType] || [];
       const commands = await getActionsForEvent(eventType);
       const category = await getCategoryForEventType(eventType);
-      const emails = items.map((item) => ({
-        emailId: item.emailId,
+      const emails: CategoryEmail[] = items.map((item) => ({
+        emailId: item.emailId ?? "",
         subject: item.subject || "(no subject)",
         from: item.from || "",
         date: item.date,

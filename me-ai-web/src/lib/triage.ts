@@ -6,33 +6,22 @@
  * for each email. Action categories emerge dynamically from the data.
  */
 
-import {
-  getItemsCountGmail,
-  getEmailClassificationsCount,
-  getItemsGmailByDateDesc,
-  getEmailClassifications as coreGetEmailClassifications,
-  putEmailClassification as corePutEmailClassification,
-  updateEmailClassificationStatus as coreUpdateEmailClassificationStatus,
-  clearEmailClassifications as coreClearEmailClassifications,
-  deleteEmailClassificationsByAction as coreDeleteEmailClassificationsByAction,
-  deleteEmailClassification as coreDeleteEmailClassification,
-  buildSystemPrompt as coreBuildSystemPrompt,
-  parseClassification as coreParseClassification,
-  formatEmailPrompt as coreFormatEmailPrompt,
-  actionColor as coreActionColor,
-  tagColor as coreTagColor,
-  getOnnxModelInfo as getModelInfo,
-  getOllamaModelInfo,
-  getApiModelInfo,
-  getPluginsForPrompt as coreGetPluginsForPrompt,
-  getClassificationsByCategory as coreGetClassificationsByCategory,
-  getClassificationCounts as coreGetClassificationCounts,
-} from "./core.js";
+import { getCore } from "./store/core-store.js";
 import { toJson, fromJson } from "./store/db.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import type { StoredItem } from "$lib/types";
-import type { ClassificationResult, ScanResult, ScanOptions, ClassificationView, GetClassificationsByCategoryOptions, TriageEngine } from "./core.js";
+import type { ClassificationResult, ScanResult, ScanOptions, ClassificationView, GetClassificationsByCategoryOptions, TriageEngine, StoredItemRow } from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
+
+interface ScanEmailResult {
+  success: boolean;
+  email: { subject?: string; from?: string; date?: number | null };
+  classification?: ClassificationResult;
+  rawResponse?: string;
+  stats?: { tps: number | null; numTokens: number; inputTokens: number; elapsed: number };
+  promptSize: number;
+  error?: string;
+}
 
 const DEFAULT_COUNT = 20;
 
@@ -45,9 +34,10 @@ export const CLASSIFICATION_CONFIG = {
 
 /** System prompt for classification. Built from core using registered plugin names. */
 export function getSystemPrompt(): string {
-  const plugins = coreGetPluginsForPrompt();
+  const c = getCore();
+  const plugins = c.getPluginsForPrompt();
   const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
-  return coreBuildSystemPrompt(pluginNames);
+  return c.buildSystemPrompt(pluginNames);
 }
 
 
@@ -66,20 +56,21 @@ export async function scanEmails(
   let toProcess: StoredItem[];
   let skipped = 0;
 
+  const core = getCore();
   if (force) {
-    const rows = ((await getItemsGmailByDateDesc(count)) as unknown) as Record<string, unknown>[];
-    toProcess = rows.map((r) => normaliseItemRow(r));
+    const rows = (await core.getItemsGmailByDateDesc(count)) as unknown as StoredItemRow[];
+    toProcess = rows.map((r) => normaliseItemRow(r as unknown as Record<string, unknown>));
   } else {
     const [allItems, allClassifications] = await Promise.all([
-      (getItemsGmailByDateDesc(5000) as unknown) as Promise<Record<string, unknown>[]>,
-      (coreGetEmailClassifications(undefined, 5000) as unknown) as Promise<{ emailId?: string }[]>,
+      core.getItemsGmailByDateDesc(5000) as unknown as Promise<StoredItemRow[]>,
+      core.getEmailClassifications(undefined, 5000) as unknown as Promise<{ emailId?: string }[]>,
     ]);
     const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
     toProcess = (allItems ?? [])
-      .filter((r) => !classifiedIds.has(r.id as string))
+      .filter((r) => !classifiedIds.has((r as unknown as Record<string, unknown>).id as string))
       .slice(0, count)
-      .map((r) => normaliseItemRow(r));
-    skipped = Number((await getEmailClassificationsCount()) ?? 0);
+      .map((r) => normaliseItemRow(r as unknown as Record<string, unknown>));
+    skipped = Number((await core.getEmailClassificationsCount()) ?? 0);
   }
 
   if (toProcess.length === 0) {
@@ -96,25 +87,23 @@ export async function scanEmails(
   let errors = 0;
   let totalOutputTokens = 0;
   let totalInputTokens = 0;
-  const results: unknown[] = [];
+  const results: ScanEmailResult[] = [];
 
-  const plugins = coreGetPluginsForPrompt();
+  const plugins = core.getPluginsForPrompt();
   const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
-  const systemPrompt = coreBuildSystemPrompt(pluginNames);
+  const systemPrompt = core.buildSystemPrompt(pluginNames);
 
   const currentModel = engine.modelId;
-  const modelInfo = getModelInfo(currentModel ?? "") ?? getOllamaModelInfo(currentModel ?? "") ?? getApiModelInfo(currentModel ?? "");
+  const modelInfo = core.getOnnxModelInfo(currentModel ?? "") ?? core.getOllamaModelInfo(currentModel ?? "") ?? core.getApiModelInfo(currentModel ?? "");
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
 
   const modelDisplayName = (modelInfo as { displayName?: string; name?: string }).displayName ?? (modelInfo as { name?: string }).name;
   if (!(modelInfo as { recommendedForEmailProcessing?: boolean }).recommendedForEmailProcessing && toProcess.length > 0) {
-    const { getOnnxModels: getModels } = await import("./core.js");
-    const { getOllamaModels } = await import("./core.js");
     const recommendedModels = [
-      ...getModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { name: string }) => m.name),
-      ...getOllamaModels().filter((m: { recommendedForEmailProcessing?: boolean }) => m.recommendedForEmailProcessing).map((m: { displayName: string }) => m.displayName),
+      ...core.getOnnxModels().filter((m) => m.recommendedForEmailProcessing).map((m) => m.name),
+      ...core.getOllamaModels().filter((m) => m.recommendedForEmailProcessing).map((m) => m.displayName),
     ];
     console.warn(
       `⚠️ Current model (${modelDisplayName}) is not optimized for email processing. ` +
@@ -127,7 +116,7 @@ export async function scanEmails(
     if (signal?.aborted) break;
 
     const email = toProcess[i];
-    const emailPrompt = coreFormatEmailPrompt(
+    const emailPrompt = core.formatEmailPrompt(
       email.subject || "",
       email.from || "",
       (email as { to?: string }).to || "",
@@ -180,7 +169,7 @@ export async function scanEmails(
       totalOutputTokens += numTokens;
       totalInputTokens += inputTokens;
 
-      const coreResult = coreParseClassification(response);
+      const coreResult = core.parseClassification(response);
       const classification: ClassificationResult | null = coreResult
         ? {
             action: coreResult.action,
@@ -191,7 +180,7 @@ export async function scanEmails(
             summary: coreResult.summary,
             tags: (() => {
               try {
-                const parsed = JSON.parse(coreResult.tags) as unknown;
+                const parsed: unknown = JSON.parse(coreResult.tags);
                 return Array.isArray(parsed) ? (parsed as string[]) : [];
               } catch { return []; }
             })(),
@@ -200,7 +189,7 @@ export async function scanEmails(
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {
-        await corePutEmailClassification({
+        await core.putEmailClassification({
           emailId: email.id,
           action: classification.action,
           category: classification.categoryTier,
@@ -222,7 +211,7 @@ export async function scanEmails(
 
         classified++;
 
-        const emailResult = {
+        const emailResult: ScanEmailResult = {
           success: true,
           email: { subject: email.subject, from: email.from, date: email.date },
           classification,
@@ -257,18 +246,16 @@ export async function scanEmails(
         email: { subject: email.subject, from: email.from, date: email.date },
         error: truncatedError,
         promptSize: emailPrompt.length,
-      });
+      } satisfies ScanEmailResult);
     }
   }
 
   const totalElapsed = performance.now() - scanStart;
   const avgPromptSize =
     results.length > 0
-      ? Math.round(
-          (results as { promptSize?: number }[]).reduce((sum, r) => sum + (r.promptSize ?? 0), 0) / results.length
-        )
+      ? Math.round(results.reduce((sum, r) => sum + (r.promptSize ?? 0), 0) / results.length)
       : 0;
-  const successResults = (results as { success?: boolean; stats?: { tps?: number } }[]).filter((r) => r.success && r.stats?.tps);
+  const successResults = results.filter((r) => r.success && r.stats?.tps != null);
   const avgTps =
     successResults.length > 0
       ? Math.round(successResults.reduce((sum, r) => sum + (r.stats?.tps ?? 0), 0) / successResults.length)
@@ -301,29 +288,29 @@ export async function scanEmails(
 export async function getClassificationsByCategory(
   opts: GetClassificationsByCategoryOptions = {}
 ): Promise<{ categories: Record<string, ClassificationView[]>; order: string[] }> {
-  return coreGetClassificationsByCategory(opts.pendingOnly === true);
+  return getCore().getClassificationsByCategory(opts.pendingOnly === true);
 }
 
 export async function getClassificationCounts(): Promise<Record<string, number>> {
-  const result = await coreGetClassificationCounts();
+  const result = await getCore().getClassificationCounts();
   // Flatten { counts, total } to a single Record for backward compat
   return { ...result.counts, total: result.total };
 }
 
 export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {
-  await coreUpdateEmailClassificationStatus(emailId, newStatus);
+  await getCore().updateEmailClassificationStatus(emailId, newStatus);
 }
 
 export async function clearClassifications(): Promise<void> {
-  await coreClearEmailClassifications();
+  await getCore().clearEmailClassifications();
 }
 
 export async function clearClassificationsByAction(action: string): Promise<void> {
-  await coreDeleteEmailClassificationsByAction(action);
+  await getCore().deleteEmailClassificationsByAction(action);
 }
 
 export async function deleteClassification(emailId: string): Promise<void> {
-  await coreDeleteEmailClassification(emailId);
+  await getCore().deleteEmailClassification(emailId);
 }
 
 export async function getScanStats(): Promise<{
@@ -331,9 +318,10 @@ export async function getScanStats(): Promise<{
   classified: number;
   unclassified: number;
 }> {
+  const c = getCore();
   const [totalEmails, classified] = await Promise.all([
-    getItemsCountGmail().then((n) => Number(n ?? 0)),
-    getEmailClassificationsCount().then((n) => Number(n ?? 0)),
+    c.getItemsCountGmail().then((n) => Number(n ?? 0)),
+    c.getEmailClassificationsCount().then((n) => Number(n ?? 0)),
   ]);
   return {
     totalEmails,
@@ -357,7 +345,7 @@ function normaliseItemRow(row: Record<string, unknown>): StoredItem {
 
 /** Format an email as a prompt string for the LLM classifier. */
 export function formatEmailPrompt(email: StoredItem | { subject?: string; from?: string; to?: string; date?: number | null; body?: string; snippet?: string; labels?: string[] }): string {
-  return coreFormatEmailPrompt(
+  return getCore().formatEmailPrompt(
     (email as { subject?: string }).subject || "",
     (email as { from?: string }).from || "",
     (email as { to?: string }).to || "",
@@ -376,11 +364,11 @@ export function parseClassification(
   _knownActionIds?: Set<string>
 ): ClassificationResult | null {
   if (response == null || typeof response !== "string" || !response.trim()) return null;
-  const result = coreParseClassification(response);
+  const result = getCore().parseClassification(response);
   if (!result) return null;
   let tags: string[] = [];
   try {
-    const parsed = JSON.parse(result.tags) as unknown;
+    const parsed: unknown = JSON.parse(result.tags);
     if (Array.isArray(parsed)) tags = parsed as string[];
   } catch { /* keep empty */ }
   return {
@@ -395,9 +383,9 @@ export function parseClassification(
 }
 
 export function actionColor(action: string): string {
-  return coreActionColor(action);
+  return getCore().actionColor(action);
 }
 
 export function tagColor(tag: string): string {
-  return coreTagColor(tag);
+  return getCore().tagColor(tag);
 }

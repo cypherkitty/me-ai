@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getPendingApprovals, getCategoryPipelines } from "../lib/rules.js";
-  import { updateEmailClassificationStatus } from "../lib/core.js";
+  
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
-  import { getItemById } from "../lib/core.js";
+  
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -25,17 +26,22 @@
   interface ApprovalEvent {
     id: string;
     event_type?: string;
-    event_category?: unknown;
+    event_category?: string;
     subject?: string;
     from?: string;
+    sender?: string;
     source_name?: string;
-    [key: string]: unknown;
+    content?: string;
+    rule_name?: string;
+    timestamp?: number;
+    sourceType?: string;
   }
   interface ExecStep {
     id?: string;
     label?: string;
+    commandId?: string;
+    message?: string;
     status?: "running" | "done" | "error" | "pending";
-    [key: string]: unknown;
   }
   let events = $state<ApprovalEvent[]>([]);
   let loading = $state(true);
@@ -57,11 +63,11 @@
   onMount(load);
 
   /** Execute the selected event's pipeline right here in the dashboard */
-  async function execute(evt: { id: string; [key: string]: unknown }) {
+  async function execute(evt: ApprovalEvent) {
     const id = evt.id;
     let emailData: Record<string, unknown>;
     try {
-      const item = await getItemById(id);
+      const item = await getCore().getItemById(id);
       emailData = (item ?? {}) as Record<string, unknown>;
     } catch {
       emailData = {};
@@ -85,10 +91,10 @@
     // Use the same category pipeline as Pipelines view (e.g. Important → Star + Mark as Important)
     const categoryName = String(evt.event_category ?? "").toLowerCase().trim();
     const pipelines = await getCategoryPipelines();
-    const cat = pipelines.find(
+    const cat = (pipelines as unknown as Array<{ category?: string; actions?: unknown[] }>).find(
       (c) => c.category?.toLowerCase().trim() === categoryName
     );
-    const actionsOverride = cat?.actions?.length ? cat.actions : undefined;
+    const actionsOverride = cat?.actions?.length ? (cat.actions as { pluginId: string; commandId: string }[]) : undefined;
 
     const result = await executePipeline(
       event,
@@ -97,13 +103,9 @@
         if (progress.phase === "pipeline_loaded") {
           execState[id] = {
             ...st,
-            steps: (progress.actions ?? []).map((a: unknown) => {
+            steps: (progress.actions ?? []).map((a) => {
               const act = a as { name?: string; commandId?: string };
-              return {
-                label: act.name ?? act.commandId,
-                commandId: act.commandId,
-                status: "pending",
-              };
+              return { label: act.name ?? act.commandId, commandId: act.commandId, status: "pending" as const };
             }),
           };
         } else if (progress.phase === "action_start") {
@@ -159,7 +161,7 @@
 
   async function reject(evt: ApprovalEvent) {
     try {
-      await updateEmailClassificationStatus(evt.id, "escalated");
+      await getCore().updateEmailClassificationStatus(evt.id, "escalated");
       events = events.filter((e) => e.id !== evt.id);
       if (selected?.id === evt.id) selected = events[0] ?? null;
     } catch (e) {

@@ -1,20 +1,23 @@
 import { describe, it, expect, vi } from "vitest";
 import { emailToJson, emailToJsonString, emailJsonFilename } from "../json-export.js";
 
-vi.mock("../core.js", () => ({
-  exportFilename: (subject: string, dateMs: number, ext: string): string => {
-    const slugify = (s: string) => {
-      const src = s || "email";
-      const slug = src.split("").map((c: string) => /[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : "").join("").slice(0, 60).replace(/-+$/, "");
-      return slug || "email";
-    };
-    const shortDate = (ms: number) => {
-      if (!ms || ms <= 0 || !isFinite(ms)) return "email";
-      const d = new Date(ms);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    };
-    return `${shortDate(dateMs)}_${slugify(subject)}.${ext}`;
-  },
+const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
+  const slugify = (s: string) => {
+    const src = s || "email";
+    const slug = src.split("").map((c: string) => /[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : "").join("").slice(0, 60).replace(/-+$/, "");
+    return slug || "email";
+  };
+  const shortDate = (ms: number) => {
+    if (!ms || ms <= 0 || !isFinite(ms)) return "email";
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  return `${shortDate(dateMs)}_${slugify(subject)}.${ext}`;
+};
+
+vi.mock("../store/core-store.js", () => ({
+  getCore: () => ({ exportFilename: mockExportFilename }),
+  coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
 
 const GMAIL_RAW = {

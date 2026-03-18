@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getOllamaModels, getRecommendedOllamaModels } from "../../lib/core.js";
+  import { getCore } from "../../lib/store/core-store.js";
+  
   import { getOllamaUrl, getOllamaUrlAsync, setOllamaUrl, testOllamaConnection, listOllamaModels, type OllamaConnectionResult } from "../../lib/ollama-client.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
@@ -62,8 +63,8 @@
     return availableModels.length > 0 && availableModels.includes(modelName);
   }
 
-  const ollamaModels = getOllamaModels();
-  const recommendedModels = getRecommendedOllamaModels();
+  const ollamaModels = getCore().getOllamaModels();
+  const recommendedModels = getCore().getRecommendedOllamaModels();
 </script>
 
 <div class="flex flex-col gap-5 w-full max-w-[520px] mx-auto">

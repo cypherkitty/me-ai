@@ -5,16 +5,13 @@
  * Handles browser-only concerns: OAuth token retrieval and filesystem actions.
  */
 
-import {
-  resolveAndExecutePipeline as coreResolveAndExecute,
-  resolveAndExecuteBatch as coreResolveAndExecuteBatch,
-  getAvailableActions as coreGetAvailableActions,
-} from "../core.js";
+import { getCore } from "../store/core-store.js";
 import { getSavedToken } from "../google-auth.js";
 import { getDefaultDirectory } from "./filesystem-store.js";
 import { executeFilesystemAction } from "./filesystem-executor.js";
 import { EVENT_CATEGORY_TIERS } from "../events.js";
 import type { EmailEvent, ExecutionProgress, ActionExecutionResult } from "$lib/types";
+import { ActionMetadata } from "../core.js";
 import type { ResolveExecuteResult, ResolveBatchResult, EventInput } from "../core.js";
 
 interface ExecutePipelineOptions {
@@ -47,17 +44,9 @@ export async function executePipeline(
   onProgress?: (p: ExecutionProgress) => void,
   approved: boolean = false,
   options: ExecutePipelineOptions = {}
-): Promise<{
-  success: boolean;
-  message?: string;
-  requiresApproval?: boolean;
-  category?: string;
-  actions?: unknown[];
-  results?: unknown[];
-  error?: unknown;
-}> {
+): Promise<ResolveExecuteResult | { success: false; error: unknown; message: string }> {
   try {
-    const result = (await coreResolveAndExecute(
+    const result = (await getCore().resolveAndExecutePipeline(
       event as EventInput,
       approved,
       options.actionsOverride ?? null,
@@ -86,20 +75,9 @@ export async function executePipelineBatch(
   events: Array<Record<string, unknown>>,
   onProgress?: (p: ExecutionProgress) => void,
   approved: boolean = false
-): Promise<{
-  success: boolean;
-  message?: string;
-  requiresApproval?: boolean;
-  category?: string;
-  actions?: unknown[];
-  results?: unknown[];
-  total?: number;
-  successful?: number;
-  failed?: number;
-  error?: unknown;
-}> {
+): Promise<ResolveBatchResult | { success: false; error: unknown; message: string; total: number; successful: number; failed: number }> {
   try {
-    const result = (await coreResolveAndExecuteBatch(
+    const result = (await getCore().resolveAndExecuteBatch(
       eventType,
       events as unknown as EventInput[],
       approved,
@@ -124,9 +102,9 @@ export async function executePipelineBatch(
   }
 }
 
-export function getAvailableActions(source: string): unknown[] {
-  const arr = coreGetAvailableActions(source);
-  return Array.isArray(arr) ? arr : [];
+export function getAvailableActions(source: string): ActionMetadata[] {
+  const arr = getCore().getAvailableActions(source);
+  return Array.isArray(arr) ? (arr as ActionMetadata[]) : [];
 }
 
 export async function isAuthenticated(): Promise<boolean> {
