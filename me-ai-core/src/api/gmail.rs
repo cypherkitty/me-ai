@@ -2,7 +2,6 @@
 //! Matches the interface of me-ai-web/src/lib/gmail-api.ts.
 
 use base64::Engine as _;
-use wasm_bindgen::prelude::*;
 
 use crate::error::CoreError;
 
@@ -12,7 +11,7 @@ fn bearer(token: &str) -> reqwest::header::HeaderValue {
     format!("Bearer {token}").parse().unwrap()
 }
 
-pub async fn get_profile(token: &str) -> Result<JsValue, CoreError> {
+pub async fn get_profile(token: &str) -> Result<serde_json::Value, CoreError> {
     let url = format!("{BASE}/profile");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -29,8 +28,7 @@ pub async fn get_profile(token: &str) -> Result<JsValue, CoreError> {
             .to_string();
         return Err(CoreError::Plugin(format!("{status}:{msg}")));
     }
-    let v: serde_json::Value = resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))?;
-    serde_wasm_bindgen::to_value(&v).map_err(|e| CoreError::Serialize(e.to_string()))
+    resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
 pub async fn list_messages(
@@ -38,7 +36,7 @@ pub async fn list_messages(
     max_results: u32,
     page_token: Option<&str>,
     q: Option<&str>,
-) -> Result<JsValue, CoreError> {
+) -> Result<serde_json::Value, CoreError> {
     let url = format!("{BASE}/messages");
     let mut req = reqwest::Client::new()
         .get(&url)
@@ -60,11 +58,10 @@ pub async fn list_messages(
             .to_string();
         return Err(CoreError::Plugin(format!("{status}:{msg}")));
     }
-    let v: serde_json::Value = resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))?;
-    serde_wasm_bindgen::to_value(&v).map_err(|e| CoreError::Serialize(e.to_string()))
+    resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<JsValue, CoreError> {
+pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<serde_json::Value, CoreError> {
     let url = format!("{BASE}/messages/{message_id}");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -82,15 +79,14 @@ pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<
             .to_string();
         return Err(CoreError::Plugin(format!("{status}:{msg}")));
     }
-    let v: serde_json::Value = resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))?;
-    serde_wasm_bindgen::to_value(&v).map_err(|e| CoreError::Serialize(e.to_string()))
+    resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
 pub async fn get_messages_batch(
     token: &str,
     message_ids: Vec<String>,
     batch_size: u32,
-) -> Result<JsValue, CoreError> {
+) -> Result<serde_json::Value, CoreError> {
     let _ = batch_size; // sequential in WASM
     let client = reqwest::Client::new();
     let mut results: Vec<serde_json::Value> = Vec::with_capacity(message_ids.len());
@@ -108,7 +104,7 @@ pub async fn get_messages_batch(
             }
         }
     }
-    serde_wasm_bindgen::to_value(&results).map_err(|e| CoreError::Serialize(e.to_string()))
+    Ok(serde_json::Value::Array(results))
 }
 
 pub async fn list_history(
@@ -116,7 +112,7 @@ pub async fn list_history(
     start_history_id: &str,
     page_token: Option<&str>,
     max_results: u32,
-) -> Result<JsValue, CoreError> {
+) -> Result<serde_json::Value, CoreError> {
     let url = format!("{BASE}/history");
     let mut req = reqwest::Client::new()
         .get(&url)
@@ -140,8 +136,7 @@ pub async fn list_history(
             .to_string();
         return Err(CoreError::Plugin(format!("{status}:{msg}")));
     }
-    let v: serde_json::Value = resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))?;
-    serde_wasm_bindgen::to_value(&v).map_err(|e| CoreError::Serialize(e.to_string()))
+    resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
 // ── MIME / body parsing ─────────────────────────────────────────────────────

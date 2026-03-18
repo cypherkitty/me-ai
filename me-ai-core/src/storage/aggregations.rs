@@ -3,14 +3,17 @@
 
 use std::collections::HashSet;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use tsify_next::Tsify;
+use wasm_bindgen::prelude::*;
 
 use crate::db::DbRef;
 use crate::error::CoreError;
 
 // ── Result types ─────────────────────────────────────────────────────────────
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct EventStatsResult {
     pub awaiting_user: u32,
     pub escalated: u32,
@@ -19,7 +22,8 @@ pub struct EventStatsResult {
     pub total: u32,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 pub struct PendingApprovalView {
     pub id: String,
     pub subject: String,
@@ -37,7 +41,9 @@ pub struct PendingApprovalView {
     pub rule_name: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PendingItemByCategoryResult {
     pub id: String,
     #[serde(rename = "emailId")]
@@ -52,31 +58,33 @@ pub struct PendingItemByCategoryResult {
     pub status: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct CategoryPipelineView {
     pub category: String,
     pub label: String,
     pub priority: i64,
     pub policy: String,
     pub actions: Vec<PipelineActionEntry>,
-    #[serde(rename = "eventTypes")]
     pub event_types: Vec<EventTypeEntry>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PipelineActionEntry {
-    #[serde(rename = "pluginId")]
     pub plugin_id: String,
-    #[serde(rename = "commandId")]
     pub command_id: String,
     pub order: i64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct EventTypeEntry {
     pub name: String,
     pub label: String,
-    #[serde(rename = "autoCreated")]
     pub auto_created: bool,
 }
 

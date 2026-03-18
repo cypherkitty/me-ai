@@ -58,23 +58,19 @@ impl PluginResult {
     }
 }
 
-/// Result of a single action in a pipeline. Returned as part of PipelineResult.
-/// `data` is a JsValue (serialized JSON or null) because serde_json::Value is not wasm-bindgen-compatible.
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Debug)]
+/// Result of a single action in a pipeline.
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct ActionResult {
-    #[wasm_bindgen(js_name = "actionId")]
     pub action_id: String,
-    #[wasm_bindgen(js_name = "actionName")]
     pub action_name: String,
-    #[wasm_bindgen(js_name = "pluginId")]
     pub plugin_id: String,
-    #[wasm_bindgen(js_name = "commandId")]
     pub command_id: String,
     pub success: bool,
     pub message: String,
-    /// Serialized action data as a JS value (object or null).
-    pub data: JsValue,
+    /// Optional action result data.
+    pub data: Option<serde_json::Value>,
 }
 
 #[cfg(test)]
@@ -115,11 +111,6 @@ impl ActionResult {
         command_id: String,
         result: PluginResult,
     ) -> Self {
-        let data = result
-            .data
-            .as_ref()
-            .and_then(|v| serde_wasm_bindgen::to_value(v).ok())
-            .unwrap_or(JsValue::NULL);
         Self {
             action_id,
             action_name,
@@ -127,24 +118,28 @@ impl ActionResult {
             command_id,
             success: result.success,
             message: result.message,
-            data,
+            data: result.data,
         }
     }
 }
 
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Debug)]
+/// Result of a full pipeline execution.
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PipelineResult {
     pub success: bool,
     pub results: Vec<ActionResult>,
     pub message: String,
 }
 
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Debug)]
+/// A single entry in a batch pipeline result.
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PipelineBatchResultEntry {
-    /// The event that was processed, serialized as a JS value.
-    pub event: JsValue,
+    /// The event that was processed.
+    pub event: EventInput,
     pub success: bool,
     pub results: Vec<ActionResult>,
     pub message: String,
@@ -152,9 +147,8 @@ pub struct PipelineBatchResultEntry {
 
 impl PipelineBatchResultEntry {
     pub fn new(event: &EventInput, success: bool, results: Vec<ActionResult>, message: String) -> Self {
-        let event_js = serde_wasm_bindgen::to_value(event).unwrap_or(JsValue::NULL);
         Self {
-            event: event_js,
+            event: event.clone(),
             success,
             results,
             message,
@@ -162,8 +156,10 @@ impl PipelineBatchResultEntry {
     }
 }
 
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Debug)]
+/// Result of a batch pipeline execution.
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
 pub struct PipelineBatchResult {
     pub success: bool,
     pub results: Vec<PipelineBatchResultEntry>,

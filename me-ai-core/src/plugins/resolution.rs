@@ -12,48 +12,9 @@ use crate::plugins::pipeline::{emit_progress, execute_pipeline};
 use crate::plugins::types::{ActionInput, ActionResult, EventInput, PipelineResult};
 use crate::storage;
 
-#[wasm_bindgen(typescript_custom_section)]
-const RESOLUTION_TYPES: &'static str = r#"
-export interface NormalisedAction {
-    id: string;
-    pluginId: string;
-    commandId: string;
-    name: string;
-}
 
-export interface ResolveExecuteResult {
-    success: boolean;
-    message: string;
-    results: ActionExecutionResult[];
-    requiresApproval: boolean;
-    category: string;
-    actions: NormalisedAction[];
-    filesystemActions: NormalisedAction[];
-    ruleName?: string;
-}
-
-export interface BatchEventResult {
-    event?: unknown;
-    results: ActionExecutionResult[];
-    success: boolean;
-    message: string;
-}
-
-export interface ResolveBatchResult {
-    success: boolean;
-    message: string;
-    results: BatchEventResult[];
-    requiresApproval: boolean;
-    category: string;
-    actions: NormalisedAction[];
-    filesystemActions: NormalisedAction[];
-    total: number;
-    successful: number;
-    failed: number;
-}
-"#;
-
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineForEventResult {
     pub actions: Vec<PipelineActionForEvent>,
@@ -62,7 +23,8 @@ pub struct PipelineForEventResult {
     pub is_override: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct PipelineActionForEvent {
     pub plugin_id: String,
@@ -160,7 +122,8 @@ pub struct ActionOverrideInput {
 }
 
 /// Normalised action representation included in the result.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct NormalisedAction {
     pub id: String,
@@ -170,12 +133,13 @@ pub struct NormalisedAction {
 }
 
 /// Result of [`resolve_and_execute_pipeline`].
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveExecuteResult {
     pub success: bool,
     pub message: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub results: Vec<ActionResultSerializable>,
     pub requires_approval: bool,
     pub category: String,
@@ -185,31 +149,9 @@ pub struct ResolveExecuteResult {
     pub rule_name: Option<String>,
 }
 
-/// Serializable mirror of [`ActionResult`] (which contains a `JsValue` field and
-/// therefore cannot derive `Serialize`).
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ActionResultSerializable {
-    pub action_id: String,
-    pub action_name: String,
-    pub plugin_id: String,
-    pub command_id: String,
-    pub success: bool,
-    pub message: String,
-}
-
-impl From<&ActionResult> for ActionResultSerializable {
-    fn from(r: &ActionResult) -> Self {
-        Self {
-            action_id: r.action_id.clone(),
-            action_name: r.action_name.clone(),
-            plugin_id: r.plugin_id.clone(),
-            command_id: r.command_id.clone(),
-            success: r.success,
-            message: r.message.clone(),
-        }
-    }
-}
+/// Type alias — `ActionResult` is now fully serializable; this alias preserves
+/// internal usage names without renaming all call sites.
+pub(crate) type ActionResultSerializable = ActionResult;
 
 fn normalise_override(idx: usize, ov: &ActionOverrideInput) -> NormalisedAction {
     let cmd = ov.command_id.clone();
@@ -453,7 +395,7 @@ pub async fn resolve_and_execute_pipeline(
     // 9. Build result
     // ------------------------------------------------------------------
     let serializable_results: Vec<ActionResultSerializable> =
-        pipeline_result.results.iter().map(ActionResultSerializable::from).collect();
+        pipeline_result.results.iter().cloned().collect();
 
     Ok(ResolveExecuteResult {
         success: pipeline_result.success,
@@ -472,7 +414,8 @@ pub async fn resolve_and_execute_pipeline(
 // ---------------------------------------------------------------------------
 
 /// Result of [`resolve_and_execute_batch`].
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveBatchResult {
     pub success: bool,
@@ -488,7 +431,8 @@ pub struct ResolveBatchResult {
 }
 
 /// Per-event result within a batch execution.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchEventResult {
     pub event: Option<serde_json::Value>,
@@ -691,11 +635,8 @@ pub async fn resolve_and_execute_batch(
         )
         .await?;
 
-        let serializable_results: Vec<ActionResultSerializable> = pipeline_result
-            .results
-            .iter()
-            .map(ActionResultSerializable::from)
-            .collect();
+        let serializable_results: Vec<ActionResultSerializable> =
+            pipeline_result.results.iter().cloned().collect();
 
         batch_results.push(BatchEventResult {
             event: Some(event_input.data.clone()),
