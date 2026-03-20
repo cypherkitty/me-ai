@@ -14,6 +14,50 @@ You are the TypeScript developer for **me-ai-web**. You implement and refactor S
 - Frontend depends on me-ai-core as a local package (built pkg); call WASM API, do not write raw SQL in app code for migrated paths.
 - Follow `.cursor/rules/architecture.mdc` for patterns. For UI, follow the shadcn-svelte standards below.
 
+## App architecture
+
+### Three-step user flow
+
+```
+Step 1 — Sources  →  Step 2 — Scan  →  Step 3 — Control Plane
+(Gmail, …)            (LLM classifier)   (Pipelines, Approvals, Event Stream, Audit)
+```
+
+- **Sources** `#sources` — connect accounts, browse raw data
+- **Scan** `#scan` — run LLM classifier over synced emails; review categorized results
+- **Control Plane** `#pipelines`, `#approvals`, `#stream`, `#audit` — configure rules, review approvals, audit trail
+
+### Event model
+
+The system is a **dynamically generated flow of actions**. The LLM analyzes incoming data and structures execution pipelines.
+
+- **Events** — any discrete data item (e.g. an email). The LLM extracts `type` (e.g. `REPLY`, `DELETE`) and `category` (`NOISE`, `INFO`, `CRITICAL`).
+- Two execution modes: **auto** (NOISE + INFO) and **manual** (CRITICAL).
+- Pipelines come from category defaults and optional per-type overrides — not from LLM suggestions.
+
+### Plugin architecture
+
+Plugin registry and per-source action handlers live in **me-ai-core** (Rust). The web layer is a thin execution shim:
+
+```
+src/lib/plugins/
+  execution-service.ts  — executePipeline / executePipelineBatch: delegates to core WASM,
+                          handles browser-only concerns (OAuth token retrieval, filesystem actions)
+  filesystem-store.ts   — persists the user-selected local directory handle (File System Access API)
+  filesystem-executor.ts — executes filesystem actions (save/move/delete) against the stored handle
+```
+
+Gmail and Twitter action execution is handled entirely in core via `resolveAndExecutePipeline` / `resolveAndExecuteBatch`. TypeScript only injects OAuth tokens and handles filesystem I/O that can't cross the WASM boundary.
+
+### Chat as control interface
+
+The chat is the control interface over the event stream. The LLM appends hidden control tags to responses:
+
+- `[EXECUTE:CATEGORY:{EventType}]` — UI strips tag and executes pipeline batch for that pending event category
+- `[SHOW:DASHBOARD]` — UI strips tag and renders the interactive events-by-category dashboard inline
+
+CRITICAL events show an amber **approval card** instead of a direct execute button.
+
 ## When invoked
 
 1. Implement or refactor only what was asked; stay in me-ai-web.

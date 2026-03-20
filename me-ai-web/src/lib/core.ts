@@ -34,19 +34,6 @@ export type {
 // Re-export initCore and getCore so existing callers don't need to change paths
 export { initCore, getCore, coreStore } from "./store/core-store.js";
 
-/** Options for listing Gmail messages. */
-export interface ListMessagesOptions {
-  maxResults?: number;
-  pageToken?: string;
-  q?: string;
-}
-
-/** Options for listing Gmail history. */
-export interface ListHistoryOptions {
-  startHistoryId: string;
-  pageToken?: string;
-  maxResults?: number;
-}
 
 export class GmailApiError extends Error {
   status: number;
