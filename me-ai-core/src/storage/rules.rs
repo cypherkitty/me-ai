@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::db::{key_range_only, store, DbRef};
+use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -316,7 +316,7 @@ struct EventDoc {
 }
 
 /// Get all rules with triggers and commands.
-pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
+pub async fn get_rules(db: &RexieDb) -> Result<Vec<RuleView>, CoreError> {
     let rules: Vec<RuleRow> = db.store_get_all(store::SM_RULES, None, None).await?;
     let mut out: Vec<RuleView> = Vec::new();
     for r in rules {
@@ -381,7 +381,7 @@ pub async fn get_rules(db: DbRef<'_>) -> Result<Vec<RuleView>, CoreError> {
 }
 
 /// Get one rule by id.
-pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<RuleView>, CoreError> {
+pub async fn get_rule(db: &RexieDb, id: &str) -> Result<Option<RuleView>, CoreError> {
     let r: Option<RuleRow> = db.store_get(store::SM_RULES, id).await?;
     let Some(r) = r else {
         return Ok(None);
@@ -430,7 +430,7 @@ pub async fn get_rule(db: DbRef<'_>, id: &str) -> Result<Option<RuleView>, CoreE
 /// Find enabled rules whose triggers match the given event type and category.
 /// Returns rules sorted by priority desc (from `get_rules`).
 pub async fn find_matching_rules(
-    db: DbRef<'_>,
+    db: &RexieDb,
     event_type: &str,
     event_category: &str,
 ) -> Result<Vec<RuleView>, CoreError> {
@@ -462,7 +462,7 @@ pub async fn find_matching_rules(
 }
 
 /// Save rule (upsert) with triggers and commands.
-pub async fn save_rule(db: DbRef<'_>, payload: RuleSavePayload) -> Result<(), CoreError> {
+pub async fn save_rule(db: &RexieDb, payload: RuleSavePayload) -> Result<(), CoreError> {
     let id = payload.id.as_str();
 
     let rule_doc = RuleDoc {
@@ -570,7 +570,7 @@ pub struct RuleUpdateInput {
 }
 
 /// Create a new rule with a generated ID. Returns the generated ID.
-pub async fn create_rule(db: DbRef<'_>, payload: CreateRulePayload) -> Result<String, CoreError> {
+pub async fn create_rule(db: &RexieDb, payload: CreateRulePayload) -> Result<String, CoreError> {
     let now = js_sys::Date::now() as i64;
     let rand = js_sys::Math::random().to_string();
     let rand_part = rand.trim_start_matches("0.").chars().take(5).collect::<String>();
@@ -590,7 +590,7 @@ pub async fn create_rule(db: DbRef<'_>, payload: CreateRulePayload) -> Result<St
 }
 
 /// Update an existing rule by merging optional fields onto the current state.
-pub async fn update_rule(db: DbRef<'_>, id: &str, updates: RuleUpdateInput) -> Result<(), CoreError> {
+pub async fn update_rule(db: &RexieDb, id: &str, updates: RuleUpdateInput) -> Result<(), CoreError> {
     let Some(existing) = get_rule(db, id).await? else {
         return Ok(());
     };
@@ -622,7 +622,7 @@ pub async fn update_rule(db: DbRef<'_>, id: &str, updates: RuleUpdateInput) -> R
 }
 
 /// Toggle the enabled flag on a rule, preserving all other fields.
-pub async fn set_rule_enabled(db: DbRef<'_>, id: &str, enabled: bool) -> Result<(), CoreError> {
+pub async fn set_rule_enabled(db: &RexieDb, id: &str, enabled: bool) -> Result<(), CoreError> {
     let Some(existing) = get_rule(db, id).await? else {
         return Ok(());
     };
@@ -650,7 +650,7 @@ pub async fn set_rule_enabled(db: DbRef<'_>, id: &str, enabled: bool) -> Result<
 }
 
 /// Delete rule and its triggers and commands.
-pub async fn delete_rule(db: DbRef<'_>, id: &str) -> Result<(), CoreError> {
+pub async fn delete_rule(db: &RexieDb, id: &str) -> Result<(), CoreError> {
     let range = key_range_only(id)?;
     let triggers: Vec<RuleTriggerRow> = db
         .index_get_all(store::SM_RULE_TRIGGERS, "rule_id", Some(range.clone()), None)
@@ -673,7 +673,7 @@ pub async fn delete_rule(db: DbRef<'_>, id: &str) -> Result<(), CoreError> {
 }
 
 /// Get events (paginated). Sorted by timestamp desc.
-pub async fn get_events(db: DbRef<'_>, limit: u32, offset: u32) -> Result<Vec<EventRow>, CoreError> {
+pub async fn get_events(db: &RexieDb, limit: u32, offset: u32) -> Result<Vec<EventRow>, CoreError> {
     let mut all: Vec<EventRow> = db.store_get_all(store::SM_EVENTS, None, Some(limit + offset)).await?;
     all.sort_by(|a, b| b.timestamp.unwrap_or(0).cmp(&a.timestamp.unwrap_or(0)));
     let skip = offset as usize;
@@ -685,7 +685,7 @@ pub async fn get_events(db: DbRef<'_>, limit: u32, offset: u32) -> Result<Vec<Ev
 }
 
 /// Update event status.
-pub async fn update_event_status(db: DbRef<'_>, id: &str, status: &str) -> Result<(), CoreError> {
+pub async fn update_event_status(db: &RexieDb, id: &str, status: &str) -> Result<(), CoreError> {
     if let Some(mut row) = db.store_get::<EventRow>(store::SM_EVENTS, id).await? {
         row.status = Some(status.to_string());
         db.store_put(store::SM_EVENTS, &row, Some(id)).await?;
@@ -694,14 +694,14 @@ pub async fn update_event_status(db: DbRef<'_>, id: &str, status: &str) -> Resul
 }
 
 /// Clear all events.
-pub async fn clear_events(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_events(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::SM_EVENTS).await
 }
 
 /// Insert one event.
 #[allow(clippy::too_many_arguments)]
 pub async fn insert_event(
-    db: DbRef<'_>,
+    db: &RexieDb,
     id: &str,
     content: Option<&str>,
     subject: Option<&str>,

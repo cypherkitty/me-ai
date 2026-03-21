@@ -2,11 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{store, DbRef};
+use crate::db::{store, RexieDb};
 use crate::error::CoreError;
 
 /// Run schema (open Rexie DB) and seed data. RexieDb is built once at init.
-pub async fn create_schema_and_migrations(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn create_schema_and_migrations(db: &RexieDb) -> Result<(), CoreError> {
     seed_signal_map(db).await?;
     Ok(())
 }
@@ -89,7 +89,7 @@ struct SmCategoryPipelineRow {
     command_id: String,
 }
 
-async fn seed_signal_map(db: DbRef<'_>) -> Result<(), CoreError> {
+async fn seed_signal_map(db: &RexieDb) -> Result<(), CoreError> {
     let n = db.store_count(store::SM_EVENT_TYPES, None).await?;
     if n > 0 {
         return Ok(());
@@ -275,7 +275,7 @@ fn table_to_store(table: &str) -> Option<&'static str> {
     }
 }
 
-pub async fn get_table_count(db: DbRef<'_>, table: &str) -> Result<i64, CoreError> {
+pub async fn get_table_count(db: &RexieDb, table: &str) -> Result<i64, CoreError> {
     let Some(store_name) = table_to_store(table) else {
         return Ok(0);
     };
@@ -283,7 +283,7 @@ pub async fn get_table_count(db: DbRef<'_>, table: &str) -> Result<i64, CoreErro
     Ok(n as i64)
 }
 
-pub async fn clear_all_data(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_all_data(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::SM_EVENTS).await?;
     db.store_clear(store::SM_RULE_COMMANDS).await?;
     db.store_clear(store::SM_RULE_TRIGGERS).await?;
@@ -306,7 +306,7 @@ pub struct SettingRow {
     pub value: String,
 }
 
-pub async fn get_setting(db: DbRef<'_>, key: &str) -> Result<Option<String>, CoreError> {
+pub async fn get_setting(db: &RexieDb, key: &str) -> Result<Option<String>, CoreError> {
     let opt: Option<SettingRow> = db.store_get(store::SETTINGS, key).await?;
     Ok(opt.map(|r| r.value))
 }
@@ -317,7 +317,7 @@ struct SettingDoc {
     value: String,
 }
 
-pub async fn set_setting(db: DbRef<'_>, key: &str, value: &str) -> Result<(), CoreError> {
+pub async fn set_setting(db: &RexieDb, key: &str, value: &str) -> Result<(), CoreError> {
     let doc = SettingDoc {
         key: key.to_string(),
         value: value.to_string(),
@@ -325,7 +325,7 @@ pub async fn set_setting(db: DbRef<'_>, key: &str, value: &str) -> Result<(), Co
     db.store_put(store::SETTINGS, &doc, Some(key)).await
 }
 
-pub async fn remove_setting(db: DbRef<'_>, key: &str) -> Result<(), CoreError> {
+pub async fn remove_setting(db: &RexieDb, key: &str) -> Result<(), CoreError> {
     db.store_delete(store::SETTINGS, key).await
 }
 

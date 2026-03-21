@@ -3,5 +3,5 @@
 mod access;
 mod rexie_schema;
 
-pub use access::{key_range_only, DbRef};
+pub use access::key_range_only;
 pub use rexie_schema::{store, RexieDb};

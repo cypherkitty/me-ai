@@ -1,5 +1,4 @@
 //! Rexie (IndexedDB) access: get/put/delete/count/scan. No SQL, no adapter.
-//! Use DbRef for domain logic; RexieDb is built once at init (meta-secret pattern).
 
 use rexie::{Direction, KeyRange, Rexie, TransactionMode};
 use serde::de::DeserializeOwned;
@@ -11,9 +10,53 @@ use super::rexie_schema::{store, RexieDb};
 use crate::error::CoreError;
 
 impl RexieDb {
-    /// Reference for domain logic. Rexie is built once; this passes it through.
-    pub fn db(&self) -> DbRef<'_> {
-        DbRef(&self.rexie)
+    pub async fn store_get<T>(&self, store_name: &str, key: &str) -> Result<Option<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        store_get(&self.rexie, store_name, key).await
+    }
+    pub async fn store_put<V>(&self, store_name: &str, value: &V, key_override: Option<&str>) -> Result<(), CoreError>
+    where
+        V: Serialize,
+    {
+        store_put(&self.rexie, store_name, value, key_override).await
+    }
+    pub async fn store_put_all<V>(&self, store_name: &str, values: &[V]) -> Result<(), CoreError>
+    where
+        V: Serialize,
+    {
+        store_put_all(&self.rexie, store_name, values).await
+    }
+    pub async fn store_delete(&self, store_name: &str, key: &str) -> Result<(), CoreError> {
+        store_delete(&self.rexie, store_name, key).await
+    }
+    pub async fn store_clear(&self, store_name: &str) -> Result<(), CoreError> {
+        store_clear(&self.rexie, store_name).await
+    }
+    pub async fn store_count(&self, store_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
+        store_count(&self.rexie, store_name, key_range).await
+    }
+    pub async fn index_count(&self, store_name: &str, index_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
+        index_count(&self.rexie, store_name, index_name, key_range).await
+    }
+    pub async fn store_get_all<T>(&self, store_name: &str, key_range: Option<KeyRange>, limit: Option<u32>) -> Result<Vec<T>, CoreError>
+    where
+        T: DeserializeOwned,
+    {
+        store_get_all(&self.rexie, store_name, key_range, limit).await
+    }
+    pub async fn index_get_all<T>(&self, store_name: &str, index_name: &str, key_range: Option<KeyRange>, limit: Option<u32>) -> Result<Vec<T>, CoreError>
+    where
+        T: DeserializeOwned,
+    {
+        index_get_all(&self.rexie, store_name, index_name, key_range, limit).await
+    }
+    pub async fn index_scan<T>(&self, store_name: &str, index_name: &str, key_range: Option<KeyRange>, limit: Option<u32>, offset: Option<u32>, direction: Option<Direction>) -> Result<Vec<T>, CoreError>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        index_scan(&self.rexie, store_name, index_name, key_range, limit, offset, direction).await
     }
 }
 
@@ -24,85 +67,6 @@ fn rexie_err(e: rexie::Error) -> CoreError {
 fn is_invalid_key_str(key: &str) -> bool {
     let trimmed = key.trim();
     trimmed.is_empty() || trimmed == "null" || trimmed == "undefined"
-}
-
-/// Reference to Rexie for domain calls. Pass db.db() from RexieDb.
-#[derive(Clone, Copy)]
-pub struct DbRef<'a>(pub(crate) &'a Rexie);
-
-impl DbRef<'_> {
-    pub async fn store_get<T>(&self, store_name: &str, key: &str) -> Result<Option<T>, CoreError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        store_get(self.0, store_name, key).await
-    }
-    pub async fn store_put<V>(&self, store_name: &str, value: &V, key_override: Option<&str>) -> Result<(), CoreError>
-    where
-        V: Serialize,
-    {
-        store_put(self.0, store_name, value, key_override).await
-    }
-    pub async fn store_put_all<V>(&self, store_name: &str, values: &[V]) -> Result<(), CoreError>
-    where
-        V: Serialize,
-    {
-        store_put_all(self.0, store_name, values).await
-    }
-    pub async fn store_delete(&self, store_name: &str, key: &str) -> Result<(), CoreError> {
-        store_delete(self.0, store_name, key).await
-    }
-    pub async fn store_clear(&self, store_name: &str) -> Result<(), CoreError> {
-        store_clear(self.0, store_name).await
-    }
-    pub async fn store_count(&self, store_name: &str, key_range: Option<KeyRange>) -> Result<u32, CoreError> {
-        store_count(self.0, store_name, key_range).await
-    }
-    pub async fn index_count(
-        &self,
-        store_name: &str,
-        index_name: &str,
-        key_range: Option<KeyRange>,
-    ) -> Result<u32, CoreError> {
-        index_count(self.0, store_name, index_name, key_range).await
-    }
-    pub async fn store_get_all<T>(
-        &self,
-        store_name: &str,
-        key_range: Option<KeyRange>,
-        limit: Option<u32>,
-    ) -> Result<Vec<T>, CoreError>
-    where
-        T: DeserializeOwned,
-    {
-        store_get_all(self.0, store_name, key_range, limit).await
-    }
-    pub async fn index_get_all<T>(
-        &self,
-        store_name: &str,
-        index_name: &str,
-        key_range: Option<KeyRange>,
-        limit: Option<u32>,
-    ) -> Result<Vec<T>, CoreError>
-    where
-        T: DeserializeOwned,
-    {
-        index_get_all(self.0, store_name, index_name, key_range, limit).await
-    }
-    pub async fn index_scan<T>(
-        &self,
-        store_name: &str,
-        index_name: &str,
-        key_range: Option<KeyRange>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        direction: Option<Direction>,
-    ) -> Result<Vec<T>, CoreError>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        index_scan(self.0, store_name, index_name, key_range, limit, offset, direction).await
-    }
 }
 
 /// Get one value by key from a store.
@@ -364,4 +328,3 @@ pub fn key_range_only(key: &str) -> Result<KeyRange, CoreError> {
         CoreError::Rexie(format!("IDBKeyRange.only failed for string key '{}': {}", key, e))
     })
 }
-

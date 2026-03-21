@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::db::DbRef;
+use crate::db::RexieDb;
 use crate::error::CoreError;
 
 // ── Result types ─────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ fn is_valid_id(id: &str) -> bool {
 /// - `awaiting_user`: pending classifications in a manual-policy category
 /// - `escalated`: escalated classifications
 /// - `completed` / `failed`: from the audit log
-pub async fn get_event_stats(db: DbRef<'_>) -> Result<EventStatsResult, CoreError> {
+pub async fn get_event_stats(db: &RexieDb) -> Result<EventStatsResult, CoreError> {
     let classifications = super::classifications::get_classifications(db, None, None).await?;
     let categories = super::events::get_event_categories(db).await?;
     let audit_stats = super::audit::get_audit_stats(db).await?;
@@ -142,7 +142,7 @@ pub async fn get_event_stats(db: DbRef<'_>) -> Result<EventStatsResult, CoreErro
 /// Fetch pending approvals (status == "pending" in a manual-policy category),
 /// sorted by date desc, up to `limit`.
 pub async fn get_pending_approvals(
-    db: DbRef<'_>,
+    db: &RexieDb,
     limit: usize,
 ) -> Result<Vec<PendingApprovalView>, CoreError> {
     let classifications = super::classifications::get_classifications(db, None, None).await?;
@@ -224,7 +224,7 @@ pub async fn get_pending_approvals(
 
 /// Count pending or escalated classifications in a given category (case-insensitive).
 pub async fn get_pending_count_by_category(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
 ) -> Result<u32, CoreError> {
     let classifications = super::classifications::get_classifications(db, None, None).await?;
@@ -242,7 +242,7 @@ pub async fn get_pending_count_by_category(
 
 /// Fetch pending/escalated items in a given category, sorted date desc, up to `limit`.
 pub async fn get_pending_items_by_category(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
     limit: usize,
 ) -> Result<Vec<PendingItemByCategoryResult>, CoreError> {
@@ -317,7 +317,7 @@ pub async fn get_pending_items_by_category(
 }
 
 /// Build a full display view of all category pipelines including their event types.
-pub async fn get_category_pipelines(db: DbRef<'_>) -> Result<Vec<CategoryPipelineView>, CoreError> {
+pub async fn get_category_pipelines(db: &RexieDb) -> Result<Vec<CategoryPipelineView>, CoreError> {
     let categories = super::events::get_event_categories(db).await?;
     let event_types = super::events::get_event_types(db).await?;
 

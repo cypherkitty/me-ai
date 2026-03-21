@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::db::DbRef;
+use crate::db::RexieDb;
 use crate::error::CoreError;
 use crate::plugins::pipeline::{emit_progress, execute_pipeline};
 use crate::plugins::types::{ActionInput, ActionResult, EventInput, PipelineResult};
@@ -40,7 +40,7 @@ pub struct PipelineActionForEvent {
 /// 4. Category comes from the event type's `category_name`; defaults to `"critical"`.
 /// 5. Policy comes from the category row; defaults to `"manual"`.
 pub async fn get_pipeline_for_event(
-    db: DbRef<'_>,
+    db: &RexieDb,
     event_type: &str,
 ) -> Result<Option<PipelineForEventResult>, CoreError> {
     // 1. Normalize
@@ -215,7 +215,7 @@ fn empty_result(
 ///
 /// Ports `execution-service.ts:134-259` into Rust.
 pub async fn resolve_and_execute_pipeline(
-    db: DbRef<'_>,
+    db: &RexieDb,
     event: EventInput,
     approved: bool,
     actions_override: Option<Vec<ActionOverrideInput>>,
@@ -445,7 +445,7 @@ pub struct BatchEventResult {
 ///
 /// Ports `execution-service.ts:261-435` into Rust.
 pub async fn resolve_and_execute_batch(
-    db: DbRef<'_>,
+    db: &RexieDb,
     event_type: &str,
     events: Vec<EventInput>,
     approved: bool,

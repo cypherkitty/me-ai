@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use crate::db::{store, DbRef};
+use crate::db::{store, RexieDb};
 use crate::error::CoreError;
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -82,14 +82,14 @@ pub struct EventCategoryRow {
 }
 
 /// Fetch event types (name, label). Sorted by name in Rust.
-pub async fn get_event_types(db: DbRef<'_>) -> Result<Vec<EventTypeRow>, CoreError> {
+pub async fn get_event_types(db: &RexieDb) -> Result<Vec<EventTypeRow>, CoreError> {
     let mut rows: Vec<EventTypeRow> = db.store_get_all(store::SM_EVENT_TYPES, None, None).await?;
     rows.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(rows)
 }
 
 /// Fetch event categories (name, label, priority, policy). Sorted by priority in Rust.
-pub async fn get_event_categories(db: DbRef<'_>) -> Result<Vec<EventCategoryRow>, CoreError> {
+pub async fn get_event_categories(db: &RexieDb) -> Result<Vec<EventCategoryRow>, CoreError> {
     let mut rows: Vec<EventCategoryRow> =
         db.store_get_all(store::SM_EVENT_CATEGORIES, None, None).await?;
     rows.sort_by(|a, b| a.priority.cmp(&b.priority));
@@ -109,7 +109,7 @@ struct EventTypeStoreRow {
 
 /// Insert event type if not present (for LLM-seeded types).
 pub async fn upsert_event_type(
-    db: DbRef<'_>,
+    db: &RexieDb,
     name: &str,
     label: &str,
     category_name: &str,

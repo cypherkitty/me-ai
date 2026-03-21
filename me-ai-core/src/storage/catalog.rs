@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use crate::db::{key_range_only, store, DbRef};
+use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
 
 #[wasm_bindgen(getter_with_clone)]
@@ -73,21 +73,21 @@ pub struct PluginSummary {
 }
 
 /// Fetch sources. Sorted by name in Rust.
-pub async fn get_sources(db: DbRef<'_>) -> Result<Vec<SourceRow>, CoreError> {
+pub async fn get_sources(db: &RexieDb) -> Result<Vec<SourceRow>, CoreError> {
     let mut rows: Vec<SourceRow> = db.store_get_all(store::SM_SOURCES, None, None).await?;
     rows.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(rows)
 }
 
 /// Fetch actions. Sorted by name in Rust.
-pub async fn get_actions(db: DbRef<'_>) -> Result<Vec<ActionRow>, CoreError> {
+pub async fn get_actions(db: &RexieDb) -> Result<Vec<ActionRow>, CoreError> {
     let mut rows: Vec<ActionRow> = db.store_get_all(store::SM_ACTIONS, None, None).await?;
     rows.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(rows)
 }
 
 /// Fetch plugins with nested actions and sources (for rules UI).
-pub async fn get_plugins(db: DbRef<'_>) -> Result<Vec<PluginSummary>, CoreError> {
+pub async fn get_plugins(db: &RexieDb) -> Result<Vec<PluginSummary>, CoreError> {
     let plugins: Vec<PluginRow> = db.store_get_all(store::SM_PLUGINS, None, None).await?;
     let mut out: Vec<PluginSummary> = Vec::with_capacity(plugins.len());
     for p in plugins {

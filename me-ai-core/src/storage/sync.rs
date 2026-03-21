@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::db::{key_range_only, store, DbRef};
+use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -209,11 +209,11 @@ struct ContactDoc {
     last_seen: i64,
 }
 
-pub async fn delete_sync_state(db: DbRef<'_>, source_type: &str) -> Result<(), CoreError> {
+pub async fn delete_sync_state(db: &RexieDb, source_type: &str) -> Result<(), CoreError> {
     db.store_delete(store::SYNC_STATE, source_type).await
 }
 
-pub async fn delete_items_by_source(db: DbRef<'_>, source_type: &str) -> Result<(), CoreError> {
+pub async fn delete_items_by_source(db: &RexieDb, source_type: &str) -> Result<(), CoreError> {
     let range = key_range_only(source_type)?;
     let items: Vec<ItemRow> = db.index_get_all(store::ITEMS, "sourceType", Some(range), None).await?;
     for item in items {
@@ -222,29 +222,29 @@ pub async fn delete_items_by_source(db: DbRef<'_>, source_type: &str) -> Result<
     Ok(())
 }
 
-pub async fn clear_contacts(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_contacts(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::CONTACTS).await
 }
 
-pub async fn clear_items_sync_contacts(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_items_sync_contacts(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::ITEMS).await?;
     db.store_clear(store::SYNC_STATE).await?;
     db.store_clear(store::CONTACTS).await?;
     Ok(())
 }
 
-pub async fn get_items_count_by_source(db: DbRef<'_>, source_type: &str) -> Result<i64, CoreError> {
+pub async fn get_items_count_by_source(db: &RexieDb, source_type: &str) -> Result<i64, CoreError> {
     let range = key_range_only(source_type)?;
     let n = db.index_count(store::ITEMS, "sourceType", Some(range)).await?;
     Ok(n as i64)
 }
 
-pub async fn get_sync_state(db: DbRef<'_>, source_type: &str) -> Result<Option<SyncStateRow>, CoreError> {
+pub async fn get_sync_state(db: &RexieDb, source_type: &str) -> Result<Option<SyncStateRow>, CoreError> {
     db.store_get::<SyncStateRow>(store::SYNC_STATE, source_type).await
 }
 
 pub async fn upsert_sync_state(
-    db: DbRef<'_>,
+    db: &RexieDb,
     source_type: &str,
     history_id: &str,
     last_sync_at: i64,
@@ -327,12 +327,12 @@ impl From<ItemInput> for ItemRow {
     }
 }
 
-pub async fn insert_items_batch(db: DbRef<'_>, rows: Vec<ItemInput>) -> Result<(), CoreError> {
+pub async fn insert_items_batch(db: &RexieDb, rows: Vec<ItemInput>) -> Result<(), CoreError> {
     let docs: Vec<ItemRow> = rows.into_iter().map(ItemRow::from).collect();
     db.store_put_all(store::ITEMS, &docs).await
 }
 
-pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: Vec<SyncStateInput>) -> Result<(), CoreError> {
+pub async fn insert_sync_state_batch(db: &RexieDb, rows: Vec<SyncStateInput>) -> Result<(), CoreError> {
     let arr = rows;
     for r in arr {
         let key = r.source_type.clone();
@@ -351,7 +351,7 @@ pub async fn insert_sync_state_batch(db: DbRef<'_>, rows: Vec<SyncStateInput>) -
     Ok(())
 }
 
-pub async fn insert_contacts_batch(db: DbRef<'_>, rows: Vec<ContactInput>) -> Result<(), CoreError> {
+pub async fn insert_contacts_batch(db: &RexieDb, rows: Vec<ContactInput>) -> Result<(), CoreError> {
     let arr = rows;
     for r in arr {
         let doc = ContactDoc {
@@ -368,7 +368,7 @@ pub async fn insert_contacts_batch(db: DbRef<'_>, rows: Vec<ContactInput>) -> Re
     Ok(())
 }
 
-pub async fn delete_items_by_ids(db: DbRef<'_>, ids: Vec<String>) -> Result<(), CoreError> {
+pub async fn delete_items_by_ids(db: &RexieDb, ids: Vec<String>) -> Result<(), CoreError> {
     let arr = ids;
     for id in arr {
         db.store_delete(store::ITEMS, &id).await?;
@@ -376,11 +376,11 @@ pub async fn delete_items_by_ids(db: DbRef<'_>, ids: Vec<String>) -> Result<(), 
     Ok(())
 }
 
-pub async fn get_contact_by_email(db: DbRef<'_>, email: &str) -> Result<Option<ContactRow>, CoreError> {
+pub async fn get_contact_by_email(db: &RexieDb, email: &str) -> Result<Option<ContactRow>, CoreError> {
     db.store_get(store::CONTACTS, email).await
 }
 
-pub async fn upsert_contact(db: DbRef<'_>, email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
+pub async fn upsert_contact(db: &RexieDb, email: &str, name: &str, first_seen: i64, last_seen: i64) -> Result<(), CoreError> {
     let existing = get_contact_by_email(db, email).await?;
     if let Some(row) = existing {
         let mut updated = ContactDoc {
@@ -415,12 +415,12 @@ struct ItemSourceId {
     date: Option<i64>,
 }
 
-pub async fn get_item_by_id(db: DbRef<'_>, id: &str) -> Result<Option<ItemRow>, CoreError> {
+pub async fn get_item_by_id(db: &RexieDb, id: &str) -> Result<Option<ItemRow>, CoreError> {
     db.store_get(store::ITEMS, id).await
 }
 
 /// Get items for gmail source, sorted by date desc, with limit (for scan).
-pub async fn get_items_gmail_by_date_desc(db: DbRef<'_>, limit: u32) -> Result<Vec<ItemRow>, CoreError> {
+pub async fn get_items_gmail_by_date_desc(db: &RexieDb, limit: u32) -> Result<Vec<ItemRow>, CoreError> {
     let range = key_range_only("gmail")?;
     let mut rows: Vec<ItemRow> =
         db.index_get_all(store::ITEMS, "sourceType", Some(range), Some(limit)).await?;
@@ -430,7 +430,7 @@ pub async fn get_items_gmail_by_date_desc(db: DbRef<'_>, limit: u32) -> Result<V
 
 /// Get items for a source type, sorted by date desc, with limit and offset (for UI pagination).
 pub async fn get_items_by_source(
-    db: DbRef<'_>,
+    db: &RexieDb,
     source_type: &str,
     limit: u32,
     offset: u32,
@@ -445,7 +445,7 @@ pub async fn get_items_by_source(
     Ok(rows.get(start..end).unwrap_or(&[]).to_vec())
 }
 
-pub async fn get_newest_source_id(db: DbRef<'_>, source_type: &str) -> Result<Option<String>, CoreError> {
+pub async fn get_newest_source_id(db: &RexieDb, source_type: &str) -> Result<Option<String>, CoreError> {
     let range = key_range_only(source_type)?;
     let items: Vec<ItemSourceId> =
         db.index_get_all(store::ITEMS, "sourceType", Some(range), Some(1000)).await?;

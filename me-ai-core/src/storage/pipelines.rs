@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
-use crate::db::{key_range_only, store, DbRef};
+use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -101,7 +101,7 @@ pub struct PipelineActionRow {
 
 /// Get category pipeline actions (ordered by action_idx).
 pub async fn get_category_pipeline_actions(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
 ) -> Result<Vec<PipelineActionRow>, CoreError> {
     let range = key_range_only(category_name)?;
@@ -125,7 +125,7 @@ pub async fn get_category_pipeline_actions(
 
 /// Get type pipeline actions (ordered by action_idx).
 pub async fn get_type_pipeline_actions(
-    db: DbRef<'_>,
+    db: &RexieDb,
     type_name: &str,
 ) -> Result<Vec<PipelineActionRow>, CoreError> {
     let range = key_range_only(type_name)?;
@@ -148,14 +148,14 @@ pub async fn get_type_pipeline_actions(
 }
 
 /// Get event type's category_name.
-pub async fn get_event_type_category(db: DbRef<'_>, type_name: &str) -> Result<Option<String>, CoreError> {
+pub async fn get_event_type_category(db: &RexieDb, type_name: &str) -> Result<Option<String>, CoreError> {
     let row: Option<EventTypeStoreRow> = db.store_get(store::SM_EVENT_TYPES, type_name).await?;
     Ok(row.and_then(|r| r.category_name))
 }
 
 /// Get event category policy.
 pub async fn get_event_category_policy(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
 ) -> Result<Option<String>, CoreError> {
     let row: Option<EventCategoryStoreRow> =
@@ -165,7 +165,7 @@ pub async fn get_event_category_policy(
 
 /// Replace category pipeline with given actions.
 pub async fn update_category_pipeline(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
     actions: &[(String, String)],
 ) -> Result<(), CoreError> {
@@ -192,7 +192,7 @@ pub async fn update_category_pipeline(
 
 /// Update event category policy.
 pub async fn update_category_policy(
-    db: DbRef<'_>,
+    db: &RexieDb,
     category_name: &str,
     policy: &str,
 ) -> Result<(), CoreError> {
@@ -207,7 +207,7 @@ pub async fn update_category_policy(
 
 /// Set event type's category.
 pub async fn update_event_type_category(
-    db: DbRef<'_>,
+    db: &RexieDb,
     type_name: &str,
     category_name: &str,
 ) -> Result<(), CoreError> {
@@ -220,7 +220,7 @@ pub async fn update_event_type_category(
 }
 
 /// Clear event type's category (set to null).
-pub async fn clear_event_type_category(db: DbRef<'_>, type_name: &str) -> Result<(), CoreError> {
+pub async fn clear_event_type_category(db: &RexieDb, type_name: &str) -> Result<(), CoreError> {
     let mut row: EventTypeStoreRow = db
         .store_get(store::SM_EVENT_TYPES, type_name)
         .await?
@@ -230,7 +230,7 @@ pub async fn clear_event_type_category(db: DbRef<'_>, type_name: &str) -> Result
 }
 
 /// Delete event type and its type pipeline.
-pub async fn delete_event_type(db: DbRef<'_>, type_name: &str) -> Result<(), CoreError> {
+pub async fn delete_event_type(db: &RexieDb, type_name: &str) -> Result<(), CoreError> {
     let range = key_range_only(type_name)?;
     let existing: Vec<TypePipelineRow> = db
         .index_get_all(store::SM_TYPE_PIPELINE, "type_name", Some(range), Some(200))
@@ -242,7 +242,7 @@ pub async fn delete_event_type(db: DbRef<'_>, type_name: &str) -> Result<(), Cor
 }
 
 /// Set source enabled flag.
-pub async fn set_source_enabled(db: DbRef<'_>, name: &str, enabled: bool) -> Result<(), CoreError> {
+pub async fn set_source_enabled(db: &RexieDb, name: &str, enabled: bool) -> Result<(), CoreError> {
     let mut row: SourceStoreRow = db
         .store_get(store::SM_SOURCES, name)
         .await?
@@ -252,7 +252,7 @@ pub async fn set_source_enabled(db: DbRef<'_>, name: &str, enabled: bool) -> Res
 }
 
 /// Set plugin enabled flag.
-pub async fn set_plugin_enabled(db: DbRef<'_>, name: &str, enabled: bool) -> Result<(), CoreError> {
+pub async fn set_plugin_enabled(db: &RexieDb, name: &str, enabled: bool) -> Result<(), CoreError> {
     let mut row: PluginStoreRow = db
         .store_get(store::SM_PLUGINS, name)
         .await?

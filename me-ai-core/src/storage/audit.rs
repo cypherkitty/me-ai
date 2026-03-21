@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use rexie::Direction;
 
-use crate::db::{store, DbRef};
+use crate::db::{store, RexieDb};
 use crate::error::CoreError;
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -112,7 +112,7 @@ struct AuditLogDoc {
 
 #[allow(clippy::too_many_arguments)]
 pub async fn log_execution(
-    db: DbRef<'_>,
+    db: &RexieDb,
     id: &str,
     email_id: &str,
     subject: &str,
@@ -155,7 +155,7 @@ struct EmailClassificationRow {
     status: Option<String>,
 }
 
-pub async fn sync_after_execution(db: DbRef<'_>, email_id: &str, delete_item: bool) -> Result<(), CoreError> {
+pub async fn sync_after_execution(db: &RexieDb, email_id: &str, delete_item: bool) -> Result<(), CoreError> {
     if let Some(mut row) = db.store_get::<EmailClassificationRow>(store::EMAIL_CLASSIFICATIONS, email_id).await? {
         row.status = Some("executed".to_string());
         db.store_put(store::EMAIL_CLASSIFICATIONS, &row, Some(email_id)).await?;
@@ -181,7 +181,7 @@ pub struct AuditStats {
 }
 
 pub async fn get_audit_log(
-    db: DbRef<'_>,
+    db: &RexieDb,
     limit: i64,
     offset: i64,
     failures_only: bool,
@@ -224,7 +224,7 @@ pub async fn get_audit_log(
     Ok(GetAuditLogResult { entries, total })
 }
 
-pub async fn clear_audit_log(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_audit_log(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::AUDIT_LOG).await
 }
 
@@ -253,7 +253,7 @@ struct AuditStep {
 ///    commands succeeded) and calls [`sync_after_execution`].
 #[allow(clippy::too_many_arguments)]
 pub async fn log_and_sync_execution(
-    db: DbRef<'_>,
+    db: &RexieDb,
     email_id: &str,
     subject: &str,
     from: &str,
@@ -319,7 +319,7 @@ pub async fn log_and_sync_execution(
 }
 
 /// Count audit entries by success (for event stats).
-pub async fn get_audit_stats(db: DbRef<'_>) -> Result<AuditStats, CoreError> {
+pub async fn get_audit_stats(db: &RexieDb) -> Result<AuditStats, CoreError> {
     let rows: Vec<AuditLogRow> = db.store_get_all(store::AUDIT_LOG, None, None).await?;
     let mut completed = 0u32;
     let mut failed = 0u32;

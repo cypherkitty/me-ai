@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use crate::db::{store, DbRef};
+use crate::db::{store, RexieDb};
 use crate::error::CoreError;
 use crate::storage::schema::{remove_setting, set_setting, SettingRow};
 
@@ -351,7 +351,7 @@ const KEY_SCAN_HISTORY: &str = "me-ai-scan-history";
 // ── Load / Save ─────────────────────────────────────────────────────────────
 
 /// Load all settings from IndexedDB in a single read. Missing keys leave fields as `None`.
-pub async fn load_settings(db: DbRef<'_>) -> Result<SettingValue, CoreError> {
+pub async fn load_settings(db: &RexieDb) -> Result<SettingValue, CoreError> {
     let all: Vec<SettingRow> = db.store_get_all(store::SETTINGS, None, None).await?;
     let map: std::collections::HashMap<String, String> =
         all.into_iter().map(|r| (r.key, r.value)).collect();
@@ -422,7 +422,7 @@ pub async fn load_settings(db: DbRef<'_>) -> Result<SettingValue, CoreError> {
 }
 
 /// Save non-None fields to IndexedDB. Fields that are `None` are left unchanged.
-pub async fn save_settings(db: DbRef<'_>, sv: &SettingValue) -> Result<(), CoreError> {
+pub async fn save_settings(db: &RexieDb, sv: &SettingValue) -> Result<(), CoreError> {
     macro_rules! save_str {
         ($field:expr, $key:expr) => {
             if let Some(v) = &$field {
@@ -481,7 +481,7 @@ pub async fn save_settings(db: DbRef<'_>, sv: &SettingValue) -> Result<(), CoreE
 const EXPIRY_MARGIN_MS: f64 = 300_000.0; // 5 minutes
 
 /// Get the Google OAuth token from Rexie settings. Returns `None` if expired or not set.
-pub async fn get_google_token(db: DbRef<'_>) -> Result<Option<GoogleToken>, CoreError> {
+pub async fn get_google_token(db: &RexieDb) -> Result<Option<GoogleToken>, CoreError> {
     let sv = load_settings(db).await?;
     match sv.google_token {
         Some(ref t)
@@ -495,14 +495,14 @@ pub async fn get_google_token(db: DbRef<'_>) -> Result<Option<GoogleToken>, Core
 }
 
 /// Get Google token without expiry check (for TTL calculation etc.).
-pub async fn get_google_token_raw(db: DbRef<'_>) -> Result<Option<GoogleToken>, CoreError> {
+pub async fn get_google_token_raw(db: &RexieDb) -> Result<Option<GoogleToken>, CoreError> {
     let sv = load_settings(db).await?;
     Ok(sv.google_token)
 }
 
 /// Save a Google OAuth token.
 pub async fn save_google_token(
-    db: DbRef<'_>,
+    db: &RexieDb,
     access_token: &str,
     expires_at: f64,
 ) -> Result<(), CoreError> {
@@ -516,17 +516,17 @@ pub async fn save_google_token(
 }
 
 /// Clear the Google OAuth token.
-pub async fn clear_google_token(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_google_token(db: &RexieDb) -> Result<(), CoreError> {
     remove_setting(db, KEY_GOOGLE_TOKEN).await
 }
 
 /// Check if Google token is valid (not expired, with 5 min margin).
-pub async fn is_google_token_valid(db: DbRef<'_>) -> Result<bool, CoreError> {
+pub async fn is_google_token_valid(db: &RexieDb) -> Result<bool, CoreError> {
     Ok(get_google_token(db).await?.is_some())
 }
 
 /// Get milliseconds until Google token expires. Returns 0 if expired/missing.
-pub async fn get_google_token_ttl(db: DbRef<'_>) -> Result<f64, CoreError> {
+pub async fn get_google_token_ttl(db: &RexieDb) -> Result<f64, CoreError> {
     match get_google_token_raw(db).await? {
         Some(t) if t.expires_at > 0.0 => {
             let remaining = t.expires_at - EXPIRY_MARGIN_MS - js_sys::Date::now();
@@ -537,7 +537,7 @@ pub async fn get_google_token_ttl(db: DbRef<'_>) -> Result<f64, CoreError> {
 }
 
 /// Get the Twitter OAuth token from Rexie settings. Returns `None` if expired or not set.
-pub async fn get_twitter_token(db: DbRef<'_>) -> Result<Option<TwitterToken>, CoreError> {
+pub async fn get_twitter_token(db: &RexieDb) -> Result<Option<TwitterToken>, CoreError> {
     let sv = load_settings(db).await?;
     match sv.twitter_token {
         Some(ref t)
@@ -551,14 +551,14 @@ pub async fn get_twitter_token(db: DbRef<'_>) -> Result<Option<TwitterToken>, Co
 }
 
 /// Get Twitter token without expiry check (for refresh flow).
-pub async fn get_twitter_token_raw(db: DbRef<'_>) -> Result<Option<TwitterToken>, CoreError> {
+pub async fn get_twitter_token_raw(db: &RexieDb) -> Result<Option<TwitterToken>, CoreError> {
     let sv = load_settings(db).await?;
     Ok(sv.twitter_token)
 }
 
 /// Save a Twitter OAuth token.
 pub async fn save_twitter_token(
-    db: DbRef<'_>,
+    db: &RexieDb,
     access_token: &str,
     refresh_token: Option<&str>,
     expires_at: f64,
@@ -574,6 +574,6 @@ pub async fn save_twitter_token(
 }
 
 /// Clear the Twitter OAuth token.
-pub async fn clear_twitter_token(db: DbRef<'_>) -> Result<(), CoreError> {
+pub async fn clear_twitter_token(db: &RexieDb) -> Result<(), CoreError> {
     remove_setting(db, KEY_TWITTER_TOKEN).await
 }
