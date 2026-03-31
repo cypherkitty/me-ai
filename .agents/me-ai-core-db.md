@@ -14,7 +14,7 @@ You own everything under `me-ai-core/src/db/`. No changes outside that directory
 ## Scope
 
 - `src/db/rexie_schema.rs` — DB name (`"me-ai"`), version, object store definitions, indexes, composite-key conventions, the `store` constants module, and `RexieDb`
-- `src/db/access.rs` — `DbRef` and all Rexie access primitives: `store_get`, `store_put`, `store_put_all`, `store_delete`, `store_clear`, `store_count`, `index_count`, `store_get_all`, `index_get_all`, `index_scan`, `key_range_only`
+- `src/db/access.rs` — all Rexie access primitives: `store_get`, `store_put`, `store_put_all`, `store_delete`, `store_clear`, `store_count`, `index_count`, `store_get_all`, `index_get_all`, `index_scan`, `key_range_only`
 
 ## Key conventions
 
