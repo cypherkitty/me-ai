@@ -361,6 +361,33 @@ pub(crate) async fn execute_twitter_action(
     }
 }
 
+pub struct TwitterPlugin;
+
+#[async_trait::async_trait(?Send)]
+impl super::traits::Plugin for TwitterPlugin {
+    fn id(&self) -> super::PluginId {
+        super::PluginId::Twitter
+    }
+
+    fn metadata(&self) -> Vec<ActionMetadata> {
+        actions_metadata()
+    }
+
+    fn required_scopes(&self, action_id: &str) -> Vec<String> {
+        required_scopes(action_id)
+    }
+
+    async fn execute(
+        &self,
+        command_id: &str,
+        event: &EventInput,
+        access_token: &str,
+        config: Option<&serde_json::Value>,
+    ) -> PluginResult {
+        execute_twitter_action(command_id, event, access_token, config).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
