@@ -201,6 +201,42 @@ async fn twitter_delete(token: &str, path: &str) -> Result<(), String> {
     Err(format!("Twitter API error: {status}"))
 }
 
+async fn tweet_user_action(
+    token: &str,
+    event: &EventInput,
+    config: Option<&serde_json::Value>,
+    method: HttpMethod,
+    path_fn: impl FnOnce(&str, &str) -> String,
+    success_msg_fn: impl FnOnce(&str) -> String,
+) -> PluginResult {
+    let tweet_id = match extract_tweet_id(event) {
+        Some(id) => id,
+        None => return PluginResult::err("Missing tweet ID or user ID"),
+    };
+    let user_id = match extract_twitter_user_id(config) {
+        Some(id) => id,
+        None => return PluginResult::err("Missing tweet ID or user ID"),
+    };
+    let path = path_fn(&user_id, &tweet_id);
+    let result = match method {
+        HttpMethod::Post => {
+            twitter_post(
+                token,
+                &path,
+                TwitterTweetActionRequest {
+                    tweet_id: tweet_id.clone(),
+                },
+            )
+            .await
+        }
+        HttpMethod::Delete => twitter_delete(token, &path).await,
+    };
+    if let Err(msg) = result {
+        return PluginResult::err(msg);
+    }
+    PluginResult::ok(success_msg_fn(&tweet_id), None)
+}
+
 pub(crate) async fn execute_twitter_action(
     command_id: &str,
     event: &EventInput,
@@ -213,124 +249,70 @@ pub(crate) async fn execute_twitter_action(
     };
     match action {
         TwitterAction::Like => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) = twitter_post(
+            tweet_user_action(
                 access_token,
-                &format!("/users/{user_id}/likes"),
-                TwitterTweetActionRequest {
-                    tweet_id: tweet_id.clone(),
-                },
+                event,
+                config,
+                HttpMethod::Post,
+                |uid, _tid| format!("/users/{uid}/likes"),
+                |tid| format!("Liked tweet {tid}"),
             )
             .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Liked tweet {tweet_id}"), None)
         }
         TwitterAction::Unlike => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) =
-                twitter_delete(access_token, &format!("/users/{user_id}/likes/{tweet_id}")).await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Unliked tweet {tweet_id}"), None)
+            tweet_user_action(
+                access_token,
+                event,
+                config,
+                HttpMethod::Delete,
+                |uid, tid| format!("/users/{uid}/likes/{tid}"),
+                |tid| format!("Unliked tweet {tid}"),
+            )
+            .await
         }
         TwitterAction::Retweet => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) = twitter_post(
+            tweet_user_action(
                 access_token,
-                &format!("/users/{user_id}/retweets"),
-                TwitterTweetActionRequest {
-                    tweet_id: tweet_id.clone(),
-                },
+                event,
+                config,
+                HttpMethod::Post,
+                |uid, _tid| format!("/users/{uid}/retweets"),
+                |tid| format!("Retweeted tweet {tid}"),
             )
             .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Retweeted tweet {tweet_id}"), None)
         }
         TwitterAction::Unretweet => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) = twitter_delete(
+            tweet_user_action(
                 access_token,
-                &format!("/users/{user_id}/retweets/{tweet_id}"),
+                event,
+                config,
+                HttpMethod::Delete,
+                |uid, tid| format!("/users/{uid}/retweets/{tid}"),
+                |tid| format!("Undid retweet of {tid}"),
             )
             .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Undid retweet of {tweet_id}"), None)
         }
         TwitterAction::Bookmark => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) = twitter_post(
+            tweet_user_action(
                 access_token,
-                &format!("/users/{user_id}/bookmarks"),
-                TwitterTweetActionRequest {
-                    tweet_id: tweet_id.clone(),
-                },
+                event,
+                config,
+                HttpMethod::Post,
+                |uid, _tid| format!("/users/{uid}/bookmarks"),
+                |tid| format!("Bookmarked tweet {tid}"),
             )
             .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Bookmarked tweet {tweet_id}"), None)
         }
         TwitterAction::RemoveBookmark => {
-            let tweet_id = match extract_tweet_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing tweet ID or user ID"),
-            };
-            if let Err(msg) = twitter_delete(
+            tweet_user_action(
                 access_token,
-                &format!("/users/{user_id}/bookmarks/{tweet_id}"),
+                event,
+                config,
+                HttpMethod::Delete,
+                |uid, tid| format!("/users/{uid}/bookmarks/{tid}"),
+                |tid| format!("Removed bookmark from {tid}"),
             )
             .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Removed bookmark from {tweet_id}"), None)
         }
         TwitterAction::MuteAuthor => {
             let author_id = match extract_twitter_author_id(event) {
