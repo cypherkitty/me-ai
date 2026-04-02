@@ -189,6 +189,35 @@ async fn gmail_api(
     Err(format!("Gmail API error: {status}"))
 }
 
+async fn modify_labels(
+    token: &str,
+    msg_id: &str,
+    add: &[&str],
+    remove: &[&str],
+    success_msg: &str,
+) -> PluginResult {
+    let body = GmailModifyLabelsRequest {
+        add_label_ids: add.iter().map(|s| (*s).to_string()).collect(),
+        remove_label_ids: remove.iter().map(|s| (*s).to_string()).collect(),
+    };
+    if let Err(msg) = gmail_api(
+        token,
+        HttpMethod::Post,
+        &format!("/messages/{msg_id}/modify"),
+        Some(body),
+    )
+    .await
+    {
+        return PluginResult::err(msg);
+    }
+    PluginResult::ok_with_data(
+        success_msg,
+        MessageIdData {
+            message_id: msg_id.to_string(),
+        },
+    )
+}
+
 pub(crate) async fn execute_gmail_action(
     command_id: &str,
     event: &EventInput,
@@ -205,92 +234,16 @@ pub(crate) async fn execute_gmail_action(
     };
     match action {
         GmailAction::MarkRead => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: Vec::new(),
-                remove_label_ids: vec![GMAIL_LABEL_UNREAD.into()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Marked message as read",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[], &[GMAIL_LABEL_UNREAD], "Marked message as read").await
         }
         GmailAction::MarkUnread => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: vec![GMAIL_LABEL_UNREAD.into()],
-                remove_label_ids: Vec::new(),
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Marked message as unread",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[GMAIL_LABEL_UNREAD], &[], "Marked message as unread").await
         }
         GmailAction::Star => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: vec![GMAIL_LABEL_STARRED.into()],
-                remove_label_ids: Vec::new(),
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Starred message",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[GMAIL_LABEL_STARRED], &[], "Starred message").await
         }
         GmailAction::Unstar => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: Vec::new(),
-                remove_label_ids: vec![GMAIL_LABEL_STARRED.into()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Unstarred message",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[], &[GMAIL_LABEL_STARRED], "Unstarred message").await
         }
         GmailAction::Trash => {
             if let Err(msg) = gmail_api(
@@ -329,48 +282,10 @@ pub(crate) async fn execute_gmail_action(
             )
         }
         GmailAction::MarkSpam => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: vec![GMAIL_LABEL_SPAM.into()],
-                remove_label_ids: vec![GMAIL_LABEL_INBOX.into()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Marked message as spam",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[GMAIL_LABEL_SPAM], &[GMAIL_LABEL_INBOX], "Marked message as spam").await
         }
         GmailAction::Archive => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: Vec::new(),
-                remove_label_ids: vec![GMAIL_LABEL_INBOX.into()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Archived message",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[], &[GMAIL_LABEL_INBOX], "Archived message").await
         }
         GmailAction::ApplyLabel => {
             let label_id = match extract_label_id(config) {
@@ -427,48 +342,10 @@ pub(crate) async fn execute_gmail_action(
             )
         }
         GmailAction::MarkImportant => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: vec![GMAIL_LABEL_IMPORTANT.into()],
-                remove_label_ids: Vec::new(),
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Marked as important",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[GMAIL_LABEL_IMPORTANT], &[], "Marked as important").await
         }
         GmailAction::MarkNotImportant => {
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: Vec::new(),
-                remove_label_ids: vec![GMAIL_LABEL_IMPORTANT.into()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                "Marked as not important",
-                MessageIdData {
-                    message_id: message_id.clone(),
-                },
-            )
+            modify_labels(access_token, &message_id, &[], &[GMAIL_LABEL_IMPORTANT], "Marked as not important").await
         }
     }
 }
