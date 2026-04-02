@@ -15,7 +15,7 @@ mod traits;
 pub use traits::Plugin;
 
 #[allow(unused_imports)]
-pub use gmail::GmailAction;
+pub use gmail::{GmailAction, GmailPlugin};
 pub use pipeline::{execute_pipeline, execute_pipeline_batch};
 #[allow(unused_imports)]
 pub use registry::{
@@ -23,7 +23,7 @@ pub use registry::{
     ActionMetadata, PluginActionRef, PluginDefinition, PluginForPrompt,
 };
 #[allow(unused_imports)]
-pub use twitter::TwitterAction;
+pub use twitter::{TwitterAction, TwitterPlugin};
 #[allow(unused_imports)]
 pub use resolution::{ActionOverrideInput, ResolveBatchResult, ResolveExecuteResult};
 #[allow(unused_imports)]
@@ -78,6 +78,15 @@ impl std::fmt::Display for PluginId {
 /// Resolve source name to plugin ID string.
 pub fn resolve_plugin_id(source: &str) -> String {
     PluginId::from_source(source).into_string()
+}
+
+/// Get a plugin implementation by ID. Returns `None` for Filesystem and unknown plugins.
+pub fn get_plugin(id: &PluginId) -> Option<Box<dyn traits::Plugin>> {
+    match id {
+        PluginId::Gmail => Some(Box::new(gmail::GmailPlugin)),
+        PluginId::Twitter => Some(Box::new(twitter::TwitterPlugin)),
+        PluginId::Filesystem | PluginId::Other(_) => None,
+    }
 }
 
 #[cfg(test)]

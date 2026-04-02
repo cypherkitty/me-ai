@@ -4,8 +4,6 @@ use js_sys::Function;
 
 use crate::error::CoreError;
 use super::{
-    gmail::execute_gmail_action,
-    twitter::execute_twitter_action,
     types::{
         ActionInput, ActionResult, EventInput, PipelineBatchResult, PipelineBatchResultEntry,
         PipelineResult, PluginResult,
@@ -128,19 +126,14 @@ async fn execute_action(action: &ActionInput, ctx: &PluginContext) -> PluginResu
     );
 
     let result = match plugin {
-        PluginId::Gmail => {
-            execute_gmail_action(&command_id, &ctx.event, &ctx.access_token, ctx.config.as_ref())
-                .await
-        }
-        PluginId::Twitter => {
-            execute_twitter_action(&command_id, &ctx.event, &ctx.access_token, ctx.config.as_ref())
-                .await
-        }
         PluginId::Filesystem => {
-            PluginResult::err("Filesystem plugin executes in web layer; pipeline should be split before calling core.".to_string())
+            PluginResult::err("Filesystem plugin executes in web layer; pipeline should be split before calling core.")
         }
-        PluginId::Other(id) => {
-            PluginResult::err(format!("Plugin \"{id}\" not found. Is it registered?"))
+        _ => {
+            match super::get_plugin(&plugin) {
+                Some(p) => p.execute(&command_id, &ctx.event, &ctx.access_token, ctx.config.as_ref()).await,
+                None => PluginResult::err(format!("Plugin \"{}\" not found. Is it registered?", plugin.as_str())),
+            }
         }
     };
 
