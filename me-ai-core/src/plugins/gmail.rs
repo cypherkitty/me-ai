@@ -356,6 +356,33 @@ pub(crate) async fn execute_gmail_action(
     }
 }
 
+pub struct GmailPlugin;
+
+#[async_trait::async_trait(?Send)]
+impl super::traits::Plugin for GmailPlugin {
+    fn id(&self) -> super::PluginId {
+        super::PluginId::Gmail
+    }
+
+    fn metadata(&self) -> Vec<ActionMetadata> {
+        actions_metadata()
+    }
+
+    fn required_scopes(&self, action_id: &str) -> Vec<String> {
+        required_scopes(action_id)
+    }
+
+    async fn execute(
+        &self,
+        command_id: &str,
+        event: &EventInput,
+        access_token: &str,
+        config: Option<&serde_json::Value>,
+    ) -> PluginResult {
+        execute_gmail_action(command_id, event, access_token, config).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
