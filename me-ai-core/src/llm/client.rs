@@ -105,7 +105,10 @@ async fn http_fetch(
     headers: &[(&str, &str)],
     body: Option<String>,
 ) -> Result<(u16, String), CoreError> {
-    let client = Client::new();
+    // Note: reqwest timeout is not supported in WASM target (browser fetch handles timeouts).
+    let client = Client::builder()
+        .build()
+        .map_err(|e| CoreError::Llm(e.to_string()))?;
     let mut builder = match method {
         "POST" => client.post(url),
         _ => client.get(url),
@@ -120,6 +123,21 @@ async fn http_fetch(
     let status = response.status().as_u16();
     let text = response.text().await.map_err(|e| CoreError::Llm(e.to_string()))?;
     Ok((status, text))
+}
+
+/// Split chat messages into (system_text, non_system_messages).
+fn split_system_messages(messages: &[ChatMessage]) -> (String, Vec<&ChatMessage>) {
+    let system_text: String = messages
+        .iter()
+        .filter(|m| m.role == "system")
+        .map(|m| m.content.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let non_system: Vec<&ChatMessage> = messages
+        .iter()
+        .filter(|m| m.role != "system")
+        .collect();
+    (system_text, non_system)
 }
 
 /// Parse all `data:` lines from a complete SSE response body.
@@ -139,6 +157,49 @@ fn parse_sse_text(text: &str) -> Vec<String> {
     results
 }
 
+/// Shared SSE-based streaming chat for providers that use HTTP POST + SSE responses.
+/// `extract_tokens` receives each parsed JSON event and mutable token counters;
+/// it returns `Some(text)` if the event contains a content delta.
+async fn sse_stream_chat(
+    url: &str,
+    headers: &[(&str, &str)],
+    body: serde_json::Value,
+    extract_tokens: impl Fn(&Value, &mut u32, &mut u32) -> Option<String>,
+    on_token: &Function,
+) -> Result<(), CoreError> {
+    let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
+    let (status, text) = http_fetch("POST", url, headers, Some(body_str)).await?;
+
+    if !(200..300).contains(&status) {
+        return Err(CoreError::Llm(format!("API error ({status}): {text}")));
+    }
+
+    let mut input_tokens: u32 = 0;
+    let mut output_tokens: u32 = 0;
+
+    for data_str in parse_sse_text(&text) {
+        if let Ok(parsed) = serde_json::from_str::<Value>(&data_str) {
+            if let Some(content) = extract_tokens(&parsed, &mut input_tokens, &mut output_tokens) {
+                emit_token(
+                    on_token,
+                    &TokenPayload {
+                        content,
+                        done: false,
+                        input_tokens,
+                        output_tokens,
+                    },
+                );
+            }
+        }
+    }
+
+    emit_token(
+        on_token,
+        &TokenPayload { content: String::new(), done: true, input_tokens, output_tokens },
+    );
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Per-provider implementations
 // ---------------------------------------------------------------------------
@@ -154,17 +215,10 @@ async fn call_openai(
         OpenAIConfig::new().with_api_key(api_key),
     );
 
-    // Separate system messages (→ instructions) from the rest (→ input items).
-    let system_text: String = messages
-        .iter()
-        .filter(|m| m.role == "system")
-        .map(|m| m.content.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let (system_text, non_system) = split_system_messages(&messages);
 
-    let input_items: Vec<InputItem> = messages
+    let input_items: Vec<InputItem> = non_system
         .iter()
-        .filter(|m| m.role != "system")
         .map(|m| {
             let role = match m.role.as_str() {
                 "assistant" => Role::Assistant,
@@ -257,22 +311,16 @@ async fn call_anthropic(
         ("content-type", "application/json"),
     ];
 
-    let system_content: String = messages
-        .iter()
-        .filter(|m| m.role == "system")
-        .map(|m| m.content.clone())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let (system_content, non_system) = split_system_messages(&messages);
 
-    let non_system: Vec<Value> = messages
+    let non_system_json: Vec<Value> = non_system
         .iter()
-        .filter(|m| m.role != "system")
         .map(|m| serde_json::json!({ "role": m.role, "content": m.content }))
         .collect();
 
     let mut body = serde_json::json!({
         "model": model_name,
-        "messages": non_system,
+        "messages": non_system_json,
         "max_tokens": options.max_tokens.unwrap_or(4096),
         "stream": true,
     });
@@ -283,19 +331,11 @@ async fn call_anthropic(
         body["temperature"] = serde_json::json!(temp);
     }
 
-    let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let (status, text) =
-        http_fetch("POST", "https://api.anthropic.com/v1/messages", headers, Some(body_str)).await?;
-
-    if !(200..300).contains(&status) {
-        return Err(CoreError::Llm(format!("anthropic API error ({status}): {text}")));
-    }
-
-    let mut input_tokens: u32 = 0;
-    let mut output_tokens: u32 = 0;
-
-    for data_str in parse_sse_text(&text) {
-        if let Ok(parsed) = serde_json::from_str::<Value>(&data_str) {
+    sse_stream_chat(
+        "https://api.anthropic.com/v1/messages",
+        headers,
+        body,
+        |parsed, input_tokens, output_tokens| {
             let event_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
             match event_type {
                 "message_start" => {
@@ -303,41 +343,25 @@ async fn call_anthropic(
                         .pointer("/message/usage/input_tokens")
                         .and_then(|v| v.as_u64())
                     {
-                        input_tokens = it as u32;
+                        *input_tokens = it as u32;
                     }
+                    None
                 }
                 "content_block_delta" => {
-                    if let Some(delta_text) =
-                        parsed.pointer("/delta/text").and_then(|v| v.as_str())
-                    {
-                        emit_token(
-                            on_token,
-                            &TokenPayload {
-                                content: delta_text.to_string(),
-                                done: false,
-                                input_tokens,
-                                output_tokens,
-                            },
-                        );
-                    }
+                    parsed.pointer("/delta/text").and_then(|v| v.as_str()).map(|s| s.to_string())
                 }
                 "message_delta" => {
-                    if let Some(ot) =
-                        parsed.pointer("/usage/output_tokens").and_then(|v| v.as_u64())
-                    {
-                        output_tokens = ot as u32;
+                    if let Some(ot) = parsed.pointer("/usage/output_tokens").and_then(|v| v.as_u64()) {
+                        *output_tokens = ot as u32;
                     }
+                    None
                 }
-                _ => {}
+                _ => None,
             }
-        }
-    }
-
-    emit_token(
+        },
         on_token,
-        &TokenPayload { content: String::new(), done: true, input_tokens, output_tokens },
-    );
-    Ok(())
+    )
+    .await
 }
 
 async fn call_google(
@@ -352,16 +376,10 @@ async fn call_google(
     );
     let headers: &[(&str, &str)] = &[("content-type", "application/json")];
 
-    let system_content: String = messages
-        .iter()
-        .filter(|m| m.role == "system")
-        .map(|m| m.content.clone())
-        .collect::<Vec<_>>()
-        .join("\n");
+    let (system_content, non_system) = split_system_messages(&messages);
 
-    let contents: Vec<Value> = messages
+    let contents: Vec<Value> = non_system
         .iter()
-        .filter(|m| m.role != "system")
         .map(|m| {
             let role = if m.role == "assistant" { "model" } else { "user" };
             serde_json::json!({ "role": role, "parts": [{ "text": m.content }] })
@@ -382,42 +400,19 @@ async fn call_google(
             serde_json::json!({ "parts": [{ "text": system_content }] });
     }
 
-    let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let (status, text) = http_fetch("POST", &url, headers, Some(body_str)).await?;
-
-    if !(200..300).contains(&status) {
-        return Err(CoreError::Llm(format!("google API error ({status}): {text}")));
-    }
-
-    for data_str in parse_sse_text(&text) {
-        if let Ok(parsed) = serde_json::from_str::<Value>(&data_str) {
-            if let Some(part_text) = parsed
+    sse_stream_chat(
+        &url,
+        headers,
+        body,
+        |parsed, _input_tokens, _output_tokens| {
+            parsed
                 .pointer("/candidates/0/content/parts/0/text")
                 .and_then(|v| v.as_str())
-            {
-                emit_token(
-                    on_token,
-                    &TokenPayload {
-                        content: part_text.to_string(),
-                        done: false,
-                        input_tokens: 0,
-                        output_tokens: 0,
-                    },
-                );
-            }
-        }
-    }
-
-    emit_token(
-        on_token,
-        &TokenPayload {
-            content: String::new(),
-            done: true,
-            input_tokens: 0,
-            output_tokens: 0,
+                .map(|s| s.to_string())
         },
-    );
-    Ok(())
+        on_token,
+    )
+    .await
 }
 
 async fn call_xai(
@@ -447,50 +442,26 @@ async fn call_xai(
         body["max_tokens"] = serde_json::json!(max);
     }
 
-    let body_str = serde_json::to_string(&body).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let (status, text) =
-        http_fetch("POST", "https://api.x.ai/v1/chat/completions", headers, Some(body_str)).await?;
-
-    if !(200..300).contains(&status) {
-        return Err(CoreError::Llm(format!("xai API error ({status}): {text}")));
-    }
-
-    let mut input_tokens: u32 = 0;
-    let mut output_tokens: u32 = 0;
-
-    for data_str in parse_sse_text(&text) {
-        if let Ok(parsed) = serde_json::from_str::<Value>(&data_str) {
-            if let Some(content) =
-                parsed.pointer("/choices/0/delta/content").and_then(|v| v.as_str())
-            {
-                emit_token(
-                    on_token,
-                    &TokenPayload {
-                        content: content.to_string(),
-                        done: false,
-                        input_tokens,
-                        output_tokens,
-                    },
-                );
-            }
+    sse_stream_chat(
+        "https://api.x.ai/v1/chat/completions",
+        headers,
+        body,
+        |parsed, input_tokens, output_tokens| {
             if let Some(usage) = parsed.get("usage") {
-                input_tokens = usage
+                *input_tokens = usage
                     .get("prompt_tokens")
                     .and_then(|v| v.as_u64())
-                    .unwrap_or(input_tokens as u64) as u32;
-                output_tokens = usage
+                    .unwrap_or(*input_tokens as u64) as u32;
+                *output_tokens = usage
                     .get("completion_tokens")
                     .and_then(|v| v.as_u64())
-                    .unwrap_or(output_tokens as u64) as u32;
+                    .unwrap_or(*output_tokens as u64) as u32;
             }
-        }
-    }
-
-    emit_token(
+            parsed.pointer("/choices/0/delta/content").and_then(|v| v.as_str()).map(|s| s.to_string())
+        },
         on_token,
-        &TokenPayload { content: String::new(), done: true, input_tokens, output_tokens },
-    );
-    Ok(())
+    )
+    .await
 }
 
 // ---------------------------------------------------------------------------
