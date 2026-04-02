@@ -10,6 +10,9 @@ pub mod resolution;
 mod twitter;
 mod types;
 mod utils;
+mod traits;
+#[allow(unused_imports)]
+pub use traits::Plugin;
 
 #[allow(unused_imports)]
 pub use gmail::GmailAction;
