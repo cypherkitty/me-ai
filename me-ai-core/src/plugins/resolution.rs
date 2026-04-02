@@ -153,6 +153,35 @@ pub struct ResolveExecuteResult {
 /// internal usage names without renaming all call sites.
 pub(crate) type ActionResultSerializable = ActionResult;
 
+/// Map a policy string to (category, requires_approval).
+fn resolve_policy(policy: &str) -> (String, bool) {
+    match policy {
+        "manual" => ("CRITICAL".to_string(), true),
+        "auto" => ("NOISE".to_string(), false),
+        _ => ("INFO".to_string(), false),
+    }
+}
+
+struct AuditFields<'a> {
+    email_id: &'a str,
+    subject: &'a str,
+    from: &'a str,
+}
+
+fn extract_audit_fields(event: &EventInput) -> AuditFields<'_> {
+    let email_id = event.data.get("emailId").or_else(|| event.data.get("id"))
+        .and_then(|v| v.as_str()).unwrap_or("");
+    let subject = event.data.get("subject").and_then(|v| v.as_str()).unwrap_or("");
+    let from = event.data.get("from").and_then(|v| v.as_str()).unwrap_or("");
+    AuditFields { email_id, subject, from }
+}
+
+fn split_actions(actions: &[NormalisedAction]) -> (Vec<NormalisedAction>, Vec<NormalisedAction>) {
+    let core = actions.iter().filter(|a| a.plugin_id != "filesystem").cloned().collect();
+    let filesystem = actions.iter().filter(|a| a.plugin_id == "filesystem").cloned().collect();
+    (core, filesystem)
+}
+
 fn normalise_override(idx: usize, ov: &ActionOverrideInput) -> NormalisedAction {
     let cmd = ov.command_id.clone();
     NormalisedAction {
@@ -257,14 +286,9 @@ pub async fn resolve_and_execute_pipeline(
 
         if let Some(rule) = rules.first() {
             let policy = rule.policy.clone().unwrap_or_default();
-            if policy == "manual" {
-                requires_approval = true;
-                category = "CRITICAL".to_string();
-            } else if policy == "auto" {
-                category = "NOISE".to_string();
-            } else {
-                category = "INFO".to_string();
-            }
+            let (cat, approval) = resolve_policy(&policy);
+            category = cat;
+            requires_approval = approval;
             actions = rule.actions.iter().map(normalise_rule_action).collect();
             rule_name = rule.name.clone();
         }
@@ -276,15 +300,9 @@ pub async fn resolve_and_execute_pipeline(
     if actions.is_empty() {
         if let Some(pipeline) = get_pipeline_for_event(db, &event.event_type).await? {
             if !pipeline.actions.is_empty() {
-                let policy = &pipeline.policy;
-                if policy == "manual" {
-                    requires_approval = true;
-                    category = "CRITICAL".to_string();
-                } else if policy == "auto" {
-                    category = "NOISE".to_string();
-                } else {
-                    category = "INFO".to_string();
-                }
+                let (cat, approval) = resolve_policy(&pipeline.policy);
+                category = cat;
+                requires_approval = approval;
                 actions = pipeline.actions.iter().map(normalise_pipeline_action).collect();
             }
         }
@@ -319,16 +337,7 @@ pub async fn resolve_and_execute_pipeline(
     // ------------------------------------------------------------------
     // 6. Split: core vs filesystem
     // ------------------------------------------------------------------
-    let core_actions: Vec<NormalisedAction> = actions
-        .iter()
-        .filter(|a| a.plugin_id != "filesystem")
-        .cloned()
-        .collect();
-    let filesystem_actions: Vec<NormalisedAction> = actions
-        .iter()
-        .filter(|a| a.plugin_id == "filesystem")
-        .cloned()
-        .collect();
+    let (core_actions, filesystem_actions) = split_actions(&actions);
 
     // ------------------------------------------------------------------
     // 7. Fetch access token from DB if core actions need it
@@ -362,28 +371,13 @@ pub async fn resolve_and_execute_pipeline(
     // ------------------------------------------------------------------
     // 8. Audit logging
     // ------------------------------------------------------------------
-    let email_id = event
-        .data
-        .get("emailId")
-        .or_else(|| event.data.get("id"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let subject = event
-        .data
-        .get("subject")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let from_addr = event
-        .data
-        .get("from")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let audit = extract_audit_fields(&event);
 
     storage::audit::log_and_sync_execution(
         db,
-        email_id,
-        subject,
-        from_addr,
+        audit.email_id,
+        audit.subject,
+        audit.from,
         &event.event_type,
         &action_inputs,
         &pipeline_result.results,
@@ -501,14 +495,7 @@ pub async fn resolve_and_execute_batch(
     };
 
     let policy = rule.policy.clone().unwrap_or_default();
-    let requires_approval = policy == "manual";
-    let category = if requires_approval {
-        "CRITICAL".to_string()
-    } else if policy == "auto" {
-        "NOISE".to_string()
-    } else {
-        "INFO".to_string()
-    };
+    let (category, requires_approval) = resolve_policy(&policy);
 
     let actions: Vec<NormalisedAction> = rule.actions.iter().map(normalise_rule_action).collect();
 
@@ -548,16 +535,7 @@ pub async fn resolve_and_execute_batch(
     }
 
     // 7. Split: core vs filesystem
-    let core_actions: Vec<NormalisedAction> = actions
-        .iter()
-        .filter(|a| a.plugin_id != "filesystem")
-        .cloned()
-        .collect();
-    let filesystem_actions: Vec<NormalisedAction> = actions
-        .iter()
-        .filter(|a| a.plugin_id == "filesystem")
-        .cloned()
-        .collect();
+    let (core_actions, filesystem_actions) = split_actions(&actions);
 
     // 8. Fetch access token from DB if core actions need it
     let access_token = if !core_actions.is_empty() {
@@ -609,25 +587,13 @@ pub async fn resolve_and_execute_batch(
         .await?;
 
         // 11. Audit logging for each event
-        let email_id = event_input.data
-            .get("emailId")
-            .or_else(|| event_input.data.get("id"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let subject = event_input.data
-            .get("subject")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        let from_addr = event_input.data
-            .get("from")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let audit = extract_audit_fields(event_input);
 
         storage::audit::log_and_sync_execution(
             db,
-            email_id,
-            subject,
-            from_addr,
+            audit.email_id,
+            audit.subject,
+            audit.from,
             event_type,
             &core_action_inputs,
             &pipeline_result.results,
