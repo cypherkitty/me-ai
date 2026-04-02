@@ -24,6 +24,7 @@ async-openai = { version = "0.33", default-features = false, features = ["respon
 base64 = { version = "0.22", default-features = false, features = ["std"] }
 regex-lite = "0.1"
 tsify-next = { version = "0.5", default-features = false, features = ["js"] }
+async-trait = "0.1"
 
 [profile.release]
 lto = true
