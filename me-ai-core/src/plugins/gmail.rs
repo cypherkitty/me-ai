@@ -293,14 +293,15 @@ pub(crate) async fn execute_gmail_action(
         GmailAction::Archive => {
             modify_labels(access_token, &message_id, &[], &[GMAIL_LABEL_INBOX], "Archived message").await
         }
-        GmailAction::ApplyLabel => {
+        GmailAction::ApplyLabel | GmailAction::RemoveLabel => {
             let label_id = match extract_label_id(config) {
                 Some(label_id) => label_id,
                 None => return PluginResult::err("No label ID provided in config"),
             };
+            let is_apply = matches!(action, GmailAction::ApplyLabel);
             let body = GmailModifyLabelsRequest {
-                add_label_ids: vec![label_id.clone()],
-                remove_label_ids: Vec::new(),
+                add_label_ids: if is_apply { vec![label_id.clone()] } else { Vec::new() },
+                remove_label_ids: if is_apply { Vec::new() } else { vec![label_id.clone()] },
             };
             if let Err(msg) = gmail_api(
                 access_token,
@@ -312,35 +313,9 @@ pub(crate) async fn execute_gmail_action(
             {
                 return PluginResult::err(msg);
             }
+            let verb = if is_apply { "Applied" } else { "Removed" };
             PluginResult::ok_with_data(
-                format!("Applied label: {label_id}"),
-                MessageLabelData {
-                    message_id: message_id.clone(),
-                    label_id,
-                },
-            )
-        }
-        GmailAction::RemoveLabel => {
-            let label_id = match extract_label_id(config) {
-                Some(label_id) => label_id,
-                None => return PluginResult::err("No label ID provided in config"),
-            };
-            let body = GmailModifyLabelsRequest {
-                add_label_ids: Vec::new(),
-                remove_label_ids: vec![label_id.clone()],
-            };
-            if let Err(msg) = gmail_api(
-                access_token,
-                HttpMethod::Post,
-                &format!("/messages/{message_id}/modify"),
-                Some(body),
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok_with_data(
-                format!("Removed label: {label_id}"),
+                format!("{verb} label: {label_id}"),
                 MessageLabelData {
                     message_id: message_id.clone(),
                     label_id,

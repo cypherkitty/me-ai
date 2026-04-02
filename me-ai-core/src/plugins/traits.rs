@@ -7,6 +7,8 @@ use super::types::{EventInput, PluginResult};
 use super::PluginId;
 
 /// Trait for action plugins. WASM is single-threaded, so no `Send` bound.
+/// Only `execute` is called via pipeline dispatch today; the remaining methods
+/// define the contract for registry/metadata queries planned for future use.
 #[async_trait(?Send)]
 #[allow(dead_code)]
 pub trait Plugin {

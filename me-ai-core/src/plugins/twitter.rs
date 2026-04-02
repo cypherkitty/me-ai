@@ -160,30 +160,14 @@ fn extract_twitter_author_id(event: &EventInput) -> Option<String> {
     }
 }
 
-async fn twitter_post<T: Serialize>(token: &str, path: &str, body: T) -> Result<(), String> {
+async fn twitter_api(
+    token: &str,
+    method: HttpMethod,
+    path: &str,
+    body: Option<serde_json::Value>,
+) -> Result<(), String> {
     let url = format!("{TWITTER_BASE}{path}");
-    let body = serialize_body(body)?;
-    let resp = fetch_with_body(HttpMethod::Post, &url, token, Some(body))
-        .await
-        .map_err(|e| e.to_string())?;
-    if resp.status().is_success() {
-        return Ok(());
-    }
-    let status = resp.status();
-    if let Ok(json) = resp.json::<serde_json::Value>().await {
-        if let Some(detail) = json.get("detail").and_then(|v| v.as_str()) {
-            return Err(detail.to_string());
-        }
-        if let Some(title) = json.get("title").and_then(|v| v.as_str()) {
-            return Err(title.to_string());
-        }
-    }
-    Err(format!("Twitter API error: {status}"))
-}
-
-async fn twitter_delete(token: &str, path: &str) -> Result<(), String> {
-    let url = format!("{TWITTER_BASE}{path}");
-    let resp = fetch_with_body(HttpMethod::Delete, &url, token, None)
+    let resp = fetch_with_body(method, &url, token, body)
         .await
         .map_err(|e| e.to_string())?;
     if resp.status().is_success() {
@@ -218,20 +202,14 @@ async fn tweet_user_action(
         None => return PluginResult::err("Missing tweet ID or user ID"),
     };
     let path = path_fn(&user_id, &tweet_id);
-    let result = match method {
-        HttpMethod::Post => {
-            twitter_post(
-                token,
-                &path,
-                TwitterTweetActionRequest {
-                    tweet_id: tweet_id.clone(),
-                },
-            )
-            .await
-        }
-        HttpMethod::Delete => twitter_delete(token, &path).await,
+    let body = match method {
+        HttpMethod::Post => match serialize_body(TwitterTweetActionRequest { tweet_id: tweet_id.clone() }) {
+            Ok(v) => Some(v),
+            Err(e) => return PluginResult::err(e),
+        },
+        HttpMethod::Delete => None,
     };
-    if let Err(msg) = result {
+    if let Err(msg) = twitter_api(token, method, &path, body).await {
         return PluginResult::err(msg);
     }
     PluginResult::ok(success_msg_fn(&tweet_id), None)
@@ -314,7 +292,7 @@ pub(crate) async fn execute_twitter_action(
             )
             .await
         }
-        TwitterAction::MuteAuthor => {
+        TwitterAction::MuteAuthor | TwitterAction::BlockAuthor => {
             let author_id = match extract_twitter_author_id(event) {
                 Some(id) => id,
                 None => return PluginResult::err("Missing author ID or user ID"),
@@ -323,40 +301,26 @@ pub(crate) async fn execute_twitter_action(
                 Some(id) => id,
                 None => return PluginResult::err("Missing author ID or user ID"),
             };
-            if let Err(msg) = twitter_post(
+            let (path_suffix, verb) = match action {
+                TwitterAction::MuteAuthor => ("muting", "Muted"),
+                TwitterAction::BlockAuthor => ("blocking", "Blocked"),
+                _ => unreachable!(),
+            };
+            let body = match serialize_body(TwitterUserTargetRequest { target_user_id: author_id.clone() }) {
+                Ok(v) => v,
+                Err(e) => return PluginResult::err(e),
+            };
+            if let Err(msg) = twitter_api(
                 access_token,
-                &format!("/users/{user_id}/muting"),
-                TwitterUserTargetRequest {
-                    target_user_id: author_id.clone(),
-                },
+                HttpMethod::Post,
+                &format!("/users/{user_id}/{path_suffix}"),
+                Some(body),
             )
             .await
             {
                 return PluginResult::err(msg);
             }
-            PluginResult::ok(format!("Muted user {author_id}"), None)
-        }
-        TwitterAction::BlockAuthor => {
-            let author_id = match extract_twitter_author_id(event) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing author ID or user ID"),
-            };
-            let user_id = match extract_twitter_user_id(config) {
-                Some(id) => id,
-                None => return PluginResult::err("Missing author ID or user ID"),
-            };
-            if let Err(msg) = twitter_post(
-                access_token,
-                &format!("/users/{user_id}/blocking"),
-                TwitterUserTargetRequest {
-                    target_user_id: author_id.clone(),
-                },
-            )
-            .await
-            {
-                return PluginResult::err(msg);
-            }
-            PluginResult::ok(format!("Blocked user {author_id}"), None)
+            PluginResult::ok(format!("{verb} user {author_id}"), None)
         }
     }
 }
