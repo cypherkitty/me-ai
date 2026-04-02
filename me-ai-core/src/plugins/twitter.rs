@@ -36,24 +36,6 @@ impl TwitterAction {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
-        let normalized = s.trim().to_ascii_lowercase();
-        let normalized = normalized
-            .strip_prefix(TWITTER_ACTION_PREFIX)
-            .unwrap_or(&normalized);
-        match normalized {
-            "like" => Some(Self::Like),
-            "unlike" => Some(Self::Unlike),
-            "retweet" => Some(Self::Retweet),
-            "unretweet" => Some(Self::Unretweet),
-            "bookmark" => Some(Self::Bookmark),
-            "remove_bookmark" => Some(Self::RemoveBookmark),
-            "mute_author" => Some(Self::MuteAuthor),
-            "block_author" => Some(Self::BlockAuthor),
-            _ => None,
-        }
-    }
-
     fn metadata(self) -> ActionMetadata {
         let (name, description, scopes) = match self {
             Self::Like => ("Like Tweet", "Like a tweet", vec!["like.write".into()]),
@@ -103,12 +85,36 @@ impl TwitterAction {
     }
 }
 
+impl std::str::FromStr for TwitterAction {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let normalized = s.trim().to_ascii_lowercase();
+        let normalized = normalized
+            .strip_prefix(TWITTER_ACTION_PREFIX)
+            .unwrap_or(&normalized);
+        match normalized {
+            "like" => Ok(Self::Like),
+            "unlike" => Ok(Self::Unlike),
+            "retweet" => Ok(Self::Retweet),
+            "unretweet" => Ok(Self::Unretweet),
+            "bookmark" => Ok(Self::Bookmark),
+            "remove_bookmark" => Ok(Self::RemoveBookmark),
+            "mute_author" => Ok(Self::MuteAuthor),
+            "block_author" => Ok(Self::BlockAuthor),
+            _ => Err(format!("unknown twitter action: {s}")),
+        }
+    }
+}
+
 pub(crate) fn actions_metadata() -> Vec<ActionMetadata> {
     TwitterAction::all().iter().map(|a| a.metadata()).collect()
 }
 
 pub(crate) fn required_scopes(action_id: &str) -> Vec<String> {
-    TwitterAction::from_str(action_id)
+    action_id
+        .parse::<TwitterAction>()
+        .ok()
         .map(|a| a.metadata().required_scopes)
         .unwrap_or_default()
 }
@@ -201,9 +207,9 @@ pub(crate) async fn execute_twitter_action(
     access_token: &str,
     config: Option<&serde_json::Value>,
 ) -> PluginResult {
-    let action = match TwitterAction::from_str(command_id) {
-        Some(a) => a,
-        None => return PluginResult::err(format!("Command \"{command_id}\" not supported")),
+    let action: TwitterAction = match command_id.parse() {
+        Ok(a) => a,
+        Err(_) => return PluginResult::err(format!("Command \"{command_id}\" not supported")),
     };
     match action {
         TwitterAction::Like => {
@@ -379,8 +385,8 @@ mod tests {
 
     #[test]
     fn twitter_action_from_str_normalizes_and_strips_prefix() {
-        assert_eq!(TwitterAction::from_str("twitter:like"), Some(TwitterAction::Like));
-        assert_eq!(TwitterAction::from_str("  Like  "), Some(TwitterAction::Like));
-        assert_eq!(TwitterAction::from_str("unknown"), None);
+        assert_eq!("twitter:like".parse::<TwitterAction>(), Ok(TwitterAction::Like));
+        assert_eq!("  Like  ".parse::<TwitterAction>(), Ok(TwitterAction::Like));
+        assert!("unknown".parse::<TwitterAction>().is_err());
     }
 }

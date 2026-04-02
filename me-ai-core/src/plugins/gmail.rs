@@ -50,28 +50,6 @@ impl GmailAction {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
-        let normalized = s.trim().to_ascii_lowercase();
-        let normalized = normalized
-            .strip_prefix(GMAIL_ACTION_PREFIX)
-            .unwrap_or(&normalized);
-        match normalized {
-            "mark_read" => Some(Self::MarkRead),
-            "mark_unread" => Some(Self::MarkUnread),
-            "star" => Some(Self::Star),
-            "unstar" => Some(Self::Unstar),
-            "trash" => Some(Self::Trash),
-            "delete" => Some(Self::Delete),
-            "mark_spam" => Some(Self::MarkSpam),
-            "archive" => Some(Self::Archive),
-            "apply_label" => Some(Self::ApplyLabel),
-            "remove_label" => Some(Self::RemoveLabel),
-            "mark_important" => Some(Self::MarkImportant),
-            "mark_not_important" => Some(Self::MarkNotImportant),
-            _ => None,
-        }
-    }
-
     fn metadata(self) -> ActionMetadata {
         let (name, description) = match self {
             Self::MarkRead => ("Mark as Read", "Remove the UNREAD label"),
@@ -113,12 +91,40 @@ impl GmailAction {
     }
 }
 
+impl std::str::FromStr for GmailAction {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let normalized = s.trim().to_ascii_lowercase();
+        let normalized = normalized
+            .strip_prefix(GMAIL_ACTION_PREFIX)
+            .unwrap_or(&normalized);
+        match normalized {
+            "mark_read" => Ok(Self::MarkRead),
+            "mark_unread" => Ok(Self::MarkUnread),
+            "star" => Ok(Self::Star),
+            "unstar" => Ok(Self::Unstar),
+            "trash" => Ok(Self::Trash),
+            "delete" => Ok(Self::Delete),
+            "mark_spam" => Ok(Self::MarkSpam),
+            "archive" => Ok(Self::Archive),
+            "apply_label" => Ok(Self::ApplyLabel),
+            "remove_label" => Ok(Self::RemoveLabel),
+            "mark_important" => Ok(Self::MarkImportant),
+            "mark_not_important" => Ok(Self::MarkNotImportant),
+            _ => Err(format!("unknown gmail action: {s}")),
+        }
+    }
+}
+
 pub(crate) fn actions_metadata() -> Vec<ActionMetadata> {
     GmailAction::all().iter().map(|a| a.metadata()).collect()
 }
 
 pub(crate) fn required_scopes(action_id: &str) -> Vec<String> {
-    GmailAction::from_str(action_id)
+    action_id
+        .parse::<GmailAction>()
+        .ok()
         .map(|a| a.metadata().required_scopes)
         .unwrap_or_default()
 }
@@ -228,9 +234,9 @@ pub(crate) async fn execute_gmail_action(
         Some(id) => id,
         None => return PluginResult::err("No message ID provided"),
     };
-    let action = match GmailAction::from_str(command_id) {
-        Some(a) => a,
-        None => return PluginResult::err(format!("Command \"{command_id}\" not supported")),
+    let action: GmailAction = match command_id.parse() {
+        Ok(a) => a,
+        Err(_) => return PluginResult::err(format!("Command \"{command_id}\" not supported")),
     };
     match action {
         GmailAction::MarkRead => {
@@ -356,42 +362,45 @@ mod tests {
 
     #[test]
     fn gmail_action_from_str_normalizes_and_strips_prefix() {
-        assert_eq!(GmailAction::from_str("gmail:mark_read"), Some(GmailAction::MarkRead));
-        assert_eq!(GmailAction::from_str("  Mark_Read  "), Some(GmailAction::MarkRead));
-        assert_eq!(GmailAction::from_str("unknown"), None);
+        assert_eq!("gmail:mark_read".parse::<GmailAction>(), Ok(GmailAction::MarkRead));
+        assert_eq!("  Mark_Read  ".parse::<GmailAction>(), Ok(GmailAction::MarkRead));
+        assert!("unknown".parse::<GmailAction>().is_err());
     }
 
     #[test]
     fn from_str_mark_read_bare() {
-        assert_eq!(GmailAction::from_str("mark_read"), Some(GmailAction::MarkRead));
+        assert_eq!("mark_read".parse::<GmailAction>(), Ok(GmailAction::MarkRead));
     }
 
     #[test]
     fn from_str_with_gmail_prefix() {
-        assert_eq!(GmailAction::from_str("gmail:mark_read"), Some(GmailAction::MarkRead));
+        assert_eq!("gmail:mark_read".parse::<GmailAction>(), Ok(GmailAction::MarkRead));
     }
 
     #[test]
     fn from_str_case_insensitive() {
-        assert_eq!(GmailAction::from_str("MARK_READ"), Some(GmailAction::MarkRead));
+        assert_eq!("MARK_READ".parse::<GmailAction>(), Ok(GmailAction::MarkRead));
     }
 
     #[test]
     fn from_str_trims_whitespace() {
-        assert_eq!(GmailAction::from_str("  trash  "), Some(GmailAction::Trash));
+        assert_eq!("  trash  ".parse::<GmailAction>(), Ok(GmailAction::Trash));
     }
 
     #[test]
-    fn from_str_unknown_returns_none() {
-        assert_eq!(GmailAction::from_str("unknown_action"), None);
+    fn from_str_unknown_returns_err() {
+        assert_eq!(
+            "unknown_action".parse::<GmailAction>(),
+            Err("unknown gmail action: unknown_action".to_string())
+        );
     }
 
     #[test]
     fn round_trip_all_variants() {
         for action in GmailAction::all() {
             assert_eq!(
-                GmailAction::from_str(action.as_str()),
-                Some(*action),
+                action.as_str().parse::<GmailAction>(),
+                Ok(*action),
                 "round-trip failed for {:?}",
                 action
             );
