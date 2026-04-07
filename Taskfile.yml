@@ -140,15 +140,22 @@ tasks:
     cmds:
       - npm run knip
 
+  format:check:
+    desc: Check formatting (Prettier) in me-ai-web/src
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - npm run format:check
+
   # --- CI: install (core + npm) then unit + e2e ---
   ci:
-    desc: Full CI run (build:core → install:ci → clippy:core → check → lint → unit tests → E2E tests)
+    desc: Full CI run (build:core → install:ci → clippy:core → check → lint → knip → unit tests → E2E tests)
     deps:
       - task: install:ci
     cmds:
       - task: clippy:core
       - task: check
       - task: lint
+      - task: knip
       - task: test
       - task: test:e2e
 
