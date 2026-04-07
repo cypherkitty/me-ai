@@ -136,18 +136,29 @@
           break;
 
         case "initiate":
-          progressItems = [...progressItems, msg];
+          progressItems = progressItems.some((item) => item.file === msg.file)
+            ? progressItems.map((item) =>
+                item.file === msg.file ? { ...item, ...msg, done: false } : item,
+              )
+            : [...progressItems, { ...msg, done: false }];
           break;
 
         case "progress":
           progressItems = progressItems.map((item) =>
-            item.file === msg.file ? { ...item, ...msg } : item,
+            item.file === msg.file ? { ...item, ...msg, done: false } : item,
           );
           break;
 
         case "done":
-          progressItems = progressItems.filter(
-            (item) => item.file !== msg.file,
+          progressItems = progressItems.map((item) =>
+            item.file === msg.file
+              ? {
+                  ...item,
+                  ...msg,
+                  loaded: Number(item.total ?? item.loaded ?? 0),
+                  done: true,
+                }
+              : item,
           );
           break;
 
@@ -717,6 +728,7 @@
     status = "loading";
     error = null;
     loadInitiated = true;
+    progressItems = [];
     try {
       const sv = new SettingValue();
       sv.selectedModel = selectedModel;
