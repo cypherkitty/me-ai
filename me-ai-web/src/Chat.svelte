@@ -48,6 +48,8 @@
     type?: string;
     content?: string;
     thinking?: string;
+    thinkingStartedAt?: number | null;
+    thinkingDurationMs?: number | null;
     model?: string;
     status?: string;
     title?: string;
@@ -120,6 +122,10 @@
     }
 
     if (engine.isReady) {
+      status = "ready";
+      if (backend === AiBackend.WebGpu) {
+        engine.check();
+      }
       showDashboardIfNeeded();
     }
 
@@ -136,18 +142,29 @@
           break;
 
         case "initiate":
-          progressItems = [...progressItems, msg];
+          progressItems = progressItems.some((item) => item.file === msg.file)
+            ? progressItems.map((item) =>
+                item.file === msg.file ? { ...item, ...msg, done: false } : item,
+              )
+            : [...progressItems, { ...msg, done: false }];
           break;
 
         case "progress":
           progressItems = progressItems.map((item) =>
-            item.file === msg.file ? { ...item, ...msg } : item,
+            item.file === msg.file ? { ...item, ...msg, done: false } : item,
           );
           break;
 
         case "done":
-          progressItems = progressItems.filter(
-            (item) => item.file !== msg.file,
+          progressItems = progressItems.map((item) =>
+            item.file === msg.file
+              ? {
+                  ...item,
+                  ...msg,
+                  loaded: Number(item.total ?? item.loaded ?? 0),
+                  done: true,
+                }
+              : item,
           );
           break;
 
@@ -165,6 +182,8 @@
               role: "assistant",
               content: "",
               thinking: "",
+              thinkingStartedAt: null,
+              thinkingDurationMs: null,
               model: selectedModel,
             },
           ];
@@ -180,9 +199,18 @@
           tps = (msg.tps as number) ?? null;
           numTokens = (msg.numTokens as number) ?? null;
           const last = messages[messages.length - 1];
+          const thinkingStartedAt =
+            typeof last.thinkingStartedAt === "number"
+              ? last.thinkingStartedAt
+              : Date.now();
           messages = [
             ...messages.slice(0, -1),
-            { ...last, thinking: (last.thinking || "") + (msg.content as string) },
+            {
+              ...last,
+              thinking: (last.thinking || "") + (msg.content as string),
+              thinkingStartedAt,
+              thinkingDurationMs: Date.now() - thinkingStartedAt,
+            },
           ];
           scrollToBottom(false);
           break;
@@ -193,9 +221,18 @@
           tps = (msg.tps as number) ?? null;
           numTokens = (msg.numTokens as number) ?? null;
           const last = messages[messages.length - 1];
+          const thinkingStartedAt =
+            typeof last.thinkingStartedAt === "number"
+              ? last.thinkingStartedAt
+              : Date.now();
           messages = [
             ...messages.slice(0, -1),
-            { ...last, thinking: msg.content as string },
+            {
+              ...last,
+              thinking: msg.content as string,
+              thinkingStartedAt,
+              thinkingDurationMs: Date.now() - thinkingStartedAt,
+            },
           ];
           break;
         }
@@ -701,6 +738,26 @@
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
+  function getWebgpuModelLabel(modelId: string | null): string | null {
+    if (!modelId) return null;
+    const groups = getCore().getOnnxModelGroups();
+    for (const group of groups) {
+      const model = group.models.find((item) => item.id === modelId);
+      if (model) return `${group.label} ${model.name}`;
+    }
+
+    const info = getCore().getOnnxModelInfo(modelId);
+    if (info?.name) return info.name;
+    return modelId.split("/").pop() ?? modelId;
+  }
+
+  function openModelPicker() {
+    error = null;
+    progressItems = [];
+    status = null;
+    window.location.hash = "#home";
+  }
+
   /** @param {boolean} [force] - If false, only scroll when user is near bottom (avoids fighting scroll during streaming) */
   function scrollToBottom(force = true) {
     tick().then(() => {
@@ -716,6 +773,7 @@
   async function loadModel() {
     status = "loading";
     error = null;
+    progressItems = [];
     loadInitiated = true;
     try {
       const sv = new SettingValue();
@@ -972,10 +1030,15 @@
     backend={backend === AiBackend.Cloud
       ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
       : backend === AiBackend.Ollama ? "ollama" : "webgpu"}
+    activeModelLabel={backend === AiBackend.WebGpu
+      ? getWebgpuModelLabel(engine.modelId)
+      : null}
+    hasModelIssue={backend === AiBackend.WebGpu && (!!error || !engine.modelId)}
     bind:chatContainer
     onsend={send}
     onstop={stop}
     onreset={reset}
+    onfixmodel={openModelPicker}
     onmarkacted={markActed}
     ondismiss={dismiss}
     onremove={removeItem}

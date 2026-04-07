@@ -11,6 +11,9 @@
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
   import { cn } from "$lib/utils.js";
 
+  const CACHE_NAME = "transformers-cache";
+  const HF_PREFIX = "https://huggingface.co/";
+
   const DTYPE_OPTIONS = [
     { value: "q4f16", label: "q4f16 (recommended)" },
     { value: "q4", label: "q4 (smaller)" },
@@ -36,8 +39,48 @@
   const models = getModels();
   const modelGroups = getModelGroups();
   const selectedInfo = $derived(models.find(m => m.id === selectedModel));
+  let cachedModelIds = $state<string[]>([]);
+  let cacheSupported = $state(true);
+  let scannedCache = $state(false);
 
-  onMount(() => mountLog("ModelSelector"));
+  function modelIdFromUrl(url: string): string | null {
+    if (!url.startsWith(HF_PREFIX)) return null;
+    const path = url.slice(HF_PREFIX.length);
+    const resolveIdx = path.indexOf("/resolve/");
+    if (resolveIdx === -1) return null;
+    return path.slice(0, resolveIdx);
+  }
+
+  async function loadCachedModels() {
+    try {
+      if (!("caches" in window)) {
+        cacheSupported = false;
+        return;
+      }
+      const cache = await caches.open(CACHE_NAME);
+      const requests = await cache.keys();
+      const ids = new Set<string>();
+      for (const req of requests) {
+        const id = modelIdFromUrl(req.url);
+        if (id) ids.add(id);
+      }
+      cachedModelIds = [...ids];
+
+      const preferredDownloadedModel = models.find((model) => ids.has(model.id));
+      if (preferredDownloadedModel && !ids.has(selectedModel)) {
+        selectedModel = preferredDownloadedModel.id;
+      }
+    } catch {
+      cacheSupported = false;
+    } finally {
+      scannedCache = true;
+    }
+  }
+
+  onMount(() => {
+    mountLog("ModelSelector");
+    void loadCachedModels();
+  });
 </script>
 
 <div class="w-full flex flex-col items-center gap-5 text-center">
@@ -54,12 +97,22 @@
         {#each modelGroups as group (group.label)}
           <optgroup label={group.label}>
             {#each group.models as model (model.id)}
-              <option value={model.id}>{group.label} {model.name} — {model.size}</option>
+              <option value={model.id}>
+                {cachedModelIds.includes(model.id) ? "✅ " : ""}{group.label} {model.name} — {model.size}
+              </option>
             {/each}
           </optgroup>
         {/each}
       </select>
+      {#if scannedCache && cacheSupported}
+        <p class="text-[0.68rem] text-success/80">
+          Downloaded models in this browser are marked with ✅
+        </p>
+      {/if}
       {#if selectedInfo}
+        {#if cachedModelIds.includes(selectedInfo.id)}
+          <p class="text-[0.72rem] text-success/80 font-medium">Cached locally in this browser</p>
+        {/if}
         <p class="text-xs text-muted-foreground/60 italic">{selectedInfo.description}</p>
       {/if}
     </div>

@@ -97,6 +97,8 @@
   --success: oklch(0.560 0.15 142);
   --warning: oklch(0.700 0.15 70);
   --info: oklch(0.560 0.22 248);
+
+  color-scheme: dark;
 }
 
 @layer base {
@@ -193,6 +195,17 @@
     height: 100dvh;
     display: flex;
     flex-direction: column;
+  }
+
+  select {
+    color-scheme: dark;
+  }
+
+  select,
+  option,
+  optgroup {
+    color: var(--foreground);
+    background-color: #213145;
   }
 
   /* ── SvelteFlow canvas overrides ────────────────────────────────────────── */

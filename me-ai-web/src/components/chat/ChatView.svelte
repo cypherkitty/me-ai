@@ -46,10 +46,13 @@
     temperature?: number;
     repetitionPenalty?: number;
     backend?: string;
+    activeModelLabel?: string | null;
+    hasModelIssue?: boolean;
     chatContainer?: HTMLElement | null;
     onsend?: (text: string) => void;
     onstop?: () => void;
     onreset?: () => void;
+    onfixmodel?: () => void;
     onmarkacted?: (id: string) => void;
     ondismiss?: (id: string) => void;
     onremove?: (id: string) => void;
@@ -77,10 +80,13 @@
     temperature = $bindable(0.7),
     repetitionPenalty = $bindable(1.1),
     backend = "webgpu",
+    activeModelLabel = null,
+    hasModelIssue = false,
     chatContainer = $bindable(),
     onsend,
     onstop,
     onreset,
+    onfixmodel,
     onmarkacted,
     ondismiss,
     onremove,
@@ -245,15 +251,33 @@
     <!-- Stats bar + Generation panel -->
     <div class="flex flex-col border-b border-border shrink-0">
       <div class="flex items-center gap-3 px-6 h-10 bg-card/10">
-        {#if gpuInfo}
+        {#if backend === "webgpu" && hasModelIssue}
+          <div class="flex items-center gap-1.5 text-[0.68rem] text-destructive">
+            <span class="font-semibold">No model loaded, re-downloading model.</span>
+            <a
+              href="#home"
+              onclick={onfixmodel}
+              class="underline underline-offset-2 hover:text-destructive/80"
+            >
+              Open model picker
+            </a>
+          </div>
+        {:else if backend === "webgpu" && activeModelLabel && gpuInfo}
           <Button
             variant="outline"
             size="sm"
             onclick={() => (showGpuPanel = !showGpuPanel)}
             class="h-5 px-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-success border-success/30 bg-success/8 hover:bg-success/14"
           >
-            WebGPU {showGpuPanel ? "▲" : "▼"}
+            WebGPU-{activeModelLabel} {showGpuPanel ? "▲" : "▼"}
           </Button>
+        {:else if backend === "webgpu" && activeModelLabel}
+          <Badge
+            variant="outline"
+            class="text-[0.6rem] font-bold tracking-wider h-5 px-1.5 text-success border-success/30 bg-success/8"
+          >
+            WebGPU-{activeModelLabel}
+          </Badge>
         {:else if BACKEND_META[backend]}
           {@const meta = BACKEND_META[backend]}
           <Badge

@@ -263,6 +263,33 @@ pub fn get_onnx_model_groups() -> Vec<OnnxModelGroup> {
             }],
         },
         OnnxModelGroup {
+            label: "Gemma 4".to_string(),
+            models: vec![
+                OnnxModel {
+                    id: "onnx-community/gemma-4-E2B-it-ONNX".to_string(),
+                    name: "E2B".to_string(),
+                    size: "~3.4 GB".to_string(),
+                    context_window: 131_072,
+                    max_email_tokens: 6_000,
+                    description: "Most browser-friendly Gemma 4. 128k context with text, image, and audio support.".to_string(),
+                    gpu_warning: "Large download (~3.4 GB at q4f16). 8 GB+ shared or dedicated GPU memory recommended.".to_string(),
+                    is_experimental: true,
+                    recommended_for_email_processing: true,
+                },
+                OnnxModel {
+                    id: "onnx-community/gemma-4-E4B-it-ONNX".to_string(),
+                    name: "E4B".to_string(),
+                    size: "~4.6 GB".to_string(),
+                    context_window: 131_072,
+                    max_email_tokens: 10_000,
+                    description: "Higher-quality Gemma 4 for strong browser-side reasoning on high-end GPUs.".to_string(),
+                    gpu_warning: "Very large browser model. High-end GPU or ample shared memory strongly recommended.".to_string(),
+                    is_experimental: true,
+                    recommended_for_email_processing: true,
+                },
+            ],
+        },
+        OnnxModelGroup {
             label: "Qwen 3.5".to_string(),
             models: vec![
                 OnnxModel {
@@ -410,6 +437,13 @@ mod tests {
     #[test]
     fn get_api_model_info_nonexistent_returns_none() {
         assert!(get_api_model_info("nonexistent-model-id").is_none());
+    }
+
+    #[test]
+    fn get_onnx_model_info_gemma4_e2b() {
+        let model = get_onnx_model_info("onnx-community/gemma-4-E2B-it-ONNX")
+            .expect("Gemma 4 E2B must exist");
+        assert_eq!(model.context_window, 131_072);
     }
 
     #[test]

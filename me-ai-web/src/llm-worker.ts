@@ -6,8 +6,10 @@
 import {
   env,
   AutoTokenizer,
+  AutoProcessor,
   AutoModelForCausalLM,
   AutoModelForImageTextToText,
+  Gemma4ForConditionalGeneration,
   TextStreamer,
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
@@ -23,19 +25,38 @@ function isImageTextToTextModel(model_id: string): boolean {
   return /Qwen3\.5/i.test(model_id);
 }
 
+function isGemma4Model(model_id: string): boolean {
+  return /gemma-4/i.test(model_id);
+}
+
+type TokenizerInstance = InstanceType<typeof AutoTokenizer>;
+type ProcessorInstance = InstanceType<typeof AutoProcessor>;
 type LoadOptions = { dtype?: string; device?: string };
+type DisposableModel = { dispose?: () => Promise<unknown> | unknown };
 
 class TextGenerationPipeline {
   static model_id: string | null = null;
   static load_options: LoadOptions | null = null;
-  static tokenizer: InstanceType<typeof AutoTokenizer> | null = null;
-  static model: InstanceType<typeof AutoModelForCausalLM> | InstanceType<typeof AutoModelForImageTextToText> | null = null;
+  static tokenizer: TokenizerInstance | null = null;
+  static processor: ProcessorInstance | null = null;
+  static model:
+    | InstanceType<typeof AutoModelForCausalLM>
+    | InstanceType<typeof AutoModelForImageTextToText>
+    | InstanceType<typeof Gemma4ForConditionalGeneration>
+    | null = null;
 
   static async getInstance(
     model_id: string,
     progress_callback: ((x: unknown) => void) | null = null,
     load_options: LoadOptions = {}
-  ): Promise<[InstanceType<typeof AutoTokenizer>, InstanceType<typeof AutoModelForCausalLM> | InstanceType<typeof AutoModelForImageTextToText>]> {
+  ): Promise<{
+    tokenizer: TokenizerInstance | null;
+    processor: ProcessorInstance | null;
+    model:
+      | InstanceType<typeof AutoModelForCausalLM>
+      | InstanceType<typeof AutoModelForImageTextToText>
+      | InstanceType<typeof Gemma4ForConditionalGeneration>;
+  }> {
     const dtype = load_options.dtype ?? "q4f16";
     const device = load_options.device ?? "webgpu";
     const optsKey = `${dtype}:${device}`;
@@ -44,33 +65,50 @@ class TextGenerationPipeline {
       this.model_id !== model_id ||
       (this.load_options && `${this.load_options.dtype ?? "q4f16"}:${this.load_options.device ?? "webgpu"}` !== optsKey)
     ) {
-      if (this.model && "dispose" in this.model && typeof (this.model as { dispose: () => Promise<void> }).dispose === "function") {
+      const disposable = this.model as DisposableModel | null;
+      if (disposable && typeof disposable.dispose === "function") {
         try {
-          await (this.model as { dispose: () => Promise<void> }).dispose();
+          await disposable.dispose();
         } catch { /* no-op */ }
       }
       this.tokenizer = null;
+      this.processor = null;
       this.model = null;
     }
     this.model_id = model_id;
     this.load_options = { dtype, device };
 
-    this.tokenizer ??= await AutoTokenizer.from_pretrained(model_id, {
-      progress_callback: progress_callback ?? undefined,
-    });
+    if (isGemma4Model(model_id)) {
+      this.processor ??= await AutoProcessor.from_pretrained(model_id, {
+        progress_callback: progress_callback ?? undefined,
+      });
+    } else {
+      this.tokenizer ??= await AutoTokenizer.from_pretrained(model_id, {
+        progress_callback: progress_callback ?? undefined,
+      });
+    }
 
-    const ModelClass = isImageTextToTextModel(model_id)
-      ? AutoModelForImageTextToText
-      : AutoModelForCausalLM;
+    const ModelClass = isGemma4Model(model_id)
+      ? Gemma4ForConditionalGeneration
+      : isImageTextToTextModel(model_id)
+        ? AutoModelForImageTextToText
+        : AutoModelForCausalLM;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.model ??= (await (ModelClass as any).from_pretrained(model_id, {
       dtype,
       device,
       progress_callback: progress_callback ?? undefined,
-    })) as InstanceType<typeof AutoModelForCausalLM>;
+    })) as
+      | InstanceType<typeof AutoModelForCausalLM>
+      | InstanceType<typeof AutoModelForImageTextToText>
+      | InstanceType<typeof Gemma4ForConditionalGeneration>;
 
-    return Promise.all([this.tokenizer, this.model]) as Promise<[InstanceType<typeof AutoTokenizer>, InstanceType<typeof AutoModelForCausalLM> | InstanceType<typeof AutoModelForImageTextToText>]>;
+    return {
+      tokenizer: this.tokenizer,
+      processor: this.processor,
+      model: this.model,
+    };
   }
 }
 
@@ -93,6 +131,88 @@ function parseHarmonyOutput(raw: string): { thinking: string | null; response: s
     thinking = (endMatch !== -1 ? afterAnalysis.slice(0, endMatch) : afterAnalysis).trim() || null;
   }
   return { thinking, response };
+}
+
+function normalizeGemma4Messages(messages: ChatMessage[]) {
+  return messages.map((message) => ({
+    role: message.role,
+    content: [{ type: "text", text: message.content }],
+  }));
+}
+
+async function buildInputs(
+  modelId: string,
+  messages: ChatMessage[],
+  enableThinking: boolean,
+  tokenizer: TokenizerInstance | null,
+  processor: ProcessorInstance | null
+) {
+  if (isGemma4Model(modelId)) {
+    if (!processor) throw new Error("Gemma 4 processor is not loaded");
+    const prompt = (processor as any).apply_chat_template(
+      normalizeGemma4Messages(messages),
+      { add_generation_prompt: true, enable_thinking: !!enableThinking }
+    );
+    return (processor as any)(prompt, undefined, undefined, { add_special_tokens: false });
+  }
+
+  if (!tokenizer) throw new Error("Tokenizer is not loaded");
+  const useHarmony = isHarmonyModel(modelId);
+  const templateOpts: { add_generation_prompt: boolean; return_dict: boolean; enable_thinking?: boolean } = {
+    add_generation_prompt: true,
+    return_dict: true,
+  };
+  if (!useHarmony) templateOpts.enable_thinking = !!enableThinking;
+  return (tokenizer as any).apply_chat_template(messages, templateOpts);
+}
+
+function stripGemma4ControlTokens(raw: string): string {
+  return raw
+    .replace(/<bos>|<eos>|<pad>|<\|turn\>|<turn\|>|<\|think\|>/g, "")
+    .replace(/<\|channel\>|<channel\|>/g, "")
+    .trim();
+}
+
+function parseGemma4Output(raw: string): { thinking: string | null; response: string } {
+  const match = raw.match(/<\|channel\>(?:thought\n)?([\s\S]*?)<channel\|>/);
+  if (!match) {
+    return { thinking: null, response: stripGemma4ControlTokens(raw) };
+  }
+  const thinking = match[1]?.trim() || null;
+  const response = stripGemma4ControlTokens(raw.replace(match[0], ""));
+  return { thinking, response };
+}
+
+function getGemma4ThinkingParts(raw: string): {
+  thinking: string;
+  response: string;
+  isThinking: boolean;
+} {
+  const match = /<\|channel\>(?:thought\n)?/.exec(raw);
+  if (!match) {
+    return {
+      thinking: "",
+      response: stripGemma4ControlTokens(raw),
+      isThinking: false,
+    };
+  }
+
+  const thinkingStart = match.index + match[0].length;
+  const closeIdx = raw.indexOf("<channel|>", thinkingStart);
+
+  if (closeIdx === -1) {
+    return {
+      thinking: raw.slice(thinkingStart),
+      response: "",
+      isThinking: true,
+    };
+  }
+
+  return {
+    thinking: raw.slice(thinkingStart, closeIdx),
+    response: stripGemma4ControlTokens(raw.slice(closeIdx + "<channel|>".length)),
+    isThinking: false,
+  };
 }
 
 type Reply = (msg: Record<string, unknown>) => void;
@@ -138,7 +258,7 @@ async function load(
   reply({ status: "loading", data: "Loading model..." });
 
   try {
-    const [tokenizer, model] = await TextGenerationPipeline.getInstance(
+    const { tokenizer, processor, model } = await TextGenerationPipeline.getInstance(
       model_id,
       (x) => reply(x as Record<string, unknown>),
       load_options
@@ -146,10 +266,12 @@ async function load(
 
     reply({ status: "loading", data: "Compiling shaders and warming up model..." });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const warmupInputs = (tokenizer as any).apply_chat_template(
+    const warmupInputs = await buildInputs(
+      model_id,
       [{ role: "user", content: "hi" }],
-      { add_generation_prompt: true, return_dict: true }
+      false,
+      tokenizer,
+      processor
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (model as any).generate({ ...warmupInputs, max_new_tokens: 1 });
@@ -190,15 +312,15 @@ async function generate(
     const modelId = TextGenerationPipeline.model_id;
     if (!modelId) throw new Error("No model loaded");
     const useHarmony = isHarmonyModel(modelId);
-    const [tokenizer, model] = await TextGenerationPipeline.getInstance(modelId);
-
-    const templateOpts: { add_generation_prompt: boolean; return_dict: boolean; enable_thinking?: boolean } = {
-      add_generation_prompt: true,
-      return_dict: true,
-    };
-    if (!useHarmony) templateOpts.enable_thinking = !!enableThinking;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const inputs = (tokenizer as any).apply_chat_template(messages, templateOpts);
+    const useGemma4 = isGemma4Model(modelId);
+    const { tokenizer, processor, model } = await TextGenerationPipeline.getInstance(modelId);
+    const inputs = await buildInputs(
+      modelId,
+      messages,
+      enableThinking,
+      tokenizer,
+      processor
+    );
 
     let startTime: number | undefined;
     let numTokens = 0;
@@ -213,6 +335,47 @@ async function generate(
     const harmony_callback = (output: string) => {
       harmonyRawBuffer += output;
       reply({ status: "phase", phase: "generating" });
+    };
+
+    let gemma4RawBuffer = "";
+    let gemma4ThinkingLength = 0;
+    let gemma4ResponseLength = 0;
+    let gemma4ThinkingClosed = !enableThinking;
+    const gemma4_callback = (output: string) => {
+      gemma4RawBuffer += output;
+
+      const { thinking, response, isThinking } = getGemma4ThinkingParts(gemma4RawBuffer);
+
+      if (enableThinking && thinking) {
+        const nextThinking = thinking.slice(gemma4ThinkingLength);
+        if (nextThinking) {
+          reply({ status: "phase", phase: "thinking" });
+          reply({ status: "thinking", content: nextThinking, tps, numTokens });
+          gemma4ThinkingLength = thinking.length;
+        } else if (isThinking) {
+          reply({ status: "phase", phase: "thinking" });
+        }
+      }
+
+      if (!isThinking && !gemma4ThinkingClosed && enableThinking) {
+        gemma4ThinkingClosed = true;
+        reply({ status: "thinking-done", content: thinking.trim(), tps, numTokens });
+        reply({ status: "phase", phase: "generating" });
+      }
+
+      if (response) {
+        const nextResponse = response.slice(gemma4ResponseLength);
+        if (nextResponse) {
+          reply({ status: "phase", phase: "generating" });
+          reply({ status: "update", output: nextResponse, tps, numTokens });
+          gemma4ResponseLength = response.length;
+        }
+        return;
+      }
+
+      if (!enableThinking || !thinking) {
+        reply({ status: "phase", phase: "generating" });
+      }
     };
 
     let fullOutput = "";
@@ -250,10 +413,11 @@ async function generate(
     reply({ status: "start", phase: "preparing", inputTokens });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const streamer = new TextStreamer(tokenizer as any, {
+    const streamTokenizer = (processor as any)?.tokenizer ?? tokenizer;
+    const streamer = new TextStreamer(streamTokenizer as any, {
       skip_prompt: true,
-      skip_special_tokens: true,
-      callback_function: useHarmony ? harmony_callback : think_callback,
+      skip_special_tokens: !useGemma4,
+      callback_function: useHarmony ? harmony_callback : useGemma4 ? gemma4_callback : think_callback,
       token_callback_function,
     });
 
@@ -279,9 +443,20 @@ async function generate(
       }
       reply({ status: "phase", phase: "generating" });
       reply({ status: "update", output: response || harmonyRawBuffer.trim(), tps, numTokens });
+    } else if (useGemma4 && gemma4RawBuffer) {
+      const { thinking, response } = parseGemma4Output(gemma4RawBuffer);
+      if (enableThinking && thinking && !gemma4ThinkingClosed) {
+        reply({ status: "phase", phase: "thinking" });
+        reply({ status: "thinking-done", content: thinking, tps, numTokens });
+      }
+      const finalResponse = response || stripGemma4ControlTokens(gemma4RawBuffer);
+      if (finalResponse.length > gemma4ResponseLength) {
+        reply({ status: "phase", phase: "generating" });
+        reply({ status: "update", output: finalResponse.slice(gemma4ResponseLength), tps, numTokens });
+      }
     }
 
-    if (!useHarmony && !thinkingDone && thinkBuffer.length > 0) {
+    if (!useHarmony && !useGemma4 && !thinkingDone && thinkBuffer.length > 0) {
       reply({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
       reply({ status: "phase", phase: "generating" });
       reply({
@@ -351,6 +526,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessageData>) => {
         }
       } catch { /* no-op */ }
       TextGenerationPipeline.tokenizer = null;
+      TextGenerationPipeline.processor = null;
       TextGenerationPipeline.model = null;
       TextGenerationPipeline.model_id = null;
       TextGenerationPipeline.load_options = null;

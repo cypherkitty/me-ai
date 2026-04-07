@@ -1,10 +1,11 @@
 <script lang="ts">
   import { marked } from "marked";
   import DOMPurify from "dompurify";
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { mountLog } from "../../lib/debug.js";
   import { getCore } from "../../lib/store/core-store.js";
   const getModelInfo = (id: string) => getCore().getOnnxModelInfo(id);
+  const getModelGroups = () => getCore().getOnnxModelGroups();
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronRight } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
@@ -12,6 +13,9 @@
   interface ChatMessage {
     role: string;
     content?: string;
+    thinking?: string;
+    thinkingStartedAt?: number | null;
+    thinkingDurationMs?: number | null;
     model?: string;
     [key: string]: unknown;
   }
@@ -50,6 +54,10 @@
 
   let modelName = $derived.by(() => {
     if (!msg.model) return null;
+    for (const group of getModelGroups()) {
+      const groupedModel = group.models.find((item) => item.id === msg.model);
+      if (groupedModel) return `${group.label} ${groupedModel.name}`;
+    }
     const info = getModelInfo(msg.model);
     if (info) return info.name;
     return (msg.model.split("/").pop() ?? msg.model)
@@ -70,6 +78,69 @@
 
   let isStreaming = $derived(isRunning && isLast);
   let showThinking = $state(false);
+  let didAutoOpenThinking = $state(false);
+  let thinkingContentEl = $state<HTMLPreElement | null>(null);
+  let elapsedThinkingMs = $state(0);
+  let isActivelyThinking = $derived(
+    isStreaming && generationPhase === "thinking" && !!msg.thinking,
+  );
+  let thinkingDurationMs = $derived.by(() => {
+    if (typeof msg.thinkingDurationMs === "number") return msg.thinkingDurationMs;
+    return isActivelyThinking ? elapsedThinkingMs : null;
+  });
+  let thinkingDurationLabel = $derived.by(() => {
+    if (thinkingDurationMs == null) return null;
+    return formatThinkingDuration(thinkingDurationMs);
+  });
+
+  function formatThinkingDuration(ms: number): string {
+    if (ms < 10_000) return `${(ms / 1000).toFixed(1)}s`;
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    if (minutes === 0) return `${totalSeconds}s`;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  $effect(() => {
+    if (isActivelyThinking && !didAutoOpenThinking) {
+      showThinking = true;
+      didAutoOpenThinking = true;
+      return;
+    }
+    if (!isActivelyThinking && didAutoOpenThinking) {
+      showThinking = false;
+      didAutoOpenThinking = false;
+    }
+  });
+
+  $effect(() => {
+    if (!isActivelyThinking || !showThinking || !thinkingContentEl) return;
+    void tick().then(() => {
+      if (thinkingContentEl) {
+        thinkingContentEl.scrollTop = thinkingContentEl.scrollHeight;
+      }
+    });
+  });
+
+  $effect(() => {
+    if (!isActivelyThinking) {
+      elapsedThinkingMs =
+        typeof msg.thinkingDurationMs === "number" ? msg.thinkingDurationMs : 0;
+      return;
+    }
+
+    const startedAt =
+      typeof msg.thinkingStartedAt === "number"
+        ? msg.thinkingStartedAt
+        : Date.now();
+    const updateElapsed = () => {
+      elapsedThinkingMs = Math.max(0, Date.now() - startedAt);
+    };
+    updateElapsed();
+    const intervalId = window.setInterval(updateElapsed, 100);
+    return () => window.clearInterval(intervalId);
+  });
 </script>
 
 {#if msg.role === "user"}
@@ -115,7 +186,7 @@
       {/if}
     </div>
 
-    <!-- Thinking (collapsed by default, click to expand) -->
+    <!-- Thinking -->
     {#if msg.thinking}
       <Collapsible.Root bind:open={showThinking} class="mt-0.5">
         <Collapsible.Trigger
@@ -125,11 +196,14 @@
           )}
         >
           <ChevronRight class={cn("size-3 shrink-0 transition-transform", showThinking && "rotate-90")} />
-          Internal reasoning
+          {isActivelyThinking ? "Live reasoning" : "Internal reasoning"}
           <span class="text-[0.58rem] opacity-50 ml-0.5">{String(msg.thinking).split(/\s+/).filter(Boolean).length} words</span>
+          {#if thinkingDurationLabel}
+            <span class="text-[0.58rem] opacity-50 tabular-nums">{thinkingDurationLabel}</span>
+          {/if}
         </Collapsible.Trigger>
         <Collapsible.Content>
-          <pre class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
+          <pre bind:this={thinkingContentEl} class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
         </Collapsible.Content>
       </Collapsible.Root>
     {/if}
