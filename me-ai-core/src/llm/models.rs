@@ -368,22 +368,36 @@ impl OllamaModel {
     }
 }
 
-pub fn get_ollama_models() -> Vec<OllamaModel> {
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaModelGroup {
+    pub label: String,
+    pub models: Vec<OllamaModel>,
+}
+
+pub fn get_ollama_model_groups() -> Vec<OllamaModelGroup> {
     vec![
-        OllamaModel { name: "qwen3:4b".to_string(), display_name: "Qwen3 4B".to_string(), params: "4B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Latest Qwen, 128k context, enhanced reasoning".to_string(), tags: vec!["multilingual".to_string(), "reasoning".to_string(), "general".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "qwen3:8b".to_string(), display_name: "Qwen3 8B".to_string(), params: "8B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Powerful reasoning, 128k context, 100+ languages".to_string(), tags: vec!["multilingual".to_string(), "reasoning".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "qwen3:14b".to_string(), display_name: "Qwen3 14B".to_string(), params: "14B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Most capable Qwen3, best for complex tasks".to_string(), tags: vec!["multilingual".to_string(), "reasoning".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "ministral-3:3b".to_string(), display_name: "Ministral 3 3B".to_string(), params: "3B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Mistral's smallest, 256k context, Apache 2.0".to_string(), tags: vec!["fast".to_string(), "long-context".to_string(), "efficient".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "ministral-3:8b".to_string(), display_name: "Ministral 3 8B".to_string(), params: "8B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Balanced performance, 256k context, vision capable".to_string(), tags: vec!["general".to_string(), "long-context".to_string(), "vision".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "ministral-3:14b".to_string(), display_name: "Ministral 3 14B".to_string(), params: "14B".to_string(), context_window: 262_144, max_email_tokens: 200_000, description: "Most capable Ministral, 256k context, function calling".to_string(), tags: vec!["advanced".to_string(), "long-context".to_string(), "vision".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "gpt-oss:20b".to_string(), display_name: "GPT-OSS 20B".to_string(), params: "20B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "OpenAI's open model, strong reasoning, Apache 2.0".to_string(), tags: vec!["reasoning".to_string(), "cot".to_string(), "openai".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "gemma3:4b".to_string(), display_name: "Gemma3 4B".to_string(), params: "4B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google, 128k context, multimodal (text + images)".to_string(), tags: vec!["multimodal".to_string(), "vision".to_string(), "multilingual".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "gemma3:12b".to_string(), display_name: "Gemma3 12B".to_string(), params: "12B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Powerful multimodal, 128k context, 140+ languages".to_string(), tags: vec!["multimodal".to_string(), "vision".to_string(), "multilingual".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "gemma3n:e2b".to_string(), display_name: "Gemma3N E2B".to_string(), params: "2B effective".to_string(), context_window: 32_768, max_email_tokens: 25_000, description: "Efficient 2B, multimodal, MatFormer architecture".to_string(), tags: vec!["efficient".to_string(), "multimodal".to_string(), "fast".to_string()], recommended: false, recommended_for_email_processing: false },
-        OllamaModel { name: "gemma3n:e4b".to_string(), display_name: "Gemma3N E4B".to_string(), params: "4B effective".to_string(), context_window: 32_768, max_email_tokens: 25_000, description: "Efficient 4B, multimodal, selective parameter activation".to_string(), tags: vec!["efficient".to_string(), "multimodal".to_string(), "balanced".to_string()], recommended: false, recommended_for_email_processing: false },
-        OllamaModel { name: "deepseek-r1:7b".to_string(), display_name: "DeepSeek R1 7B".to_string(), params: "7B".to_string(), context_window: 65_536, max_email_tokens: 50_000, description: "Strong chain-of-thought reasoning, research-focused".to_string(), tags: vec!["reasoning".to_string(), "cot".to_string()], recommended: true, recommended_for_email_processing: true },
-        OllamaModel { name: "deepseek-r1:14b".to_string(), display_name: "DeepSeek R1 14B".to_string(), params: "14B".to_string(), context_window: 65_536, max_email_tokens: 50_000, description: "Advanced CoT reasoning, slower but thorough".to_string(), tags: vec!["reasoning".to_string(), "cot".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
+        OllamaModelGroup {
+            label: "GPT-OSS".to_string(),
+            models: vec![
+                OllamaModel { name: "gpt-oss:20b".to_string(), display_name: "GPT-OSS 20B".to_string(), params: "20B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "OpenAI's open model, strong reasoning, Apache 2.0".to_string(), tags: vec!["reasoning".to_string(), "cot".to_string(), "openai".to_string()], recommended: true, recommended_for_email_processing: true },
+            ],
+        },
+        OllamaModelGroup {
+            label: "Gemma 4".to_string(),
+            models: vec![
+                OllamaModel { name: "gemma4:e2b".to_string(), display_name: "Gemma 4 E2B".to_string(), params: "2B effective".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google Gemma 4 E2B, 128k context, MatFormer edge model".to_string(), tags: vec!["google".to_string(), "multimodal".to_string(), "fast".to_string()], recommended: true, recommended_for_email_processing: true },
+                OllamaModel { name: "gemma4:e4b".to_string(), display_name: "Gemma 4 E4B".to_string(), params: "4B effective".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google Gemma 4 E4B, 128k context, MatFormer edge model".to_string(), tags: vec!["google".to_string(), "multimodal".to_string(), "balanced".to_string()], recommended: true, recommended_for_email_processing: true },
+                OllamaModel { name: "gemma4:26b".to_string(), display_name: "Gemma 4 26B".to_string(), params: "26B MoE".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google Gemma 4 26B MoE, 128k context, 4B active params".to_string(), tags: vec!["google".to_string(), "multimodal".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
+                OllamaModel { name: "gemma4:31b".to_string(), display_name: "Gemma 4 31B".to_string(), params: "31B".to_string(), context_window: 131_072, max_email_tokens: 100_000, description: "Google Gemma 4 31B dense, 128k context, best quality".to_string(), tags: vec!["google".to_string(), "multimodal".to_string(), "advanced".to_string()], recommended: true, recommended_for_email_processing: true },
+            ],
+        },
     ]
+}
+
+pub fn get_ollama_models() -> Vec<OllamaModel> {
+    get_ollama_model_groups().into_iter().flat_map(|g| g.models).collect()
 }
 
 pub fn get_ollama_model_info(model_name: &str) -> Option<OllamaModel> {
