@@ -446,6 +446,9 @@ async function generate(
 
     const streamTokenizer =
       (processor as Gemma4Processor | null)?.tokenizer ?? tokenizer;
+    if (!streamTokenizer) {
+      throw new Error("No tokenizer available for streaming");
+    }
     const streamer = new TextStreamer(streamTokenizer, {
       skip_prompt: true,
       skip_special_tokens: !useGemma4,
