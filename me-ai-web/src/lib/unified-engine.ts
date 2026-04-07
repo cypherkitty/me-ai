@@ -8,15 +8,24 @@ import { getApiEngine } from "./api-engine.js";
 import { getCore } from "./store/core-store.js";
 import type { Backend, ChatMessage, GenerateFullResult, EngineMessage } from "./core.js";
 
-type GenerateOptions = { maxTokens?: number; enableThinking?: boolean; temperature?: number; [key: string]: unknown };
+type GenerateOptions = {
+  maxTokens?: number;
+  enableThinking?: boolean;
+  temperature?: number;
+  [key: string]: unknown;
+};
 
-type TokenUpdate = Omit<GenerateFullResult, 'inputTokens'>;
+type TokenUpdate = Omit<GenerateFullResult, "inputTokens">;
 
 type Engine = {
   loadModel: (modelId: string, options?: Record<string, unknown>) => void;
   check: () => void;
   generate: (messages: ChatMessage[], options?: GenerateOptions) => void;
-  generateFull: (messages: ChatMessage[], options: GenerateOptions, onToken?: (x: TokenUpdate) => void) => Promise<GenerateFullResult>;
+  generateFull: (
+    messages: ChatMessage[],
+    options: GenerateOptions,
+    onToken?: (x: TokenUpdate) => void
+  ) => Promise<GenerateFullResult>;
   clearCache?: (modelId: string | null) => Promise<void>;
   interrupt: () => void;
   reset: () => void;

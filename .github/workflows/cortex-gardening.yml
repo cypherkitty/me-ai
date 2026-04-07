@@ -1,0 +1,163 @@
+name: Cortex Gardening
+
+# Weekly drift check: cursor-agent reviews recent code changes against .cortex/ docs
+# and opens a GitHub issue when it detects documentation that may be stale.
+#
+# Auth setup (one-time, local):
+#   1. Run: cursor-agent login          # authenticates via browser with your Cursor account
+#   2. Copy: cat ~/.cursor/cli-config.json
+#   3. Store it: GitHub repo → Settings → Secrets and variables → Actions
+#                → New secret → name: CURSOR_CLI_CONFIG, value: <json from step 2>
+#
+# No separate API key or paid plan needed — uses your regular Cursor account session.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Every Monday at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  gardening:
+    name: .cortex/ drift check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect recent changes
+        id: changes
+        run: |
+          SINCE=$(date -d '7 days ago' '+%Y-%m-%d')
+
+          CHANGED=$(git log --since="$SINCE" --name-only --pretty=format: \
+            | sort -u \
+            | grep -v '^$' \
+            | grep -v '^\.cortex/' \
+            | grep -v '^\.cursor/' \
+            || true)
+
+          COMMITS=$(git log --since="$SINCE" --oneline | head -40 || true)
+
+          {
+            echo "changed<<EOF"
+            echo "$CHANGED"
+            echo "EOF"
+            echo "commits<<EOF"
+            echo "$COMMITS"
+            echo "EOF"
+            echo "has_changes=$([ -n "$CHANGED" ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install cursor-agent CLI
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          curl -fsSL https://cursor.com/install | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Cursor auth
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          mkdir -p ~/.cursor
+          printf '%s' '${{ secrets.CURSOR_CLI_CONFIG }}' > ~/.cursor/cli-config.json
+
+      - name: Run cursor-agent — drift analysis
+        if: steps.changes.outputs.has_changes == 'true'
+        run: |
+          cursor-agent --print --output-format text --mode ask \
+            "You are performing a weekly .cortex/ knowledge-base drift check for the me-ai repository.
+
+          The .cortex/ directory is the single source of truth for this project:
+          - .cortex/architecture.md — package map, code navigation
+          - .cortex/core-beliefs.md — golden principles every agent must follow
+          - .cortex/ci-cd.md — GitHub Actions workflows, what task ci does
+          - .cortex/quality-score.md — living quality grades per domain
+          - .cortex/tech-debt-tracker.md — active debt items
+          - .cortex/references/rexie-patterns.md — IndexedDB store inventory and conventions
+          - .cortex/references/rust-tooling.md — Rust tooling philosophy and tool locations
+          - .cortex/design-docs/ — n8n architecture, event stream, plugin system
+          - .cortex/product-specs/ — three-step flow and product intent
+
+          ## Code changes in the last 7 days
+
+          ### Changed files
+          ${{ steps.changes.outputs.changed }}
+
+          ### Recent commits
+          ${{ steps.changes.outputs.commits }}
+
+          ## Your task
+
+          Review the changed files against the .cortex/ docs above.
+          For each potential drift you find, report:
+          1. Which .cortex/ file may be stale
+          2. What specific section or claim might be outdated
+          3. A 1-2 sentence suggested update
+
+          Rules:
+          - Only flag genuine drift (code changed something documented in .cortex/).
+          - Skip test-only changes, formatting, and dependency bumps unless they affect documented behaviour.
+          - If nothing needs updating, respond with exactly: No drift detected.
+          - Be concise — bullet points preferred." \
+          > /tmp/agent-output.txt 2>&1
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        id: cursor
+
+      - name: Open gardening issue
+        if: |
+          steps.changes.outputs.has_changes == 'true' &&
+          steps.cursor.outputs.exit_code == '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('/tmp/agent-output.txt', 'utf8').trim();
+
+            if (summary === 'No drift detected.') {
+              console.log('No drift detected — skipping issue.');
+              return;
+            }
+
+            const today = new Date().toISOString().slice(0, 10);
+            const changed = `${{ steps.changes.outputs.changed }}`;
+            const commits = `${{ steps.changes.outputs.commits }}`;
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[cortex-gardening] Drift check — ${today}`,
+              labels: ['cortex-gardening'],
+              body: [
+                '## .cortex/ weekly drift report',
+                '',
+                summary,
+                '',
+                '---',
+                '',
+                '<details>',
+                '<summary>Changed files (last 7 days)</summary>',
+                '',
+                '```',
+                changed,
+                '```',
+                '',
+                '</details>',
+                '',
+                '<details>',
+                '<summary>Recent commits</summary>',
+                '',
+                '```',
+                commits,
+                '```',
+                '',
+                '</details>',
+              ].join('\n'),
+            });
+
+      - name: No-op — no changes this week
+        if: steps.changes.outputs.has_changes == 'false'
+        run: echo "No code changes outside .cortex/ in the last 7 days — skipping."

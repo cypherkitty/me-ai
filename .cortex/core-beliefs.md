@@ -55,3 +55,40 @@ Never run `npm install` or `cargo build` directly from the repo root.
 Decisions, architecture, conventions, and plans live in versioned files
 (`.cortex/`, `.agents/`, `.cursor/rules/`). If it's not discoverable
 in the repo, it doesn't exist for agents.
+
+## 10. Tests use real objects — mocks are a last resort
+
+Prefer real structs, classes, and instances in tests. Mocks hide real
+behavior, couple tests to implementation details, and erode confidence.
+
+**Rust:** use real `CoreError`, real struct constructors, real parsing logic.
+Never mock what you can instantiate.
+
+**TypeScript:** use real module functions with controlled inputs. Only mock
+at a true external boundary — specifically WASM (`me-ai-core`) and browser
+APIs (`IndexedDB`, `localStorage`, `fetch`) that cannot run in Vitest's
+node/jsdom environment.
+
+When you reach for `vi.mock()`, ask first: can I pass a real value instead?
+If yes, do that. If the only reason to mock is to avoid a slow or complex
+setup, fix the setup — don't hide it.
+
+## 11. Build artifacts are never committed — gitignore before first commit
+
+Before landing any new package, tool, or sub-crate, identify every directory
+or file it generates at build/install time and make sure it is gitignored.
+
+**Convention for this repo:**
+
+| Scope | Where to gitignore |
+|-------|--------------------|
+| Sub-package (`me-ai-core/`, `me-ai-web/`) | its own `.gitignore` |
+| Dev tools under `tools/*/` | root `.gitignore` glob — `tools/*/target` already covers all Rust tool targets |
+| Repo-wide patterns (`.env`, `.idea`) | root `.gitignore` |
+
+**Checklist when adding a new location:**
+
+- Rust crate → `target/` in its `.gitignore` (or covered by `tools/*/target` glob if under `tools/`)
+- npm package → `node_modules/`, `dist/`, `.vite/` in its `.gitignore`
+- wasm-pack output → `pkg/` in the crate's `.gitignore` (already set for `me-ai-core`)
+- Editor/OS noise → root `.gitignore` (`.idea`, `.DS_Store`, `*.local`)

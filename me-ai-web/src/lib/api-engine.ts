@@ -30,12 +30,14 @@ export function getApiEngine(provider: ApiProvider) {
       _provider = provider;
       broadcast({ status: "loading", data: `Checking ${provider} connection...` });
       const _sv1 = await getCore().loadSettings();
-      const apiKey = (
-        provider === "openai" ? _sv1.openaiApiKey :
-        provider === "anthropic" ? _sv1.anthropicApiKey :
-        provider === "google" ? _sv1.googleApiKey :
-        _sv1.xaiApiKey
-      ) ?? null;
+      const apiKey =
+        (provider === "openai"
+          ? _sv1.openaiApiKey
+          : provider === "anthropic"
+            ? _sv1.anthropicApiKey
+            : provider === "google"
+              ? _sv1.googleApiKey
+              : _sv1.xaiApiKey) ?? null;
       if (!apiKey) {
         _status = "idle";
         broadcast({
@@ -77,12 +79,14 @@ export function getApiEngine(provider: ApiProvider) {
         data: `Connecting to ${provider} model: ${providerModelName}...`,
       });
       const _sv2 = await getCore().loadSettings();
-      const apiKey = (
-        provider === "openai" ? _sv2.openaiApiKey :
-        provider === "anthropic" ? _sv2.anthropicApiKey :
-        provider === "google" ? _sv2.googleApiKey :
-        _sv2.xaiApiKey
-      ) ?? null;
+      const apiKey =
+        (provider === "openai"
+          ? _sv2.openaiApiKey
+          : provider === "anthropic"
+            ? _sv2.anthropicApiKey
+            : provider === "google"
+              ? _sv2.googleApiKey
+              : _sv2.xaiApiKey) ?? null;
       if (!apiKey) {
         _status = "idle";
         _modelId = null;
@@ -147,12 +151,10 @@ export function getApiEngine(provider: ApiProvider) {
             } else {
               _status = "ready";
               const elapsedSeconds = (performance.now() - startTime) / 1000;
-              const finalTps =
-                elapsedSeconds > 0 ? tokenCount / elapsedSeconds : null;
+              const finalTps = elapsedSeconds > 0 ? tokenCount / elapsedSeconds : null;
               broadcast({
                 status: "complete",
-                tps:
-                  finalTps !== null ? Math.round(finalTps * 10) / 10 : null,
+                tps: finalTps !== null ? Math.round(finalTps * 10) / 10 : null,
                 numTokens: data.outputTokens ?? tokenCount,
                 inputTokens: data.inputTokens ?? 0,
               });
@@ -178,11 +180,7 @@ export function getApiEngine(provider: ApiProvider) {
     generateFull(
       messages: { role: string; content: string }[],
       options: Record<string, unknown>,
-      onToken?: (x: {
-        tps: number | null;
-        numTokens: number;
-        text: string;
-      }) => void
+      onToken?: (x: { tps: number | null; numTokens: number; text: string }) => void
     ): Promise<{
       text: string;
       tps: number | null;
@@ -210,7 +208,9 @@ export function getApiEngine(provider: ApiProvider) {
                     numTokens: lastNumTokens,
                     text: output,
                   });
-                } catch { /* no-op */ }
+                } catch {
+                  /* no-op */
+                }
               }
               break;
             case "complete":

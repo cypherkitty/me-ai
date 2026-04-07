@@ -31,10 +31,7 @@ function ensureWorker(): Promise<WorkerHandle> {
 
   if (!_workerPromise) {
     _workerPromise = (async () => {
-      const worker = new Worker(
-        new URL("../llm-worker.ts", import.meta.url),
-        { type: "module" },
-      );
+      const worker = new Worker(new URL("../llm-worker.ts", import.meta.url), { type: "module" });
 
       worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
         const msg = e.data;
@@ -51,14 +48,22 @@ function ensureWorker(): Promise<WorkerHandle> {
             _modelId = msg.modelId;
             _status = "ready";
             for (const fn of _listeners) {
-              try { fn({ status: "ready", _recovered: true }); } catch { /* listener error */ }
+              try {
+                fn({ status: "ready", _recovered: true });
+              } catch {
+                /* listener error */
+              }
             }
           }
           return;
         }
 
         for (const fn of _listeners) {
-          try { fn(msg); } catch { /* listener error */ }
+          try {
+            fn(msg);
+          } catch {
+            /* listener error */
+          }
         }
       };
 
@@ -104,7 +109,9 @@ export function getEngine() {
           try {
             const w = await _workerPromise;
             w.terminate();
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
           _workerPromise = null;
           _modelId = null;
         }
@@ -129,7 +136,7 @@ export function getEngine() {
         top_p?: number;
         top_k?: number;
         repetition_penalty?: number;
-      },
+      }
     ) {
       try {
         const w = await ensureWorker();
@@ -151,7 +158,7 @@ export function getEngine() {
         top_k?: number;
         repetition_penalty?: number;
       },
-      onToken?: (info: { tps: number | null; numTokens: number; text: string }) => void,
+      onToken?: (info: { tps: number | null; numTokens: number; text: string }) => void
     ): Promise<GenerateFullResult> {
       return new Promise((resolve, reject) => {
         let output = "";
@@ -172,7 +179,11 @@ export function getEngine() {
               lastTps = msg.tps ?? lastTps;
               lastNumTokens = msg.numTokens ?? lastNumTokens;
               if (onToken) {
-                try { onToken({ tps: lastTps, numTokens: lastNumTokens, text: output }); } catch { /* no-op */ }
+                try {
+                  onToken({ tps: lastTps, numTokens: lastNumTokens, text: output });
+                } catch {
+                  /* no-op */
+                }
               }
               break;
             case "complete":
@@ -189,12 +200,14 @@ export function getEngine() {
         const cleanup = () => _listeners.delete(handler);
         _listeners.add(handler);
 
-        ensureWorker().then((w) => {
-          w.postMessage({ type: "generate", data: messages, options });
-        }).catch((err) => {
-          cleanup();
-          reject(err);
-        });
+        ensureWorker()
+          .then((w) => {
+            w.postMessage({ type: "generate", data: messages, options });
+          })
+          .catch((err) => {
+            cleanup();
+            reject(err);
+          });
       });
     },
 
@@ -208,9 +221,11 @@ export function getEngine() {
         };
         _listeners.add(handler);
 
-        ensureWorker().then((w) => {
-          w.postMessage({ type: "clearCache", modelId });
-        }).catch(reject);
+        ensureWorker()
+          .then((w) => {
+            w.postMessage({ type: "clearCache", modelId });
+          })
+          .catch(reject);
       });
     },
 
@@ -235,17 +250,27 @@ export function getEngine() {
       _listeners.delete(fn);
     },
 
-    get status() { return _status; },
-    get isReady() { return _status === "ready"; },
-    get isGenerating() { return _status === "generating"; },
-    get modelId() { return _modelId; },
+    get status() {
+      return _status;
+    },
+    get isReady() {
+      return _status === "ready";
+    },
+    get isGenerating() {
+      return _status === "generating";
+    },
+    get modelId() {
+      return _modelId;
+    },
 
     async terminate() {
       if (_workerPromise) {
         try {
           const w = await _workerPromise;
           w.terminate();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       _workerPromise = null;
       _status = "idle";

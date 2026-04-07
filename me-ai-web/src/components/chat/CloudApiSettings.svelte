@@ -14,11 +14,7 @@
     error?: string | null;
     onload?: () => void;
   }
-  let {
-    selectedModel = $bindable(),
-    error = $bindable(null),
-    onload
-  }: Props = $props();
+  let { selectedModel = $bindable(), error = $bindable(null), onload }: Props = $props();
 
   let activeProvider = $state("openai");
   let apiKeys: Record<"openai" | "anthropic" | "google" | "xai", string> = $state({
@@ -32,7 +28,10 @@
   let allModels: ApiModel[] = $state([]);
   $effect(() => {
     const { core } = $coreStore;
-    if (!core) { allModels = []; return; }
+    if (!core) {
+      allModels = [];
+      return;
+    }
     try {
       allModels = (core as unknown as { getApiModels(): ApiModel[] }).getApiModels();
     } catch (e) {
@@ -41,16 +40,16 @@
     }
   });
 
-  let providerModels = $derived(allModels.filter(m => m.provider === activeProvider));
+  let providerModels = $derived(allModels.filter((m) => m.provider === activeProvider));
 
   onMount(async () => {
     const sv = await getCore().loadSettings();
-    apiKeys.openai    = sv.openaiApiKey    ?? "";
+    apiKeys.openai = sv.openaiApiKey ?? "";
     apiKeys.anthropic = sv.anthropicApiKey ?? "";
-    apiKeys.google    = sv.googleApiKey    ?? "";
-    apiKeys.xai       = sv.xaiApiKey       ?? "";
+    apiKeys.google = sv.googleApiKey ?? "";
+    apiKeys.xai = sv.xaiApiKey ?? "";
 
-    const currModel = allModels.find(m => m.id === selectedModel);
+    const currModel = allModels.find((m) => m.id === selectedModel);
     if (currModel) {
       activeProvider = currModel.provider;
     } else {
@@ -60,7 +59,7 @@
   });
 
   $effect(() => {
-    if (!providerModels.some(m => m.id === selectedModel)) {
+    if (!providerModels.some((m) => m.id === selectedModel)) {
       selectedModel = providerModels[0]?.id;
     }
   });
@@ -84,10 +83,10 @@
   }
 
   const PROVIDERS = [
-    { id: "openai",    icon: "⚡", label: "OpenAI" },
+    { id: "openai", icon: "⚡", label: "OpenAI" },
     { id: "anthropic", icon: "🧠", label: "Anthropic" },
-    { id: "google",    icon: "🔍", label: "Google" },
-    { id: "xai",       icon: "✖️", label: "xAI" },
+    { id: "google", icon: "🔍", label: "Google" },
+    { id: "xai", icon: "✖️", label: "xAI" },
   ];
 </script>
 
@@ -147,7 +146,7 @@
         </select>
 
         {#if selectedModel}
-          {@const info = providerModels.find(m => m.id === selectedModel)}
+          {@const info = providerModels.find((m) => m.id === selectedModel)}
           {#if info}
             <p class="text-xs text-muted-foreground leading-relaxed">
               {info.description}. Context: {info.contextWindow.toLocaleString()} tokens.
@@ -168,7 +167,9 @@
       </Button>
 
       {#if error}
-        <p class="text-sm text-destructive text-center px-3 py-2 bg-destructive/8 border border-destructive/20 rounded">
+        <p
+          class="text-sm text-destructive text-center px-3 py-2 bg-destructive/8 border border-destructive/20 rounded"
+        >
           {error}
         </p>
       {/if}

@@ -20,6 +20,9 @@ export function emailToJsonString(message: MessageLike): string {
 /**
  * Generate a safe filename for JSON export.
  */
-export function emailJsonFilename(message: { subject?: string; date?: number | string | null }): string {
+export function emailJsonFilename(message: {
+  subject?: string;
+  date?: number | string | null;
+}): string {
   return exportFilename({ ...message, date: message.date ?? undefined }, "json");
 }

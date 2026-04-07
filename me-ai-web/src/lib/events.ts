@@ -17,7 +17,14 @@ const CATEGORIES_KEY = "me-ai-event-categories";
 
 export const EVENT_CATEGORY_TIERS: Record<
   EventCategory,
-  { id: EventCategory; label: string; description: string; autoExecute: boolean; requiresApproval: boolean; color: string }
+  {
+    id: EventCategory;
+    label: string;
+    description: string;
+    autoExecute: boolean;
+    requiresApproval: boolean;
+    color: string;
+  }
 > = {
   NOISE: {
     id: "NOISE",
@@ -53,7 +60,13 @@ export const EVENT_CATEGORIES: Record<
 > = {
   noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
   info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "auto" },
-  critical: { name: "critical", label: "Critical", priority: 3, color: "#ef4444", policy: "manual" },
+  critical: {
+    name: "critical",
+    label: "Critical",
+    priority: 3,
+    color: "#ef4444",
+    policy: "manual",
+  },
 };
 
 export function categoryTierToName(category: EventCategory): string {
@@ -131,15 +144,20 @@ export async function getCategoryForEventType(eventType: string): Promise<EventC
 }
 
 export async function getActionsForEvent(eventType: string): Promise<Action[]> {
-  const normalized = eventType?.toUpperCase?.().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "") || "";
+  const normalized =
+    eventType
+      ?.toUpperCase?.()
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Z0-9_]/g, "") || "";
   if (!normalized) return [];
 
   const map = await loadUserMap();
   const userActions = map[normalized];
   if (Array.isArray(userActions) && userActions.length > 0) return userActions;
 
-  const pipeline = await getCore().getPipelineForEventResolved(eventType) as
-    { actions?: Array<{ pluginId: string; commandId: string; order: number }> } | null;
+  const pipeline = (await getCore().getPipelineForEventResolved(eventType)) as {
+    actions?: Array<{ pluginId: string; commandId: string; order: number }>;
+  } | null;
   if (!pipeline?.actions?.length) return [];
 
   return pipeline.actions.map((a: { pluginId: string; commandId: string }, i: number) => ({
@@ -156,7 +174,10 @@ export async function seedEventTypeFromLLM(
   category: string,
   _suggestedActionIds?: string[]
 ): Promise<void> {
-  const normalized = eventType.toUpperCase().replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "");
+  const normalized = eventType
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_]/g, "");
   if (!normalized) return;
 
   const validCategories = ["noise", "info", "critical"];
@@ -164,11 +185,19 @@ export async function seedEventTypeFromLLM(
   if (!validCategories.includes(cat)) {
     if (cat === "noise" || category === "NOISE") cat = "noise";
     else if (cat === "informational") cat = "info";
-    else if (cat === "important" || cat === "urgent" || category === "CRITICAL" || category === "IMPORTANT" || category === "URGENT") cat = "critical";
+    else if (
+      cat === "important" ||
+      cat === "urgent" ||
+      category === "CRITICAL" ||
+      category === "IMPORTANT" ||
+      category === "URGENT"
+    )
+      cat = "critical";
     else cat = "critical";
   }
 
-  const categoryTier: EventCategory = cat === "noise" ? "NOISE" : cat === "info" ? "INFO" : "CRITICAL";
+  const categoryTier: EventCategory =
+    cat === "noise" ? "NOISE" : cat === "info" ? "INFO" : "CRITICAL";
   const categoriesMap = await loadCategoriesMap();
 
   if (!(normalized in categoriesMap)) {
@@ -180,7 +209,11 @@ export async function seedEventTypeFromLLM(
     const label = normalized.replace(/_/g, " ");
     await getCore().upsertEventType(normalized, label, cat, true);
   } catch (e) {
-    console.warn("[events] Failed to persist event type in DB:", normalized, (e as Error)?.message ?? e);
+    console.warn(
+      "[events] Failed to persist event type in DB:",
+      normalized,
+      (e as Error)?.message ?? e
+    );
   }
 
   const map = await loadUserMap();
@@ -198,7 +231,8 @@ async function buildEmailEvent(
   classification: ClassificationLike,
   email: EmailLike
 ): Promise<{ event: EmailEvent; commands: Action[] }> {
-  const category = classification.categoryTier ?? (await getCategoryForEventType(classification.action));
+  const category =
+    classification.categoryTier ?? (await getCategoryForEventType(classification.action));
   const event: EmailEvent = {
     type: classification.action,
     source: "gmail",
@@ -206,7 +240,8 @@ async function buildEmailEvent(
       subject: email.subject,
       from: email.from != null ? String(email.from) : undefined,
       date: email.date != null ? String(email.date) : undefined,
-      snippet: email.snippet || (typeof email.body === "string" ? email.body.slice(0, 200) : "") || "",
+      snippet:
+        email.snippet || (typeof email.body === "string" ? email.body.slice(0, 200) : "") || "",
     },
     metadata: {
       reason: classification.reason,
@@ -223,7 +258,12 @@ async function buildEmailEvent(
 
 export async function buildBatchEventMessage(
   results: Array<{ success: boolean; classification?: ClassificationLike; email?: EmailLike }>
-): Promise<{ role: string; type: string; items: Array<{ event: EmailEvent; commands: Action[] }>; content: string }> {
+): Promise<{
+  role: string;
+  type: string;
+  items: Array<{ event: EmailEvent; commands: Action[] }>;
+  content: string;
+}> {
   const items = await Promise.all(
     results
       .filter((r) => r.success && r.classification && r.email)
@@ -255,7 +295,12 @@ interface CategoryEmail {
 export async function buildEventsByCategoryMessage(byCategory: ByCategory): Promise<{
   role: string;
   type: string;
-  categories: Array<{ eventType: string; category: EventCategory; emails: CategoryEmail[]; commands: Action[] }>;
+  categories: Array<{
+    eventType: string;
+    category: EventCategory;
+    emails: CategoryEmail[];
+    commands: Action[];
+  }>;
   total: number;
   content: string;
 }> {

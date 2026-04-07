@@ -34,31 +34,33 @@
 
       <div class="tabs">
         <button
-          class="tab" class:active={activeTab === "system"}
-          onclick={() => activeTab = "system"}
-        >System Prompt</button>
+          class="tab"
+          class:active={activeTab === "system"}
+          onclick={() => (activeTab = "system")}>System Prompt</button
+        >
         <button
-          class="tab" class:active={activeTab === "email"}
-          onclick={() => activeTab = "email"}
-        >Email Template</button>
+          class="tab"
+          class:active={activeTab === "email"}
+          onclick={() => (activeTab = "email")}>Email Template</button
+        >
         <button
-          class="tab" class:active={activeTab === "config"}
-          onclick={() => activeTab = "config"}
-        >Generation Config</button>
+          class="tab"
+          class:active={activeTab === "config"}
+          onclick={() => (activeTab = "config")}>Generation Config</button
+        >
       </div>
 
       <div class="modal-body">
         {#if activeTab === "system"}
           <div class="section-desc">
-            This is the system prompt sent to the LLM before each email. It instructs the model
-            on how to classify emails and what JSON format to produce.
+            This is the system prompt sent to the LLM before each email. It instructs the model on
+            how to classify emails and what JSON format to produce.
           </div>
           <pre class="code-block">{getSystemPrompt()}</pre>
-
         {:else if activeTab === "email"}
           <div class="section-desc">
-            Each email is formatted into this template and sent as the user message.
-            The full email body is included.
+            Each email is formatted into this template and sent as the user message. The full email
+            body is included.
           </div>
           <div class="template-format">
             <div class="format-label">Format:</div>
@@ -80,22 +82,27 @@ Labels: {"{email.labels}"}
               No emails scanned yet. Run a scan to see a real example here.
             </div>
           {/if}
-
         {:else if activeTab === "config"}
           <div class="section-desc">
-            These generation parameters control how the LLM produces its output
-            for email classification.
+            These generation parameters control how the LLM produces its output for email
+            classification.
           </div>
           <div class="config-grid">
             <div class="config-row">
               <span class="config-key">max_new_tokens</span>
               <span class="config-val">{CLASSIFICATION_CONFIG.maxTokens}</span>
-              <span class="config-desc">Maximum tokens in the response (classification needs ~150)</span>
+              <span class="config-desc"
+                >Maximum tokens in the response (classification needs ~150)</span
+              >
             </div>
             <div class="config-row">
               <span class="config-key">enable_thinking</span>
-              <span class="config-val">{CLASSIFICATION_CONFIG.enableThinking ? "true" : "false"}</span>
-              <span class="config-desc">Thinking mode disabled — structured JSON doesn't need reasoning</span>
+              <span class="config-val"
+                >{CLASSIFICATION_CONFIG.enableThinking ? "true" : "false"}</span
+              >
+              <span class="config-desc"
+                >Thinking mode disabled — structured JSON doesn't need reasoning</span
+              >
             </div>
             <div class="config-row">
               <span class="config-key">do_sample</span>
@@ -165,7 +172,9 @@ Labels: {"{email.labels}"}
     cursor: pointer;
     padding: 0.2rem 0.4rem;
     border-radius: 4px;
-    transition: color 0.15s, background 0.15s;
+    transition:
+      color 0.15s,
+      background 0.15s;
   }
   .close-btn:hover {
     color: #ccc;
@@ -188,9 +197,13 @@ Labels: {"{email.labels}"}
     font-size: 0.78rem;
     font-weight: 500;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition:
+      color 0.15s,
+      border-color 0.15s;
   }
-  .tab:hover { color: #aaa; }
+  .tab:hover {
+    color: #aaa;
+  }
   .tab.active {
     color: #3b82f6;
     border-bottom-color: #3b82f6;
@@ -223,8 +236,12 @@ Labels: {"{email.labels}"}
     overflow-x: auto;
   }
 
-  .code-block.template { color: #7dd3fc; }
-  .code-block.sample { color: #a5b4fc; }
+  .code-block.template {
+    color: #7dd3fc;
+  }
+  .code-block.sample {
+    color: #a5b4fc;
+  }
 
   .template-format {
     margin-bottom: 0.75rem;

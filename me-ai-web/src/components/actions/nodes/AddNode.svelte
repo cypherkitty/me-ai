@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Handle, Position } from '@xyflow/svelte';
+  import { Handle, Position } from "@xyflow/svelte";
 
   interface AddNodeData {
     onClick?: () => void;

@@ -9,7 +9,12 @@ import { getCore } from "./store/core-store.js";
 import type { OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "./core.js";
 
 // Re-export types from core for backwards compatibility
-export type { OllamaConnectionResult, OllamaChatMessage, StreamOllamaOptions, OllamaTokenData } from "./core.js";
+export type {
+  OllamaConnectionResult,
+  OllamaChatMessage,
+  StreamOllamaOptions,
+  OllamaTokenData,
+} from "./core.js";
 
 const LOCAL_OLLAMA_URL = "http://localhost:11434";
 const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
@@ -17,10 +22,7 @@ const REMOTE_OLLAMA_URL = "https://me-ai.metaelon.space";
 function getDefaultOllamaUrl(): string {
   try {
     const hostname = window.location.hostname;
-    const isLocal =
-      hostname === "localhost" ||
-      hostname === "127.0.0.1" ||
-      hostname === "0.0.0.0";
+    const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0";
     return isLocal ? LOCAL_OLLAMA_URL : REMOTE_OLLAMA_URL;
   } catch {
     return LOCAL_OLLAMA_URL;
@@ -54,7 +56,6 @@ export async function listOllamaModels(
 ): Promise<import("./core.js").OllamaModelTag[]> {
   return getCore().listOllamaModels(url);
 }
-
 
 export async function streamOllamaChat(
   modelName: string,
@@ -123,7 +124,9 @@ export async function streamOllamaChat(
             });
             break;
           }
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
     }
   } finally {

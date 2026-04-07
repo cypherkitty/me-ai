@@ -2,9 +2,7 @@
   import { getCore } from "../../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { nukeAllLocalData, wipeAllData } from "../../lib/store/db.js";
-  import {
-    getStorageStats,
-    clearAllDataAndCheckpoint} from "../../lib/core.js";
+  import { getStorageStats, clearAllDataAndCheckpoint } from "../../lib/core.js";
   import {
     clearClassifications,
     clearClassificationsByAction,
@@ -39,14 +37,22 @@
     loading = true;
     try {
       const [emailCount, classCount, contactCount] = await Promise.all([
-        getCore().getItemsCountGmail().then((n) => Number(n ?? 0)),
-        getCore().getEmailClassificationsCount().then((n) => Number(n ?? 0)),
-        getCore().getContactsCount().then((n) => Number(n ?? 0)),
+        getCore()
+          .getItemsCountGmail()
+          .then((n) => Number(n ?? 0)),
+        getCore()
+          .getEmailClassificationsCount()
+          .then((n) => Number(n ?? 0)),
+        getCore()
+          .getContactsCount()
+          .then((n) => Number(n ?? 0)),
       ]);
       let idbBytes = 0;
       try {
         idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       idb = {
         emailCount,
         classCount,
@@ -96,16 +102,11 @@
 
 <div class="flex flex-col h-full overflow-hidden">
   <!-- Header -->
-  <div
-    class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border"
-  >
+  <div class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border">
     <div>
       <div class="flex items-center gap-2 mb-0.5">
-        <h1 class="text-sm font-semibold tracking-tight text-foreground">
-          Data Management
-        </h1>
-        <span
-          class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
+        <h1 class="text-sm font-semibold tracking-tight text-foreground">Data Management</h1>
+        <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
           >/ storage</span
         >
       </div>
@@ -126,12 +127,8 @@
 
   <ScrollArea class="flex-1 min-h-0 px-8 py-6">
     {#if loading}
-      <div
-        class="flex items-center justify-center py-16 text-muted-foreground gap-3"
-      >
-        <div
-          class="size-4 rounded-full border-2 border-border border-t-primary animate-spin"
-        ></div>
+      <div class="flex items-center justify-center py-16 text-muted-foreground gap-3">
+        <div class="size-4 rounded-full border-2 border-border border-t-primary animate-spin"></div>
         <span class="text-xs">Loading…</span>
       </div>
     {:else}
@@ -139,16 +136,13 @@
         <!-- ── IndexedDB ───────────────────────────────────────────────── -->
         <section class="flex flex-col gap-4">
           <div class="flex items-center gap-2">
-            <h2 class="text-xs font-semibold tracking-tight text-foreground">
-              IndexedDB
-            </h2>
+            <h2 class="text-xs font-semibold tracking-tight text-foreground">IndexedDB</h2>
             <span
               class="text-[0.6rem] font-mono text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded"
               >me-ai</span
             >
             {#if storage && !storage.supported}
-              <span
-                class="text-[0.6rem] text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded"
+              <span class="text-[0.6rem] text-amber-500/70 bg-amber-500/10 px-1.5 py-0.5 rounded"
                 >Storage API unavailable</span
               >
             {/if}
@@ -163,8 +157,7 @@
                 <span class="text-sm font-bold tabular-nums text-foreground"
                   >{fmt(storage.usageBytes)}</span
                 >
-                <span
-                  class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/50 mt-0.5"
+                <span class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/50 mt-0.5"
                   >Storage used</span
                 >
               </div>
@@ -185,7 +178,7 @@
 
             <!-- Storage actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog(), ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint(), ) }] as item (item.key)}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog() ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint() ) }] as item (item.key)}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -193,8 +186,7 @@
                     <span>Delete {item.label.toLowerCase()}?</span>
                     <button
                       onclick={() => (confirm = null)}
-                      class="hover:text-foreground underline transition-colors"
-                      >Cancel</button
+                      class="hover:text-foreground underline transition-colors">Cancel</button
                     >
                     <button
                       onclick={item.action}
@@ -209,12 +201,8 @@
                     disabled={busy}
                     class="flex flex-col items-start gap-0.5 px-3 py-2 rounded border border-transparent hover:bg-muted/20 hover:border-border/40 disabled:opacity-40 transition-colors w-full text-left"
                   >
-                    <span class="text-xs text-foreground/80 font-medium"
-                      >{item.label}</span
-                    >
-                    <span class="text-[0.65rem] text-muted-foreground/40"
-                      >{item.desc}</span
-                    >
+                    <span class="text-xs text-foreground/80 font-medium">{item.label}</span>
+                    <span class="text-[0.65rem] text-muted-foreground/40">{item.desc}</span>
                   </button>
                 {/if}
               {/each}
@@ -227,9 +215,7 @@
         <!-- ── Cached data ────────────────────────────────────────────── -->
         <section class="flex flex-col gap-4">
           <div class="flex items-center gap-2">
-            <h2 class="text-xs font-semibold tracking-tight text-foreground">
-              Cached data
-            </h2>
+            <h2 class="text-xs font-semibold tracking-tight text-foreground">Cached data</h2>
             <span
               class="text-[0.6rem] text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded font-mono"
               >emails · classifications · contacts</span
@@ -242,9 +228,7 @@
                 <div
                   class="flex flex-col items-center px-3 py-2.5 rounded border bg-card border-border/50"
                 >
-                  <span class="text-sm font-bold tabular-nums text-foreground"
-                    >{stat.val}</span
-                  >
+                  <span class="text-sm font-bold tabular-nums text-foreground">{stat.val}</span>
                   <span
                     class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/50 mt-0.5 text-center"
                     >{stat.label}</span
@@ -254,8 +238,8 @@
             </div>
             {#if idb.idbBytes > 0}
               <p class="text-[0.65rem] text-muted-foreground/40">
-                Origin storage (IndexedDB + browser caches): <span
-                  class="font-mono">{fmt(idb.idbBytes)}</span
+                Origin storage (IndexedDB + browser caches): <span class="font-mono"
+                  >{fmt(idb.idbBytes)}</span
                 >
               </p>
             {/if}
@@ -277,12 +261,10 @@
                       Delete {label(action)}?
                       <button
                         onclick={() => (confirm = null)}
-                        class="hover:text-foreground underline transition-colors"
-                        >No</button
+                        class="hover:text-foreground underline transition-colors">No</button
                       >
                       <button
-                        onclick={() =>
-                          run(() => clearClassificationsByAction(action))}
+                        onclick={() => run(() => clearClassificationsByAction(action))}
                         disabled={busy}
                         class="text-destructive hover:text-destructive/80 underline disabled:opacity-40 transition-colors"
                         >Yes</button
@@ -304,11 +286,13 @@
 
           <!-- Bulk actions -->
           <div class="flex flex-col gap-1">
-            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications(), ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from IndexedDB (Rexie), then reloads.", action: () => {
+            {#each [{ key: "classifications", label: "Clear all classifications", desc: "Remove all LLM scan results. Emails stay.", action: () => run( () => clearClassifications() ) }, { key: "emails", label: "Clear all email data", desc: "Wipes emails from IndexedDB (Rexie), then reloads.", action: () => {
                     confirm = null;
                     busy = true;
                     wipeAllData();
-                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => { await getCore().clearContacts(); }, ) }] as item (item.key)}
+                  } }, { key: "contacts", label: "Clear contacts", desc: "Remove extracted contacts from the database.", action: () => run( async () => {
+                        await getCore().clearContacts();
+                      } ) }] as item (item.key)}
               {#if confirm === item.key}
                 <div
                   class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -316,8 +300,7 @@
                   <span>Delete {item.label.toLowerCase()}?</span>
                   <button
                     onclick={() => (confirm = null)}
-                    class="hover:text-foreground underline transition-colors"
-                    >Cancel</button
+                    class="hover:text-foreground underline transition-colors">Cancel</button
                   >
                   <button
                     onclick={item.action}
@@ -332,12 +315,8 @@
                   disabled={busy}
                   class="flex flex-col items-start gap-0.5 px-3 py-2 rounded border border-transparent hover:bg-muted/20 hover:border-border/40 disabled:opacity-40 transition-colors w-full text-left"
                 >
-                  <span class="text-xs text-foreground/80 font-medium"
-                    >{item.label}</span
-                  >
-                  <span class="text-[0.65rem] text-muted-foreground/40"
-                    >{item.desc}</span
-                  >
+                  <span class="text-xs text-foreground/80 font-medium">{item.label}</span>
+                  <span class="text-[0.65rem] text-muted-foreground/40">{item.desc}</span>
                 </button>
               {/if}
             {/each}
@@ -360,18 +339,14 @@
               class="flex items-start flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/40 bg-destructive/8 text-[0.7rem] text-muted-foreground/60"
             >
               <span class="flex-1">
-                <strong class="text-destructive/80 font-semibold"
-                  >This cannot be undone.</strong
-                >
-                Deletes IndexedDB and caches, all cached
-                model weights (Cache API), and localStorage. The page will reload
-                fresh.
+                <strong class="text-destructive/80 font-semibold">This cannot be undone.</strong>
+                Deletes IndexedDB and caches, all cached model weights (Cache API), and localStorage.
+                The page will reload fresh.
               </span>
               <div class="flex items-center gap-3 shrink-0">
                 <button
                   onclick={() => (confirm = null)}
-                  class="hover:text-foreground underline transition-colors"
-                  >Cancel</button
+                  class="hover:text-foreground underline transition-colors">Cancel</button
                 >
                 <button
                   onclick={async () => {
@@ -384,10 +359,7 @@
                     } catch (e) {
                       busy = false;
                       console.error(e);
-                      alert(
-                        "Error wiping data: " +
-                          (e instanceof Error ? e.message : String(e)),
-                      );
+                      alert("Error wiping data: " + (e instanceof Error ? e.message : String(e)));
                     }
                   }}
                   disabled={busy}
@@ -402,9 +374,7 @@
               disabled={busy}
               class="flex flex-col items-start gap-0.5 px-3 py-2 rounded border border-destructive/20 hover:bg-destructive/8 hover:border-destructive/40 disabled:opacity-40 transition-colors w-full text-left"
             >
-              <span class="text-xs text-destructive/80 font-semibold"
-                >Wipe everything</span
-              >
+              <span class="text-xs text-destructive/80 font-semibold">Wipe everything</span>
               <span class="text-[0.65rem] text-muted-foreground/40"
                 >IndexedDB · model cache · localStorage — full reset.</span
               >

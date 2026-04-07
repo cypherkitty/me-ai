@@ -8,8 +8,7 @@ import type { ParsedError } from "./core.js";
  * Accepts both Error objects (preferred) and plain strings.
  */
 export function parseError(rawError: Error | string | null | undefined): ParsedError {
-  const err =
-    typeof rawError === "object" && rawError !== null ? rawError : null;
+  const err = typeof rawError === "object" && rawError !== null ? rawError : null;
   const msg = (err as Error)?.message || String(rawError || "");
   const status = err instanceof GmailApiError ? err.status : 0;
 

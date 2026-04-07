@@ -8,7 +8,11 @@
     architecture?: string;
     device?: string;
     features?: string[];
-    limits?: { maxBufferSize?: number; maxComputeInvocationsPerWorkgroup?: number; maxComputeWorkgroupStorageSize?: number };
+    limits?: {
+      maxBufferSize?: number;
+      maxComputeInvocationsPerWorkgroup?: number;
+      maxComputeWorkgroupStorageSize?: number;
+    };
   }
   interface Props {
     gpuInfo: GpuInfo;
@@ -18,13 +22,26 @@
   onMount(() => mountLog("GpuPanel"));
 
   const rows = $derived([
-    { label: "Status",       value: "Active",              ok: true },
-    { label: "Vendor",       value: gpuInfo.vendor },
+    { label: "Status", value: "Active", ok: true },
+    { label: "Vendor", value: gpuInfo.vendor },
     { label: "Architecture", value: gpuInfo.architecture },
-    ...(gpuInfo.device && gpuInfo.device !== "unknown" ? [{ label: "Device", value: gpuInfo.device }] : []),
-    ...(gpuInfo.limits?.maxBufferSize ? [{ label: "Max Buffer", value: formatBytes(gpuInfo.limits.maxBufferSize) }] : []),
-    ...(gpuInfo.limits?.maxComputeInvocationsPerWorkgroup ? [{ label: "Max Compute", value: String(gpuInfo.limits.maxComputeInvocationsPerWorkgroup) }] : []),
-    ...(gpuInfo.limits?.maxComputeWorkgroupStorageSize ? [{ label: "Workgroup Storage", value: formatBytes(gpuInfo.limits.maxComputeWorkgroupStorageSize) }] : []),
+    ...(gpuInfo.device && gpuInfo.device !== "unknown"
+      ? [{ label: "Device", value: gpuInfo.device }]
+      : []),
+    ...(gpuInfo.limits?.maxBufferSize
+      ? [{ label: "Max Buffer", value: formatBytes(gpuInfo.limits.maxBufferSize) }]
+      : []),
+    ...(gpuInfo.limits?.maxComputeInvocationsPerWorkgroup
+      ? [{ label: "Max Compute", value: String(gpuInfo.limits.maxComputeInvocationsPerWorkgroup) }]
+      : []),
+    ...(gpuInfo.limits?.maxComputeWorkgroupStorageSize
+      ? [
+          {
+            label: "Workgroup Storage",
+            value: formatBytes(gpuInfo.limits.maxComputeWorkgroupStorageSize),
+          },
+        ]
+      : []),
   ]);
 </script>
 
@@ -32,8 +49,14 @@
   <div class="grid grid-cols-2 gap-x-6 gap-y-2">
     {#each rows as row (row.label)}
       <div class="flex flex-col gap-px">
-        <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">{row.label}</span>
-        <span class={row.ok ? "text-[0.78rem] font-semibold text-success" : "text-[0.78rem] text-foreground/75 tracking-tight"}>
+        <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+          >{row.label}</span
+        >
+        <span
+          class={row.ok
+            ? "text-[0.78rem] font-semibold text-success"
+            : "text-[0.78rem] text-foreground/75 tracking-tight"}
+        >
           {row.value}
         </span>
       </div>
@@ -46,7 +69,9 @@
         </span>
         <div class="flex flex-wrap gap-1">
           {#each gpuInfo.features as feat (feat)}
-            <span class="text-[0.58rem] font-mono text-muted-foreground/60 bg-muted border border-border px-1.5 py-0.5 rounded">
+            <span
+              class="text-[0.58rem] font-mono text-muted-foreground/60 bg-muted border border-border px-1.5 py-0.5 rounded"
+            >
               {feat}
             </span>
           {/each}
@@ -58,7 +83,13 @@
 
 <style>
   @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style>

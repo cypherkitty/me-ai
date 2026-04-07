@@ -41,12 +41,20 @@
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
 
   const BACKEND_LABELS: Record<string, string> = {
-    webgpu: "WebGPU", ollama: "Ollama", openai: "OpenAI",
-    anthropic: "Claude", google: "Gemini", xai: "Grok",
+    webgpu: "WebGPU",
+    ollama: "Ollama",
+    openai: "OpenAI",
+    anthropic: "Claude",
+    google: "Gemini",
+    xai: "Grok",
   };
   const BACKEND_COLORS: Record<string, string> = {
-    webgpu: "#4ade80", ollama: "#a78bfa", openai: "#10b981",
-    anthropic: "#f59e0b", google: "#3b82f6", xai: "#e8e8e8",
+    webgpu: "#4ade80",
+    ollama: "#a78bfa",
+    openai: "#10b981",
+    anthropic: "#f59e0b",
+    google: "#3b82f6",
+    xai: "#e8e8e8",
   };
 
   let modelLabel = $derived(backend ? (BACKEND_LABELS[backend] ?? backend) : "AI");
@@ -82,7 +90,7 @@
   let thinkingContentEl = $state<HTMLPreElement | null>(null);
   let elapsedThinkingMs = $state(0);
   let isActivelyThinking = $derived(
-    isStreaming && generationPhase === "thinking" && !!msg.thinking,
+    isStreaming && generationPhase === "thinking" && !!msg.thinking
   );
   let thinkingDurationMs = $derived.by(() => {
     if (typeof msg.thinkingDurationMs === "number") return msg.thinkingDurationMs;
@@ -125,15 +133,12 @@
 
   $effect(() => {
     if (!isActivelyThinking) {
-      elapsedThinkingMs =
-        typeof msg.thinkingDurationMs === "number" ? msg.thinkingDurationMs : 0;
+      elapsedThinkingMs = typeof msg.thinkingDurationMs === "number" ? msg.thinkingDurationMs : 0;
       return;
     }
 
     const startedAt =
-      typeof msg.thinkingStartedAt === "number"
-        ? msg.thinkingStartedAt
-        : Date.now();
+      typeof msg.thinkingStartedAt === "number" ? msg.thinkingStartedAt : Date.now();
     const updateElapsed = () => {
       elapsedThinkingMs = Math.max(0, Date.now() - startedAt);
     };
@@ -145,12 +150,13 @@
 
 {#if msg.role === "user"}
   <div class="flex justify-end py-0.5">
-    <div class="max-w-[72%] bg-primary text-primary-foreground px-4 py-2 text-sm leading-relaxed word-break-words whitespace-pre-wrap tracking-tight"
-         style="border-radius: 18px 18px 4px 18px">
+    <div
+      class="max-w-[72%] bg-primary text-primary-foreground px-4 py-2 text-sm leading-relaxed word-break-words whitespace-pre-wrap tracking-tight"
+      style="border-radius: 18px 18px 4px 18px"
+    >
       {msg.content}
     </div>
   </div>
-
 {:else}
   <div class="flex flex-col gap-1.5 py-2.5 pb-3 border-b border-border last:border-b-0">
     <!-- Model label row -->
@@ -171,7 +177,9 @@
       {#if isStreaming && generationPhase === "thinking"}
         <span class="inline-flex items-center gap-1.5 text-xs text-primary/60 italic">
           <span class="size-1.5 rounded-full bg-primary animate-pulse"></span>
-          Thinking…{#if numTokens}<span class="text-[0.62rem] tabular-nums not-italic opacity-60 ml-0.5">{numTokens} tok</span>{/if}
+          Thinking…{#if numTokens}<span
+              class="text-[0.62rem] tabular-nums not-italic opacity-60 ml-0.5">{numTokens} tok</span
+            >{/if}
         </span>
       {:else if isStreaming && generationPhase === "preparing"}
         <span class="inline-flex items-center gap-1.5 text-xs text-muted-foreground/40 italic">
@@ -195,15 +203,21 @@
             showThinking && "rounded-b-none"
           )}
         >
-          <ChevronRight class={cn("size-3 shrink-0 transition-transform", showThinking && "rotate-90")} />
+          <ChevronRight
+            class={cn("size-3 shrink-0 transition-transform", showThinking && "rotate-90")}
+          />
           {isActivelyThinking ? "Live reasoning" : "Internal reasoning"}
-          <span class="text-[0.58rem] opacity-50 ml-0.5">{String(msg.thinking).split(/\s+/).filter(Boolean).length} words</span>
+          <span class="text-[0.58rem] opacity-50 ml-0.5"
+            >{String(msg.thinking).split(/\s+/).filter(Boolean).length} words</span
+          >
           {#if thinkingDurationLabel}
             <span class="text-[0.58rem] opacity-50 tabular-nums">{thinkingDurationLabel}</span>
           {/if}
         </Collapsible.Trigger>
         <Collapsible.Content>
-          <pre bind:this={thinkingContentEl} class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
+          <pre
+            bind:this={thinkingContentEl}
+            class="text-[0.73rem] text-muted-foreground leading-relaxed px-3 py-2 rounded rounded-t-none border border-t-0 border-primary/15 bg-primary/[0.03] border-l-2 border-l-primary/15 max-h-[280px] overflow-y-auto whitespace-pre-wrap break-words font-[inherit] m-0">{msg.thinking}</pre>
         </Collapsible.Content>
       </Collapsible.Root>
     {/if}
@@ -212,15 +226,25 @@
     <div class="min-h-[1.2em]">
       {#if isStreaming && !msg.content && generationPhase !== "thinking"}
         <div class="flex gap-1 py-1.5">
-          <span class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_infinite]"></span>
-          <span class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_0.18s_infinite]"></span>
-          <span class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_0.36s_infinite]"></span>
+          <span
+            class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_infinite]"
+          ></span>
+          <span
+            class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_0.18s_infinite]"
+          ></span>
+          <span
+            class="size-1.5 rounded-full bg-muted-foreground/30 animate-[dotBounce_1.2s_ease-in-out_0.36s_infinite]"
+          ></span>
         </div>
       {:else if html}
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-        <div class="md-body">{@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
+        <div class="md-body">
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          {@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}
+        </div>
       {:else if msg.content}
-        <div class="md-body plain">{msg.content}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
+        <div class="md-body plain">
+          {msg.content}{#if isStreaming}<span class="cursor">▋</span>{/if}
+        </div>
       {/if}
     </div>
   </div>
@@ -228,8 +252,16 @@
 
 <style>
   @keyframes dotBounce {
-    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-    40% { opacity: 1; transform: scale(1.15); }
+    0%,
+    80%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
   }
 
   /* Cursor blink */
@@ -241,7 +273,11 @@
     line-height: 1;
     margin-left: 1px;
   }
-  @keyframes blinkCursor { 50% { opacity: 0; } }
+  @keyframes blinkCursor {
+    50% {
+      opacity: 0;
+    }
+  }
 
   /* Markdown body — structural styles can't be done with Tailwind since content is @html */
   .md-body {
@@ -251,24 +287,50 @@
     word-break: break-word;
     opacity: 0.88;
   }
-  .md-body.plain { white-space: pre-wrap; }
+  .md-body.plain {
+    white-space: pre-wrap;
+  }
 
-  .md-body :global(p) { margin: 0 0 0.7em; }
-  .md-body :global(p:last-child) { margin-bottom: 0; }
-  .md-body :global(h1), .md-body :global(h2), .md-body :global(h3),
-  .md-body :global(h4), .md-body :global(h5), .md-body :global(h6) {
+  .md-body :global(p) {
+    margin: 0 0 0.7em;
+  }
+  .md-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .md-body :global(h1),
+  .md-body :global(h2),
+  .md-body :global(h3),
+  .md-body :global(h4),
+  .md-body :global(h5),
+  .md-body :global(h6) {
     font-weight: 600;
     line-height: 1.3;
     margin: 1em 0 0.4em;
     color: var(--color-foreground);
     letter-spacing: -0.02em;
   }
-  .md-body :global(h1) { font-size: 1.2em; }
-  .md-body :global(h2) { font-size: 1.08em; }
-  .md-body :global(h3) { font-size: 0.97em; }
-  .md-body :global(h1:first-child), .md-body :global(h2:first-child), .md-body :global(h3:first-child) { margin-top: 0; }
-  .md-body :global(ul), .md-body :global(ol) { margin: 0.4em 0 0.7em; padding-left: 1.4em; }
-  .md-body :global(li) { margin: 0.2em 0; }
+  .md-body :global(h1) {
+    font-size: 1.2em;
+  }
+  .md-body :global(h2) {
+    font-size: 1.08em;
+  }
+  .md-body :global(h3) {
+    font-size: 0.97em;
+  }
+  .md-body :global(h1:first-child),
+  .md-body :global(h2:first-child),
+  .md-body :global(h3:first-child) {
+    margin-top: 0;
+  }
+  .md-body :global(ul),
+  .md-body :global(ol) {
+    margin: 0.4em 0 0.7em;
+    padding-left: 1.4em;
+  }
+  .md-body :global(li) {
+    margin: 0.2em 0;
+  }
   .md-body :global(code) {
     font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
     font-size: 0.84em;
@@ -285,18 +347,52 @@
     overflow-x: auto;
     margin: 0.6em 0;
   }
-  .md-body :global(pre code) { background: none; border: none; padding: 0; font-size: 0.83em; }
+  .md-body :global(pre code) {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.83em;
+  }
   .md-body :global(blockquote) {
     border-left: 2px solid var(--color-border);
     margin: 0.5em 0;
     padding: 0.3em 0.8em;
     color: var(--color-muted-foreground);
   }
-  .md-body :global(hr) { border: none; border-top: 1px solid var(--color-border); margin: 0.8em 0; }
-  .md-body :global(a) { color: var(--color-primary); text-decoration: none; opacity: 0.9; }
-  .md-body :global(a:hover) { text-decoration: underline; opacity: 1; }
-  .md-body :global(strong) { font-weight: 600; color: var(--color-foreground); opacity: 1; }
-  .md-body :global(table) { border-collapse: collapse; width: 100%; font-size: 0.85em; margin: 0.6em 0; }
-  .md-body :global(th), .md-body :global(td) { border: 1px solid var(--color-border); padding: 0.35em 0.65em; text-align: left; }
-  .md-body :global(th) { background: var(--color-muted); font-weight: 600; color: var(--color-foreground); }
+  .md-body :global(hr) {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 0.8em 0;
+  }
+  .md-body :global(a) {
+    color: var(--color-primary);
+    text-decoration: none;
+    opacity: 0.9;
+  }
+  .md-body :global(a:hover) {
+    text-decoration: underline;
+    opacity: 1;
+  }
+  .md-body :global(strong) {
+    font-weight: 600;
+    color: var(--color-foreground);
+    opacity: 1;
+  }
+  .md-body :global(table) {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85em;
+    margin: 0.6em 0;
+  }
+  .md-body :global(th),
+  .md-body :global(td) {
+    border: 1px solid var(--color-border);
+    padding: 0.35em 0.65em;
+    text-align: left;
+  }
+  .md-body :global(th) {
+    background: var(--color-muted);
+    font-weight: 600;
+    color: var(--color-foreground);
+  }
 </style>

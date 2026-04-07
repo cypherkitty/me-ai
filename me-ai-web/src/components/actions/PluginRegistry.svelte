@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getCore } from "../../lib/store/core-store.js";
-  
+
   import { SvelteSet } from "svelte/reactivity";
 
   interface Props {
@@ -83,7 +83,6 @@
     onkeydown={(e) => e.key === "Escape" && (open = false)}
   >
     <div class="panel">
-
       <!-- Header -->
       <div class="panel-header">
         <div class="header-left">
@@ -95,7 +94,7 @@
             </span>
           </div>
         </div>
-        <button class="close-btn" onclick={() => open = false}>✕</button>
+        <button class="close-btn" onclick={() => (open = false)}>✕</button>
       </div>
 
       <!-- Body -->
@@ -131,10 +130,7 @@
                     <span class="action-desc">{action.description}</span>
                     {#if action.scopes.length}
                       <div class="scopes-row">
-                        <button
-                          class="scopes-toggle"
-                          onclick={() => toggleScopes(scopeKey)}
-                        >
+                        <button class="scopes-toggle" onclick={() => toggleScopes(scopeKey)}>
                           {#if scopesOpen}▾{:else}▸{/if}
                           {action.scopes.length} scope{action.scopes.length === 1 ? "" : "s"}
                         </button>
@@ -153,7 +149,6 @@
                 </div>
               {/each}
             </div>
-
           </div>
         {/each}
 
@@ -167,7 +162,7 @@
         <span class="footer-note">
           Add plugins by extending <code>me-ai-core/src/plugins</code>
         </span>
-        <button class="close-footer-btn" onclick={() => open = false}>Close</button>
+        <button class="close-footer-btn" onclick={() => (open = false)}>Close</button>
       </div>
     </div>
   </div>
@@ -236,7 +231,10 @@
     transition: all 0.12s;
     font-family: inherit;
   }
-  .close-btn:hover { color: #ccc; background: rgba(255,255,255,0.05); }
+  .close-btn:hover {
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
+  }
 
   /* ── Body ───────────────────────────────────────────────────────── */
   .panel-body {
@@ -273,11 +271,11 @@
   .plugin-id {
     font-size: 0.62rem;
     color: #3b82f6;
-    background: rgba(59,130,246,0.1);
-    border: 1px solid rgba(59,130,246,0.2);
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
     border-radius: 4px;
     padding: 0.05rem 0.35rem;
-    font-family: 'Courier New', monospace;
+    font-family: "Courier New", monospace;
   }
   .plugin-status {
     font-size: 0.6rem;
@@ -303,8 +301,12 @@
     border-bottom: 1px solid #181818;
     transition: background 0.12s;
   }
-  .action-row:last-child { border-bottom: none; }
-  .action-row:hover { background: rgba(255,255,255,0.02); }
+  .action-row:last-child {
+    border-bottom: none;
+  }
+  .action-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
 
   .action-icon {
     width: 28px;
@@ -346,7 +348,7 @@
     border: 1px solid #2a2a2a;
     border-radius: 3px;
     padding: 0.05rem 0.3rem;
-    font-family: 'Courier New', monospace;
+    font-family: "Courier New", monospace;
   }
   .action-desc {
     font-size: 0.65rem;
@@ -372,7 +374,9 @@
     text-align: left;
     transition: color 0.12s;
   }
-  .scopes-toggle:hover { color: #777; }
+  .scopes-toggle:hover {
+    color: #777;
+  }
   .scopes-list {
     display: flex;
     flex-wrap: wrap;
@@ -380,10 +384,10 @@
   }
   .scope-chip {
     font-size: 0.55rem;
-    font-family: 'Courier New', monospace;
+    font-family: "Courier New", monospace;
     color: #888;
-    background: rgba(59,130,246,0.07);
-    border: 1px solid rgba(59,130,246,0.15);
+    background: rgba(59, 130, 246, 0.07);
+    border: 1px solid rgba(59, 130, 246, 0.15);
     border-radius: 3px;
     padding: 0.08rem 0.35rem;
     white-space: nowrap;
@@ -409,7 +413,7 @@
   }
   .footer-note code {
     color: #3b82f6;
-    font-family: 'Courier New', monospace;
+    font-family: "Courier New", monospace;
   }
   .close-footer-btn {
     flex-shrink: 0;
@@ -423,7 +427,11 @@
     cursor: pointer;
     transition: all 0.12s;
   }
-  .close-footer-btn:hover { background: #222; border-color: #444; color: #ddd; }
+  .close-footer-btn:hover {
+    background: #222;
+    border-color: #444;
+    color: #ddd;
+  }
 
   .empty {
     padding: 2rem;

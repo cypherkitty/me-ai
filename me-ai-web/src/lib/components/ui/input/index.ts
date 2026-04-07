@@ -1,5 +1,3 @@
 import Root from "./input.svelte";
 
-export {
-	Root as Input,
-};
+export { Root as Input };

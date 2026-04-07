@@ -2,10 +2,10 @@
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getPendingApprovals, getCategoryPipelines } from "../lib/rules.js";
-  
+
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
-  
+
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -13,15 +13,7 @@
   import { Separator } from "$lib/components/ui/separator/index.js";
   import { cn } from "$lib/utils.js";
   import type { EventCategory } from "$lib/types.js";
-  import {
-    Clock,
-    CheckCircle,
-    XCircle,
-    RefreshCw,
-    Mail,
-    Play,
-    Loader,
-  } from "lucide-svelte";
+  import { Clock, CheckCircle, XCircle, RefreshCw, Mail, Play, Loader } from "lucide-svelte";
 
   interface ApprovalEvent {
     id: string;
@@ -46,7 +38,9 @@
   let events = $state<ApprovalEvent[]>([]);
   let loading = $state(true);
   let selected = $state<ApprovalEvent | null>(null);
-  let execState = $state<Record<string, { running: boolean; steps: ExecStep[]; success?: boolean; error?: string }>>({});
+  let execState = $state<
+    Record<string, { running: boolean; steps: ExecStep[]; success?: boolean; error?: string }>
+  >({});
 
   async function load() {
     loading = true;
@@ -89,12 +83,16 @@
     };
 
     // Use the same category pipeline as Pipelines view (e.g. Important → Star + Mark as Important)
-    const categoryName = String(evt.event_category ?? "").toLowerCase().trim();
+    const categoryName = String(evt.event_category ?? "")
+      .toLowerCase()
+      .trim();
     const pipelines = await getCategoryPipelines();
     const cat = (pipelines as unknown as Array<{ category?: string; actions?: unknown[] }>).find(
       (c) => c.category?.toLowerCase().trim() === categoryName
     );
-    const actionsOverride = cat?.actions?.length ? (cat.actions as { pluginId: string; commandId: string }[]) : undefined;
+    const actionsOverride = cat?.actions?.length
+      ? (cat.actions as { pluginId: string; commandId: string }[])
+      : undefined;
 
     const result = await executePipeline(
       event,
@@ -105,7 +103,11 @@
             ...st,
             steps: (progress.actions ?? []).map((a) => {
               const act = a as { name?: string; commandId?: string };
-              return { label: act.name ?? act.commandId, commandId: act.commandId, status: "pending" as const };
+              return {
+                label: act.name ?? act.commandId,
+                commandId: act.commandId,
+                status: "pending" as const,
+              };
             }),
           };
         } else if (progress.phase === "action_start") {
@@ -114,7 +116,7 @@
             steps: st.steps.map((s) =>
               s.commandId === (progress.actionId ?? progress.commandId)
                 ? { ...s, status: "running" }
-                : s,
+                : s
             ),
           };
         } else if (progress.phase === "action_complete") {
@@ -129,13 +131,13 @@
                     status: ok ? "done" : "error",
                     message: result?.message,
                   }
-                : s,
+                : s
             ),
           };
         }
       },
       true /* approved */,
-      actionsOverride ? { actionsOverride } : undefined,
+      actionsOverride ? { actionsOverride } : undefined
     );
 
     execState[id] = {
@@ -149,7 +151,9 @@
       // Persist the executed status so this email doesn't reappear on refresh
       try {
         await updateClassificationStatus(id, "executed");
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       // Remove from pending list after a short delay so the user sees success
       setTimeout(() => {
         events = events.filter((e) => e.id !== id);
@@ -182,17 +186,11 @@
 
 <div class="flex h-full overflow-hidden">
   <!-- Left: event list -->
-  <div
-    class="w-72 shrink-0 flex flex-col border-r border-border overflow-hidden"
-  >
-    <div
-      class="flex items-center justify-between px-5 pt-4 pb-3 shrink-0 border-b border-border"
-    >
+  <div class="w-72 shrink-0 flex flex-col border-r border-border overflow-hidden">
+    <div class="flex items-center justify-between px-5 pt-4 pb-3 shrink-0 border-b border-border">
       <div>
         <div class="flex items-center gap-2">
-          <h2 class="text-sm font-semibold tracking-tight text-foreground">
-            Action Required
-          </h2>
+          <h2 class="text-sm font-semibold tracking-tight text-foreground">Action Required</h2>
           {#if events.length > 0}
             <span
               class="text-[0.6rem] font-bold tabular-nums px-1.5 py-px rounded bg-warning/15 text-warning"
@@ -200,9 +198,7 @@
             >
           {/if}
         </div>
-        <p class="text-xs text-muted-foreground/60 mt-0.5">
-          Awaiting approval to proceed
-        </p>
+        <p class="text-xs text-muted-foreground/60 mt-0.5">Awaiting approval to proceed</p>
       </div>
       <Button
         variant="ghost"
@@ -216,9 +212,7 @@
 
     <ScrollArea class="flex-1">
       {#if loading}
-        <div
-          class="flex items-center justify-center py-16 text-muted-foreground"
-        >
+        <div class="flex items-center justify-center py-16 text-muted-foreground">
           <div
             class="size-5 rounded-full border-2 border-border border-t-primary animate-spin"
           ></div>
@@ -243,7 +237,7 @@
                 "border-l-2",
                 selected?.id === evt.id
                   ? "bg-accent border-warning/40 border-l-warning"
-                  : "bg-card border-border border-l-warning/30 hover:border-l-warning/70",
+                  : "bg-card border-border border-l-warning/30 hover:border-l-warning/70"
               )}
             >
               <!-- Source + time -->
@@ -262,9 +256,7 @@
               </div>
 
               <!-- Subject -->
-              <p
-                class="text-sm font-semibold text-foreground leading-snug line-clamp-2"
-              >
+              <p class="text-sm font-semibold text-foreground leading-snug line-clamp-2">
                 {evt.subject || evt.content || "(no subject)"}
               </p>
 
@@ -285,13 +277,9 @@
   {#if selected}
     <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
       <!-- Status bar -->
-      <div
-        class="flex items-center gap-3 px-7 py-4 border-b border-border shrink-0 bg-warning/5"
-      >
+      <div class="flex items-center gap-3 px-7 py-4 border-b border-border shrink-0 bg-warning/5">
         <div class="size-2 rounded-full bg-warning animate-pulse"></div>
-        <span class="text-xs font-bold uppercase tracking-widest text-warning"
-          >Action Paused</span
-        >
+        <span class="text-xs font-bold uppercase tracking-widest text-warning">Action Paused</span>
         <span class="text-xs text-muted-foreground ml-auto"
           >{formatTime(selected.timestamp as number | null | undefined)}</span
         >
@@ -301,34 +289,22 @@
         <div class="flex flex-col gap-6 max-w-xl">
           <!-- Event details -->
           <div class="flex flex-col gap-1.5">
-            <p
-              class="text-xs font-bold uppercase tracking-widest text-muted-foreground"
-            >
-              From
-            </p>
+            <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">From</p>
             <p class="text-sm text-foreground">
               {selected.sender || selected.source_name || "Unknown"}
             </p>
           </div>
 
           <div class="flex flex-col gap-1.5">
-            <p
-              class="text-xs font-bold uppercase tracking-widest text-muted-foreground"
-            >
-              Subject
-            </p>
-            <h3
-              class="text-lg font-semibold tracking-tight text-foreground leading-snug"
-            >
+            <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">Subject</p>
+            <h3 class="text-lg font-semibold tracking-tight text-foreground leading-snug">
               {selected.subject || "(no subject)"}
             </h3>
           </div>
 
           {#if selected.content}
             <div class="flex flex-col gap-1.5">
-              <p
-                class="text-xs font-bold uppercase tracking-widest text-muted-foreground"
-              >
+              <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Content
               </p>
               <p class="text-sm text-muted-foreground leading-relaxed">
@@ -340,28 +316,20 @@
           {#if selected.rule_name}
             <Separator />
             <div class="flex flex-col gap-3">
-              <p
-                class="text-xs font-bold uppercase tracking-widest text-muted-foreground"
-              >
+              <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Matched Workflow
               </p>
               <div
                 class="flex items-center gap-2.5 px-4 py-3 rounded bg-muted/40 border border-border"
               >
-                <div
-                  class="size-6 rounded bg-primary/15 flex items-center justify-center shrink-0"
-                >
+                <div class="size-6 rounded bg-primary/15 flex items-center justify-center shrink-0">
                   <Clock class="size-3.5 text-primary" />
                 </div>
                 <div>
-                  <p
-                    class="text-sm font-semibold tracking-tight text-foreground"
-                  >
+                  <p class="text-sm font-semibold tracking-tight text-foreground">
                     {selected.rule_name}
                   </p>
-                  <p class="text-xs text-muted-foreground">
-                    Paused — awaiting approval to proceed
-                  </p>
+                  <p class="text-xs text-muted-foreground">Paused — awaiting approval to proceed</p>
                 </div>
               </div>
             </div>

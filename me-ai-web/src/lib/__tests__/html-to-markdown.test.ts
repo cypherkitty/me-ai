@@ -146,8 +146,12 @@ describe("htmlToMarkdownBody", () => {
     expect(md).toContain("**Delivered today**");
     expect(md).toContain("HAWTHORNE, CA");
     expect(md).toContain("000-1234567-8901234");
-    expect(md).toContain("![Delivery photo](https://images-na.ssl-images-amazon.com/images/G/01/shiptrack/delivered_photo_123.jpg)");
-    expect(md).toContain("![MooMee Bedding Duvet Cover](https://images-na.ssl-images-amazon.com/images/I/product_image.jpg)");
+    expect(md).toContain(
+      "![Delivery photo](https://images-na.ssl-images-amazon.com/images/G/01/shiptrack/delivered_photo_123.jpg)"
+    );
+    expect(md).toContain(
+      "![MooMee Bedding Duvet Cover](https://images-na.ssl-images-amazon.com/images/I/product_image.jpg)"
+    );
     expect(md).not.toContain("transp.gif");
     expect(md).not.toMatch(/!\[\]\(https:\/\/www\.amazon\.com\/gp\/r\.html\?C=ABC123/);
     expect(md).toContain("[Your Orders](https://www.amazon.com/your-orders)");

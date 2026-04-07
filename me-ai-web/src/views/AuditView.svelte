@@ -56,12 +56,12 @@
         <FileText class="size-5 text-primary/60" />
         <h2 class="text-xl font-bold tracking-tight text-foreground">Audit Trail</h2>
       </div>
-      <p class="text-sm text-muted-foreground/60">
-        Execution history for all pipeline actions.
-      </p>
+      <p class="text-sm text-muted-foreground/60">Execution history for all pipeline actions.</p>
     </div>
     <div class="flex items-center gap-3">
-      <label class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+      <label
+        class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
+      >
         <input type="checkbox" bind:checked={failuresOnly} onchange={load} class="accent-primary" />
         Failures only
       </label>
@@ -105,17 +105,31 @@
       </div>
     {:else}
       <div class="px-8 py-4">
-        <p class="text-xs text-muted-foreground/50 mb-4">{total} execution{total !== 1 ? "s" : ""}</p>
+        <p class="text-xs text-muted-foreground/50 mb-4">
+          {total} execution{total !== 1 ? "s" : ""}
+        </p>
         <div class="flex flex-col gap-2">
           {#each entries as entry (entry.id)}
-            <div class="rounded-lg border border-border/50 bg-card/60 px-4 py-3 flex items-start gap-3 text-sm {entry.success ? '' : 'border-destructive/20'}">
-              <span class="shrink-0 mt-0.5 text-xs font-bold {entry.success ? 'text-success' : 'text-destructive'}">
+            <div
+              class="rounded-lg border border-border/50 bg-card/60 px-4 py-3 flex items-start gap-3 text-sm {entry.success
+                ? ''
+                : 'border-destructive/20'}"
+            >
+              <span
+                class="shrink-0 mt-0.5 text-xs font-bold {entry.success
+                  ? 'text-success'
+                  : 'text-destructive'}"
+              >
                 {entry.success ? "✓" : "✕"}
               </span>
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-mono text-xs text-primary/80 font-semibold uppercase">{entry.eventType}</span>
-                  <span class="text-xs text-muted-foreground/50">{formatTime(entry.executedAt)}</span>
+                  <span class="font-mono text-xs text-primary/80 font-semibold uppercase"
+                    >{entry.eventType}</span
+                  >
+                  <span class="text-xs text-muted-foreground/50"
+                    >{formatTime(entry.executedAt)}</span
+                  >
                 </div>
                 {#if entry.subject}
                   <p class="text-xs text-muted-foreground truncate mt-0.5">{entry.subject}</p>
@@ -126,8 +140,13 @@
                 {#if entry.steps && entry.steps.length > 0}
                   <div class="flex flex-wrap gap-1 mt-1.5">
                     {#each entry.steps as step, si (si)}
-                      <span class="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded border {step.success ? 'border-success/20 text-success/80' : 'border-destructive/25 text-destructive/80'}">
-                        {step.success ? "✓" : "✕"} {step.actionName ?? step.actionId}
+                      <span
+                        class="text-[0.6rem] font-semibold px-1.5 py-0.5 rounded border {step.success
+                          ? 'border-success/20 text-success/80'
+                          : 'border-destructive/25 text-destructive/80'}"
+                      >
+                        {step.success ? "✓" : "✕"}
+                        {step.actionName ?? step.actionId}
                       </span>
                     {/each}
                   </div>

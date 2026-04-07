@@ -44,8 +44,10 @@
     if (!ts) return "—";
     const d = new Date(ts);
     return d.toLocaleString("en-US", {
-      month: "short", day: "numeric",
-      hour: "numeric", minute: "2-digit",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
     });
   }
 
@@ -61,11 +63,18 @@
       <!-- Header -->
       <div class="hd">
         <div class="hd-left">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10 9 9 9 8 9"/>
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
           </svg>
           <h2>Audit Log</h2>
           <span class="count">{total} execution{total !== 1 ? "s" : ""}</span>
@@ -76,14 +85,14 @@
             Failures only
           </label>
           {#if !confirmClear}
-            <button class="text-btn danger" onclick={() => confirmClear = true}>Clear log</button>
+            <button class="text-btn danger" onclick={() => (confirmClear = true)}>Clear log</button>
           {:else}
             <span class="confirm-row">
               <button class="small-btn danger" onclick={handleClear}>Confirm clear</button>
-              <button class="small-btn" onclick={() => confirmClear = false}>Cancel</button>
+              <button class="small-btn" onclick={() => (confirmClear = false)}>Cancel</button>
             </span>
           {/if}
-          <button class="close-btn" onclick={() => open = false}>✕</button>
+          <button class="close-btn" onclick={() => (open = false)}>✕</button>
         </div>
       </div>
 
@@ -93,9 +102,17 @@
           <div class="empty-state">Loading…</div>
         {:else if entries.length === 0}
           <div class="empty-state">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
+            <svg
+              width="36"
+              height="36"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              opacity="0.3"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
             </svg>
             <p>No executions recorded yet.</p>
           </div>
@@ -123,9 +140,10 @@
                   <td class="td-subject" title={entry.subject}>{entry.subject}</td>
                   <td class="td-from">{shortSender(entry.from)}</td>
                   <td class="td-actions">
-                    {#each (entry.steps ?? []) as step, si (si)}
+                    {#each entry.steps ?? [] as step, si (si)}
                       <span class="step-pill" class:fail={!step.success} title={step.message}>
-                        {step.success ? "✓" : "✕"} {step.actionName ?? step.actionId}
+                        {step.success ? "✓" : "✕"}
+                        {step.actionName ?? step.actionId}
                       </span>
                     {/each}
                   </td>
@@ -137,9 +155,21 @@
                     {/if}
                   </td>
                   <td class="td-expand">
-                    <button class="expand-btn" class:open={isOpen} onclick={() => toggle(entry.id)} aria-label="Toggle details">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polyline points="6 9 12 15 18 9"/>
+                    <button
+                      class="expand-btn"
+                      class:open={isOpen}
+                      onclick={() => toggle(entry.id)}
+                      aria-label="Toggle details"
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
                       </svg>
                     </button>
                   </td>
@@ -157,8 +187,12 @@
                           <div class="detail-error">{entry.error}</div>
                         {/if}
                         <div class="steps-list">
-                          {#each (entry.steps ?? []) as step, si (si)}
-                            <div class="step-row" class:step-ok={step.success} class:step-fail={!step.success}>
+                          {#each entry.steps ?? [] as step, si (si)}
+                            <div
+                              class="step-row"
+                              class:step-ok={step.success}
+                              class:step-fail={!step.success}
+                            >
                               <span class="step-status">{step.success ? "✓" : "✕"}</span>
                               <span class="step-name">{step.actionName ?? step.actionId}</span>
                               <code class="step-cmd">{step.pluginId}·{step.commandId}</code>
@@ -185,7 +219,7 @@
   .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: rgba(0, 0, 0, 0.7);
     z-index: 100;
     display: flex;
     align-items: center;
@@ -203,7 +237,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
   }
 
   /* ── Header ─────────────────────────────────────────────────── */
@@ -247,7 +281,10 @@
     cursor: pointer;
     user-select: none;
   }
-  .toggle-label input { accent-color: #3b82f6; cursor: pointer; }
+  .toggle-label input {
+    accent-color: #3b82f6;
+    cursor: pointer;
+  }
 
   .text-btn {
     background: none;
@@ -259,8 +296,12 @@
     padding: 0;
     font-family: inherit;
   }
-  .text-btn.danger { color: #555; }
-  .text-btn.danger:hover { color: #f87171; }
+  .text-btn.danger {
+    color: #555;
+  }
+  .text-btn.danger:hover {
+    color: #f87171;
+  }
 
   .confirm-row {
     display: flex;
@@ -278,9 +319,16 @@
     font-family: inherit;
     transition: all 0.12s;
   }
-  .small-btn:hover { background: #222; }
-  .small-btn.danger { border-color: rgba(248,113,113,0.4); color: #f87171; }
-  .small-btn.danger:hover { background: rgba(248,113,113,0.08); }
+  .small-btn:hover {
+    background: #222;
+  }
+  .small-btn.danger {
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #f87171;
+  }
+  .small-btn.danger:hover {
+    background: rgba(248, 113, 113, 0.08);
+  }
 
   .close-btn {
     background: none;
@@ -293,7 +341,10 @@
     transition: all 0.12s;
     line-height: 1;
   }
-  .close-btn:hover { color: #ccc; background: rgba(255,255,255,0.05); }
+  .close-btn:hover {
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
+  }
 
   /* ── Body ───────────────────────────────────────────────────── */
   .body {
@@ -301,8 +352,13 @@
     overflow-y: auto;
     min-height: 0;
   }
-  .body::-webkit-scrollbar { width: 5px; }
-  .body::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+  .body::-webkit-scrollbar {
+    width: 5px;
+  }
+  .body::-webkit-scrollbar-thumb {
+    background: #2a2a2a;
+    border-radius: 3px;
+  }
 
   .empty-state {
     display: flex;
@@ -344,11 +400,21 @@
     color: #888;
     vertical-align: middle;
   }
-  .row:hover td { background: rgba(255,255,255,0.015); }
-  .row.failed td { color: #777; }
-  .row.expanded td { border-bottom: none; }
+  .row:hover td {
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .row.failed td {
+    color: #777;
+  }
+  .row.expanded td {
+    border-bottom: none;
+  }
 
-  .td-time { white-space: nowrap; color: #555; font-size: 0.68rem; }
+  .td-time {
+    white-space: nowrap;
+    color: #555;
+    font-size: 0.68rem;
+  }
   .td-subject {
     max-width: 220px;
     overflow: hidden;
@@ -356,18 +422,29 @@
     white-space: nowrap;
     color: #bbb;
   }
-  .td-from { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.68rem; }
-  .td-actions { white-space: nowrap; }
-  .td-expand { width: 32px; text-align: center; }
+  .td-from {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.68rem;
+  }
+  .td-actions {
+    white-space: nowrap;
+  }
+  .td-expand {
+    width: 32px;
+    text-align: center;
+  }
 
   .type-chip {
     font-size: 0.6rem;
     font-weight: 700;
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
-    background: rgba(59,130,246,0.1);
+    background: rgba(59, 130, 246, 0.1);
     color: #60a5fa;
-    border: 1px solid rgba(59,130,246,0.2);
+    border: 1px solid rgba(59, 130, 246, 0.2);
     text-transform: uppercase;
     letter-spacing: 0.02em;
     white-space: nowrap;
@@ -379,16 +456,16 @@
     font-weight: 600;
     padding: 0.08rem 0.35rem;
     border-radius: 4px;
-    background: rgba(74,222,128,0.08);
+    background: rgba(74, 222, 128, 0.08);
     color: #4ade80;
-    border: 1px solid rgba(74,222,128,0.15);
+    border: 1px solid rgba(74, 222, 128, 0.15);
     margin-right: 0.2rem;
     white-space: nowrap;
   }
   .step-pill.fail {
-    background: rgba(248,113,113,0.08);
+    background: rgba(248, 113, 113, 0.08);
     color: #f87171;
-    border-color: rgba(248,113,113,0.18);
+    border-color: rgba(248, 113, 113, 0.18);
   }
 
   .status {
@@ -398,8 +475,14 @@
     border-radius: 4px;
     white-space: nowrap;
   }
-  .status.ok  { color: #4ade80; background: rgba(74,222,128,0.08); }
-  .status.err { color: #f87171; background: rgba(248,113,113,0.08); }
+  .status.ok {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.08);
+  }
+  .status.err {
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.08);
+  }
 
   .expand-btn {
     background: none;
@@ -412,9 +495,15 @@
     align-items: center;
     transition: all 0.12s;
   }
-  .expand-btn:hover { color: #888; }
-  .expand-btn svg { transition: transform 0.15s; }
-  .expand-btn.open svg { transform: rotate(180deg); }
+  .expand-btn:hover {
+    color: #888;
+  }
+  .expand-btn svg {
+    transition: transform 0.15s;
+  }
+  .expand-btn.open svg {
+    transform: rotate(180deg);
+  }
 
   /* ── Detail row ─────────────────────────────────────────────── */
   .detail-row td {
@@ -434,14 +523,22 @@
     gap: 0.5rem;
     font-size: 0.68rem;
   }
-  .dmeta-label { color: #444; }
-  .dmeta-val { font-size: 0.65rem; color: #555; background: #1a1a1a; padding: 0.1rem 0.4rem; border-radius: 3px; }
+  .dmeta-label {
+    color: #444;
+  }
+  .dmeta-val {
+    font-size: 0.65rem;
+    color: #555;
+    background: #1a1a1a;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
 
   .detail-error {
     font-size: 0.68rem;
     color: #f87171;
-    background: rgba(248,113,113,0.06);
-    border: 1px solid rgba(248,113,113,0.15);
+    background: rgba(248, 113, 113, 0.06);
+    border: 1px solid rgba(248, 113, 113, 0.15);
     border-radius: 5px;
     padding: 0.4rem 0.6rem;
   }
@@ -459,9 +556,30 @@
     padding: 0.25rem 0;
     color: #666;
   }
-  .step-ok  .step-status { color: #4ade80; }
-  .step-fail .step-status { color: #f87171; }
-  .step-name { color: #aaa; font-weight: 500; }
-  .step-cmd  { font-size: 0.62rem; color: #3b82f6; background: rgba(59,130,246,0.08); padding: 0.1rem 0.35rem; border-radius: 3px; }
-  .step-msg  { color: #555; font-size: 0.65rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step-ok .step-status {
+    color: #4ade80;
+  }
+  .step-fail .step-status {
+    color: #f87171;
+  }
+  .step-name {
+    color: #aaa;
+    font-weight: 500;
+  }
+  .step-cmd {
+    font-size: 0.62rem;
+    color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+  }
+  .step-msg {
+    color: #555;
+    font-size: 0.65rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 </style>

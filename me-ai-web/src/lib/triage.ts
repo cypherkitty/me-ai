@@ -10,7 +10,15 @@ import { getCore } from "./store/core-store.js";
 import { toJson, fromJson } from "./store/db.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import type { StoredItem } from "$lib/types";
-import type { ClassificationResult, ScanResult, ScanOptions, ClassificationView, GetClassificationsByCategoryOptions, TriageEngine, StoredItemRow } from "./core.js";
+import type {
+  ClassificationResult,
+  ScanResult,
+  ScanOptions,
+  ClassificationView,
+  GetClassificationsByCategoryOptions,
+  TriageEngine,
+  StoredItemRow,
+} from "./core.js";
 export type { ClassificationResult, ScanProgress, ScanResult } from "./core.js";
 
 interface ScanEmailResult {
@@ -36,10 +44,12 @@ export const CLASSIFICATION_CONFIG = {
 export function getSystemPrompt(): string {
   const c = getCore();
   const plugins = c.getPluginsForPrompt();
-  const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
+  const pluginNames = plugins
+    .filter((p) => p.actions.length)
+    .map((p) => p.pluginName)
+    .join(", ");
   return c.buildSystemPrompt(pluginNames);
 }
-
 
 export async function scanEmails(
   engine: TriageEngine,
@@ -90,20 +100,37 @@ export async function scanEmails(
   const results: ScanEmailResult[] = [];
 
   const plugins = core.getPluginsForPrompt();
-  const pluginNames = plugins.filter((p) => p.actions.length).map((p) => p.pluginName).join(", ");
+  const pluginNames = plugins
+    .filter((p) => p.actions.length)
+    .map((p) => p.pluginName)
+    .join(", ");
   const systemPrompt = core.buildSystemPrompt(pluginNames);
 
   const currentModel = engine.modelId;
-  const modelInfo = core.getOnnxModelInfo(currentModel ?? "") ?? core.getOllamaModelInfo(currentModel ?? "") ?? core.getApiModelInfo(currentModel ?? "");
+  const modelInfo =
+    core.getOnnxModelInfo(currentModel ?? "") ??
+    core.getOllamaModelInfo(currentModel ?? "") ??
+    core.getApiModelInfo(currentModel ?? "");
   if (!modelInfo) {
     throw new Error(`Unknown model: ${currentModel}`);
   }
 
-  const modelDisplayName = (modelInfo as { displayName?: string; name?: string }).displayName ?? (modelInfo as { name?: string }).name;
-  if (!(modelInfo as { recommendedForEmailProcessing?: boolean }).recommendedForEmailProcessing && toProcess.length > 0) {
+  const modelDisplayName =
+    (modelInfo as { displayName?: string; name?: string }).displayName ??
+    (modelInfo as { name?: string }).name;
+  if (
+    !(modelInfo as { recommendedForEmailProcessing?: boolean }).recommendedForEmailProcessing &&
+    toProcess.length > 0
+  ) {
     const recommendedModels = [
-      ...core.getOnnxModels().filter((m) => m.recommendedForEmailProcessing).map((m) => m.name),
-      ...core.getOllamaModels().filter((m) => m.recommendedForEmailProcessing).map((m) => m.displayName),
+      ...core
+        .getOnnxModels()
+        .filter((m) => m.recommendedForEmailProcessing)
+        .map((m) => m.name),
+      ...core
+        .getOllamaModels()
+        .filter((m) => m.recommendedForEmailProcessing)
+        .map((m) => m.displayName),
     ];
     console.warn(
       `⚠️ Current model (${modelDisplayName}) is not optimized for email processing. ` +
@@ -136,18 +163,31 @@ export async function scanEmails(
       classified,
       errors,
       results,
-      email: { subject: email.subject, from: email.from, date: email.date != null ? String(email.date) : undefined },
+      email: {
+        subject: email.subject,
+        from: email.from,
+        date: email.date != null ? String(email.date) : undefined,
+      },
       prompt: { system: systemPrompt, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
       live: null,
       lastResult: null,
-      totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+      totals: {
+        outputTokens: totalOutputTokens,
+        inputTokens: totalInputTokens,
+        elapsed: performance.now() - scanStart,
+      },
     });
 
     const emailStart = performance.now();
 
     try {
-      const { text: response, tps, numTokens, inputTokens } = await engine.generateFull(
+      const {
+        text: response,
+        tps,
+        numTokens,
+        inputTokens,
+      } = await engine.generateFull(
         promptMessages,
         { maxTokens: CLASSIFICATION_CONFIG.maxTokens, enableThinking: false, temperature: 0 },
         (tokenInfo) => {
@@ -158,10 +198,18 @@ export async function scanEmails(
             classified,
             errors,
             results,
-            email: { subject: email.subject, from: email.from, date: email.date != null ? String(email.date) : undefined },
+            email: {
+              subject: email.subject,
+              from: email.from,
+              date: email.date != null ? String(email.date) : undefined,
+            },
             live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
             streamingText: tokenInfo.text || "",
-            totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+            totals: {
+              outputTokens: totalOutputTokens,
+              inputTokens: totalInputTokens,
+              elapsed: performance.now() - scanStart,
+            },
           });
         }
       );
@@ -182,7 +230,9 @@ export async function scanEmails(
               try {
                 const parsed: unknown = JSON.parse(coreResult.tags);
                 return Array.isArray(parsed) ? (parsed as string[]) : [];
-              } catch { return []; }
+              } catch {
+                return [];
+              }
             })(),
           }
         : null;
@@ -228,11 +278,19 @@ export async function scanEmails(
           classified,
           errors,
           results,
-          email: { subject: email.subject, from: email.from, date: email.date != null ? String(email.date) : undefined },
+          email: {
+            subject: email.subject,
+            from: email.from,
+            date: email.date != null ? String(email.date) : undefined,
+          },
           result: classification,
           rawResponse: response,
           emailStats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
-          totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: performance.now() - scanStart },
+          totals: {
+            outputTokens: totalOutputTokens,
+            inputTokens: totalInputTokens,
+            elapsed: performance.now() - scanStart,
+          },
         });
       }
     } catch (e) {
@@ -258,10 +316,17 @@ export async function scanEmails(
   const successResults = results.filter((r) => r.success && r.stats?.tps != null);
   const avgTps =
     successResults.length > 0
-      ? Math.round(successResults.reduce((sum, r) => sum + (r.stats?.tps ?? 0), 0) / successResults.length)
+      ? Math.round(
+          successResults.reduce((sum, r) => sum + (r.stats?.tps ?? 0), 0) / successResults.length
+        )
       : null;
 
-  const modelInfoAny = modelInfo as { displayName?: string; name?: string; contextWindow?: number; maxEmailTokens?: number };
+  const modelInfoAny = modelInfo as {
+    displayName?: string;
+    name?: string;
+    contextWindow?: number;
+    maxEmailTokens?: number;
+  };
   onProgress({
     phase: "done",
     current: toProcess.length,
@@ -279,7 +344,11 @@ export async function scanEmails(
       modelContextWindow: modelInfoAny.contextWindow,
       modelMaxEmailTokens: modelInfoAny.maxEmailTokens,
     },
-    totals: { outputTokens: totalOutputTokens, inputTokens: totalInputTokens, elapsed: totalElapsed },
+    totals: {
+      outputTokens: totalOutputTokens,
+      inputTokens: totalInputTokens,
+      elapsed: totalElapsed,
+    },
   });
 
   return { scanned: toProcess.length, classified, skipped, errors };
@@ -297,7 +366,10 @@ export async function getClassificationCounts(): Promise<Record<string, number>>
   return { ...result.counts, total: result.total };
 }
 
-export async function updateClassificationStatus(emailId: string, newStatus: string): Promise<void> {
+export async function updateClassificationStatus(
+  emailId: string,
+  newStatus: string
+): Promise<void> {
   await getCore().updateEmailClassificationStatus(emailId, newStatus);
 }
 
@@ -344,7 +416,19 @@ function normaliseItemRow(row: Record<string, unknown>): StoredItem {
 // (tags JSON parsing + field defaulting is done by ClassificationView in me-ai-core)
 
 /** Format an email as a prompt string for the LLM classifier. */
-export function formatEmailPrompt(email: StoredItem | { subject?: string; from?: string; to?: string; date?: number | null; body?: string; snippet?: string; labels?: string[] }): string {
+export function formatEmailPrompt(
+  email:
+    | StoredItem
+    | {
+        subject?: string;
+        from?: string;
+        to?: string;
+        date?: number | null;
+        body?: string;
+        snippet?: string;
+        labels?: string[];
+      }
+): string {
   return getCore().formatEmailPrompt(
     (email as { subject?: string }).subject || "",
     (email as { from?: string }).from || "",
@@ -370,7 +454,9 @@ export function parseClassification(
   try {
     const parsed: unknown = JSON.parse(result.tags);
     if (Array.isArray(parsed)) tags = parsed as string[];
-  } catch { /* keep empty */ }
+  } catch {
+    /* keep empty */
+  }
   return {
     action: result.action,
     category: result.category as "noise" | "info" | "critical",

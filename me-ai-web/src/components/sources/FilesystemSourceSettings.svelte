@@ -1,10 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    getDirectories,
-    addDirectory,
-    removeDirectory,
-  } from "$lib/plugins/filesystem-store.js";
+  import { getDirectories, addDirectory, removeDirectory } from "$lib/plugins/filesystem-store.js";
   import type { DirectoryEntry } from "$lib/plugins/filesystem-store.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { FolderOpen, Trash2, Plus } from "lucide-svelte";
@@ -13,8 +9,7 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  const apiSupported =
-    typeof window !== "undefined" && "showDirectoryPicker" in window;
+  const apiSupported = typeof window !== "undefined" && "showDirectoryPicker" in window;
 
   async function load() {
     loading = true;
@@ -33,7 +28,11 @@
     if (!apiSupported) return;
     error = null;
     try {
-      const handle = await (window as unknown as { showDirectoryPicker: (opts: { mode: string }) => Promise<FileSystemDirectoryHandle> }).showDirectoryPicker({ mode: "readwrite" });
+      const handle = await (
+        window as unknown as {
+          showDirectoryPicker: (opts: { mode: string }) => Promise<FileSystemDirectoryHandle>;
+        }
+      ).showDirectoryPicker({ mode: "readwrite" });
       const entry = await addDirectory(handle.name, handle);
       directories = [...directories, entry];
     } catch (e) {
