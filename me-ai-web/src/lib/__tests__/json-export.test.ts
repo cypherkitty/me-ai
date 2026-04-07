@@ -4,7 +4,12 @@ import { emailToJson, emailToJsonString, emailJsonFilename } from "../json-expor
 const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
   const slugify = (s: string) => {
     const src = s || "email";
-    const slug = src.split("").map((c: string) => /[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : "").join("").slice(0, 60).replace(/-+$/, "");
+    const slug = src
+      .split("")
+      .map((c: string) => (/[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : ""))
+      .join("")
+      .slice(0, 60)
+      .replace(/-+$/, "");
     return slug || "email";
   };
   const shortDate = (ms: number) => {

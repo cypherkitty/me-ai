@@ -62,18 +62,14 @@
           {cmd.icon || "⚙️"}
         </div>
         <div class="flex flex-col">
-          <span
-            class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
-          >
+          <span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             {cmd.pluginId ? cmd.pluginId.toUpperCase() : "ACTION"}
           </span>
         </div>
       </div>
 
       <!-- Actions menu visible on hover -->
-      <div
-        class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-      >
+      <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onclick={data.onEdit}
           title="Edit"
@@ -94,12 +90,8 @@
     <div
       class="p-3.5 pt-2.5 flex flex-col gap-1.5 relative z-[1000] flow-nodrag bg-background rounded-b-xl"
     >
-      <div
-        class="font-semibold text-sm text-foreground flex items-baseline gap-2"
-      >
-        <span class="text-muted-foreground text-xs font-mono"
-          >{data.index ?? "•"}.</span
-        >
+      <div class="font-semibold text-sm text-foreground flex items-baseline gap-2">
+        <span class="text-muted-foreground text-xs font-mono">{data.index ?? "•"}.</span>
         <span class="truncate" title={cmd.name}>{cmd.name}</span>
       </div>
 

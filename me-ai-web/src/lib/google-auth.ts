@@ -102,8 +102,7 @@ function loadGisScript(): Promise<void> {
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
-    script.onerror = () =>
-      reject(new Error("Failed to load Google Identity Services"));
+    script.onerror = () => reject(new Error("Failed to load Google Identity Services"));
     document.head.appendChild(script);
   });
 }

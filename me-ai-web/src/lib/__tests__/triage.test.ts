@@ -33,20 +33,46 @@ const mockCore = {
     if (firstBrace === -1 || lastBrace <= firstBrace) return undefined;
     const jsonStr = text.slice(firstBrace, lastBrace + 1).replace(/ --set /g, " ");
     let obj: Record<string, unknown>;
-    try { obj = JSON.parse(jsonStr) as Record<string, unknown>; } catch { return undefined; }
+    try {
+      obj = JSON.parse(jsonStr) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
     if (typeof obj !== "object" || Array.isArray(obj)) return undefined;
     const rawAction = String(obj.action ?? "").trim();
     if (!rawAction) return undefined;
     const al = rawAction.toLowerCase();
-    if (al.includes("=") || al.includes("postgres") || al.includes("sslmode") || al.includes("connection") || al.includes("config")) return undefined;
-    const action = rawAction.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    if (
+      al.includes("=") ||
+      al.includes("postgres") ||
+      al.includes("sslmode") ||
+      al.includes("connection") ||
+      al.includes("config")
+    )
+      return undefined;
+    const action = rawAction
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
     if (!action || action.length > 50) return undefined;
     const reason = String(obj.reason ?? "").slice(0, 300);
     const summary = String(obj.summary ?? "").slice(0, 500);
     const tags: string[] = Array.isArray(obj.tags)
-      ? (obj.tags as unknown[]).filter((t): t is string => typeof t === "string" && t.trim() !== "").map((t: string) => t.trim().toLowerCase()).slice(0, 10)
+      ? (obj.tags as unknown[])
+          .filter((t): t is string => typeof t === "string" && t.trim() !== "")
+          .map((t: string) => t.trim().toLowerCase())
+          .slice(0, 10)
       : [];
-    return { action, category: "noise", categoryTier: "NOISE", reason, summary, tags: JSON.stringify(tags) };
+    return {
+      action,
+      category: "noise",
+      categoryTier: "NOISE",
+      reason,
+      summary,
+      tags: JSON.stringify(tags),
+    };
   },
   actionColor: (action: string) => {
     let hash = 0;
@@ -83,8 +109,16 @@ describe("parseClassification", () => {
 
   it("accepts any UPPER_SNAKE_CASE action", () => {
     const actions = [
-      "DELETE", "REPLY", "TRACK_DELIVERY", "PAY_BILL", "SCHEDULE_MEETING",
-      "READ_LATER", "ARCHIVE", "UNSUBSCRIBE", "SAVE_RECEIPT", "NO_ACTION",
+      "DELETE",
+      "REPLY",
+      "TRACK_DELIVERY",
+      "PAY_BILL",
+      "SCHEDULE_MEETING",
+      "READ_LATER",
+      "ARCHIVE",
+      "UNSUBSCRIBE",
+      "SAVE_RECEIPT",
+      "NO_ACTION",
     ];
     for (const action of actions) {
       const input = JSON.stringify({ action, reason: "test", summary: "test", tags: [] });
@@ -144,7 +178,8 @@ describe("parseClassification", () => {
   });
 
   it("handles JSON wrapped in markdown code blocks", () => {
-    const input = '```json\n{"action": "REPLY", "reason": "Question from Bob", "summary": "Bob asks about the deadline.", "tags": ["work", "urgent"]}\n```';
+    const input =
+      '```json\n{"action": "REPLY", "reason": "Question from Bob", "summary": "Bob asks about the deadline.", "tags": ["work", "urgent"]}\n```';
     const result = parseClassification(input);
     expect(result).not.toBeNull();
     expect(result!.action).toBe("REPLY");
@@ -152,7 +187,8 @@ describe("parseClassification", () => {
   });
 
   it("handles JSON with surrounding text", () => {
-    const input = 'Here is my analysis:\n\n{"action": "TRACK_DELIVERY", "reason": "Package shipped", "summary": "Amazon order shipped via UPS.", "tags": ["delivery", "amazon"]}\n\nDone.';
+    const input =
+      'Here is my analysis:\n\n{"action": "TRACK_DELIVERY", "reason": "Package shipped", "summary": "Amazon order shipped via UPS.", "tags": ["delivery", "amazon"]}\n\nDone.';
     const result = parseClassification(input);
     expect(result).not.toBeNull();
     expect(result!.action).toBe("TRACK_DELIVERY");
@@ -177,12 +213,17 @@ describe("parseClassification", () => {
   });
 
   it("returns null for config-like action (e.g. Qwen 2B hallucination)", () => {
-    expect(parseClassification('{"action": "postgres-sslmode=require", "reason": "x", "summary": "y"}')).toBeNull();
-    expect(parseClassification('{"action": "CONNECTION_STRING", "reason": "x", "summary": "y"}')).toBeNull();
+    expect(
+      parseClassification('{"action": "postgres-sslmode=require", "reason": "x", "summary": "y"}')
+    ).toBeNull();
+    expect(
+      parseClassification('{"action": "CONNECTION_STRING", "reason": "x", "summary": "y"}')
+    ).toBeNull();
   });
 
   it("strips ---set / --set prefixes and parses JSON", () => {
-    const input = '---set {"action": "PROMOTION", "reason": "Discount offer", "summary": "30% off", "tags": []}';
+    const input =
+      '---set {"action": "PROMOTION", "reason": "Discount offer", "summary": "30% off", "tags": []}';
     const result = parseClassification(input);
     expect(result).not.toBeNull();
     expect(result!.action).toBe("PROMOTION");
@@ -191,7 +232,9 @@ describe("parseClassification", () => {
 
   it("extracts object from array wrapper (permissive parser)", () => {
     // The parser extracts from first { to last } — it handles LLM array responses
-    const result = parseClassification('[{"action": "DELETE", "reason": "x", "summary": "y", "tags": []}]');
+    const result = parseClassification(
+      '[{"action": "DELETE", "reason": "x", "summary": "y", "tags": []}]'
+    );
     expect(result).not.toBeNull();
     expect(result!.action).toBe("DELETE");
   });

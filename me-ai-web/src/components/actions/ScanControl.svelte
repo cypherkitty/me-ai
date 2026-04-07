@@ -59,15 +59,21 @@
     return engineStatus === "ready" && !isScanning;
   }
 
-  let isVisuallyScanning = $derived(isScanning && (scanProgress as Record<string, unknown> | null)?.phase !== "done");
+  let isVisuallyScanning = $derived(
+    isScanning && (scanProgress as Record<string, unknown> | null)?.phase !== "done"
+  );
 </script>
 
 <div class="rounded border border-border bg-card mb-4 overflow-hidden">
   <!-- Header row -->
   <div class="flex items-center gap-3 px-4 py-3 border-b border-border">
-    <div class="size-7 rounded border border-border bg-muted/30 flex items-center justify-center shrink-0 text-muted-foreground">
+    <div
+      class="size-7 rounded border border-border bg-muted/30 flex items-center justify-center shrink-0 text-muted-foreground"
+    >
       {#if isVisuallyScanning}
-        <div class="size-3.5 border-2 border-border border-t-primary rounded-full animate-spin"></div>
+        <div
+          class="size-3.5 border-2 border-border border-t-primary rounded-full animate-spin"
+        ></div>
       {:else}
         <Search class="size-3.5" />
       {/if}
@@ -91,7 +97,9 @@
 
   {#if stats}
     {@const _stats = stats as Record<string, unknown>}
-    <div class="flex items-center gap-2 px-4 py-2 border-b border-border/40 text-xs text-muted-foreground/60">
+    <div
+      class="flex items-center gap-2 px-4 py-2 border-b border-border/40 text-xs text-muted-foreground/60"
+    >
       <span class="tabular-nums">{_stats.totalEmails} in storage</span>
       <span class="text-muted-foreground/20">·</span>
       <span class="tabular-nums">{_stats.classified} classified</span>
@@ -115,10 +123,22 @@
       </select>
     </div>
     <div class="flex items-center gap-1.5 ml-auto">
-      <Button variant="default" size="sm" onclick={onscan} disabled={!canScan()} class="h-7 text-xs">
-        {isVisuallyScanning ? "Scanning…" : (isScanning ? "Finalizing…" : "Scan New")}
+      <Button
+        variant="default"
+        size="sm"
+        onclick={onscan}
+        disabled={!canScan()}
+        class="h-7 text-xs"
+      >
+        {isVisuallyScanning ? "Scanning…" : isScanning ? "Finalizing…" : "Scan New"}
       </Button>
-      <Button variant="outline" size="sm" onclick={onrescan} disabled={!canScan()} class="h-7 text-xs">
+      <Button
+        variant="outline"
+        size="sm"
+        onclick={onrescan}
+        disabled={!canScan()}
+        class="h-7 text-xs"
+      >
         Rescan All
       </Button>
     </div>

@@ -8,7 +8,15 @@
   const SOURCE_PAGES = ["sources", "plugins"];
   const SCAN_PAGES = ["scan"];
   const ADMIN_PAGES = ["admin"];
-  const ALL_PAGES = [...OAUTH_PAGES, ...SOURCE_PAGES, ...SCAN_PAGES, ...CP_PAGES, ...ADMIN_PAGES, "home", "chat"];
+  const ALL_PAGES = [
+    ...OAUTH_PAGES,
+    ...SOURCE_PAGES,
+    ...SCAN_PAGES,
+    ...CP_PAGES,
+    ...ADMIN_PAGES,
+    "home",
+    "chat",
+  ];
 
   function getPage() {
     const h = location.hash.replace("#", "");
@@ -31,12 +39,20 @@
     escalated: number;
     failed: number;
   }
-  let stats = $state<EventStats>({ total: 0, completed: 0, awaiting_user: 0, escalated: 0, failed: 0 });
+  let stats = $state<EventStats>({
+    total: 0,
+    completed: 0,
+    awaiting_user: 0,
+    escalated: 0,
+    failed: 0,
+  });
 
   async function loadStats() {
     try {
       stats = (await getEventStats()) as EventStats;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   onMount(() => {

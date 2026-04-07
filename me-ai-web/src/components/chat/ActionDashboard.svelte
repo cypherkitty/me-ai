@@ -46,8 +46,8 @@
 
   $effect(() => {
     if (activeCategory) {
-      getActionsForEvent(activeCategory).then(actions => activePipeline = actions);
-      getCategoryForEventType(activeCategory).then(cat => activeTier = cat);
+      getActionsForEvent(activeCategory).then((actions) => (activePipeline = actions));
+      getCategoryForEventType(activeCategory).then((cat) => (activeTier = cat));
     } else {
       activePipeline = [];
       activeTier = null;
@@ -59,13 +59,19 @@
   }
 
   function fmt(str: string) {
-    return str.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
+    return str
+      .split("_")
+      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+      .join(" ");
   }
 
   function shortDate(ts: number | null | undefined) {
     if (!ts) return "";
-    try { return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-    catch { return ""; }
+    try {
+      return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    } catch {
+      return "";
+    }
   }
 
   function shortSender(from: string) {
@@ -102,7 +108,12 @@
         >
           <span class="size-1.5 rounded-full shrink-0" style:background={color}></span>
           {fmt(action)}
-          <span class={cn("text-[0.58rem] font-bold min-w-[14px] text-center", isActive ? "opacity-70" : "opacity-50")}>
+          <span
+            class={cn(
+              "text-[0.58rem] font-bold min-w-[14px] text-center",
+              isActive ? "opacity-70" : "opacity-50"
+            )}
+          >
             {items.length}
           </span>
         </button>
@@ -117,48 +128,71 @@
         <!-- Category header -->
         <div class="flex items-center gap-1.5 pb-2 mb-2 border-b-2" style:border-color={color}>
           <button
-            onclick={() => { activeCategory = null; confirmClear = null; }}
+            onclick={() => {
+              activeCategory = null;
+              confirmClear = null;
+            }}
             class="text-xs text-muted-foreground/50 hover:text-foreground transition-colors px-1 py-0.5 rounded hover:bg-accent"
           >
             ←
           </button>
-          <span class="text-xs font-semibold text-foreground tracking-tight flex-1">{fmt(activeCategory)}</span>
+          <span class="text-xs font-semibold text-foreground tracking-tight flex-1"
+            >{fmt(activeCategory)}</span
+          >
           <span class="text-[0.6rem] text-muted-foreground/40">{items.length}</span>
         </div>
 
         <!-- Pipeline preview -->
         <div class="mb-2 bg-background p-1 px-2 rounded border border-border">
-          <PipelineGraph eventType={activeCategory} category={activeTier ?? undefined} commands={activePipeline as unknown as { commandId?: string; pluginId?: string; name?: string; description?: string; icon?: string; [key: string]: unknown }[]} />
+          <PipelineGraph
+            eventType={activeCategory}
+            category={activeTier ?? undefined}
+            commands={activePipeline as unknown as {
+              commandId?: string;
+              pluginId?: string;
+              name?: string;
+              description?: string;
+              icon?: string;
+              [key: string]: unknown;
+            }[]}
+          />
         </div>
 
         <!-- Email rows -->
         <div class="flex flex-col">
           {#each items as item (item.emailId)}
-            <div class="flex items-center gap-1.5 py-1 border-b border-border last:border-b-0 group/row">
+            <div
+              class="flex items-center gap-1.5 py-1 border-b border-border last:border-b-0 group/row"
+            >
               <button
-                onclick={() => onaskai?.(`Tell me about the email "${item.subject}" from ${item.from}`)}
+                onclick={() =>
+                  onaskai?.(`Tell me about the email "${item.subject}" from ${item.from}`)}
                 class="flex-1 min-w-0 flex flex-col gap-px text-left"
                 title="Ask AI about this email"
               >
-                <span class="text-[0.7rem] font-medium text-foreground/80 truncate group-hover/row:text-foreground transition-colors tracking-tight">
+                <span
+                  class="text-[0.7rem] font-medium text-foreground/80 truncate group-hover/row:text-foreground transition-colors tracking-tight"
+                >
                   {item.subject}
                 </span>
                 <span class="flex gap-1.5 text-[0.58rem] text-muted-foreground/35">
-                  <span>{shortSender(item.from ?? '')}</span>
+                  <span>{shortSender(item.from ?? "")}</span>
                   {#if item.date}<span class="opacity-70">{shortDate(item.date)}</span>{/if}
                 </span>
               </button>
               <div class="flex gap-0.5 opacity-30 group-hover/row:opacity-100 transition-opacity">
                 <button
-                  onclick={() => onmarkacted?.(item.emailId ?? '')}
+                  onclick={() => onmarkacted?.(item.emailId ?? "")}
                   title="Handled"
                   class="size-5 flex items-center justify-center text-[0.64rem] font-bold rounded transition-all hover:bg-success/12 hover:text-success text-muted-foreground"
-                >✓</button>
+                  >✓</button
+                >
                 <button
-                  onclick={() => ondismiss?.(item.emailId ?? '')}
+                  onclick={() => ondismiss?.(item.emailId ?? "")}
                   title="Dismiss"
                   class="size-5 flex items-center justify-center text-[0.64rem] font-bold rounded transition-all hover:bg-destructive/12 hover:text-destructive text-muted-foreground"
-                >✕</button>
+                  >✕</button
+                >
               </div>
             </div>
           {/each}
@@ -168,23 +202,33 @@
         <div class="flex items-center justify-end gap-1.5 pt-2 mt-1 border-t border-border">
           {#if confirmClear !== activeCategory}
             <button
-              onclick={() => items.forEach(i => onmarkacted?.(i.emailId ?? ''))}
+              onclick={() => items.forEach((i) => onmarkacted?.(i.emailId ?? ""))}
               class="text-[0.6rem] font-medium text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
-            >All handled</button>
+              >All handled</button
+            >
             <button
-              onclick={() => confirmClear = activeCategory}
+              onclick={() => (confirmClear = activeCategory)}
               class="text-[0.6rem] font-medium text-muted-foreground/40 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
-            >Clear category</button>
+              >Clear category</button
+            >
           {:else}
-            <span class="text-[0.6rem] text-muted-foreground/40 mr-auto">Remove {items.length}?</span>
+            <span class="text-[0.6rem] text-muted-foreground/40 mr-auto"
+              >Remove {items.length}?</span
+            >
             <button
-              onclick={() => confirmClear = null}
+              onclick={() => (confirmClear = null)}
               class="text-[0.6rem] text-muted-foreground/60 hover:text-foreground hover:bg-accent px-1.5 py-0.5 rounded transition-all"
-            >Cancel</button>
+              >Cancel</button
+            >
             <button
-              onclick={() => { if (activeCategory) onclearcategory?.(activeCategory); confirmClear = null; activeCategory = null; }}
+              onclick={() => {
+                if (activeCategory) onclearcategory?.(activeCategory);
+                confirmClear = null;
+                activeCategory = null;
+              }}
               class="text-[0.6rem] text-destructive/70 hover:text-destructive hover:bg-destructive/8 px-1.5 py-0.5 rounded transition-all"
-            >Delete</button>
+              >Delete</button
+            >
           {/if}
         </div>
       </div>

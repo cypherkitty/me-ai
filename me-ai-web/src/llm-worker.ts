@@ -16,8 +16,6 @@ import {
 import type { ChatMessage } from "me-ai-core";
 import type { PreTrainedTokenizer } from "@huggingface/transformers";
 
-
-
 // WASM files are served from the site root (public/ in dev, copied in build).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (env.backends.onnx.wasm as any).wasmPaths = import.meta.env.BASE_URL;
@@ -95,13 +93,16 @@ class TextGenerationPipeline {
 
     if (
       this.model_id !== model_id ||
-      (this.load_options && `${this.load_options.dtype ?? "q4f16"}:${this.load_options.device ?? "webgpu"}` !== optsKey)
+      (this.load_options &&
+        `${this.load_options.dtype ?? "q4f16"}:${this.load_options.device ?? "webgpu"}` !== optsKey)
     ) {
       const disposable = this.model as DisposableModel | null;
       if (disposable && typeof disposable.dispose === "function") {
         try {
           await disposable.dispose();
-        } catch { /* no-op */ }
+        } catch {
+          /* no-op */
+        }
       }
       this.tokenizer = null;
       this.processor = null;
@@ -182,16 +183,20 @@ async function buildInputs(
   if (isGemma4Model(modelId)) {
     if (!processor) throw new Error("Gemma 4 processor is not loaded");
     const gemma4Processor = processor as Gemma4Processor;
-    const prompt = gemma4Processor.apply_chat_template(
-      normalizeGemma4Messages(messages),
-      { add_generation_prompt: true, enable_thinking: !!enableThinking }
-    );
+    const prompt = gemma4Processor.apply_chat_template(normalizeGemma4Messages(messages), {
+      add_generation_prompt: true,
+      enable_thinking: !!enableThinking,
+    });
     return gemma4Processor(prompt, undefined, undefined, { add_special_tokens: false });
   }
 
   if (!tokenizer) throw new Error("Tokenizer is not loaded");
   const useHarmony = isHarmonyModel(modelId);
-  const templateOpts: { add_generation_prompt: boolean; return_dict: boolean; enable_thinking?: boolean } = {
+  const templateOpts: {
+    add_generation_prompt: boolean;
+    return_dict: boolean;
+    enable_thinking?: boolean;
+  } = {
     add_generation_prompt: true,
     return_dict: true,
   };
@@ -252,13 +257,25 @@ type Reply = (msg: Record<string, unknown>) => void;
 
 async function check(reply: Reply): Promise<void> {
   try {
-    const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<{ info?: Record<string, unknown>; limits?: Record<string, unknown>; features?: Set<string> } | null> } }).gpu;
+    const gpu = (
+      navigator as unknown as {
+        gpu?: {
+          requestAdapter: () => Promise<{
+            info?: Record<string, unknown>;
+            limits?: Record<string, unknown>;
+            features?: Set<string>;
+          } | null>;
+        };
+      }
+    ).gpu;
     if (!gpu) throw new Error("WebGPU API is not available in this browser");
     const adapter = await gpu.requestAdapter();
     if (!adapter) throw new Error("WebGPU is not supported (no adapter found)");
 
-    const info = (adapter as Record<string, unknown> | null)?.['info'] as Record<string, unknown> || {};
-    const limits = (adapter as Record<string, unknown> | null)?.['limits'] as Record<string, unknown> || {};
+    const info =
+      ((adapter as Record<string, unknown> | null)?.["info"] as Record<string, unknown>) || {};
+    const limits =
+      ((adapter as Record<string, unknown> | null)?.["limits"] as Record<string, unknown>) || {};
     reply({
       status: "webgpu-info",
       data: {
@@ -266,7 +283,9 @@ async function check(reply: Reply): Promise<void> {
         architecture: info.architecture || "unknown",
         device: info.device || "unknown",
         description: info.description || "unknown",
-        features: adapter ? [...((adapter as unknown as { features?: Iterable<string> }).features ?? [])].sort() : [],
+        features: adapter
+          ? [...((adapter as unknown as { features?: Iterable<string> }).features ?? [])].sort()
+          : [],
         limits: {
           maxBufferSize: limits.maxBufferSize,
           maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
@@ -347,13 +366,7 @@ async function generate(
     const useHarmony = isHarmonyModel(modelId);
     const useGemma4 = isGemma4Model(modelId);
     const { tokenizer, processor, model } = await TextGenerationPipeline.getInstance(modelId);
-    const inputs = await buildInputs(
-      modelId,
-      messages,
-      enableThinking,
-      tokenizer,
-      processor
-    );
+    const inputs = await buildInputs(modelId, messages, enableThinking, tokenizer, processor);
 
     let startTime: number | undefined;
     let numTokens = 0;
@@ -453,7 +466,11 @@ async function generate(
     const streamer = new TextStreamer(streamTokenizer, {
       skip_prompt: true,
       skip_special_tokens: !useGemma4,
-      callback_function: useHarmony ? harmony_callback : useGemma4 ? gemma4_callback : think_callback,
+      callback_function: useHarmony
+        ? harmony_callback
+        : useGemma4
+          ? gemma4_callback
+          : think_callback,
       token_callback_function,
     });
 
@@ -488,7 +505,12 @@ async function generate(
       const finalResponse = response || stripGemma4ControlTokens(gemma4RawBuffer);
       if (finalResponse.length > gemma4ResponseLength) {
         reply({ status: "phase", phase: "generating" });
-        reply({ status: "update", output: finalResponse.slice(gemma4ResponseLength), tps, numTokens });
+        reply({
+          status: "update",
+          output: finalResponse.slice(gemma4ResponseLength),
+          tps,
+          numTokens,
+        });
       }
     }
 
@@ -497,8 +519,7 @@ async function generate(
       reply({ status: "phase", phase: "generating" });
       reply({
         status: "update",
-        output:
-          "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
+        output: "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
         tps,
         numTokens,
       });
@@ -555,12 +576,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessageData>) => {
         if ("caches" in self) {
           const cache = await caches.open("transformers-cache");
           const requests = await cache.keys();
-          const toDelete = modelId
-            ? requests.filter((r) => r.url.includes(modelId))
-            : requests;
+          const toDelete = modelId ? requests.filter((r) => r.url.includes(modelId)) : requests;
           await Promise.all(toDelete.map((r) => cache.delete(r)));
         }
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       TextGenerationPipeline.tokenizer = null;
       TextGenerationPipeline.processor = null;
       TextGenerationPipeline.model = null;

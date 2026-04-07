@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { Node } from '@xyflow/svelte';
-  import { useSvelteFlow } from '@xyflow/svelte';
+  import type { Node } from "@xyflow/svelte";
+  import { useSvelteFlow } from "@xyflow/svelte";
 
   interface Props {
     nodes: Node[];

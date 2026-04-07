@@ -6,12 +6,4 @@ import Content from "./dialog-content.svelte";
 import Description from "./dialog-description.svelte";
 import Overlay from "./dialog-overlay.svelte";
 
-export {
-	Root,
-	Title,
-	Footer,
-	Header,
-	Content,
-	Description,
-	Overlay,
-};
+export { Root, Title, Footer, Header, Content, Description, Overlay };

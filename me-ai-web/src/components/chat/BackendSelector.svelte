@@ -32,9 +32,7 @@
 </script>
 
 <div class="w-full mb-4">
-  <p
-    class="text-[0.68rem] font-bold uppercase tracking-widest text-foreground/50 text-left mb-3"
-  >
+  <p class="text-[0.68rem] font-bold uppercase tracking-widest text-foreground/50 text-left mb-3">
     AI Backend
   </p>
 
@@ -51,7 +49,7 @@
     {/each}
   </div>
 
-  {#snippet optionBtn(opt: typeof options[number])}
+  {#snippet optionBtn(opt: (typeof options)[number])}
     <button
       onclick={() => (backend = opt.id)}
       disabled={opt.disabled}
@@ -60,7 +58,7 @@
         "disabled:opacity-40 disabled:cursor-not-allowed",
         backend === opt.id
           ? "bg-primary/8 border-primary/40"
-          : "bg-card border-border hover:bg-accent hover:border-primary/25",
+          : "bg-card border-border hover:bg-accent hover:border-primary/25"
       )}
     >
       <span class="text-2xl leading-none shrink-0">{opt.icon}</span>
@@ -68,7 +66,7 @@
         <div
           class={cn(
             "text-sm font-semibold tracking-tight mb-0.5",
-            backend === opt.id ? "text-primary" : "text-foreground",
+            backend === opt.id ? "text-primary" : "text-foreground"
           )}
         >
           {opt.label}

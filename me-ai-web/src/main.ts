@@ -26,9 +26,10 @@ if (document.readyState === "loading") {
 declare global {
   interface Window {
     __loadSettings: () => ReturnType<ReturnType<typeof getCore>["loadSettings"]>;
-    __saveSettings: (...args: Parameters<ReturnType<typeof getCore>["saveSettings"]>) => ReturnType<ReturnType<typeof getCore>["saveSettings"]>;
+    __saveSettings: (
+      ...args: Parameters<ReturnType<typeof getCore>["saveSettings"]>
+    ) => ReturnType<ReturnType<typeof getCore>["saveSettings"]>;
   }
 }
 window.__loadSettings = () => getCore().loadSettings();
 window.__saveSettings = (...args) => getCore().saveSettings(...args);
-

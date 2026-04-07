@@ -26,7 +26,7 @@
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
 
-  const IS_WEBGPU_AVAILABLE = !!((navigator as unknown as { gpu?: unknown }).gpu);
+  const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
@@ -35,7 +35,10 @@
   let apiModels: ApiModel[] = $state([]);
   $effect(() => {
     const { core } = $coreStore;
-    if (!core) { apiModels = []; return; }
+    if (!core) {
+      apiModels = [];
+      return;
+    }
     try {
       apiModels = (core as unknown as { getApiModels(): ApiModel[] }).getApiModels();
     } catch (e) {
@@ -101,260 +104,251 @@
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
-    // Restore saved backend, model, and options from settings (IndexedDB)
-    try {
-      const sv = await getCore().loadSettings();
-      if (sv.aiBackend !== undefined) backend = sv.aiBackend;
-      if (sv.selectedModel) selectedModel = sv.selectedModel;
-      if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
-      if (sv.loadDtype) loadDtype = sv.loadDtype;
-      if (sv.loadDevice) loadDevice = sv.loadDevice;
-      if (sv.maxTokens != null) maxTokens = sv.maxTokens;
-      if (sv.doSample !== undefined) doSample = sv.doSample;
-      if (sv.temperature != null) temperature = sv.temperature;
-      if (sv.repetitionPenalty != null) repetitionPenalty = sv.repetitionPenalty;
-    } catch {
-      storageUnavailable = true;
-    }
+      // Restore saved backend, model, and options from settings (IndexedDB)
+      try {
+        const sv = await getCore().loadSettings();
+        if (sv.aiBackend !== undefined) backend = sv.aiBackend;
+        if (sv.selectedModel) selectedModel = sv.selectedModel;
+        if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
+        if (sv.loadDtype) loadDtype = sv.loadDtype;
+        if (sv.loadDevice) loadDevice = sv.loadDevice;
+        if (sv.maxTokens != null) maxTokens = sv.maxTokens;
+        if (sv.doSample !== undefined) doSample = sv.doSample;
+        if (sv.temperature != null) temperature = sv.temperature;
+        if (sv.repetitionPenalty != null) repetitionPenalty = sv.repetitionPenalty;
+      } catch {
+        storageUnavailable = true;
+      }
 
-    if (engine.status === "idle") {
-      engine.check();
-    }
-
-    if (engine.isReady) {
-      status = "ready";
-      if (backend === AiBackend.WebGpu) {
+      if (engine.status === "idle") {
         engine.check();
       }
-      showDashboardIfNeeded();
-    }
 
-    const unsub = engine.onMessage((rawMsg) => {
-      const msg = rawMsg as Record<string, unknown>;
-      switch (msg.status) {
-        case "webgpu-info":
-          gpuInfo = msg.data as Record<string, unknown>;
-          break;
-
-        case "loading":
-          status = "loading";
-          loadingMessage = msg.data as string;
-          break;
-
-        case "initiate":
-          progressItems = progressItems.some((item) => item.file === msg.file)
-            ? progressItems.map((item) =>
-                item.file === msg.file ? { ...item, ...msg, done: false } : item,
-              )
-            : [...progressItems, { ...msg, done: false }];
-          break;
-
-        case "progress":
-          progressItems = progressItems.map((item) =>
-            item.file === msg.file ? { ...item, ...msg, done: false } : item,
-          );
-          break;
-
-        case "done":
-          progressItems = progressItems.map((item) =>
-            item.file === msg.file
-              ? {
-                  ...item,
-                  ...msg,
-                  loaded: Number(item.total ?? item.loaded ?? 0),
-                  done: true,
-                }
-              : item,
-          );
-          break;
-
-        case "ready":
-          status = "ready";
-          showDashboardIfNeeded();
-          break;
-
-        case "start":
-          if (!isRunning) break;
-          generationPhase = (msg.phase as string) || "preparing";
-          messages = [
-            ...messages,
-            {
-              role: "assistant",
-              content: "",
-              thinking: "",
-              thinkingStartedAt: null,
-              thinkingDurationMs: null,
-              model: selectedModel,
-            },
-          ];
-          break;
-
-        case "phase":
-          if (!isRunning) break;
-          generationPhase = msg.phase as string;
-          break;
-
-        case "thinking": {
-          if (!isRunning) break;
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          const thinkingStartedAt =
-            typeof last.thinkingStartedAt === "number"
-              ? last.thinkingStartedAt
-              : Date.now();
-          messages = [
-            ...messages.slice(0, -1),
-            {
-              ...last,
-              thinking: (last.thinking || "") + (msg.content as string),
-              thinkingStartedAt,
-              thinkingDurationMs: Date.now() - thinkingStartedAt,
-            },
-          ];
-          scrollToBottom(false);
-          break;
+      if (engine.isReady) {
+        status = "ready";
+        if (backend === AiBackend.WebGpu) {
+          engine.check();
         }
+        showDashboardIfNeeded();
+      }
 
-        case "thinking-done": {
-          if (!isRunning) break;
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          const thinkingStartedAt =
-            typeof last.thinkingStartedAt === "number"
-              ? last.thinkingStartedAt
-              : Date.now();
-          messages = [
-            ...messages.slice(0, -1),
-            {
-              ...last,
-              thinking: msg.content as string,
-              thinkingStartedAt,
-              thinkingDurationMs: Date.now() - thinkingStartedAt,
-            },
-          ];
-          break;
-        }
+      const unsub = engine.onMessage((rawMsg) => {
+        const msg = rawMsg as Record<string, unknown>;
+        switch (msg.status) {
+          case "webgpu-info":
+            gpuInfo = msg.data as Record<string, unknown>;
+            break;
 
-        case "update": {
-          if (!isRunning) break;
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          messages = [
-            ...messages.slice(0, -1),
-            { ...last, content: (last.content ?? "") + (msg.output as string) },
-          ];
-          scrollToBottom(false);
-          break;
-        }
+          case "loading":
+            status = "loading";
+            loadingMessage = msg.data as string;
+            break;
 
-        case "complete": {
-          if (!isRunning) break;
-          // Update final stats from Ollama
-          if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
-          if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
-          isRunning = false;
-          generationPhase = null;
+          case "initiate":
+            progressItems = progressItems.some((item) => item.file === msg.file)
+              ? progressItems.map((item) =>
+                  item.file === msg.file ? { ...item, ...msg, done: false } : item
+                )
+              : [...progressItems, { ...msg, done: false }];
+            break;
 
-          // --- BEGIN INTERCEPTOR ---
-          const lastMsg = messages[messages.length - 1];
-          if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
-            let newContent = lastMsg.content;
-            let didIntercept = false;
+          case "progress":
+            progressItems = progressItems.map((item) =>
+              item.file === msg.file ? { ...item, ...msg, done: false } : item
+            );
+            break;
 
-            // 1. Intercept Execution Commands
-            const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
-            let match;
-            const executedCategories: string[] = [];
-            while ((match = execRegex.exec(newContent)) !== null) {
-              executedCategories.push(match[1]);
-            }
-            if (executedCategories.length > 0) {
-              newContent = newContent
-                .replace(/\[EXECUTE:CATEGORY:[A-Z_]+\]/g, "")
-                .trim();
-              didIntercept = true;
-              for (const eventType of executedCategories) {
-                if (
-                  pendingData &&
-                  pendingData.categories &&
-                  pendingData.categories[eventType]
-                ) {
-                  runAutomatedExecution(eventType, pendingData.categories[eventType]);
-                }
-              }
-            }
-
-            // 2. Intercept Dashboard Command
-            if (newContent.includes("[SHOW:DASHBOARD]")) {
-              newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
-              didIntercept = true;
-
-              // Asynchronously fetch and inject the dashboard (pending only)
-              getClassificationsByCategory({ pendingOnly: true })
-                .then((byCategory) => {
-                  if (byCategory.order.length > 0) {
-                    buildEventsByCategoryMessage(byCategory as unknown as ByCategory).then((eventsMsg) => {
-                      messages = [...messages, eventsMsg];
-                      scrollToBottom();
-                    });
+          case "done":
+            progressItems = progressItems.map((item) =>
+              item.file === msg.file
+                ? {
+                    ...item,
+                    ...msg,
+                    loaded: Number(item.total ?? item.loaded ?? 0),
+                    done: true,
                   }
-                })
-                .catch((err) => {
-                  messages = [
-                    ...messages,
-                    {
-                      role: "assistant",
-                      content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
-                    },
-                  ];
-                });
-            }
+                : item
+            );
+            break;
 
-            if (didIntercept) {
-              messages = [
-                ...messages.slice(0, -1),
-                {
-                  ...lastMsg,
-                  content:
-                    newContent === "" ? "Okay, here you go:" : newContent,
-                },
-              ];
-            }
-          }
-          // --- END INTERCEPTOR ---
+          case "ready":
+            status = "ready";
+            showDashboardIfNeeded();
+            break;
 
-          refreshPendingData();
-          break;
-        }
+          case "start":
+            if (!isRunning) break;
+            generationPhase = (msg.phase as string) || "preparing";
+            messages = [
+              ...messages,
+              {
+                role: "assistant",
+                content: "",
+                thinking: "",
+                thinkingStartedAt: null,
+                thinkingDurationMs: null,
+                model: selectedModel,
+              },
+            ];
+            break;
 
-        case "error":
-          if (loadInitiated) {
-            error = msg.data as string;
+          case "phase":
+            if (!isRunning) break;
+            generationPhase = msg.phase as string;
+            break;
+
+          case "thinking": {
+            if (!isRunning) break;
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
+            const last = messages[messages.length - 1];
+            const thinkingStartedAt =
+              typeof last.thinkingStartedAt === "number" ? last.thinkingStartedAt : Date.now();
+            messages = [
+              ...messages.slice(0, -1),
+              {
+                ...last,
+                thinking: (last.thinking || "") + (msg.content as string),
+                thinkingStartedAt,
+                thinkingDurationMs: Date.now() - thinkingStartedAt,
+              },
+            ];
+            scrollToBottom(false);
+            break;
           }
-          if (status === "loading") {
-            // Error during model loading - go back to model selector
-            status = null;
+
+          case "thinking-done": {
+            if (!isRunning) break;
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
+            const last = messages[messages.length - 1];
+            const thinkingStartedAt =
+              typeof last.thinkingStartedAt === "number" ? last.thinkingStartedAt : Date.now();
+            messages = [
+              ...messages.slice(0, -1),
+              {
+                ...last,
+                thinking: msg.content as string,
+                thinkingStartedAt,
+                thinkingDurationMs: Date.now() - thinkingStartedAt,
+              },
+            ];
+            break;
           }
-          if (isRunning) {
+
+          case "update": {
+            if (!isRunning) break;
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
+            const last = messages[messages.length - 1];
+            messages = [
+              ...messages.slice(0, -1),
+              { ...last, content: (last.content ?? "") + (msg.output as string) },
+            ];
+            scrollToBottom(false);
+            break;
+          }
+
+          case "complete": {
+            if (!isRunning) break;
+            // Update final stats from Ollama
+            if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
+            if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
             isRunning = false;
             generationPhase = null;
-            // Replace empty assistant bubble with error text
-            const errLast = messages[messages.length - 1];
-            if (errLast && errLast.role === "assistant" && !errLast.content) {
-              messages = [
-                ...messages.slice(0, -1),
-                { ...errLast, content: `Error: ${(msg.data as string) || "Unknown error"}` },
-              ];
-            }
-          }
-          break;
-      }
-    });
 
-    _engineUnsub = unsub;
+            // --- BEGIN INTERCEPTOR ---
+            const lastMsg = messages[messages.length - 1];
+            if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
+              let newContent = lastMsg.content;
+              let didIntercept = false;
+
+              // 1. Intercept Execution Commands
+              const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
+              let match;
+              const executedCategories: string[] = [];
+              while ((match = execRegex.exec(newContent)) !== null) {
+                executedCategories.push(match[1]);
+              }
+              if (executedCategories.length > 0) {
+                newContent = newContent.replace(/\[EXECUTE:CATEGORY:[A-Z_]+\]/g, "").trim();
+                didIntercept = true;
+                for (const eventType of executedCategories) {
+                  if (pendingData && pendingData.categories && pendingData.categories[eventType]) {
+                    runAutomatedExecution(eventType, pendingData.categories[eventType]);
+                  }
+                }
+              }
+
+              // 2. Intercept Dashboard Command
+              if (newContent.includes("[SHOW:DASHBOARD]")) {
+                newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
+                didIntercept = true;
+
+                // Asynchronously fetch and inject the dashboard (pending only)
+                getClassificationsByCategory({ pendingOnly: true })
+                  .then((byCategory) => {
+                    if (byCategory.order.length > 0) {
+                      buildEventsByCategoryMessage(byCategory as unknown as ByCategory).then(
+                        (eventsMsg) => {
+                          messages = [...messages, eventsMsg];
+                          scrollToBottom();
+                        }
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    messages = [
+                      ...messages,
+                      {
+                        role: "assistant",
+                        content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
+                      },
+                    ];
+                  });
+              }
+
+              if (didIntercept) {
+                messages = [
+                  ...messages.slice(0, -1),
+                  {
+                    ...lastMsg,
+                    content: newContent === "" ? "Okay, here you go:" : newContent,
+                  },
+                ];
+              }
+            }
+            // --- END INTERCEPTOR ---
+
+            refreshPendingData();
+            break;
+          }
+
+          case "error":
+            if (loadInitiated) {
+              error = msg.data as string;
+            }
+            if (status === "loading") {
+              // Error during model loading - go back to model selector
+              status = null;
+            }
+            if (isRunning) {
+              isRunning = false;
+              generationPhase = null;
+              // Replace empty assistant bubble with error text
+              const errLast = messages[messages.length - 1];
+              if (errLast && errLast.role === "assistant" && !errLast.content) {
+                messages = [
+                  ...messages.slice(0, -1),
+                  { ...errLast, content: `Error: ${(msg.data as string) || "Unknown error"}` },
+                ];
+              }
+            }
+            break;
+        }
+      });
+
+      _engineUnsub = unsub;
     })();
     return () => _engineUnsub?.();
   });
@@ -367,9 +361,7 @@
       pendingData = pending as PendingData | null;
       if (pending) {
         greetingShown = true;
-        messages = [
-          { role: "assistant", type: "dashboard", pendingData: pending },
-        ];
+        messages = [{ role: "assistant", type: "dashboard", pendingData: pending }];
         scrollToBottom();
       }
       // Check if user has any scan data at all
@@ -389,9 +381,7 @@
       const dashIdx = messages.findIndex((m) => m.type === "dashboard");
       if (dashIdx !== -1) {
         if (pending && pending.total > 0) {
-          messages = messages.map((m, i) =>
-            i === dashIdx ? { ...m, pendingData: pending } : m,
-          );
+          messages = messages.map((m, i) => (i === dashIdx ? { ...m, pendingData: pending } : m));
         } else {
           // Remove the dashboard if no more pending items
           messages = messages.filter((_, i) => i !== dashIdx);
@@ -399,18 +389,14 @@
       }
 
       // Refresh the last events-by-category message so handled events disappear from the list
-      const eventsByCategoryIdx = messages.findLastIndex(
-        (m) => m.type === "events-by-category",
-      );
+      const eventsByCategoryIdx = messages.findLastIndex((m) => m.type === "events-by-category");
       if (eventsByCategoryIdx !== -1) {
         const byCategory = await getClassificationsByCategory({ pendingOnly: true });
         if (byCategory.order.length === 0) {
           messages = messages.filter((_, i) => i !== eventsByCategoryIdx);
         } else {
           const eventsMsg = await buildEventsByCategoryMessage(byCategory as unknown as ByCategory);
-          messages = messages.map((m, i) =>
-            i === eventsByCategoryIdx ? eventsMsg : m,
-          );
+          messages = messages.map((m, i) => (i === eventsByCategoryIdx ? eventsMsg : m));
         }
       }
 
@@ -467,7 +453,7 @@
               steps: s.map((step) =>
                 step.id === (progress.actionId ?? progress.commandId)
                   ? { ...step, status: "running", startedAt: Date.now() }
-                  : step,
+                  : step
               ),
             });
           } else if (progress.phase === "action_complete") {
@@ -482,14 +468,12 @@
                       expandable: !!r?.message,
                       subContent: r?.message ?? "",
                     }
-                  : step,
+                  : step
               ),
             });
           } else if (progress.phase === "done") {
             updateTask({
-              status: (messages[taskIdx].steps || []).every(
-                (step) => step.status !== "error",
-              )
+              status: (messages[taskIdx].steps || []).every((step) => step.status !== "error")
                 ? "done"
                 : "error",
             });
@@ -507,7 +491,7 @@
             });
           }
         },
-        true, // Auto-approve since user initiated it via chat
+        true // Auto-approve since user initiated it via chat
       );
 
       if (result.success) await refreshPendingData();
@@ -515,9 +499,7 @@
       updateTask({
         status: "error",
         steps: [
-          ...(messages[taskIdx].steps ?? []).filter(
-            (step) => step.status !== "running",
-          ),
+          ...(messages[taskIdx].steps ?? []).filter((step) => step.status !== "running"),
           {
             id: "error",
             label: `Execution failed: ${(e as Error)?.message ?? String(e)}`,
@@ -556,7 +538,9 @@
     const activeBackend =
       backend === AiBackend.Cloud
         ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-        : backend === AiBackend.Ollama ? "ollama" : "webgpu";
+        : backend === AiBackend.Ollama
+          ? "ollama"
+          : "webgpu";
 
     // Push a live task card into the chat.
     // Capture the index so we can mutate through the $state proxy later.
@@ -610,8 +594,7 @@
             totalEmails = progress.total ?? 0;
             if (!classifyStartedAt) classifyStartedAt = Date.now();
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj =
-              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             // Show completed steps + a running step for current email
             messages[taskIdx].steps = [
               {
@@ -631,8 +614,7 @@
             ];
           } else if (progress.phase === "classified") {
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj =
-              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             const cls = progress.result;
             const categoryTier = cls?.categoryTier ?? cls?.category ?? "";
             const action = cls?.action ?? "";
@@ -694,7 +676,9 @@
       await refreshPendingData();
 
       // Show scan results as a batch event message in chat
-      const typedScanResults = scanResults as unknown as Parameters<typeof buildBatchEventMessage>[0] | null;
+      const typedScanResults = scanResults as unknown as
+        | Parameters<typeof buildBatchEventMessage>[0]
+        | null;
       if (typedScanResults && typedScanResults.length > 0) {
         const eventMsg = await buildBatchEventMessage(typedScanResults);
         messages = [...messages, eventMsg];
@@ -703,27 +687,28 @@
 
       // If no dashboard message exists yet, insert one
       if (pendingData && !messages.some((m) => m.type === "dashboard")) {
-        messages = [
-          { role: "assistant", type: "dashboard", pendingData },
-          ...messages,
-        ];
+        messages = [{ role: "assistant", type: "dashboard", pendingData }, ...messages];
         scrollToBottom();
       }
     } catch (e) {
       console.error("Scan failed:", e);
       messages[taskIdx].status = "error";
       messages[taskIdx].steps = [
-        ...(messages[taskIdx].steps ?? []).filter(
-          (s) => s.status !== "running",
-        ),
-        { id: "error", label: `Scan failed: ${(e as Error)?.message ?? String(e)}`, status: "error" },
+        ...(messages[taskIdx].steps ?? []).filter((s) => s.status !== "running"),
+        {
+          id: "error",
+          label: `Scan failed: ${(e as Error)?.message ?? String(e)}`,
+          status: "error",
+        },
       ];
     } finally {
       isScanning = false;
     }
   }
 
-  function handleCommand(cmd: { event: Record<string, unknown>; commandId: string } | { id: string }) {
+  function handleCommand(
+    cmd: { event: Record<string, unknown>; commandId: string } | { id: string }
+  ) {
     if (!("event" in cmd)) return;
     const { event, commandId } = cmd;
     const evData = event?.data as Record<string, unknown> | undefined;
@@ -812,10 +797,7 @@
       !ollamaModels.find((m) => m.name === selectedModel)
     ) {
       if (ollamaModels[0]) selectedModel = ollamaModels[0].name;
-    } else if (
-      backend === AiBackend.Cloud &&
-      !apiModels.find((m) => m.id === selectedModel)
-    ) {
+    } else if (backend === AiBackend.Cloud && !apiModels.find((m) => m.id === selectedModel)) {
       if (apiModels[0]) selectedModel = apiModels[0].id;
     }
   });
@@ -928,7 +910,7 @@
         /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       const context = emailKeywords.test(text)
         ? await getCore().buildEmailContext(text)
-        : await getCore().buildLlmContext() || null;
+        : (await getCore().buildLlmContext()) || null;
 
       if (context) {
         systemMessages = [{ role: "system", content: context }];
@@ -944,7 +926,7 @@
           m.type !== "dashboard" &&
           m.type !== "events-by-category" &&
           m.type !== "event-batch" &&
-          m.type !== "event",
+          m.type !== "event"
       )
       .filter((m) => m.role != null && m.content != null)
       .map((m) => ({ role: m.role as string, content: m.content as string }));
@@ -983,69 +965,69 @@
       Storage unavailable (e.g. private browsing). Settings and data are not persisted.
     </div>
   {/if}
-{#if status === null}
-  <div class="w-full h-full overflow-y-auto flex justify-center">
-    <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
-      <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
+  {#if status === null}
+    <div class="w-full h-full overflow-y-auto flex justify-center">
+      <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
+        <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
 
-      {#if backend === AiBackend.WebGpu}
-        <ModelSelector
-          bind:selectedModel
-          bind:loadDtype
-          bind:loadDevice
-          {gpuInfo}
-          {error}
-          onload={loadModel}
-          onclearerror={() => {
-            error = null;
-          }}
-          onclearcache={clearCacheAndRetry}
-        />
-      {:else if backend === AiBackend.Ollama}
-        <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
-      {:else if backend === AiBackend.Cloud}
-        <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
-      {/if}
+        {#if backend === AiBackend.WebGpu}
+          <ModelSelector
+            bind:selectedModel
+            bind:loadDtype
+            bind:loadDevice
+            {gpuInfo}
+            {error}
+            onload={loadModel}
+            onclearerror={() => {
+              error = null;
+            }}
+            onclearcache={clearCacheAndRetry}
+          />
+        {:else if backend === AiBackend.Ollama}
+          <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
+        {:else if backend === AiBackend.Cloud}
+          <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
+        {/if}
+      </div>
     </div>
-  </div>
-{:else if status === "loading"}
-  <LoadingProgress message={loadingMessage} items={progressItems} />
-{:else}
-  <ChatView
-    {messages}
-    {pendingData}
-    {hasScanData}
-    engineReady={engine.isReady}
-    {isScanning}
-    {isRunning}
-    {tps}
-    {numTokens}
-    {generationPhase}
-    {gpuInfo}
-    bind:enableThinking
-    bind:maxTokens
-    bind:doSample
-    bind:temperature
-    bind:repetitionPenalty
-    backend={backend === AiBackend.Cloud
-      ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-      : backend === AiBackend.Ollama ? "ollama" : "webgpu"}
-    activeModelLabel={backend === AiBackend.WebGpu
-      ? getWebgpuModelLabel(engine.modelId)
-      : null}
-    hasModelIssue={backend === AiBackend.WebGpu && (!!error || !engine.modelId)}
-    bind:chatContainer
-    onsend={send}
-    onstop={stop}
-    onreset={reset}
-    onfixmodel={openModelPicker}
-    onmarkacted={markActed}
-    ondismiss={dismiss}
-    onremove={removeItem}
-    onclearcategory={clearCategory}
-    onscan={triggerScan}
-    oncommand={handleCommand}
-    onexecuted={refreshPendingData}
-  />
-{/if}
+  {:else if status === "loading"}
+    <LoadingProgress message={loadingMessage} items={progressItems} />
+  {:else}
+    <ChatView
+      {messages}
+      {pendingData}
+      {hasScanData}
+      engineReady={engine.isReady}
+      {isScanning}
+      {isRunning}
+      {tps}
+      {numTokens}
+      {generationPhase}
+      {gpuInfo}
+      bind:enableThinking
+      bind:maxTokens
+      bind:doSample
+      bind:temperature
+      bind:repetitionPenalty
+      backend={backend === AiBackend.Cloud
+        ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
+        : backend === AiBackend.Ollama
+          ? "ollama"
+          : "webgpu"}
+      activeModelLabel={backend === AiBackend.WebGpu ? getWebgpuModelLabel(engine.modelId) : null}
+      hasModelIssue={backend === AiBackend.WebGpu && (!!error || !engine.modelId)}
+      bind:chatContainer
+      onsend={send}
+      onstop={stop}
+      onreset={reset}
+      onfixmodel={openModelPicker}
+      onmarkacted={markActed}
+      ondismiss={dismiss}
+      onremove={removeItem}
+      onclearcategory={clearCategory}
+      onscan={triggerScan}
+      oncommand={handleCommand}
+      onexecuted={refreshPendingData}
+    />
+  {/if}
 </div>

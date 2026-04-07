@@ -48,7 +48,7 @@
       Date.now(),
       Number(progress.classified) || 0,
       Number(progress.errors) || 0,
-      Number(progress.total) || 0,
+      Number(progress.total) || 0
     );
     await getCore().saveSettings(sv);
   }
@@ -57,39 +57,45 @@
   onMount(() => {
     let unsub: (() => void) | undefined;
     (async () => {
-    unsub = engine.onMessage((rawMsg) => {
-      const msg = rawMsg as Record<string, unknown>;
-      if (msg.status === "ready") {
-        engineStatus = "ready";
-        const webgpuModel = getCore().getOnnxModels().find((m) => m.id === engine.modelId);
-        const ollamaModel = getCore().getOllamaModels().find(
-          (m) => m.name === engine.modelId,
-        );
+      unsub = engine.onMessage((rawMsg) => {
+        const msg = rawMsg as Record<string, unknown>;
+        if (msg.status === "ready") {
+          engineStatus = "ready";
+          const webgpuModel = getCore()
+            .getOnnxModels()
+            .find((m) => m.id === engine.modelId);
+          const ollamaModel = getCore()
+            .getOllamaModels()
+            .find((m) => m.name === engine.modelId);
+          modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
+        }
+        if (msg.status === "loading") engineStatus = "loading";
+      });
+
+      engineStatus = engine.status;
+      if (engine.modelId) {
+        const webgpuModel = getCore()
+          .getOnnxModels()
+          .find((m) => m.id === engine.modelId);
+        const ollamaModel = getCore()
+          .getOllamaModels()
+          .find((m) => m.name === engine.modelId);
         modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
       }
-      if (msg.status === "loading") engineStatus = "loading";
-    });
 
-    engineStatus = engine.status;
-    if (engine.modelId) {
-      const webgpuModel = getCore().getOnnxModels().find((m) => m.id === engine.modelId);
-      const ollamaModel = getCore().getOllamaModels().find((m) => m.name === engine.modelId);
-      modelName = ollamaModel?.displayName ?? webgpuModel?.name ?? engine.modelId ?? "";
-    }
+      // Restore last scan from IndexedDB
+      const saved = await loadScanHistory();
+      if (saved) {
+        scanProgress = {
+          phase: "done",
+          timestamp: saved.timestamp,
+          classified: saved.classified,
+          errors: saved.errors,
+          total: saved.total,
+        };
+      }
 
-    // Restore last scan from IndexedDB
-    const saved = await loadScanHistory();
-    if (saved) {
-      scanProgress = {
-        phase: "done",
-        timestamp: saved.timestamp,
-        classified: saved.classified,
-        errors: saved.errors,
-        total: saved.total,
-      };
-    }
-
-    loadData();
+      loadData();
     })();
     return () => unsub?.();
   });
@@ -142,7 +148,8 @@
         signal: abort.signal,
         onProgress: (progress) => {
           scanProgress = { ...(progress as unknown as Record<string, unknown>) };
-          if (progress.phase === "done") saveScanHistory(progress as unknown as Record<string, unknown>);
+          if (progress.phase === "done")
+            saveScanHistory(progress as unknown as Record<string, unknown>);
         },
       });
       await loadData();
@@ -165,9 +172,7 @@
   }
 
   async function executeEmail(eventType: string, email: Record<string, unknown>) {
-    const { executePipeline, isAuthenticated } = await import(
-      "./lib/plugins/execution-service.js"
-    );
+    const { executePipeline, isAuthenticated } = await import("./lib/plugins/execution-service.js");
 
     if (!(await isAuthenticated())) {
       alert("Please sign in to Gmail first (Dashboard page)");
@@ -184,7 +189,7 @@
           // Could update UI progress here if needed
           console.log("Pipeline progress:", progress);
         },
-        true,
+        true
       ); // Pass true for approved if we bypass the CRITICAL UI check here for simplicity, or we can handle it properly
 
       if (result.success) {
@@ -226,12 +231,12 @@
   <ControlBoardView
     {engineStatus}
     {modelName}
-    categories={categories}
-    categoryOrder={categoryOrder}
+    {categories}
+    {categoryOrder}
     {eventTypeToCategory}
     {counts}
     {stats}
-    expandedCategory={expandedCategory}
+    {expandedCategory}
     {isScanning}
     {scanProgress}
     {error}

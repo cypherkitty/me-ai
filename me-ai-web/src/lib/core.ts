@@ -6,34 +6,98 @@
  * methods directly via getCore() from core-store.
  */
 
-export { AiBackend, SettingValue, GoogleToken, TwitterToken, GmailProfile, TwitterProfile, ScanHistory, ApiModel, ActionMetadata } from "me-ai-core";
+export {
+  AiBackend,
+  SettingValue,
+  GoogleToken,
+  TwitterToken,
+  GmailProfile,
+  TwitterProfile,
+  ScanHistory,
+  ApiModel,
+  ActionMetadata,
+} from "me-ai-core";
 export type {
-  OnnxModel, OllamaModel, OllamaConnectionResult, OllamaModelTag,
-  OllamaChatMessage, StreamOllamaOptions, OllamaTokenData,
+  OnnxModel,
+  OllamaModel,
+  OllamaConnectionResult,
+  OllamaModelTag,
+  OllamaChatMessage,
+  StreamOllamaOptions,
+  OllamaTokenData,
   GenerateFullResult,
-  StoredItem, StoredItemRow, SyncState, SyncProgress, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult,
-  PipelineAction, ActionExecutionResult, AuditStep, AuditLogEntry, LogExecutionParams, GetAuditLogOptions,
-  Action, Trigger, Rule, CreateRuleInput, CreateRulePayload, RuleUpdateInput, EventStats, PendingItemByCategory, PipelineForEvent, CategoryPipelineDisplay,
-  EventCategory, EmailEvent, ExecutionProgress, ByCategory, ClassificationLike, EmailLike,
-  ClassificationResult, ScanProgress, ScanResult, ScanOptions, ClassificationRow, GetClassificationsByCategoryOptions,
+  StoredItem,
+  StoredItemRow,
+  SyncState,
+  SyncProgress,
+  GetStoredEmailsOptions,
+  GetStoredEmailsResult,
+  PendingActionsResult,
+  PipelineAction,
+  ActionExecutionResult,
+  AuditStep,
+  AuditLogEntry,
+  LogExecutionParams,
+  GetAuditLogOptions,
+  Action,
+  Trigger,
+  Rule,
+  CreateRuleInput,
+  CreateRulePayload,
+  RuleUpdateInput,
+  EventStats,
+  PendingItemByCategory,
+  PipelineForEvent,
+  CategoryPipelineDisplay,
+  EventCategory,
+  EmailEvent,
+  ExecutionProgress,
+  ByCategory,
+  ClassificationLike,
+  EmailLike,
+  ClassificationResult,
+  ScanProgress,
+  ScanResult,
+  ScanOptions,
+  ClassificationRow,
+  GetClassificationsByCategoryOptions,
   GoogleTokenResponse,
-  TwitterUser, Tweet, ApiResponse, TimelineOptions, TwitterUserInfo,
+  TwitterUser,
+  Tweet,
+  ApiResponse,
+  TimelineOptions,
+  TwitterUserInfo,
   TwitterTokenData,
   ParsedError,
   MessageLike,
-  WorkerMessage, WorkerHandle, Listener,
-  TriageEngine, PluginForPrompt,
-  ApiProvider, ChatMessage, TokenPayload, ApiStreamOptions, EngineStatus, EngineMessage, Backend,
-  NormalisedAction, ActionOverrideInput, ResolveExecuteResult, BatchEventResult, ResolveBatchResult,
-  EventInput, RuleSavePayload,
+  WorkerMessage,
+  WorkerHandle,
+  Listener,
+  TriageEngine,
+  PluginForPrompt,
+  ApiProvider,
+  ChatMessage,
+  TokenPayload,
+  ApiStreamOptions,
+  EngineStatus,
+  EngineMessage,
+  Backend,
+  NormalisedAction,
+  ActionOverrideInput,
+  ResolveExecuteResult,
+  BatchEventResult,
+  ResolveBatchResult,
+  EventInput,
+  RuleSavePayload,
   ClassificationDoc,
-  ClassificationView, ClassificationsByCategory, ClassificationCounts,
+  ClassificationView,
+  ClassificationsByCategory,
+  ClassificationCounts,
   TriageClassification,
 } from "me-ai-core";
 
 // Re-export initCore and getCore so existing callers don't need to change paths
 export { initCore, getCore, coreStore } from "./store/core-store.js";
-
 
 export class GmailApiError extends Error {
   status: number;
@@ -57,8 +121,14 @@ export async function getStorageStats(): Promise<{
   const { getCore } = await import("./store/core-store.js");
   const core = getCore();
   const tableNames = [
-    "sm_rules", "sm_rule_triggers", "sm_rule_commands",
-    "sm_events", "items", "emailClassifications", "contacts", "settings",
+    "sm_rules",
+    "sm_rule_triggers",
+    "sm_rule_commands",
+    "sm_events",
+    "items",
+    "emailClassifications",
+    "contacts",
+    "settings",
   ];
   const tables: Record<string, number> = {};
   for (const tbl of tableNames) {
@@ -70,9 +140,7 @@ export async function getStorageStats(): Promise<{
   }
   let usageBytes = 0;
   const supported =
-    typeof navigator !== "undefined" &&
-    "storage" in navigator &&
-    "estimate" in navigator.storage;
+    typeof navigator !== "undefined" && "storage" in navigator && "estimate" in navigator.storage;
   if (supported) {
     try {
       const est = await navigator.storage.estimate();

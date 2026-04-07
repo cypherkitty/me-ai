@@ -2,19 +2,31 @@
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getRules, createRule, updateRule, setRuleEnabled } from "../lib/rules.js";
-  
-  import { Button }    from "$lib/components/ui/button/index.js";
-  import { Badge }     from "$lib/components/ui/badge/index.js";
-  import { Input }     from "$lib/components/ui/input/index.js";
-  import { Label }     from "$lib/components/ui/label/index.js";
-  import { Switch }    from "$lib/components/ui/switch/index.js";
-  import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import * as Dialog   from "$lib/components/ui/dialog/index.js";
-  import { Separator } from "$lib/components/ui/separator/index.js";
-  import { cn }        from "$lib/utils.js";
-  import { Plus, Pencil, Trash2, X, ArrowUp, ArrowDown, ChevronRight, GitBranch } from "lucide-svelte";
 
-  interface RuleTrigger { type: string; name: string }
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Badge } from "$lib/components/ui/badge/index.js";
+  import { Input } from "$lib/components/ui/input/index.js";
+  import { Label } from "$lib/components/ui/label/index.js";
+  import { Switch } from "$lib/components/ui/switch/index.js";
+  import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+  import * as Dialog from "$lib/components/ui/dialog/index.js";
+  import { Separator } from "$lib/components/ui/separator/index.js";
+  import { cn } from "$lib/utils.js";
+  import {
+    Plus,
+    Pencil,
+    Trash2,
+    X,
+    ArrowUp,
+    ArrowDown,
+    ChevronRight,
+    GitBranch,
+  } from "lucide-svelte";
+
+  interface RuleTrigger {
+    type: string;
+    name: string;
+  }
   interface RuleItem {
     id?: string | number;
     name: string;
@@ -25,40 +37,51 @@
     actions: string[];
     policy: string;
   }
-  interface EventTypeItem { name: string; label?: string }
-  interface ActionItem { name: string; label?: string }
-  interface PolicyItem { name: string; description?: string }
-
-  let rules      = $state<RuleItem[]>([]);
-  let eventTypes = $state<EventTypeItem[]>([]);
-  let eventCats  = $state<EventTypeItem[]>([]);
-  let actions    = $state<ActionItem[]>([]);
-  let policies   = $state<PolicyItem[]>([]);
-  let loading    = $state(true);
-
-  function clone<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj, (_: string, v: unknown) => typeof v === "bigint" ? Number(v) : v)) as T;
+  interface EventTypeItem {
+    name: string;
+    label?: string;
+  }
+  interface ActionItem {
+    name: string;
+    label?: string;
+  }
+  interface PolicyItem {
+    name: string;
+    description?: string;
   }
 
-  let editing    = $state<RuleItem | null>(null);
-  let isNew      = $state(false);
-  let saving     = $state(false);
-  let deleteId   = $state<string | number | null>(null);
+  let rules = $state<RuleItem[]>([]);
+  let eventTypes = $state<EventTypeItem[]>([]);
+  let eventCats = $state<EventTypeItem[]>([]);
+  let actions = $state<ActionItem[]>([]);
+  let policies = $state<PolicyItem[]>([]);
+  let loading = $state(true);
+
+  function clone<T>(obj: T): T {
+    return JSON.parse(
+      JSON.stringify(obj, (_: string, v: unknown) => (typeof v === "bigint" ? Number(v) : v))
+    ) as T;
+  }
+
+  let editing = $state<RuleItem | null>(null);
+  let isNew = $state(false);
+  let saving = $state(false);
+  let deleteId = $state<string | number | null>(null);
   let editorOpen = $state(false);
   let deleteOpen = $state(false);
 
   const POLICY_META: Record<string, { label: string; desc: string }> = {
-    auto:   { label: "Auto",   desc: "Executes immediately" },
+    auto: { label: "Auto", desc: "Executes immediately" },
     manual: { label: "Manual", desc: "Awaits user approval" },
   };
 
   const POLICY_VARIANT: Record<string, string> = {
-    auto:   "default",
+    auto: "default",
     manual: "outline",
   };
 
   const TRIGGER_VARIANT: Record<string, string> = {
-    event_type:     "default",
+    event_type: "default",
     event_category: "secondary",
   };
 
@@ -84,7 +107,15 @@
   onMount(load);
 
   function startNew() {
-    editing = { name: "", description: "", enabled: true, priority: 5, triggers: [], actions: [], policy: "auto" };
+    editing = {
+      name: "",
+      description: "",
+      enabled: true,
+      priority: 5,
+      triggers: [],
+      actions: [],
+      policy: "auto",
+    };
     isNew = true;
     editorOpen = true;
   }
@@ -106,7 +137,11 @@
     saving = true;
     try {
       if (isNew) await createRule(editing as unknown as Parameters<typeof createRule>[0]);
-      else       await updateRule(String(editing.id), editing as unknown as Parameters<typeof updateRule>[1]);
+      else
+        await updateRule(
+          String(editing.id),
+          editing as unknown as Parameters<typeof updateRule>[1]
+        );
 
       cancelEdit();
       await load();
@@ -133,12 +168,16 @@
     if (!editing) return;
     editing.triggers = [...editing.triggers, { type, name: "" }];
   }
-  function removeTrigger(i: number) { if (editing) editing.triggers = editing.triggers.filter((_, idx) => idx !== i); }
+  function removeTrigger(i: number) {
+    if (editing) editing.triggers = editing.triggers.filter((_, idx) => idx !== i);
+  }
   function addAction(name: string) {
     if (!editing || editing.actions.includes(name)) return;
     editing.actions = [...editing.actions, name];
   }
-  function removeAction(i: number) { if (editing) editing.actions = editing.actions.filter((_, idx) => idx !== i); }
+  function removeAction(i: number) {
+    if (editing) editing.actions = editing.actions.filter((_, idx) => idx !== i);
+  }
   function moveAction(i: number, dir: number) {
     if (!editing) return;
     const arr = [...editing.actions];
@@ -188,13 +227,17 @@
     {:else}
       <div class="flex flex-col gap-2">
         {#each rules as rule (rule.id)}
-          <div class={cn(
-            "flex items-center gap-3 px-3.5 py-3 rounded-lg border transition-colors",
-            "bg-card border-border/50 hover:border-border",
-            !rule.enabled && "opacity-50"
-          )}>
+          <div
+            class={cn(
+              "flex items-center gap-3 px-3.5 py-3 rounded-lg border transition-colors",
+              "bg-card border-border/50 hover:border-border",
+              !rule.enabled && "opacity-50"
+            )}
+          >
             <!-- Priority -->
-            <div class="size-6 rounded-md bg-muted border border-border flex items-center justify-center text-[0.62rem] font-bold text-muted-foreground shrink-0">
+            <div
+              class="size-6 rounded-md bg-muted border border-border flex items-center justify-center text-[0.62rem] font-bold text-muted-foreground shrink-0"
+            >
               {rule.priority}
             </div>
 
@@ -207,9 +250,19 @@
 
             <!-- Pipeline chain -->
             <div class="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
-              <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">WHEN</span>
+              <span
+                class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50"
+                >WHEN</span
+              >
               {#each rule.triggers as t, ti (ti)}
-                <Badge variant={(TRIGGER_VARIANT[t.type] ?? "outline") as "default" | "destructive" | "outline" | "secondary"} class="text-xs px-2 h-5">
+                <Badge
+                  variant={(TRIGGER_VARIANT[t.type] ?? "outline") as
+                    | "default"
+                    | "destructive"
+                    | "outline"
+                    | "secondary"}
+                  class="text-xs px-2 h-5"
+                >
                   {triggerLabel(t)}
                 </Badge>
               {/each}
@@ -219,7 +272,10 @@
 
               <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
 
-              <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">DO</span>
+              <span
+                class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50"
+                >DO</span
+              >
               {#each rule.actions as a, i (i)}
                 {#if i > 0}<span class="text-muted-foreground/30 text-xs">→</span>{/if}
                 <Badge variant="secondary" class="text-xs px-2 h-5 font-mono">
@@ -232,17 +288,32 @@
 
               <ChevronRight class="size-3 text-muted-foreground/30 shrink-0" />
 
-              <span class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50">VIA</span>
-              <Badge variant={(POLICY_VARIANT[rule.policy] ?? "outline") as "default" | "destructive" | "outline" | "secondary"} class="text-xs px-2 h-5 font-semibold">
+              <span
+                class="text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/50"
+                >VIA</span
+              >
+              <Badge
+                variant={(POLICY_VARIANT[rule.policy] ?? "outline") as
+                  | "default"
+                  | "destructive"
+                  | "outline"
+                  | "secondary"}
+                class="text-xs px-2 h-5 font-semibold"
+              >
                 {POLICY_META[rule.policy]?.label ?? rule.policy}
               </Badge>
             </div>
 
             <!-- Rule name -->
             <div class="flex flex-col gap-0.5 min-w-0 max-w-[140px] shrink-0">
-              <span class="text-[0.68rem] text-muted-foreground font-mono truncate" title={rule.name}>{rule.name}</span>
+              <span
+                class="text-[0.68rem] text-muted-foreground font-mono truncate"
+                title={rule.name}>{rule.name}</span
+              >
               {#if rule.description}
-                <span class="text-[0.62rem] text-muted-foreground/40 truncate">{rule.description}</span>
+                <span class="text-[0.62rem] text-muted-foreground/40 truncate"
+                  >{rule.description}</span
+                >
               {/if}
             </div>
 
@@ -254,7 +325,10 @@
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onclick={() => { deleteId = rule.id ?? null; deleteOpen = true; }}
+                onclick={() => {
+                  deleteId = rule.id ?? null;
+                  deleteOpen = true;
+                }}
                 title="Delete"
               >
                 <Trash2 class="size-3" />
@@ -268,12 +342,18 @@
 </div>
 
 <!-- Rule editor dialog -->
-<Dialog.Root bind:open={editorOpen} onOpenChange={(o: boolean) => { if (!o) cancelEdit(); }}>
+<Dialog.Root
+  bind:open={editorOpen}
+  onOpenChange={(o: boolean) => {
+    if (!o) cancelEdit();
+  }}
+>
   <Dialog.Content class="max-w-lg max-h-[90dvh] flex flex-col overflow-hidden">
     <Dialog.Header class="shrink-0">
       <Dialog.Title>{isNew ? "New Rule" : "Edit Rule"}</Dialog.Title>
       <Dialog.Description>
-        Triple notation: <code class="text-xs bg-muted px-1 py-0.5 rounded">type:action:policy</code>
+        Triple notation: <code class="text-xs bg-muted px-1 py-0.5 rounded">type:action:policy</code
+        >
       </Dialog.Description>
     </Dialog.Header>
 
@@ -289,14 +369,25 @@
           <!-- Description -->
           <div class="space-y-1.5">
             <Label for="rule-desc">Description</Label>
-            <Input id="rule-desc" bind:value={editing.description} placeholder="What this rule does" />
+            <Input
+              id="rule-desc"
+              bind:value={editing.description}
+              placeholder="What this rule does"
+            />
           </div>
 
           <!-- Priority + Enabled -->
           <div class="flex gap-4">
             <div class="space-y-1.5 flex-1">
               <Label for="rule-priority">Priority</Label>
-              <Input id="rule-priority" type="number" bind:value={editing.priority} min="1" max="1000" class="w-24" />
+              <Input
+                id="rule-priority"
+                type="number"
+                bind:value={editing.priority}
+                min="1"
+                max="1000"
+                class="w-24"
+              />
             </div>
             <div class="space-y-1.5">
               <Label>Status</Label>
@@ -304,9 +395,13 @@
                 <Switch
                   id="rule-enabled-toggle"
                   checked={editing.enabled}
-                  onCheckedChange={(v: boolean) => { if (editing) editing.enabled = v; }}
+                  onCheckedChange={(v: boolean) => {
+                    if (editing) editing.enabled = v;
+                  }}
                 />
-                <span class="text-sm text-muted-foreground">{editing.enabled ? "Enabled" : "Disabled"}</span>
+                <span class="text-sm text-muted-foreground"
+                  >{editing.enabled ? "Enabled" : "Disabled"}</span
+                >
               </div>
             </div>
           </div>
@@ -343,14 +438,24 @@
                       {/each}
                     {/if}
                   </select>
-                  <Button variant="ghost" size="icon-sm" onclick={() => removeTrigger(i)} aria-label="Remove trigger" class="shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onclick={() => removeTrigger(i)}
+                    aria-label="Remove trigger"
+                    class="shrink-0"
+                  >
                     <X class="size-3" />
                   </Button>
                 </div>
               {/each}
               <div class="flex gap-2">
-                <Button variant="outline" size="sm" onclick={() => addTrigger("event_type")}>+ Event Type</Button>
-                <Button variant="outline" size="sm" onclick={() => addTrigger("event_category")}>+ Category</Button>
+                <Button variant="outline" size="sm" onclick={() => addTrigger("event_type")}
+                  >+ Event Type</Button
+                >
+                <Button variant="outline" size="sm" onclick={() => addTrigger("event_category")}
+                  >+ Category</Button
+                >
               </div>
             </div>
           </div>
@@ -359,28 +464,57 @@
 
           <!-- Actions pipeline -->
           <div class="space-y-2">
-            <Label>Action Pipeline <span class="text-xs text-muted-foreground">(ordered)</span></Label>
+            <Label
+              >Action Pipeline <span class="text-xs text-muted-foreground">(ordered)</span></Label
+            >
             <div class="flex flex-col gap-1.5">
               {#each editing.actions as a, i (i)}
-                <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-muted/40 border border-border/50">
-                  <span class="size-5 rounded bg-muted flex items-center justify-center text-[0.6rem] font-bold text-muted-foreground shrink-0">{i + 1}</span>
+                <div
+                  class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-muted/40 border border-border/50"
+                >
+                  <span
+                    class="size-5 rounded bg-muted flex items-center justify-center text-[0.6rem] font-bold text-muted-foreground shrink-0"
+                    >{i + 1}</span
+                  >
                   <span class="flex-1 text-xs text-foreground">{actionLabel(a)}</span>
                   <div class="flex items-center gap-0.5">
-                    <Button variant="ghost" size="icon-sm" onclick={() => moveAction(i, -1)} disabled={i === 0} aria-label="Move up">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onclick={() => moveAction(i, -1)}
+                      disabled={i === 0}
+                      aria-label="Move up"
+                    >
                       <ArrowUp class="size-3" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onclick={() => moveAction(i, 1)} disabled={i === editing.actions.length - 1} aria-label="Move down">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onclick={() => moveAction(i, 1)}
+                      disabled={i === editing.actions.length - 1}
+                      aria-label="Move down"
+                    >
                       <ArrowDown class="size-3" />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onclick={() => removeAction(i)} aria-label="Remove action">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onclick={() => removeAction(i)}
+                      aria-label="Remove action"
+                    >
                       <X class="size-3" />
                     </Button>
                   </div>
                 </div>
               {/each}
               <div class="flex flex-wrap gap-1.5">
-                {#each actions.filter(a => !(editing?.actions ?? []).includes(a.name)) as a (a.name)}
-                  <Button variant="outline" size="sm" onclick={() => addAction(a.name)} class="text-xs h-7">{a.label}</Button>
+                {#each actions.filter((a) => !(editing?.actions ?? []).includes(a.name)) as a (a.name)}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => addAction(a.name)}
+                    class="text-xs h-7">{a.label}</Button
+                  >
                 {/each}
               </div>
             </div>
@@ -394,7 +528,9 @@
             <div class="flex gap-2">
               {#each policies as p (p.name)}
                 <button
-                  onclick={() => { if (editing) editing.policy = p.name; }}
+                  onclick={() => {
+                    if (editing) editing.policy = p.name;
+                  }}
                   class={cn(
                     "flex-1 flex flex-col items-start px-3 py-2.5 rounded-lg border text-left transition-colors",
                     editing.policy === p.name
@@ -403,7 +539,9 @@
                   )}
                 >
                   <span class="text-xs font-bold">{POLICY_META[p.name]?.label ?? p.name}</span>
-                  <span class="text-[0.65rem] opacity-70 mt-0.5">{POLICY_META[p.name]?.desc ?? p.description}</span>
+                  <span class="text-[0.65rem] opacity-70 mt-0.5"
+                    >{POLICY_META[p.name]?.desc ?? p.description}</span
+                  >
                 </button>
               {/each}
             </div>
@@ -422,14 +560,29 @@
 </Dialog.Root>
 
 <!-- Delete confirmation dialog -->
-<Dialog.Root bind:open={deleteOpen} onOpenChange={(o: boolean) => { if (!o) { deleteId = null; } }}>
+<Dialog.Root
+  bind:open={deleteOpen}
+  onOpenChange={(o: boolean) => {
+    if (!o) {
+      deleteId = null;
+    }
+  }}
+>
   <Dialog.Content class="max-w-sm">
     <Dialog.Header>
       <Dialog.Title>Delete Rule</Dialog.Title>
-      <Dialog.Description>This will permanently delete the rule. This action cannot be undone.</Dialog.Description>
+      <Dialog.Description
+        >This will permanently delete the rule. This action cannot be undone.</Dialog.Description
+      >
     </Dialog.Header>
     <Dialog.Footer>
-      <Button variant="outline" onclick={() => { deleteOpen = false; deleteId = null; }}>Cancel</Button>
+      <Button
+        variant="outline"
+        onclick={() => {
+          deleteOpen = false;
+          deleteId = null;
+        }}>Cancel</Button
+      >
       <Button variant="destructive" onclick={doDelete}>Delete</Button>
     </Dialog.Footer>
   </Dialog.Content>

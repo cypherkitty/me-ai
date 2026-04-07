@@ -56,11 +56,7 @@ export async function executePipeline(
     if (result.requiresApproval) return result;
 
     const results = [...(result.results ?? [])] as ActionExecutionResult[];
-    await handleFilesystemActions(
-      result.filesystemActions ?? [],
-      event,
-      results
-    );
+    await handleFilesystemActions(result.filesystemActions ?? [], event, results);
 
     return { ...result, results };
   } catch (error) {
@@ -75,7 +71,17 @@ export async function executePipelineBatch(
   events: Array<Record<string, unknown>>,
   onProgress?: (p: ExecutionProgress) => void,
   approved: boolean = false
-): Promise<ResolveBatchResult | { success: false; error: unknown; message: string; total: number; successful: number; failed: number }> {
+): Promise<
+  | ResolveBatchResult
+  | {
+      success: false;
+      error: unknown;
+      message: string;
+      total: number;
+      successful: number;
+      failed: number;
+    }
+> {
   try {
     const result = (await getCore().resolveAndExecuteBatch(
       eventType,

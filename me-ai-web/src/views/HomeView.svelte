@@ -8,14 +8,7 @@
   import { getTwitterSyncStatus } from "../lib/store/twitter-sync.js";
   import { getUnifiedEngine } from "../lib/unified-engine.js";
   import Chat from "../Chat.svelte";
-  import {
-    GitBranch,
-    CheckCircle2,
-    Zap,
-    ScanSearch,
-    Mail,
-    ShieldCheck,
-  } from "lucide-svelte";
+  import { GitBranch, CheckCircle2, Zap, ScanSearch, Mail, ShieldCheck } from "lucide-svelte";
 
   interface SyncStatus {
     synced: boolean;
@@ -44,79 +37,77 @@
   onMount(async () => {
     try {
       const token = await getSavedToken();
-      if (token && await isTokenValid()) {
+      if (token && (await isTokenValid())) {
         gmailConnected = true;
       }
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     try {
       const status = (await getGmailSyncStatus()) as SyncStatus;
       emailCount = status.totalItems ?? 0;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     // Also count Twitter items
     try {
       const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
       emailCount += twStatus.totalItems ?? 0;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     // Check if Twitter is connected
     try {
       const twToken = await getSavedTwitterToken();
       if (twToken) gmailConnected = true; // reuse flag — means "any source connected"
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     // Check if Local Filesystem is connected
     try {
       const { getDirectories } = await import("../lib/plugins/filesystem-store.js");
       const dirs = await getDirectories();
       if (dirs.length > 0) gmailConnected = true;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     try {
       const counts = (await getClassificationCounts()) as { total?: number };
       scannedCount = counts.total ?? 0;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     try {
       const stats = (await getEventStats()) as { total?: number };
       pipelineCount = stats.total ?? 0;
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     checking = false;
   });
 
   // Step states: idle | active | done
-  const s1 = $derived(
-    gmailConnected ? (emailCount > 0 ? "done" : "active") : "idle",
-  );
+  const s1 = $derived(gmailConnected ? (emailCount > 0 ? "done" : "active") : "idle");
   // Scan requires a source to be connected AND AI backend to be loaded
-  const s2 = $derived(
-    engineReady
-      ? scannedCount > 0
-        ? "done"
-        : "active"
-      : "idle",
-  );
+  const s2 = $derived(engineReady ? (scannedCount > 0 ? "done" : "active") : "idle");
   const s2Blocked = $derived(!engineReady); // source connected but no AI
-  const s3 = $derived(
-    scannedCount > 0 ? (pipelineCount > 0 ? "done" : "active") : "idle",
-  );
+  const s3 = $derived(scannedCount > 0 ? (pipelineCount > 0 ? "done" : "active") : "idle");
 </script>
 
 <div class="flex flex-col h-full overflow-hidden">
   <!-- ── Top bar: brand ────────────────────────────────────────── -->
-  <div
-    class="flex items-center gap-2 px-4 h-11 shrink-0 border-b border-border bg-sidebar"
-  >
-    <div
-      class="size-6 rounded bg-primary flex items-center justify-center shrink-0"
-    >
+  <div class="flex items-center gap-2 px-4 h-11 shrink-0 border-b border-border bg-sidebar">
+    <div class="size-6 rounded bg-primary flex items-center justify-center shrink-0">
       <Zap class="size-3.5 text-primary-foreground" />
     </div>
-    <span class="text-sm font-semibold tracking-tight text-foreground"
-      >me-ai</span
-    >
+    <span class="text-sm font-semibold tracking-tight text-foreground">me-ai</span>
     <div class="flex-1"></div>
     <a
       href="#stream"
@@ -128,9 +119,7 @@
   </div>
 
   <!-- ── Compact Stepper Workflow ────────────────────────────────── -->
-  <div
-    class="shrink-0 border-b border-border bg-card/40 backdrop-blur-sm px-6 py-2.5"
-  >
+  <div class="shrink-0 border-b border-border bg-card/40 backdrop-blur-sm px-6 py-2.5">
     {#if checking}
       <!-- Skeleton -->
       <div class="flex items-center justify-center gap-4 animate-pulse h-10">
@@ -144,10 +133,7 @@
       <div class="flex items-center justify-center gap-0">
         <nav aria-label="Progress" class="flex items-center">
           <!-- ── Step 1: Sources ───────────────────────────────── -->
-          <a
-            href="#sources"
-            class="relative flex items-center group no-underline"
-          >
+          <a href="#sources" class="relative flex items-center group no-underline">
             <div
               class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s1 ===
               'done'
@@ -169,20 +155,16 @@
                   />{/if}
               </div>
               <div class="flex flex-col">
-                <span
-                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
                   >Sources</span
                 >
-                {#if s1 === "done"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {#if s1 === "done"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >{emailCount.toLocaleString()} emails</span
                   >
-                {:else if s1 === "active"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {:else if s1 === "active"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >Sync needed</span
                   >
-                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
-                    >Start here</span
+                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none">Start here</span
                   >{/if}
               </div>
             </div>
@@ -190,8 +172,7 @@
 
           <!-- Divider -->
           <div
-            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s2 !==
-            'idle'
+            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s2 !== 'idle'
               ? 'bg-primary/40'
               : 'bg-border/60'}"
           ></div>
@@ -219,21 +200,18 @@
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'bg-muted-foreground/20 text-muted-foreground'}"
               >
-                {#if s2 === "done"}<CheckCircle2
+                {#if s2 === "done"}<CheckCircle2 class="size-3" />{:else}<ScanSearch
                     class="size-3"
-                  />{:else}<ScanSearch class="size-3" />{/if}
+                  />{/if}
               </div>
               <div class="flex flex-col">
-                <span
-                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
                   >Scan</span
                 >
-                {#if s2 === "done"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {#if s2 === "done"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >{scannedCount.toLocaleString()} classified</span
                   >
-                {:else if s2 === "active"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {:else if s2 === "active"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >Ready to run</span
                   >
                 {:else if s2Blocked}<span
@@ -249,17 +227,13 @@
 
           <!-- Divider -->
           <div
-            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s3 !==
-            'idle'
+            class="w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 {s3 !== 'idle'
               ? 'bg-primary/40'
               : 'bg-border/60'}"
           ></div>
 
           <!-- ── Step 3: Control Plane (always clickable; pipelines don't need LLM) ─────────────────────────── -->
-          <a
-            href="#pipelines"
-            class="relative flex items-center group no-underline"
-          >
+          <a href="#pipelines" class="relative flex items-center group no-underline">
             <div
               class="flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 {s3 ===
               'done'
@@ -276,26 +250,22 @@
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'bg-muted-foreground/20 text-muted-foreground'}"
               >
-                {#if s3 === "done"}<CheckCircle2
+                {#if s3 === "done"}<CheckCircle2 class="size-3" />{:else}<GitBranch
                     class="size-3"
-                  />{:else}<GitBranch class="size-3" />{/if}
+                  />{/if}
               </div>
               <div class="flex flex-col">
-                <span
-                  class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
                   >Control</span
                 >
-                {#if s3 === "done"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {#if s3 === "done"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >{pipelineCount}
                     {pipelineCount === 1 ? "rule" : "rules"} active</span
                   >
-                {:else if s3 === "active"}<span
-                    class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                {:else if s3 === "active"}<span class="text-[0.6rem] opacity-80 mt-1 leading-none"
                     >Configure rules</span
                   >
-                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none"
-                    >Pending scan</span
+                {:else}<span class="text-[0.6rem] opacity-60 mt-1 leading-none">Pending scan</span
                   >{/if}
               </div>
             </div>

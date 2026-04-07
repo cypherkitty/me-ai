@@ -4,10 +4,7 @@
   import { cn } from "$lib/utils.js";
   import { ChevronDown } from "lucide-svelte";
   import PipelineGraph from "./PipelineGraph.svelte";
-  import {
-    getActionsForEvent,
-    getCategoryForEventType,
-  } from "../../lib/events.js";
+  import { getActionsForEvent, getCategoryForEventType } from "../../lib/events.js";
 
   interface ItemWithStatus extends StoredItem {
     status?: string;
@@ -73,29 +70,20 @@
     >
       {formatLabel(action)}
     </span>
-    <span class="text-sm font-semibold tabular-nums text-foreground"
-      >{pendingItems.length}</span
-    >
+    <span class="text-sm font-semibold tabular-nums text-foreground">{pendingItems.length}</span>
     {#if actedItems.length > 0}
-      <span class="text-xs text-muted-foreground/40"
-        >{actedItems.length} handled</span
-      >
+      <span class="text-xs text-muted-foreground/40">{actedItems.length} handled</span>
     {/if}
     <span class="flex-1"></span>
     <ChevronDown
-      class={cn(
-        "size-3.5 text-muted-foreground/40 transition-transform",
-        expanded && "rotate-180",
-      )}
+      class={cn("size-3.5 text-muted-foreground/40 transition-transform", expanded && "rotate-180")}
     />
   </button>
 
   {#if expanded}
     <div class="border-t border-border/40">
       <!-- Context Graph -->
-      <div
-        class="bg-background/50 border-b border-border/40 p-2 overflow-x-auto"
-      >
+      <div class="bg-background/50 border-b border-border/40 p-2 overflow-x-auto">
         {#if activeTier}
           <div
             class="text-[0.65rem] font-bold text-muted-foreground/50 uppercase tracking-widest pl-1 pt-1 pb-2"
@@ -106,24 +94,22 @@
         <PipelineGraph
           eventType={action}
           category={activeTier}
-          commands={activePipeline as unknown as { commandId?: string; pluginId?: string; name?: string; description?: string; icon?: string; [key: string]: unknown }[]}
+          commands={activePipeline as unknown as {
+            commandId?: string;
+            pluginId?: string;
+            name?: string;
+            description?: string;
+            icon?: string;
+            [key: string]: unknown;
+          }[]}
         />
       </div>
       {#if pendingItems.length === 0 && actedItems.length === 0}
-        <p class="text-xs text-muted-foreground/40 text-center py-6">
-          No emails in this category.
-        </p>
+        <p class="text-xs text-muted-foreground/40 text-center py-6">No emails in this category.</p>
       {/if}
 
       {#each pendingItems as item (item.id)}
-        <EmailRow
-          {item}
-          actionColor={color}
-          {onexecute}
-          {onmarkacted}
-          {ondismiss}
-          {onremove}
-        />
+        <EmailRow {item} actionColor={color} {onexecute} {onmarkacted} {ondismiss} {onremove} />
       {/each}
 
       {#if actedItems.length > 0}
@@ -159,8 +145,7 @@
                 onclearcategory?.();
                 showClearConfirm = false;
               }}
-              class="text-destructive hover:text-destructive/80 transition-colors"
-              >Delete</button
+              class="text-destructive hover:text-destructive/80 transition-colors">Delete</button
             >
           </div>
         {/if}

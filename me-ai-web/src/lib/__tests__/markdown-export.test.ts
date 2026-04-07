@@ -5,7 +5,12 @@ import type { MessageForMarkdown } from "../markdown-export.js";
 const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
   const slugify = (s: string) => {
     const src = s || "email";
-    const slug = src.split("").map((c: string) => /[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : "").join("").slice(0, 60).replace(/-+$/, "");
+    const slug = src
+      .split("")
+      .map((c: string) => (/[a-zA-Z0-9_-]/.test(c) ? c : c === " " ? "-" : ""))
+      .join("")
+      .slice(0, 60)
+      .replace(/-+$/, "");
     return slug || "email";
   };
   const shortDate = (ms: number) => {
@@ -101,9 +106,7 @@ describe("emailToMarkdown", () => {
   it("produces valid markdown structure for a real-world email", () => {
     const md = emailToMarkdown(AMAZON_MESSAGE);
     const lines = md.split("\n");
-    expect(lines[0]).toBe(
-      "# Elon Musk, will you rate your transaction at Amazon.com?"
-    );
+    expect(lines[0]).toBe("# Elon Musk, will you rate your transaction at Amazon.com?");
     expect(lines[1]).toBe("");
     expect(lines[2]).toBe("| | |");
     expect(lines[3]).toBe("|---|---|");

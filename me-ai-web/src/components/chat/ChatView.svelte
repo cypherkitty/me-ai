@@ -58,7 +58,9 @@
     onremove?: (id: string) => void;
     onclearcategory?: (category: string) => void;
     onscan?: () => void;
-    oncommand?: (cmd: { event: Record<string, unknown>; commandId: string } | { id: string }) => void;
+    oncommand?: (
+      cmd: { event: Record<string, unknown>; commandId: string } | { id: string }
+    ) => void;
     onexecuted?: () => void;
   }
   onMount(() => mountLog("ChatView"));
@@ -148,14 +150,9 @@
   <div
     class="w-64 border-r border-border bg-card/30 flex flex-col shrink-0 overflow-y-auto hidden md:flex"
   >
-    <div
-      class="px-4 py-4 border-b border-border/50 sticky top-0 bg-card/95 backdrop-blur z-10"
-    >
-      <h3
-        class="text-xs font-semibold text-foreground tracking-tight flex items-center gap-2"
-      >
-        <span
-          class="text-[0.6rem] bg-primary/20 text-primary px-1.5 py-0.5 rounded-sm uppercase"
+    <div class="px-4 py-4 border-b border-border/50 sticky top-0 bg-card/95 backdrop-blur z-10">
+      <h3 class="text-xs font-semibold text-foreground tracking-tight flex items-center gap-2">
+        <span class="text-[0.6rem] bg-primary/20 text-primary px-1.5 py-0.5 rounded-sm uppercase"
           >AI Control Plane</span
         >
       </h3>
@@ -194,8 +191,7 @@
             class="text-[0.65rem] font-bold text-muted-foreground/60 uppercase tracking-wider px-1 pb-1 flex justify-between items-center"
           >
             Pending Actions
-            <span
-              class="bg-warning/20 text-warning px-1 rounded text-[0.55rem] font-black"
+            <span class="bg-warning/20 text-warning px-1 rounded text-[0.55rem] font-black"
               >{pendingData.total}</span
             >
           </div>
@@ -209,19 +205,14 @@
               class="w-full flex items-center justify-between text-left px-2 py-1.5 text-xs text-foreground/80 hover:bg-accent rounded-md transition-all group/btn disabled:opacity-50"
             >
               <span class="flex items-center gap-1.5 min-w-0 pr-2">
-                <span
-                  class="size-1.5 rounded-full shrink-0 shadow-sm"
-                  style:background={color}
+                <span class="size-1.5 rounded-full shrink-0 shadow-sm" style:background={color}
                 ></span>
-                <span
-                  class="truncate tracking-tight group-hover/btn:text-foreground"
+                <span class="truncate tracking-tight group-hover/btn:text-foreground"
                   >{eventType.split("_").join(" ")}</span
                 >
               </span>
               <span class="flex items-center gap-1.5 shrink-0">
-                <span class="text-[0.55rem] font-bold opacity-60 tabular-nums"
-                  >{count}</span
-                >
+                <span class="text-[0.55rem] font-bold opacity-60 tabular-nums">{count}</span>
                 <span
                   class="text-[0.55rem] font-bold tracking-wider text-muted-foreground/40 group-hover/btn:text-primary transition-colors border border-border/50 bg-background/50 px-1 rounded opacity-0 group-hover/btn:opacity-100"
                   >RUN</span
@@ -231,9 +222,7 @@
           {/each}
         </div>
       {:else if engineReady}
-        <div
-          class="px-2 py-3 border border-dashed border-border/60 rounded-md text-center"
-        >
+        <div class="px-2 py-3 border border-dashed border-border/60 rounded-md text-center">
           <p class="text-[0.65rem] text-muted-foreground">No pending items.</p>
           <button
             onclick={onscan}
@@ -269,7 +258,8 @@
             onclick={() => (showGpuPanel = !showGpuPanel)}
             class="h-5 px-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-success border-success/30 bg-success/8 hover:bg-success/14"
           >
-            WebGPU-{activeModelLabel} {showGpuPanel ? "▲" : "▼"}
+            WebGPU-{activeModelLabel}
+            {showGpuPanel ? "▲" : "▼"}
           </Button>
         {:else if backend === "webgpu" && activeModelLabel}
           <Badge
@@ -282,10 +272,7 @@
           {@const meta = BACKEND_META[backend]}
           <Badge
             variant="outline"
-            class={cn(
-              "text-[0.6rem] font-bold uppercase tracking-wider h-5 px-1.5",
-              meta.color,
-            )}
+            class={cn("text-[0.6rem] font-bold uppercase tracking-wider h-5 px-1.5", meta.color)}
           >
             {meta.label}
           </Badge>
@@ -297,26 +284,19 @@
             tok/s
           </span>
         {:else if isRunning && generationPhase === "preparing"}
-          <span class="text-xs text-muted-foreground/40 italic animate-pulse"
-            >preparing…</span
-          >
+          <span class="text-xs text-muted-foreground/40 italic animate-pulse">preparing…</span>
         {:else if isRunning && generationPhase === "thinking"}
           <span class="text-xs text-muted-foreground/40 italic animate-pulse">
             thinking… {tps ? `${tps.toFixed(0)} tok/s` : ""}
           </span>
         {:else if tps && isRunning}
-          <span class="text-xs text-muted-foreground/50 tabular-nums"
-            >{tps.toFixed(1)} tok/s</span
-          >
+          <span class="text-xs text-muted-foreground/50 tabular-nums">{tps.toFixed(1)} tok/s</span>
         {/if}
 
         <span class="flex-1"></span>
         {#if gpuInfo}
           <div class="flex items-center gap-2">
-            <Label
-              for="thinking-switch"
-              class="text-xs text-muted-foreground/60 cursor-pointer"
-            >
+            <Label for="thinking-switch" class="text-xs text-muted-foreground/60 cursor-pointer">
               Thinking
             </Label>
             <Switch
@@ -335,7 +315,7 @@
             "h-6 text-[0.6rem] font-semibold uppercase tracking-wider px-2",
             showGenerationPanel
               ? "bg-accent/50 text-foreground"
-              : "text-muted-foreground/50 hover:bg-accent/50",
+              : "text-muted-foreground/50 hover:bg-accent/50"
           )}
         >
           Generation {showGenerationPanel ? "▲" : "▼"}
@@ -351,13 +331,9 @@
         </Button>
       </div>
       {#if showGenerationPanel}
-        <div
-          class="px-6 py-3 border-t border-border bg-muted/20 flex flex-wrap gap-4"
-        >
+        <div class="px-6 py-3 border-t border-border bg-muted/20 flex flex-wrap gap-4">
           <div class="flex flex-col gap-1 min-w-[70px]">
-            <Label for="max-tokens" class="text-[0.6rem] opacity-60"
-              >Max tokens</Label
-            >
+            <Label for="max-tokens" class="text-[0.6rem] opacity-60">Max tokens</Label>
             <Input
               id="max-tokens"
               type="number"
@@ -370,21 +346,12 @@
             />
           </div>
           <div class="flex items-center gap-2 pt-5">
-            <Label for="do-sample" class="text-[0.6rem] opacity-60"
-              >Sample</Label
-            >
-            <Switch
-              id="do-sample"
-              bind:checked={doSample}
-              disabled={isRunning}
-              class="scale-90"
-            />
+            <Label for="do-sample" class="text-[0.6rem] opacity-60">Sample</Label>
+            <Switch id="do-sample" bind:checked={doSample} disabled={isRunning} class="scale-90" />
           </div>
           {#if doSample}
             <div class="flex flex-col gap-1 min-w-[70px]">
-              <Label for="temperature" class="text-[0.6rem] opacity-60"
-                >Temperature</Label
-              >
+              <Label for="temperature" class="text-[0.6rem] opacity-60">Temperature</Label>
               <Input
                 id="temperature"
                 type="number"
@@ -398,9 +365,7 @@
             </div>
           {/if}
           <div class="flex flex-col gap-1 min-w-[70px]">
-            <Label for="repetition-penalty" class="text-[0.6rem] opacity-60"
-              >Rep. penalty</Label
-            >
+            <Label for="repetition-penalty" class="text-[0.6rem] opacity-60">Rep. penalty</Label>
             <Input
               id="repetition-penalty"
               type="number"
@@ -453,8 +418,7 @@
           <EventMessage
             {msg}
             {onexecuted}
-            ondismiss={() =>
-              (messages = messages.filter((_, idx) => idx !== i))}
+            ondismiss={() => (messages = messages.filter((_, idx) => idx !== i))}
           />
         {:else}
           {@const prevModel = messages
@@ -462,15 +426,18 @@
             .filter((m) => m.role === "assistant")
             .at(-1)?.model}
           <MessageBubble
-            msg={msg as unknown as { role: string; content?: string; model?: string; [key: string]: unknown }}
+            msg={msg as unknown as {
+              role: string;
+              content?: string;
+              model?: string;
+              [key: string]: unknown;
+            }}
             isLast={i === messages.length - 1}
             {isRunning}
             {generationPhase}
             {numTokens}
             {backend}
-            showModelName={msg.role === "assistant" &&
-              !!msg.model &&
-              msg.model !== prevModel}
+            showModelName={msg.role === "assistant" && !!msg.model && msg.model !== prevModel}
           />
         {/if}
       {/each}
@@ -479,9 +446,7 @@
     <QuickActions {hasScanData} {engineReady} {isScanning} {onscan} />
 
     <!-- Input row -->
-    <div
-      class="flex items-end gap-2 px-6 py-3 pb-4 border-t border-border shrink-0"
-    >
+    <div class="flex items-end gap-2 px-6 py-3 pb-4 border-t border-border shrink-0">
       <Textarea
         rows={1}
         placeholder="Type a message…"
@@ -491,18 +456,10 @@
         class="flex-1 resize-none min-h-[42px] max-h-[160px] overflow-y-auto leading-relaxed py-2.5"
       />
       {#if isRunning}
-        <Button
-          variant="outline"
-          size="sm"
-          onclick={onstop}
-          class="h-[42px] px-4">Stop</Button
-        >
+        <Button variant="outline" size="sm" onclick={onstop} class="h-[42px] px-4">Stop</Button>
       {:else}
-        <Button
-          size="sm"
-          onclick={handleSend}
-          disabled={!input.trim()}
-          class="h-[42px] px-4">Send</Button
+        <Button size="sm" onclick={handleSend} disabled={!input.trim()} class="h-[42px] px-4"
+          >Send</Button
         >
       {/if}
     </div>

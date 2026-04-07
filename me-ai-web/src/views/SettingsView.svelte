@@ -10,9 +10,7 @@
         <Settings class="size-5 text-primary/60" />
         <h2 class="text-xl font-bold tracking-tight text-foreground">Settings</h2>
       </div>
-      <p class="text-sm text-muted-foreground/60">
-        Application configuration and preferences.
-      </p>
+      <p class="text-sm text-muted-foreground/60">Application configuration and preferences.</p>
     </div>
   </div>
 

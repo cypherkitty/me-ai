@@ -25,7 +25,12 @@ export function getUserTimeline(
   options: TimelineOptions = {}
 ): Promise<ApiResponse<Tweet[]>> {
   const { maxResults = 10, paginationToken } = options;
-  return requireCore().getTwitterTimeline(token, userId, Math.min(maxResults, 100), paginationToken ?? null) as unknown as Promise<ApiResponse<Tweet[]>>;
+  return requireCore().getTwitterTimeline(
+    token,
+    userId,
+    Math.min(maxResults, 100),
+    paginationToken ?? null
+  ) as unknown as Promise<ApiResponse<Tweet[]>>;
 }
 
 /**
@@ -33,7 +38,9 @@ export function getUserTimeline(
  */
 export function buildUserMap(response: ApiResponse<unknown>): Map<string, TwitterUserInfo> {
   const map = new Map<string, TwitterUserInfo>();
-  const users = response?.includes?.users as { id: string; username: string; name: string }[] | undefined;
+  const users = response?.includes?.users as
+    | { id: string; username: string; name: string }[]
+    | undefined;
   if (users) {
     for (const u of users) {
       map.set(u.id, { username: u.username, name: u.name });

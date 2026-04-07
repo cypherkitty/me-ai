@@ -11,12 +11,8 @@
     getTokenTTL,
     refreshToken,
   } from "../lib/google-auth.js";
-  
-  import {
-    syncGmail,
-    syncGmailMore,
-    getGmailSyncStatus,
-  } from "../lib/store/gmail-sync.js";
+
+  import { syncGmail, syncGmailMore, getGmailSyncStatus } from "../lib/store/gmail-sync.js";
   import { getStoredEmails } from "../lib/store/query-layer.js";
   import {
     initTwitterAuth,
@@ -32,7 +28,7 @@
     getTwitterSyncStatus,
     clearTwitterData,
   } from "../lib/store/twitter-sync.js";
-  
+
   import { wipeAllData } from "../lib/store/db.js";
   import MessageList from "../components/dashboard/MessageList.svelte";
   import MessageModal from "../components/dashboard/MessageModal.svelte";
@@ -48,7 +44,10 @@
   import FilesystemSourceSettings from "../components/sources/FilesystemSourceSettings.svelte";
 
   // ── Source metadata ────────────────────────────────────────────────
-  const SOURCE_META: Record<string, { color: string; icon: string; label: string; platform: string; live: boolean }> = {
+  const SOURCE_META: Record<
+    string,
+    { color: string; icon: string; label: string; platform: string; live: boolean }
+  > = {
     gmail: {
       color: "#ea4335",
       icon: "M",
@@ -117,12 +116,8 @@
   const DEFAULT_CLIENT_ID =
     "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
 
-  let clientId = $state(
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
-  );
-  let clientIdInput = $state(
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
-  );
+  let clientId = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID);
+  let clientIdInput = $state(import.meta.env.VITE_GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID);
   let authInitialized = $state(false);
   let showClientIdEdit = $state(false);
 
@@ -158,11 +153,13 @@
   const hasMoreLocal = $derived(emailMessages.length < totalLocalMessages);
 
   onMount(() => {
-    getCore().loadSettings().then((sv) => {
-      const saved = sv.googleClientId ?? null;
-      clientId = saved || DEFAULT_CLIENT_ID;
-      clientIdInput = saved || DEFAULT_CLIENT_ID;
-    });
+    getCore()
+      .loadSettings()
+      .then((sv) => {
+        const saved = sv.googleClientId ?? null;
+        clientId = saved || DEFAULT_CLIENT_ID;
+        clientIdInput = saved || DEFAULT_CLIENT_ID;
+      });
     window.addEventListener("keydown", handleKeydown);
     return () => {
       window.removeEventListener("keydown", handleKeydown);
@@ -267,7 +264,9 @@
     if (accessToken) {
       try {
         await revokeToken(accessToken);
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
     accessToken = null;
     profile = null;
@@ -302,9 +301,7 @@
         limit: LOCAL_PAGE_SIZE,
         offset,
       });
-      emailMessages = append
-        ? [...emailMessages, ...result.items]
-        : result.items;
+      emailMessages = append ? [...emailMessages, ...result.items] : result.items;
       totalLocalMessages = result.total;
       localOffset = emailMessages.length;
     } catch (e) {
@@ -325,7 +322,9 @@
   async function refreshSyncStatus() {
     try {
       syncStatus = await getGmailSyncStatus();
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   async function startSync(limit: number) {
@@ -469,7 +468,9 @@
           twAccessToken = saved.access_token;
           await twFetchProfile();
         }
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
     }
   });
 
@@ -504,7 +505,9 @@
   async function twSignOut() {
     try {
       await revokeTwitterToken();
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
     twAccessToken = null;
     twProfile = null;
     twMessages = [];
@@ -537,18 +540,29 @@
     try {
       const offset = append ? twLocalOffset : 0;
       const fetchSize = twSearchQuery ? 2000 : TW_LOCAL_PAGE_SIZE + offset;
-      const rows = ((await getCore().getItemsBySource("twitter", fetchSize, 0)) as unknown) as Record<string, unknown>[];
+      const rows = (await getCore().getItemsBySource("twitter", fetchSize, 0)) as unknown as Record<
+        string,
+        unknown
+      >[];
       let list = rows ?? [];
       if (twSearchQuery) {
         const q = twSearchQuery.toLowerCase();
         list = list.filter(
           (r) =>
-            String(r.subject ?? "").toLowerCase().includes(q) ||
-            String(r.body ?? "").toLowerCase().includes(q) ||
-            String(r.from ?? "").toLowerCase().includes(q)
+            String(r.subject ?? "")
+              .toLowerCase()
+              .includes(q) ||
+            String(r.body ?? "")
+              .toLowerCase()
+              .includes(q) ||
+            String(r.from ?? "")
+              .toLowerCase()
+              .includes(q)
         );
       }
-      const total = twSearchQuery ? list.length : Number(await getCore().getItemsCountBySource("twitter") ?? 0);
+      const total = twSearchQuery
+        ? list.length
+        : Number((await getCore().getItemsCountBySource("twitter")) ?? 0);
       const page = list.slice(offset, offset + TW_LOCAL_PAGE_SIZE);
       twMessages = append ? [...twMessages, ...page] : page;
       twTotalMessages = total;
@@ -571,7 +585,9 @@
   async function twRefreshSyncStatus() {
     try {
       twSyncStatus = await getTwitterSyncStatus();
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 
   async function twStartSync(limit: number) {
@@ -637,13 +653,9 @@
 
 <div class="flex h-full overflow-hidden">
   <!-- ── Left sidebar: source list ─────────────────────────────── -->
-  <div
-    class="w-56 shrink-0 flex flex-col border-r border-border bg-sidebar overflow-hidden"
-  >
+  <div class="w-56 shrink-0 flex flex-col border-r border-border bg-sidebar overflow-hidden">
     <div class="px-3 pt-4 pb-2 shrink-0">
-      <h2
-        class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/50"
-      >
+      <h2 class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/50">
         Sources
       </h2>
     </div>
@@ -665,7 +677,7 @@
                 ? "bg-sidebar-accent border border-primary/20"
                 : isLive
                   ? "hover:bg-sidebar-accent/60 border border-transparent"
-                  : "opacity-40 cursor-default border border-transparent",
+                  : "opacity-40 cursor-default border border-transparent"
             )}
           >
             <!-- Source icon -->
@@ -681,9 +693,7 @@
               <p
                 class={cn(
                   "text-sm font-medium truncate",
-                  isSelected && isLive
-                    ? "text-foreground"
-                    : "text-foreground/80",
+                  isSelected && isLive ? "text-foreground" : "text-foreground/80"
                 )}
               >
                 {meta.label}
@@ -698,15 +708,10 @@
               {#if isConnected}
                 <span class="size-1.5 rounded-full bg-success shrink-0"></span>
               {:else}
-                <span
-                  class="size-1.5 rounded-full bg-muted-foreground/20 shrink-0"
-                ></span>
+                <span class="size-1.5 rounded-full bg-muted-foreground/20 shrink-0"></span>
               {/if}
             {:else}
-              <span
-                class="text-[0.55rem] font-medium text-muted-foreground/30 shrink-0"
-                >Soon</span
-              >
+              <span class="text-[0.55rem] font-medium text-muted-foreground/30 shrink-0">Soon</span>
             {/if}
           </button>
         {/each}
@@ -731,9 +736,7 @@
             >
               {(profile?.emailAddress as string)?.[0]?.toUpperCase() ?? "G"}
             </div>
-            <span
-              class="text-sm font-medium text-foreground truncate max-w-[180px]"
-            >
+            <span class="text-sm font-medium text-foreground truncate max-w-[180px]">
               {profile?.emailAddress ?? "Gmail"}
             </span>
             <span class="size-1.5 rounded-full bg-success shrink-0"></span>
@@ -748,7 +751,7 @@
             {:else if syncStatus?.synced}
               <span class="text-xs text-muted-foreground/40"
                 >{syncStatus.totalItems.toLocaleString()} emails · {formatTimeAgo(
-                  syncStatus.lastSyncAt,
+                  syncStatus.lastSyncAt
                 )}</span
               >
             {/if}
@@ -758,8 +761,7 @@
               disabled={isSyncing}
               class="h-7 px-1.5 text-xs rounded border border-input bg-background text-foreground"
             >
-              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option
-                >{/each}
+              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option>{/each}
             </select>
 
             <Button
@@ -769,11 +771,7 @@
               class="h-7 gap-1.5 text-xs"
             >
               <RefreshCw class={cn("size-3", isSyncing && "animate-spin")} />
-              {isSyncing
-                ? "Syncing…"
-                : syncStatus?.synced
-                  ? "Sync New"
-                  : "Download"}
+              {isSyncing ? "Syncing…" : syncStatus?.synced ? "Sync New" : "Download"}
             </Button>
 
             {#if syncStatus?.synced && syncStatus.hasMore}
@@ -810,17 +808,14 @@
             class="mx-4 mt-2 px-3 py-2 rounded border border-destructive/30 bg-destructive/8 text-xs text-destructive flex items-center justify-between shrink-0"
           >
             <span>{gmailError}</span>
-            <button
-              onclick={() => (gmailError = null)}
-              class="ml-2 opacity-60 hover:opacity-100">✕</button
+            <button onclick={() => (gmailError = null)} class="ml-2 opacity-60 hover:opacity-100"
+              >✕</button
             >
           </div>
         {/if}
 
         <!-- Search bar -->
-        <div
-          class="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0"
-        >
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
           <div class="relative flex-1">
             <Search
               class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40 pointer-events-none"
@@ -843,9 +838,7 @@
             {loadingMessages ? "…" : "Search"}
           </Button>
           {#if totalLocalMessages > 0}
-            <span
-              class="text-xs text-muted-foreground/40 shrink-0 whitespace-nowrap"
-            >
+            <span class="text-xs text-muted-foreground/40 shrink-0 whitespace-nowrap">
               {emailMessages.length} of {totalLocalMessages.toLocaleString()}
             </span>
           {/if}
@@ -855,17 +848,10 @@
         <div class="flex-1 min-h-0 overflow-y-auto">
           <div class="p-3">
             {#if emailMessages.length > 0}
-              <MessageList
-                messages={emailMessages}
-                onselect={(msg) => (selectedMessage = msg)}
-              />
+              <MessageList messages={emailMessages} onselect={(msg) => (selectedMessage = msg)} />
               {#if hasMoreLocal}
                 <div class="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onclick={loadMoreLocal}
-                    disabled={loadingMessages}
-                  >
+                  <Button variant="outline" onclick={loadMoreLocal} disabled={loadingMessages}>
                     {loadingMessages ? "Loading…" : "Load More"}
                   </Button>
                 </div>
@@ -880,9 +866,7 @@
                 Loading messages…
               </div>
             {:else}
-              <div
-                class="flex flex-col items-center justify-center gap-3 py-20 text-center"
-              >
+              <div class="flex flex-col items-center justify-center gap-3 py-20 text-center">
                 <Database class="size-8 text-muted-foreground/15" />
                 <p class="text-sm text-muted-foreground/40">
                   {searchQuery
@@ -896,14 +880,10 @@
 
         <!-- Clear data footer (subtle) -->
         {#if syncStatus?.synced}
-          <div
-            class="px-4 py-2 border-t border-border shrink-0 flex items-center justify-end"
-          >
+          <div class="px-4 py-2 border-t border-border shrink-0 flex items-center justify-end">
             {#if showClearConfirm}
               <div class="flex items-center gap-2">
-                <span class="text-xs text-muted-foreground/50"
-                  >Delete all local emails?</span
-                >
+                <span class="text-xs text-muted-foreground/50">Delete all local emails?</span>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -929,9 +909,7 @@
         {/if}
       {:else}
         <!-- Not signed in — sign-in panel -->
-        <div
-          class="flex flex-col items-center justify-center h-full gap-5 px-8"
-        >
+        <div class="flex flex-col items-center justify-center h-full gap-5 px-8">
           <div
             class="size-14 rounded-2xl flex items-center justify-center text-2xl font-black"
             style="background:#ea433518; color:#ea4335;"
@@ -939,12 +917,8 @@
             M
           </div>
           <div class="text-center">
-            <p class="text-base font-semibold text-foreground mb-1">
-              Connect Gmail
-            </p>
-            <p
-              class="text-sm text-muted-foreground/60 max-w-xs leading-relaxed"
-            >
+            <p class="text-base font-semibold text-foreground mb-1">Connect Gmail</p>
+            <p class="text-sm text-muted-foreground/60 max-w-xs leading-relaxed">
               Sign in with Google to sync and browse your emails.
             </p>
           </div>
@@ -967,12 +941,7 @@
                 ></div>
                 Signing in…
               {:else}
-                <svg
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  class="shrink-0"
-                >
+                <svg viewBox="0 0 24 24" width="16" height="16" class="shrink-0">
                   <path
                     d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
                     fill="#4285F4"
@@ -1004,9 +973,7 @@
           <!-- Client ID -->
           <div class="w-full max-w-[260px]">
             {#if !showClientIdEdit}
-              <div
-                class="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/30"
-              >
+              <div class="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/30">
                 <span
                   >Client ID: {isDefaultClientId
                     ? "shared default"
@@ -1025,11 +992,7 @@
                   class="h-8 text-xs font-mono"
                 />
                 <div class="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    onclick={saveClientId}
-                    class="flex-1 h-7 text-xs">Save</Button
-                  >
+                  <Button size="sm" onclick={saveClientId} class="flex-1 h-7 text-xs">Save</Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1056,9 +1019,7 @@
             >
               X
             </div>
-            <span
-              class="text-sm font-medium text-foreground truncate max-w-[180px]"
-            >
+            <span class="text-sm font-medium text-foreground truncate max-w-[180px]">
               @{twProfile?.username ?? "Twitter"}
             </span>
             <span class="size-1.5 rounded-full bg-success shrink-0"></span>
@@ -1072,7 +1033,7 @@
             {:else if twSyncStatus?.synced}
               <span class="text-xs text-muted-foreground/40"
                 >{twSyncStatus.totalItems.toLocaleString()} tweets · {formatTimeAgo(
-                  twSyncStatus.lastSyncAt,
+                  twSyncStatus.lastSyncAt
                 )}</span
               >
             {/if}
@@ -1082,8 +1043,7 @@
               disabled={twSyncing}
               class="h-7 px-1.5 text-xs rounded border border-input bg-background text-foreground"
             >
-              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option
-                >{/each}
+              {#each LIMIT_OPTIONS as opt (opt)}<option value={opt}>{opt}</option>{/each}
             </select>
 
             <Button
@@ -1093,11 +1053,7 @@
               class="h-7 gap-1.5 text-xs"
             >
               <RefreshCw class={cn("size-3", twSyncing && "animate-spin")} />
-              {twSyncing
-                ? "Syncing…"
-                : twSyncStatus?.synced
-                  ? "Sync New"
-                  : "Download"}
+              {twSyncing ? "Syncing…" : twSyncStatus?.synced ? "Sync New" : "Download"}
             </Button>
 
             {#if twSyncStatus?.synced && twSyncStatus.hasMore}
@@ -1129,17 +1085,14 @@
             class="mx-4 mt-2 px-3 py-2 rounded border border-destructive/30 bg-destructive/8 text-xs text-destructive flex items-center justify-between shrink-0"
           >
             <span>{twError}</span>
-            <button
-              onclick={() => (twError = null)}
-              class="ml-2 opacity-60 hover:opacity-100">✕</button
+            <button onclick={() => (twError = null)} class="ml-2 opacity-60 hover:opacity-100"
+              >✕</button
             >
           </div>
         {/if}
 
         <!-- Search bar -->
-        <div
-          class="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0"
-        >
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border shrink-0">
           <div class="relative flex-1">
             <Search
               class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40 pointer-events-none"
@@ -1162,8 +1115,7 @@
             {twLoadingMessages ? "…" : "Search"}
           </Button>
           {#if twTotalMessages > 0}
-            <span
-              class="text-xs text-muted-foreground/40 shrink-0 whitespace-nowrap"
+            <span class="text-xs text-muted-foreground/40 shrink-0 whitespace-nowrap"
               >{twMessages.length} of {twTotalMessages.toLocaleString()}</span
             >
           {/if}
@@ -1179,11 +1131,7 @@
               />
               {#if twMessages.length < twTotalMessages}
                 <div class="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onclick={twLoadMoreLocal}
-                    disabled={twLoadingMessages}
-                  >
+                  <Button variant="outline" onclick={twLoadMoreLocal} disabled={twLoadingMessages}>
                     {twLoadingMessages ? "Loading…" : "Load More"}
                   </Button>
                 </div>
@@ -1198,9 +1146,7 @@
                 Loading tweets…
               </div>
             {:else}
-              <div
-                class="flex flex-col items-center justify-center gap-3 py-20 text-center"
-              >
+              <div class="flex flex-col items-center justify-center gap-3 py-20 text-center">
                 <Database class="size-8 text-muted-foreground/15" />
                 <p class="text-sm text-muted-foreground/40">
                   {twSearchQuery
@@ -1213,14 +1159,10 @@
         </div>
 
         {#if twSyncStatus?.synced}
-          <div
-            class="px-4 py-2 border-t border-border shrink-0 flex items-center justify-end"
-          >
+          <div class="px-4 py-2 border-t border-border shrink-0 flex items-center justify-end">
             {#if twShowClearConfirm}
               <div class="flex items-center gap-2">
-                <span class="text-xs text-muted-foreground/50"
-                  >Delete all local tweets?</span
-                >
+                <span class="text-xs text-muted-foreground/50">Delete all local tweets?</span>
                 <Button
                   variant="destructive"
                   size="sm"
@@ -1246,9 +1188,7 @@
         {/if}
       {:else}
         <!-- Not signed in — sign-in panel -->
-        <div
-          class="flex flex-col items-center justify-center h-full gap-5 px-8"
-        >
+        <div class="flex flex-col items-center justify-center h-full gap-5 px-8">
           <div
             class="size-14 rounded-2xl flex items-center justify-center text-2xl font-black"
             style="background:#1da1f218; color:#1da1f2;"
@@ -1256,17 +1196,11 @@
             X
           </div>
           <div class="text-center">
-            <p class="text-base font-semibold text-foreground mb-1">
-              Connect Twitter/X
-            </p>
-            <p
-              class="text-sm text-muted-foreground/60 max-w-xs leading-relaxed"
-            >
+            <p class="text-base font-semibold text-foreground mb-1">Connect Twitter/X</p>
+            <p class="text-sm text-muted-foreground/60 max-w-xs leading-relaxed">
               Sign in with Twitter to sync and browse your tweets.
             </p>
-            <p
-              class="text-xs text-muted-foreground/40 max-w-xs leading-relaxed mt-1"
-            >
+            <p class="text-xs text-muted-foreground/40 max-w-xs leading-relaxed mt-1">
               Get your Client ID from the
               <a
                 href="https://developer.x.com/en/portal/dashboard"
@@ -1323,14 +1257,8 @@
           <!-- Client ID -->
           <div class="w-full max-w-[260px]">
             {#if !twShowClientIdEdit}
-              <div
-                class="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/30"
-              >
-                <span
-                  >Client ID: {twClientId
-                    ? twClientId.slice(0, 16) + "…"
-                    : "not set"}</span
-                >
+              <div class="flex items-center gap-1.5 text-[0.65rem] text-muted-foreground/30">
+                <span>Client ID: {twClientId ? twClientId.slice(0, 16) + "…" : "not set"}</span>
                 <button
                   onclick={() => (twShowClientIdEdit = true)}
                   class="text-primary hover:underline ml-auto">Change</button
@@ -1344,10 +1272,7 @@
                   class="h-8 text-xs font-mono"
                 />
                 <div class="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    onclick={twSaveClientId}
-                    class="flex-1 h-7 text-xs">Save</Button
+                  <Button size="sm" onclick={twSaveClientId} class="flex-1 h-7 text-xs">Save</Button
                   >
                   <Button
                     variant="outline"
@@ -1373,9 +1298,7 @@
             >
               F
             </div>
-            <span class="text-sm font-medium text-foreground truncate">
-              Local Filesystem
-            </span>
+            <span class="text-sm font-medium text-foreground truncate"> Local Filesystem </span>
           </div>
         </div>
         <div class="flex-1 overflow-auto px-8 py-6">
@@ -1393,13 +1316,10 @@
     {:else}
       <!-- Coming-soon source panel -->
       {@const meta = SOURCE_META[selectedSource]}
-      <div
-        class="flex flex-col items-center justify-center h-full gap-4 text-center px-8"
-      >
+      <div class="flex flex-col items-center justify-center h-full gap-4 text-center px-8">
         <div
           class="size-14 rounded-2xl flex items-center justify-center text-2xl font-black"
-          style="background:{meta?.color ?? '#888'}18; color:{meta?.color ??
-            '#888'};"
+          style="background:{meta?.color ?? '#888'}18; color:{meta?.color ?? '#888'};"
         >
           {meta?.icon ?? "?"}
         </div>
@@ -1409,9 +1329,7 @@
           </p>
           <p class="text-sm text-muted-foreground/50">{meta?.platform}</p>
         </div>
-        <span
-          class="px-3 py-1 rounded-full border border-border text-xs text-muted-foreground/50"
-        >
+        <span class="px-3 py-1 rounded-full border border-border text-xs text-muted-foreground/50">
           Coming soon
         </span>
       </div>

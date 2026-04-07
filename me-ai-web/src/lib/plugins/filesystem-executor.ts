@@ -90,7 +90,9 @@ export async function executeFilesystemAction(
         const targetPath = path ?? ".";
         const targetDir = await resolveDirHandle(dirHandle, targetPath, false);
         const entries: Array<{ name: string; kind: "file" | "directory" }> = [];
-        for await (const [name, handle] of (targetDir as unknown) as AsyncIterable<[string, FileSystemHandle]>) {
+        for await (const [name, handle] of targetDir as unknown as AsyncIterable<
+          [string, FileSystemHandle]
+        >) {
           entries.push({ name, kind: handle.kind });
         }
         return { success: true, message: `Listed ${entries.length} entries`, data: { entries } };
@@ -119,9 +121,7 @@ export async function executeFilesystemAction(
         const parentPath = parts.slice(0, -1).join("/");
         const fileName = parts[parts.length - 1]!;
         const parentDir =
-          parentPath.length > 0
-            ? await resolveDirHandle(dirHandle, parentPath, false)
-            : dirHandle;
+          parentPath.length > 0 ? await resolveDirHandle(dirHandle, parentPath, false) : dirHandle;
         await parentDir.removeEntry(fileName, { recursive: false });
         return { success: true, message: `Deleted ${path}` };
       }

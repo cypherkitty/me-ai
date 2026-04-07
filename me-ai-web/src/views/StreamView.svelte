@@ -4,7 +4,7 @@
   import type { EventCategory } from "$lib/types.js";
   import { getEventStats, getPendingApprovals } from "../lib/rules.js";
   import { getAuditLog } from "../lib/store/audit.js";
-  
+
   import { executePipeline } from "../lib/plugins/execution-service.js";
   import { updateClassificationStatus } from "../lib/triage.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
@@ -63,7 +63,9 @@
   let loading = $state(true);
   let filterStatus = $state("");
   let searchQuery = $state("");
-  let execState = $state<Record<string, { running: boolean; steps: ExecStep[]; success?: boolean }>>({});
+  let execState = $state<
+    Record<string, { running: boolean; steps: ExecStep[]; success?: boolean }>
+  >({});
 
   const SOURCE_COLORS: Record<string, string> = {
     gmail: "#ea4335",
@@ -90,13 +92,15 @@
         _streamStatus: e.success ? "completed" : "failed",
       }));
       // Tag pending entries
-      const pending: StreamEvent[] = (pendingRows as unknown as Record<string, unknown>[]).map((r) => ({
-        ...r,
-        from: r.from as string | undefined,
-        _streamStatus: r.status === "escalated" ? "escalated" : "awaiting_user",
-        success: null,
-        steps: [],
-      }));
+      const pending: StreamEvent[] = (pendingRows as unknown as Record<string, unknown>[]).map(
+        (r) => ({
+          ...r,
+          from: r.from as string | undefined,
+          _streamStatus: r.status === "escalated" ? "escalated" : "awaiting_user",
+          success: null,
+          steps: [],
+        })
+      );
 
       // Merge: deduplicate by emailId — prefer executed entry if both exist
       const executedIds = new Set(executed.map((e) => e.emailId));
@@ -104,8 +108,7 @@
 
       events = [...executed, ...filteredPending].sort(
         (a, b) =>
-          Number(b.executedAt ?? b.timestamp ?? 0) -
-          Number(a.executedAt ?? a.timestamp ?? 0),
+          Number(b.executedAt ?? b.timestamp ?? 0) - Number(a.executedAt ?? a.timestamp ?? 0)
       );
       stats = st;
     } catch (e) {
@@ -121,8 +124,7 @@
       let keep = true;
       if (filterStatus === "completed") keep = e._streamStatus === "completed";
       else if (filterStatus === "failed") keep = e._streamStatus === "failed";
-      else if (filterStatus === "awaiting_user")
-        keep = e._streamStatus === "awaiting_user";
+      else if (filterStatus === "awaiting_user") keep = e._streamStatus === "awaiting_user";
       if (!keep) return false;
 
       if (!searchQuery) return true;
@@ -133,7 +135,7 @@
         e.sender?.toLowerCase().includes(q) ||
         e.eventType?.toLowerCase().includes(q)
       );
-    }),
+    })
   );
 
   function formatTime(ts: number | null | undefined) {
@@ -163,13 +165,13 @@
         const item = await getCore().getItemById(id);
         emailData = (item ?? {}) as Record<string, unknown>;
       }
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
 
     execState[id] = { running: true, steps: [] };
     // Also update the local event so the trace renders
-    events = events.map((e) =>
-      e.id === id || e.emailId === id ? { ...e, _execId: id } : e,
-    );
+    events = events.map((e) => (e.id === id || e.emailId === id ? { ...e, _execId: id } : e));
 
     const event = {
       type: (evt.eventType || evt.event_type || "UNKNOWN") as string,
@@ -192,7 +194,11 @@
             ...st,
             steps: (progress.actions ?? []).map((a) => {
               const act = a as { name?: string; commandId?: string };
-              return { label: act.name ?? act.commandId, commandId: act.commandId, status: "pending" };
+              return {
+                label: act.name ?? act.commandId,
+                commandId: act.commandId,
+                status: "pending",
+              };
             }),
           };
         } else if (progress.phase === "action_start") {
@@ -201,7 +207,7 @@
             steps: st.steps.map((s) =>
               s.commandId === (progress.actionId ?? progress.commandId)
                 ? { ...s, status: "running" }
-                : s,
+                : s
             ),
           };
         } else if (progress.phase === "action_complete") {
@@ -216,12 +222,12 @@
                     status: ok ? "done" : "error",
                     message: result?.message,
                   }
-                : s,
+                : s
             ),
           };
         }
       },
-      true,
+      true
     );
 
     execState[id] = {
@@ -233,7 +239,9 @@
     if (result.success) {
       try {
         await updateClassificationStatus(id, "executed");
-      } catch { /* no-op */ }
+      } catch {
+        /* no-op */
+      }
       // After 1.5s, reload so the item moves to completed in the audit log
       setTimeout(() => {
         load();
@@ -257,11 +265,8 @@
   <!-- Page header -->
   <div class="px-8 pt-5 pb-4 shrink-0 border-b border-border">
     <div class="flex items-center gap-2 mb-0.5">
-      <h1 class="text-sm font-semibold tracking-tight text-foreground">
-        Event Stream
-      </h1>
-      <span
-        class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
+      <h1 class="text-sm font-semibold tracking-tight text-foreground">Event Stream</h1>
+      <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
         >/ live</span
       >
     </div>
@@ -271,17 +276,14 @@
   </div>
 
   <!-- Filters bar -->
-  <div
-    class="flex items-center gap-3 px-8 py-2.5 shrink-0 border-b border-border"
-  >
+  <div class="flex items-center gap-3 px-8 py-2.5 shrink-0 border-b border-border">
     <div class="flex items-center gap-1">
       {#each STAT_FILTERS as sf (sf.key)}
         <Button
           variant={filterStatus === sf.key ? "secondary" : "ghost"}
           size="sm"
           onclick={() => {
-            filterStatus =
-              filterStatus === sf.key && sf.key !== "" ? "" : sf.key;
+            filterStatus = filterStatus === sf.key && sf.key !== "" ? "" : sf.key;
             load();
           }}
           class="h-7 text-xs tracking-tight"
@@ -296,11 +298,7 @@
       <Search
         class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none"
       />
-      <Input
-        bind:value={searchQuery}
-        placeholder="Search events…"
-        class="pl-9 h-8 text-xs"
-      />
+      <Input bind:value={searchQuery} placeholder="Search events…" class="pl-9 h-8 text-xs" />
     </div>
     <Button
       variant="ghost"
@@ -315,18 +313,12 @@
   <!-- Event feed -->
   <ScrollArea class="flex-1 px-8 py-5">
     {#if loading}
-      <div
-        class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground"
-      >
-        <div
-          class="size-6 rounded-full border-2 border-border border-t-primary animate-spin"
-        ></div>
+      <div class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
+        <div class="size-6 rounded-full border-2 border-border border-t-primary animate-spin"></div>
         <span class="text-sm">Loading events…</span>
       </div>
     {:else if displayed.length === 0}
-      <div
-        class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground"
-      >
+      <div class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
         <Activity class="size-12 opacity-20" />
         <span class="text-sm">No events found</span>
       </div>
@@ -357,28 +349,21 @@
                     {evt.sender || evt.source_name || "Unknown"}
                   </span>
                   <span class="text-muted-foreground/30">·</span>
-                  <span
-                    class="flex items-center gap-1 text-xs text-muted-foreground shrink-0"
-                  >
+                  <span class="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                     <Clock class="size-3" />
                     {formatTime(evt.timestamp)}
                   </span>
                 </div>
 
                 <!-- Subject -->
-                <h3
-                  class="text-base font-semibold text-foreground leading-snug mb-3"
-                >
+                <h3 class="text-base font-semibold text-foreground leading-snug mb-3">
                   {evt.subject || evt.content || "(no subject)"}
                 </h3>
 
                 <!-- Tags — shadcn Badge, variant only, no color overrides -->
                 <div class="flex items-center gap-2 flex-wrap">
                   {#if evt.event_type}
-                    <Badge
-                      variant="outline"
-                      class="gap-1.5 h-6 text-xs font-medium"
-                    >
+                    <Badge variant="outline" class="gap-1.5 h-6 text-xs font-medium">
                       <Tag class="size-3 shrink-0" />
                       {etLabel(evt.event_type as string | undefined)}
                     </Badge>
@@ -419,7 +404,17 @@
             <!-- Execution trace -->
             {#if activeSteps.length}
               <div class="mx-3 mb-3">
-                <PipelineTrace steps={activeSteps as { success?: boolean; status?: "running" | "done" | "error" | "pending"; actionName?: string; commandId?: string; label?: string; message?: string; error?: string }[]} />
+                <PipelineTrace
+                  steps={activeSteps as {
+                    success?: boolean;
+                    status?: "running" | "done" | "error" | "pending";
+                    actionName?: string;
+                    commandId?: string;
+                    label?: string;
+                    message?: string;
+                    error?: string;
+                  }[]}
+                />
               </div>
             {/if}
           </div>

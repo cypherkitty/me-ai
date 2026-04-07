@@ -36,7 +36,13 @@
     status?: string;
     type?: string;
     source?: string;
-    data?: { subject?: string; from?: string; date?: string; snippet?: string; [k: string]: unknown };
+    data?: {
+      subject?: string;
+      from?: string;
+      date?: string;
+      snippet?: string;
+      [k: string]: unknown;
+    };
     metadata?: { category?: string; [k: string]: unknown };
     [k: string]: unknown;
   }
@@ -148,7 +154,7 @@
       card.steps = card.steps.map((s) =>
         s.id === (progress.actionId ?? progress.commandId)
           ? { ...s, status: "running", startedAt: Date.now() }
-          : s,
+          : s
       );
     } else if (progress.phase === "action_complete") {
       const r = progress.result as { success?: boolean; message?: string } | undefined;
@@ -161,12 +167,10 @@
               expandable: !!r?.message,
               subContent: r?.message ?? "",
             }
-          : s,
+          : s
       );
     } else if (progress.phase === "done") {
-      card.status = card.steps.every((s) => s.status !== "error")
-        ? "done"
-        : "error";
+      card.status = card.steps.every((s) => s.status !== "error") ? "done" : "error";
     } else if (progress.phase === "error") {
       card.status = "error";
       card.steps = [
@@ -188,8 +192,7 @@
     }
     const stateKey = `single_${emailId}`;
     const subject = event.data?.subject ?? event.type;
-    const shortSubj =
-      subject.length > 38 ? subject.slice(0, 36) + "…" : subject;
+    const shortSubj = subject.length > 38 ? subject.slice(0, 36) + "…" : subject;
     executionState[stateKey] = { running: true, progress: null, result: null };
     executionCards = {
       ...executionCards,
@@ -210,7 +213,7 @@
           executionState[stateKey] = { ...executionState[stateKey], progress };
           applyProgressToCard(stateKey, progress, shortSubj);
         },
-        approved,
+        approved
       );
 
       if (result.success !== false && result.requiresApproval) {
@@ -239,11 +242,7 @@
         progress: null,
         result: { success: false, message: errMsg },
       };
-      applyProgressToCard(
-        stateKey,
-        { phase: "error", error: errMsg },
-        shortSubj,
-      );
+      applyProgressToCard(stateKey, { phase: "error", error: errMsg }, shortSubj);
     }
   }
 
@@ -275,7 +274,7 @@
           executionState[stateKey] = { ...executionState[stateKey], progress };
           applyProgressToCard(stateKey, progress, title);
         },
-        approved,
+        approved
       );
 
       if (result.success !== false && result.requiresApproval) {
@@ -304,11 +303,7 @@
         progress: null,
         result: { success: false, message: errMsg },
       };
-      applyProgressToCard(
-        stateKey,
-        { phase: "error", error: errMsg },
-        title,
-      );
+      applyProgressToCard(stateKey, { phase: "error", error: errMsg }, title);
     }
   }
 
@@ -352,7 +347,13 @@
 
 <!-- ── Reusable snippets ───────────────────────────────────────────── -->
 
-{#snippet execBtn(label: string, isCritical: boolean, isRunning: boolean, result: ExecResult | null | undefined, onclick_fn: () => void)}
+{#snippet execBtn(
+  label: string,
+  isCritical: boolean,
+  isRunning: boolean,
+  result: ExecResult | null | undefined,
+  onclick_fn: () => void
+)}
   <Button
     variant="outline"
     size="sm"
@@ -371,7 +372,7 @@
         ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
         : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40",
       result?.success &&
-        "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0",
+        "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0"
     )}
   >
     {#if isRunning}Running…
@@ -382,13 +383,17 @@
   </Button>
 {/snippet}
 
-{#snippet approvalCard(title: string, body: string, actions: CommandShape[], stateKey: string, compact: boolean)}
+{#snippet approvalCard(
+  title: string,
+  body: string,
+  actions: CommandShape[],
+  stateKey: string,
+  compact: boolean
+)}
   <div
     class={cn(
       "rounded border border-warning/25 bg-warning/6",
-      compact
-        ? "flex flex-wrap items-center gap-2 px-3 py-2"
-        : "flex flex-col gap-2 px-3 py-2.5",
+      compact ? "flex flex-wrap items-center gap-2 px-3 py-2" : "flex flex-col gap-2 px-3 py-2.5"
     )}
   >
     <div class="flex items-center gap-1.5">
@@ -402,16 +407,12 @@
       </p>
     {/if}
     {#if actions?.length}
-      <ul
-        class="list-disc pl-4 text-[0.6rem] text-muted-foreground space-y-0.5"
-      >
+      <ul class="list-disc pl-4 text-[0.6rem] text-muted-foreground space-y-0.5">
         {#each actions as action (action.name)}
           <li>
             {#if action.icon}<span>{action.icon}</span>{/if}
             <strong class="text-foreground/70">{action.name}</strong>
-            {#if action.description}<span class="opacity-60">
-                — {action.description}</span
-              >{/if}
+            {#if action.description}<span class="opacity-60"> — {action.description}</span>{/if}
           </li>
         {/each}
       </ul>
@@ -441,7 +442,7 @@
   <div
     class={cn(
       "rounded border border-border flex flex-col gap-1",
-      compact ? "bg-transparent border-none p-0" : "bg-card px-3 py-2.5",
+      compact ? "bg-transparent border-none p-0" : "bg-card px-3 py-2.5"
     )}
   >
     <div class="flex items-center gap-2">
@@ -450,8 +451,7 @@
       >
         {event.type}
       </span>
-      <span
-        class="text-[0.52rem] uppercase tracking-wide text-muted-foreground/40"
+      <span class="text-[0.52rem] uppercase tracking-wide text-muted-foreground/40"
         >{event.source}</span
       >
       {#if compact && event.data?.subject}
@@ -511,8 +511,7 @@
         : null}
 
       <div class="flex items-center justify-between gap-2">
-        <span
-          class="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/35"
+        <span class="text-[0.55rem] font-bold uppercase tracking-wider text-muted-foreground/35"
           >Action Pipeline</span
         >
         {#if !execApproval}
@@ -521,19 +520,13 @@
             categoryDef?.requiresApproval ?? false,
             execState?.running ?? false,
             execState?.result,
-            () => handleExecute(_ev, _ev.data.emailId as string),
+            () => handleExecute(_ev, _ev.data.emailId as string)
           )}
         {/if}
       </div>
 
       {#if execApproval}
-        {@render approvalCard(
-          "Confirm execution?",
-          "",
-          [],
-          execStateKey,
-          true,
-        )}
+        {@render approvalCard("Confirm execution?", "", [], execStateKey, true)}
       {/if}
 
       <PipelineGraph
@@ -553,15 +546,11 @@
   <!-- ── Batch events ─────────────────────────────────────────────────── -->
 {:else if msg.type === "event-batch"}
   <div class="self-start max-w-[90%] flex flex-col gap-2">
-    <p
-      class="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground/50"
-    >
+    <p class="text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground/50">
       Processed {msg.items?.length ?? 0} email{(msg.items?.length ?? 0) === 1 ? "" : "s"}
     </p>
     {#each msg.items ?? [] as item (item.event?.data?.emailId ?? item.event?.type)}
-      <div
-        class="rounded border border-border bg-background px-3 py-2.5 flex flex-col gap-1.5"
-      >
+      <div class="rounded border border-border bg-background px-3 py-2.5 flex flex-col gap-1.5">
         {@render eventCard(item.event as unknown as EmailEvent, true)}
         <PipelineGraph
           eventType={item.event.type ?? ""}
@@ -576,12 +565,12 @@
 {:else if msg.type === "events-by-category"}
   <div class="self-start w-full max-w-[95%] flex flex-col gap-2">
     <div class="flex items-baseline gap-3 py-1">
-      <span class="text-xs font-bold uppercase tracking-wider text-foreground"
-        >Events</span
-      >
+      <span class="text-xs font-bold uppercase tracking-wider text-foreground">Events</span>
       <span class="text-[0.62rem] text-muted-foreground/40">
-        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.categories?.length ?? 0} event
-        type{(msg.categories?.length ?? 0) === 1 ? "" : "s"}
+        {msg.total} email{msg.total === 1 ? "" : "s"} in {msg.categories?.length ?? 0} event type{(msg
+          .categories?.length ?? 0) === 1
+          ? ""
+          : "s"}
       </span>
     </div>
 
@@ -591,7 +580,12 @@
       {@const batchState = getExecutionState(batchStateKey)}
       {@const batchApproval = approvalPending[batchStateKey]}
       {@const categoryDef = catBlock.category
-        ? (EVENT_CATEGORY_TIERS as Record<string, typeof EVENT_CATEGORY_TIERS[keyof typeof EVENT_CATEGORY_TIERS]>)[catBlock.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
+        ? (
+            EVENT_CATEGORY_TIERS as Record<
+              string,
+              (typeof EVENT_CATEGORY_TIERS)[keyof typeof EVENT_CATEGORY_TIERS]
+            >
+          )[catBlock.category] || EVENT_CATEGORY_TIERS["CRITICAL"]
         : null}
 
       <div class="rounded border border-border bg-card overflow-hidden">
@@ -621,7 +615,7 @@
             <svg
               class={cn(
                 "size-3.5 text-muted-foreground/30 transition-transform",
-                isExpanded && "rotate-180",
+                isExpanded && "rotate-180"
               )}
               viewBox="0 0 24 24"
               fill="none"
@@ -644,7 +638,9 @@
                 } else {
                   handleExecuteGroup(
                     catBlock.eventType,
-                    catBlock.emails.filter((e) => (e as Record<string, unknown>).status !== "executed"),
+                    catBlock.emails.filter(
+                      (e) => (e as Record<string, unknown>).status !== "executed"
+                    )
                   );
                 }
               }}
@@ -655,18 +651,18 @@
                   ? "text-warning border-warning/25 bg-warning/6 hover:bg-warning/12 hover:border-warning/40"
                   : "text-primary border-primary/25 bg-primary/6 hover:bg-primary/12 hover:border-primary/40",
                 batchState?.result?.success &&
-                  "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0",
+                  "hover:opacity-80 !border-green-500/50 !text-green-500 !bg-green-500/10 cursor-pointer !ring-0 !ring-offset-0"
               )}
             >
               {#if batchState?.running}Running…
               {:else if batchState?.result}
-                {batchState.result.success
-                  ? `Done (Dismiss)`
-                  : "Failed"}
-              {:else if categoryDef?.requiresApproval}Review & Execute ({catBlock.emails
-                  .filter((e) => (e as Record<string, unknown>).status !== "executed")
-                  .length})
-              {:else}Execute All ({catBlock.emails.filter((e) => (e as Record<string, unknown>).status !== "executed").length})
+                {batchState.result.success ? `Done (Dismiss)` : "Failed"}
+              {:else if categoryDef?.requiresApproval}Review & Execute ({catBlock.emails.filter(
+                  (e) => (e as Record<string, unknown>).status !== "executed"
+                ).length})
+              {:else}Execute All ({catBlock.emails.filter(
+                  (e) => (e as Record<string, unknown>).status !== "executed"
+                ).length})
               {/if}
             </Button>
           {/if}
@@ -680,7 +676,7 @@
               `The following actions will run on <strong>${catBlock.emails.length} email${catBlock.emails.length === 1 ? "" : "s"}</strong>. This changes email state and cannot be undone easily.`,
               (batchApproval.actions ?? []) as CommandShape[],
               batchStateKey,
-              false,
+              false
             )}
           </div>
         {/if}
@@ -699,28 +695,21 @@
               {@const execStateKey = `single_${email.emailId}`}
               {@const execState = getExecutionState(execStateKey)}
               {@const execApproval = approvalPending[execStateKey]}
-              <div
-                class="flex flex-col gap-2 px-3.5 py-2.5 border-b border-border last:border-b-0"
-              >
+              <div class="flex flex-col gap-2 px-3.5 py-2.5 border-b border-border last:border-b-0">
                 <!-- Email info -->
                 <div class="flex flex-col gap-0.5">
-                  <div
-                    class="text-[0.73rem] font-medium text-foreground leading-snug"
-                  >
+                  <div class="text-[0.73rem] font-medium text-foreground leading-snug">
                     {email.subject}
                   </div>
                   <div class="text-[0.58rem] text-muted-foreground/40">
-                    {#if email.from}<span class="opacity-70"
-                        >{shortSender(email.from ?? "")}</span
+                    {#if email.from}<span class="opacity-70">{shortSender(email.from ?? "")}</span
                       >{/if}
                     {#if email.date}<span class="opacity-50">
                         · {shortDate(typeof email.date === "number" ? email.date : null)}</span
                       >{/if}
                   </div>
                   {#if email.summary}
-                    <div
-                      class="text-[0.63rem] text-muted-foreground/60 leading-relaxed mt-0.5"
-                    >
+                    <div class="text-[0.63rem] text-muted-foreground/60 leading-relaxed mt-0.5">
                       {email.summary}
                     </div>
                   {/if}
@@ -756,20 +745,14 @@
                               source: "gmail",
                               data: email as EmailEvent["data"],
                             },
-                            email.emailId ?? "",
-                          ),
+                            email.emailId ?? ""
+                          )
                       )}
                     {/if}
                   </div>
 
                   {#if email.status !== "executed" && execApproval}
-                    {@render approvalCard(
-                      "Confirm execution?",
-                      "",
-                      [],
-                      execStateKey,
-                      true,
-                    )}
+                    {@render approvalCard("Confirm execution?", "", [], execStateKey, true)}
                   {/if}
 
                   {#if catBlock.commands?.length}

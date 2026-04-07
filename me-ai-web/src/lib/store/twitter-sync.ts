@@ -132,7 +132,7 @@ async function fullSync(
       response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      }) as unknown) as TimelineResponse;
+      })) as unknown as TimelineResponse;
     } catch (e) {
       errors++;
       console.warn("[twitter-sync] API error:", (e as Error)?.message);
@@ -214,7 +214,7 @@ async function incrementalSync(
       response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      }) as unknown) as TimelineResponse;
+      })) as unknown as TimelineResponse;
     } catch (e) {
       errors++;
       console.warn("[twitter-sync] Incremental sync error:", (e as Error)?.message);
@@ -254,8 +254,7 @@ async function incrementalSync(
   }
 
   const newTotal = (state.totalItems || 0) + added;
-  const newestId =
-    added > 0 ? (await getNewestTweetId()) || state.historyId : state.historyId;
+  const newestId = added > 0 ? (await getNewestTweetId()) || state.historyId : state.historyId;
 
   await writeSyncState({
     sourceType: "twitter",
@@ -306,7 +305,7 @@ async function continueFetch(
       response = (await getUserTimeline(token, userId, {
         maxResults: batchSize,
         paginationToken,
-      }) as unknown) as TimelineResponse;
+      })) as unknown as TimelineResponse;
     } catch {
       errors++;
       break;
@@ -430,7 +429,7 @@ async function getSyncState(sourceType: string): Promise<SyncState | null> {
   try {
     const r = await getCore().getSyncState(sourceType);
     if (r == null) return null;
-    const row = (r as unknown) as Record<string, unknown>;
+    const row = r as unknown as Record<string, unknown>;
     return {
       sourceType: row.sourceType as string,
       historyId: row.historyId as string,
@@ -450,7 +449,13 @@ async function writeSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await getCore().upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems ?? 0, oldestPageToken || "");
+  await getCore().upsertSyncState(
+    sourceType,
+    historyId,
+    lastSyncAt ?? 0,
+    totalItems ?? 0,
+    oldestPageToken || ""
+  );
 }
 
 async function getNewestTweetId(): Promise<string | null> {

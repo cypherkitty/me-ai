@@ -48,55 +48,55 @@
 
   /* ── Active preset: Premium Navy Mirage Glassmorphism ───────── */
   --background: transparent;
-  --foreground: oklch(0.980 0 0);
+  --foreground: oklch(0.98 0 0);
 
   /* Subtle white frosted glass */
   --card: oklch(1 0 0 / 4%);
-  --card-foreground: oklch(0.980 0 0);
+  --card-foreground: oklch(0.98 0 0);
 
   --popover: oklch(1 0 0 / 5%);
-  --popover-foreground: oklch(0.980 0 0);
+  --popover-foreground: oklch(0.98 0 0);
 
-  --primary: oklch(0.560 0.22 248);
+  --primary: oklch(0.56 0.22 248);
   /* electric blue */
   --primary-foreground: oklch(0.99 0 0);
 
   --secondary: oklch(1 0 0 / 10%);
-  --secondary-foreground: oklch(0.980 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
 
   --muted: oklch(1 0 0 / 10%);
-  --muted-foreground: oklch(0.800 0 0);
+  --muted-foreground: oklch(0.8 0 0);
 
   --accent: oklch(1 0 0 / 15%);
-  --accent-foreground: oklch(0.980 0 0);
+  --accent-foreground: oklch(0.98 0 0);
 
-  --destructive: oklch(0.580 0.22 25);
+  --destructive: oklch(0.58 0.22 25);
   --destructive-foreground: oklch(0.99 0 0);
 
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.560 0.22 248);
+  --ring: oklch(0.56 0.22 248);
 
   --sidebar: oklch(1 0 0 / 2%);
-  --sidebar-foreground: oklch(0.980 0 0);
-  --sidebar-primary: oklch(0.560 0.22 248);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.56 0.22 248);
   --sidebar-primary-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(1 0 0 / 15%);
-  --sidebar-accent-foreground: oklch(0.980 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 15%);
-  --sidebar-ring: oklch(0.560 0.22 248);
+  --sidebar-ring: oklch(0.56 0.22 248);
 
   /* Pipeline nodes */
-  --trace-bg: oklch(0.175 0.020 255);
-  --node-trigger: oklch(0.230 0.08 235);
-  --node-action: oklch(0.210 0.06 162);
-  --node-policy: oklch(0.200 0.018 255);
-  --node-complete: oklch(0.540 0.14 48);
-  --node-foreground: oklch(0.940 0 0);
+  --trace-bg: oklch(0.175 0.02 255);
+  --node-trigger: oklch(0.23 0.08 235);
+  --node-action: oklch(0.21 0.06 162);
+  --node-policy: oklch(0.2 0.018 255);
+  --node-complete: oklch(0.54 0.14 48);
+  --node-foreground: oklch(0.94 0 0);
 
-  --success: oklch(0.560 0.15 142);
-  --warning: oklch(0.700 0.15 70);
-  --info: oklch(0.560 0.22 248);
+  --success: oklch(0.56 0.15 142);
+  --warning: oklch(0.7 0.15 70);
+  --info: oklch(0.56 0.22 248);
 
   color-scheme: dark;
 }
@@ -182,7 +182,13 @@
 
   body {
     @apply text-foreground;
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family:
+      "Inter",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
     font-feature-settings: "cv01", "cv02", "cv03", "cv04";
     letter-spacing: -0.011em;
     height: 100dvh;
@@ -241,7 +247,6 @@
 }
 
 @layer utilities {
-
   /* Thin scrollbar for horizontal scroll containers (pipeline graphs, etc.) */
   .scrollbar-thin {
     scrollbar-width: thin;
