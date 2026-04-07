@@ -20,18 +20,12 @@
     executionState?: Record<string, unknown> | null;
     policy?: string;
   }
-  let {
-    eventType,
-    eventTypes = null,
-    category,
-    commands = [],
-    policy = "auto",
-  }: Props = $props();
+  let { eventType, eventTypes = null, category, commands = [], policy = "auto" }: Props = $props();
 
   let categoryDef = $derived(
     category
       ? EVENT_CATEGORY_TIERS[category as EventCategory] || EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY]
-      : EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY],
+      : EVENT_CATEGORY_TIERS[DEFAULT_CATEGORY]
   );
 
   interface ActionHandler {
@@ -39,10 +33,11 @@
     name?: string;
     description?: string;
   }
-  const PLUGIN_ACTIONS: { pluginId: string; pluginName: string; actions: ActionHandler[] }[] = (() => {
-    const gmail = getAvailableActions("gmail") as unknown as ActionHandler[];
-    return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
-  })();
+  const PLUGIN_ACTIONS: { pluginId: string; pluginName: string; actions: ActionHandler[] }[] =
+    (() => {
+      const gmail = getAvailableActions("gmail") as unknown as ActionHandler[];
+      return [{ pluginId: "gmail", pluginName: "Gmail", actions: gmail }];
+    })();
 
   const ACTION_ICONS: Record<string, string> = {
     mark_read: "✓",
@@ -62,17 +57,11 @@
   let enrichedCommands = $derived.by(() => {
     return commands.map((c: CommandShape) => {
       const clone = { ...c };
-      if (
-        clone.commandId &&
-        clone.pluginId &&
-        clone.commandId.startsWith(clone.pluginId + ":")
-      ) {
+      if (clone.commandId && clone.pluginId && clone.commandId.startsWith(clone.pluginId + ":")) {
         clone.commandId = clone.commandId.slice(clone.pluginId.length + 1);
       }
       const pluginBlock = PLUGIN_ACTIONS.find((p) => p.pluginId === clone.pluginId);
-      const handler = pluginBlock?.actions.find(
-        (a) => a.actionId === clone.commandId,
-      );
+      const handler = pluginBlock?.actions.find((a) => a.actionId === clone.commandId);
       if (handler) {
         clone.name = clone.name || handler.name;
         clone.description = clone.description || handler.description;
@@ -115,12 +104,8 @@
       </span>
     </div>
 
-    <div
-      class="p-3 pt-2 flex flex-col gap-1.5 relative bg-background rounded-b-xl"
-    >
-      <div
-        class="font-semibold text-xs text-foreground flex items-baseline gap-1.5"
-      >
+    <div class="p-3 pt-2 flex flex-col gap-1.5 relative bg-background rounded-b-xl">
+      <div class="font-semibold text-xs text-foreground flex items-baseline gap-1.5">
         <span class="text-muted-foreground text-[10px] font-mono">1.</span>
         <span class="truncate" title={eventType}>{eventType}</span>
       </div>
@@ -170,12 +155,8 @@
       </div>
 
       <div class="p-3 pt-2 flex flex-col gap-1 bg-background rounded-b-xl">
-        <div
-          class="font-semibold text-xs text-foreground flex items-baseline gap-1.5"
-        >
-          <span class="text-muted-foreground text-[10px] font-mono"
-            >{i + 2}.</span
-          >
+        <div class="font-semibold text-xs text-foreground flex items-baseline gap-1.5">
+          <span class="text-muted-foreground text-[10px] font-mono">{i + 2}.</span>
           <span class="truncate" title={cmd.name}>{cmd.name}</span>
         </div>
 

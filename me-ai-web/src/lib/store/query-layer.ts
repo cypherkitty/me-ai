@@ -7,7 +7,12 @@
 
 import { getCore } from "./core-store.js";
 import { fromJson } from "./db.js";
-import type { StoredItem, GetStoredEmailsOptions, GetStoredEmailsResult, PendingActionsResult } from "$lib/types";
+import type {
+  StoredItem,
+  GetStoredEmailsOptions,
+  GetStoredEmailsResult,
+  PendingActionsResult,
+} from "$lib/types";
 
 // ── Pending actions ─────────────────────────────────────────────────
 
@@ -32,7 +37,10 @@ export async function getStoredEmails({
   offset = 0,
 }: GetStoredEmailsOptions = {}): Promise<GetStoredEmailsResult> {
   const fetchSize = searchQuery ? 2000 : limit + offset;
-  const rows = ((await getCore().getItemsGmailByDateDesc(fetchSize)) as unknown) as Record<string, unknown>[];
+  const rows = (await getCore().getItemsGmailByDateDesc(fetchSize)) as unknown as Record<
+    string,
+    unknown
+  >[];
 
   let items = rows ?? [];
   if (searchQuery) {
@@ -46,7 +54,7 @@ export async function getStoredEmails({
     });
   }
 
-  const total = searchQuery ? items.length : Number(await getCore().getItemsCountGmail() ?? 0);
+  const total = searchQuery ? items.length : Number((await getCore().getItemsCountGmail()) ?? 0);
   const page = items.slice(offset, offset + limit);
   return { items: page.map((r) => normaliseRow(r)), total };
 }
@@ -77,4 +85,3 @@ function normaliseRow(row: Record<string, unknown>): StoredItem {
     references: (row.references as string) ?? "",
   } as StoredItem;
 }
-

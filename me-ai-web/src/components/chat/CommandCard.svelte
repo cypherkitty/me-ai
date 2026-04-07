@@ -28,6 +28,7 @@
 
 {#if command.body}
   <div class="mt-1 px-2.5 py-2 rounded border border-border bg-background">
-    <pre class="m-0 text-[0.6rem] text-muted-foreground font-[ui-monospace,'Cascadia_Code',Menlo,Consolas,monospace] whitespace-pre-wrap break-words leading-relaxed">{command.body}</pre>
+    <pre
+      class="m-0 text-[0.6rem] text-muted-foreground font-[ui-monospace,'Cascadia_Code',Menlo,Consolas,monospace] whitespace-pre-wrap break-words leading-relaxed">{command.body}</pre>
   </div>
 {/if}

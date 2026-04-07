@@ -1,0 +1,20 @@
+# https://taskfile.dev
+# Included by the root Taskfile as namespace "core:" — do not call directly.
+# All tasks run from me-ai-core/ (set by the root include's dir).
+version: "3"
+
+tasks:
+  build:
+    desc: Build me-ai-core with wasm-pack --target web (output in pkg/)
+    cmds:
+      - wasm-pack build . --target web --out-dir pkg
+
+  clippy:
+    desc: Run Clippy (wasm32 target, deny warnings)
+    cmds:
+      - cargo clippy --target wasm32-unknown-unknown -- -D warnings
+
+  test:
+    desc: Run Rust unit tests (native target, lib only)
+    cmds:
+      - cargo test --lib

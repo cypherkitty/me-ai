@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import { Button }     from "$lib/components/ui/button/index.js";
-  import { Badge }      from "$lib/components/ui/badge/index.js";
+  import { Button } from "$lib/components/ui/button/index.js";
+  import { Badge } from "$lib/components/ui/badge/index.js";
   import { RefreshCw, Trash2, HardDrive, Cpu, AlertTriangle, CheckCircle2 } from "lucide-svelte";
-  import { cn }         from "$lib/utils.js";
+  import { cn } from "$lib/utils.js";
   import { getCore } from "../lib/store/core-store.js";
   import type { OnnxModel as Model } from "../lib/core.js";
   const getModels = () => getCore().getOnnxModels();
 
   const CACHE_NAME = "transformers-cache";
-  const HF_PREFIX  = "https://huggingface.co/";
+  const HF_PREFIX = "https://huggingface.co/";
 
   interface CachedModel {
     id: string;
@@ -24,10 +24,10 @@
     isKnown: boolean;
   }
 
-  let models    = $state<CachedModel[]>([]);
+  let models = $state<CachedModel[]>([]);
   let knownNotDownloaded = $state<Model[]>([]);
-  let loading   = $state(true);
-  let deleting  = $state<string | null>(null);
+  let loading = $state(true);
+  let deleting = $state<string | null>(null);
   let confirmId = $state<string | null>(null);
   let cacheSupported = $state(true);
 
@@ -51,7 +51,10 @@
   async function load() {
     loading = true;
     try {
-      if (!("caches" in window)) { cacheSupported = false; return; }
+      if (!("caches" in window)) {
+        cacheSupported = false;
+        return;
+      }
 
       const cache = await caches.open(CACHE_NAME);
       const requests = await cache.keys();
@@ -72,7 +75,9 @@
             const blob = await resp.blob();
             bytes = blob.size;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         byModel.get(id)!.push({ url: req.url, bytes });
       }
 
@@ -109,9 +114,7 @@
       const cache = await caches.open(CACHE_NAME);
       const requests = await cache.keys();
       await Promise.all(
-        requests
-          .filter((r) => modelIdFromUrl(r.url) === id)
-          .map((r) => cache.delete(r))
+        requests.filter((r) => modelIdFromUrl(r.url) === id).map((r) => cache.delete(r))
       );
       await load();
     } finally {
@@ -128,14 +131,23 @@
     <div>
       <div class="flex items-center gap-2 mb-0.5">
         <h1 class="text-sm font-semibold tracking-tight text-foreground">Local Models</h1>
-        <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50">/ cache</span>
+        <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
+          >/ cache</span
+        >
       </div>
       <p class="text-xs text-muted-foreground">
-        ONNX model weights cached in the browser via Transformers.js (<code class="font-mono text-[0.65rem]">transformers-cache</code>).
+        ONNX model weights cached in the browser via Transformers.js (<code
+          class="font-mono text-[0.65rem]">transformers-cache</code
+        >).
       </p>
     </div>
-    <Button variant="ghost" size="icon-sm" onclick={load} title="Refresh"
-      class={cn(loading && "[&_svg]:animate-spin")}>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      onclick={load}
+      title="Refresh"
+      class={cn(loading && "[&_svg]:animate-spin")}
+    >
       <RefreshCw class="size-3.5" />
     </Button>
   </div>
@@ -146,23 +158,24 @@
         <div class="size-4 rounded-full border-2 border-border border-t-primary animate-spin"></div>
         <span class="text-xs">Scanning cache…</span>
       </div>
-
     {:else if !cacheSupported}
       <div class="flex items-center gap-2 text-amber-500/70 text-xs py-8">
         <AlertTriangle class="size-4 shrink-0" />
         Cache API is not available in this browser.
       </div>
-
     {:else}
       <div class="flex flex-col gap-8 max-w-2xl">
-
         <!-- Downloaded models -->
         <section class="flex flex-col gap-3">
           <div class="flex items-center gap-2">
             <h2 class="text-xs font-semibold tracking-tight text-foreground">Downloaded</h2>
             {#if models.length > 0}
-              <span class="text-[0.6rem] text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded font-mono">
-                {models.length} model{models.length !== 1 ? "s" : ""} · {fmtBytes(models.reduce((s, m) => s + m.totalBytes, 0))} total
+              <span
+                class="text-[0.6rem] text-muted-foreground/40 bg-muted/30 px-1.5 py-0.5 rounded font-mono"
+              >
+                {models.length} model{models.length !== 1 ? "s" : ""} · {fmtBytes(
+                  models.reduce((s, m) => s + m.totalBytes, 0)
+                )} total
               </span>
             {/if}
           </div>
@@ -175,10 +188,14 @@
                 {@const isDeleting = deleting === m.id}
                 {@const isConfirming = confirmId === m.id}
 
-                <div class={cn(
-                  "rounded border transition-colors",
-                  isConfirming ? "border-destructive/30 bg-destructive/5" : "border-border/50 bg-card"
-                )}>
+                <div
+                  class={cn(
+                    "rounded border transition-colors",
+                    isConfirming
+                      ? "border-destructive/30 bg-destructive/5"
+                      : "border-border/50 bg-card"
+                  )}
+                >
                   <div class="flex items-start gap-3 px-4 py-3">
                     <!-- Icon -->
                     <div class="shrink-0 mt-0.5">
@@ -192,18 +209,26 @@
                           {m.name ?? m.id.split("/").pop()}
                         </span>
                         {#if !m.isKnown}
-                          <Badge variant="outline" class="text-[0.6rem] px-1.5 py-0 text-amber-500/70 border-amber-500/30">
+                          <Badge
+                            variant="outline"
+                            class="text-[0.6rem] px-1.5 py-0 text-amber-500/70 border-amber-500/30"
+                          >
                             legacy
                           </Badge>
                         {/if}
                       </div>
-                      <p class="text-[0.65rem] font-mono text-muted-foreground/40 mt-0.5 truncate">{m.id}</p>
+                      <p class="text-[0.65rem] font-mono text-muted-foreground/40 mt-0.5 truncate">
+                        {m.id}
+                      </p>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="text-[0.65rem] text-muted-foreground/50 flex items-center gap-1">
+                        <span
+                          class="text-[0.65rem] text-muted-foreground/50 flex items-center gap-1"
+                        >
                           <HardDrive class="size-3" />
                           {fmtBytes(m.totalBytes)}
                           {#if m.declaredSize && m.declaredSize !== fmtBytes(m.totalBytes)}
-                            <span class="text-muted-foreground/30">(declared {m.declaredSize})</span>
+                            <span class="text-muted-foreground/30">(declared {m.declaredSize})</span
+                            >
                           {/if}
                         </span>
                         <span class="text-[0.65rem] text-muted-foreground/40">
@@ -218,13 +243,15 @@
                         <span class="text-[0.7rem] text-muted-foreground/60 mr-1">Delete?</span>
                         <button
                           onclick={() => (confirmId = null)}
-                          class="text-[0.7rem] text-muted-foreground/60 hover:text-foreground underline transition-colors">
+                          class="text-[0.7rem] text-muted-foreground/60 hover:text-foreground underline transition-colors"
+                        >
                           Cancel
                         </button>
                         <button
                           onclick={() => deleteModel(m.id)}
                           disabled={isDeleting}
-                          class="text-[0.7rem] text-destructive hover:text-destructive/80 underline font-medium ml-2 disabled:opacity-40 transition-colors">
+                          class="text-[0.7rem] text-destructive hover:text-destructive/80 underline font-medium ml-2 disabled:opacity-40 transition-colors"
+                        >
                           Delete
                         </button>
                       {:else}
@@ -234,9 +261,12 @@
                           disabled={isDeleting || deleting !== null}
                           onclick={() => (confirmId = m.id)}
                           title="Remove from cache"
-                          class="text-muted-foreground/40 hover:text-destructive">
+                          class="text-muted-foreground/40 hover:text-destructive"
+                        >
                           {#if isDeleting}
-                            <div class="size-3 rounded-full border border-border border-t-foreground animate-spin"></div>
+                            <div
+                              class="size-3 rounded-full border border-border border-t-foreground animate-spin"
+                            ></div>
                           {:else}
                             <Trash2 class="size-3.5" />
                           {/if}
@@ -253,16 +283,23 @@
         <!-- Not yet downloaded -->
         {#if knownNotDownloaded.length > 0}
           <section class="flex flex-col gap-3">
-            <h2 class="text-xs font-semibold tracking-tight text-muted-foreground/50">Available but not downloaded</h2>
+            <h2 class="text-xs font-semibold tracking-tight text-muted-foreground/50">
+              Available but not downloaded
+            </h2>
             <div class="flex flex-col gap-1">
               {#each knownNotDownloaded as m (m.id)}
-                <div class="flex items-center gap-3 px-4 py-2.5 rounded border border-border/30 bg-muted/5 opacity-60">
+                <div
+                  class="flex items-center gap-3 px-4 py-2.5 rounded border border-border/30 bg-muted/5 opacity-60"
+                >
                   <Cpu class="size-3.5 text-muted-foreground/30 shrink-0" />
                   <div class="flex-1 min-w-0">
                     <span class="text-xs text-muted-foreground/60">{m.name}</span>
                     <span class="text-[0.65rem] text-muted-foreground/30 ml-2">{m.size}</span>
                   </div>
-                  <span class="text-[0.6rem] text-muted-foreground/30 font-mono truncate max-w-[140px]">{m.id.split("/").pop()}</span>
+                  <span
+                    class="text-[0.6rem] text-muted-foreground/30 font-mono truncate max-w-[140px]"
+                    >{m.id.split("/").pop()}</span
+                  >
                 </div>
               {/each}
             </div>
@@ -271,15 +308,17 @@
 
         <!-- Summary footer -->
         {#if models.length > 0}
-          <div class="flex items-start gap-2 px-3 py-2.5 rounded border border-border/20 bg-muted/10 text-[0.65rem] text-muted-foreground/40">
+          <div
+            class="flex items-start gap-2 px-3 py-2.5 rounded border border-border/20 bg-muted/10 text-[0.65rem] text-muted-foreground/40"
+          >
             <CheckCircle2 class="size-3.5 shrink-0 mt-0.5 text-muted-foreground/30" />
             <span>
               Models are stored in the browser's <code class="font-mono">Cache API</code> (not OPFS).
-              Deleting a model here only removes the cached weights — you can re-download it by loading it in the Chat view.
+              Deleting a model here only removes the cached weights — you can re-download it by loading
+              it in the Chat view.
             </span>
           </div>
         {/if}
-
       </div>
     {/if}
   </ScrollArea>

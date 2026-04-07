@@ -34,8 +34,14 @@ export async function getDirectories(): Promise<DirectoryEntry[]> {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAll();
-    req.onerror = () => { db.close(); reject(req.error); };
-    req.onsuccess = () => { db.close(); resolve(req.result as DirectoryEntry[]); };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+    req.onsuccess = () => {
+      db.close();
+      resolve(req.result as DirectoryEntry[]);
+    };
   });
 }
 
@@ -49,8 +55,14 @@ export async function addDirectory(
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.add(entry);
-    req.onerror = () => { db.close(); reject(req.error); };
-    req.onsuccess = () => { db.close(); resolve(entry); };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+    req.onsuccess = () => {
+      db.close();
+      resolve(entry);
+    };
   });
 }
 
@@ -60,8 +72,14 @@ export async function removeDirectory(id: string): Promise<void> {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.delete(id);
-    req.onerror = () => { db.close(); reject(req.error); };
-    req.onsuccess = () => { db.close(); resolve(); };
+    req.onerror = () => {
+      db.close();
+      reject(req.error);
+    };
+    req.onsuccess = () => {
+      db.close();
+      resolve();
+    };
   });
 }
 

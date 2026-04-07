@@ -10,8 +10,7 @@
  * Then reload the page.
  */
 
-const enabled =
-  typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
+const enabled = typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
 
 function debug(...args: unknown[]): void {
   if (enabled) console.log("[debug]", ...args);

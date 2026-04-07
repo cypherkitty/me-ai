@@ -1,14 +1,22 @@
 # https://taskfile.dev
+# Root Taskfile — includes and cross-package orchestration only.
+#
+# Rule: a task belongs here only if it must coordinate across multiple namespaces.
+# Single-package tasks live in their own Taskfile:
+#   core:*    me-ai-core/Taskfile.yml   (runs from me-ai-core/)
+#   web:*     me-ai-web/Taskfile.yml    (runs from me-ai-web/)
+#   cortex:*  tools/cortex-check/Taskfile.yml  (runs from repo root)
 version: "3"
 
-# build:core writes to me-ai-core/pkg. install runs build:core then npm install;
-# package.json has "me-ai-core": "file:../me-ai-core/pkg", so node_modules/me-ai-core
-# is a symlink to that pkg. Vite and static-copy consume from node_modules/me-ai-core.
-
-vars:
-  WEB_DIR: me-ai-web
-  CORE_DIR: me-ai-core
-  CORE_PKG: '{{.CORE_DIR}}/pkg'
+includes:
+  core:
+    taskfile: ./me-ai-core/Taskfile.yml
+    dir: ./me-ai-core
+  web:
+    taskfile: ./me-ai-web/Taskfile.yml
+    dir: ./me-ai-web
+  cortex:
+    taskfile: ./tools/cortex-check/Taskfile.yml
 
 tasks:
   default:
@@ -16,146 +24,53 @@ tasks:
     cmds:
       - task --list
 
-  # --- Dependencies ---
+  # Cross-package: core:build must complete before web:install can run.
   install:
-    desc: "Build core, npm install, then copy pkg to node_modules/me-ai-core"
+    desc: "core:build → web:install"
     deps:
-      - task: build:core
-    dir: '{{.WEB_DIR}}'
+      - task: core:build
     cmds:
-      - npm install
-      - task: copy:core
+      - task: web:install
 
   install:ci:
-    desc: "Build core, install npm deps with a CI-safe retry path, then copy pkg to node_modules/me-ai-core"
+    desc: "core:build → web:install:ci (CI-safe retry)"
     deps:
-      - task: build:core
-    dir: '{{.WEB_DIR}}'
+      - task: core:build
     cmds:
-      - |
-        bash -lc '
-          set -euo pipefail
-          if npm install --foreground-scripts; then
-            exit 0
-          fi
+      - task: web:install:ci
 
-          echo "npm install failed; retrying once after clearing esbuild to recover from transient install races..." >&2
-          rm -rf node_modules/esbuild
-          npm install --foreground-scripts
-        '
-      - task: copy:core
-
-  # --- me-ai-core (Rust WASM) ---
-  # wasm-pack writes to CORE_DIR/pkg (e.g. me-ai-core/pkg); sync to CORE_PKG for install/copy.
-  build:core:
-    desc: Build me-ai-core with wasm-pack --target web (output in me-ai-core/pkg)
-    cmds:
-      - wasm-pack build {{.CORE_DIR}} --target web --out-dir pkg
-
-  copy:core:
-    desc: Copy me-ai-core/pkg into me-ai-web/node_modules/me-ai-core (run after build:core)
-    cmds:
-      - rm -rf {{.WEB_DIR}}/node_modules/me-ai-core
-      - cp -r {{.CORE_PKG}} {{.WEB_DIR}}/node_modules/me-ai-core
-
-  # --- Full product build ---
-  build:
-    desc: Build full product (core + web); needs install so node_modules/me-ai-core exists
-    deps:
-      - task: install
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run build
-
-  build:web:
-    desc: Build only me-ai-web (no Rust core; use when core is already built or not needed)
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run build
-
-  # --- Dev server (use stable Rust for build:core if needed) ---
-  dev:
-    desc: Run Vite dev server (assumes core is already built; run task install once first)
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run dev
-
+  # Cross-package: wipes WASM output, rebuilds core, syncs to web, restarts dev server.
   restart:
-    desc: Clean WASM, rebuild core, kill dev server, reinstall, start fresh
+    desc: "Clean WASM → core:build → web:copy-core → web:kill-dev → web:dev"
     cmds:
-      - rm -rf {{.CORE_PKG}}
-      - task: build:core
-      - task: copy:core
-      - task: kill:dev
-      - cd {{.WEB_DIR}} && npm run dev
+      - rm -rf me-ai-core/pkg
+      - task: core:build
+      - task: web:copy-core
+      - task: web:kill-dev
+      - task: web:dev
 
-  kill:dev:
-    desc: Kill all npm/Vite dev servers
-    cmds:
-      - pkill -f "vite" || true
-      - pkill -f "npm run dev" || true
-
-  # --- Tests ---
-  test:core:
-    desc: Run me-ai-core Rust unit tests (native target, lib only)
-    cmds:
-      - cargo test --manifest-path {{.CORE_DIR}}/Cargo.toml --lib
-
-  clippy:core:
-    desc: Run Clippy on me-ai-core (wasm32 target, deny warnings)
-    cmds:
-      - cargo clippy --manifest-path {{.CORE_DIR}}/Cargo.toml --target wasm32-unknown-unknown -- -D warnings
-
-  test:
-    desc: Run all unit tests (Rust core + Vitest web, single run for CI)
-    deps:
-      - task: test:core
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run test:ci
-
-  test:e2e:
-    desc: Run E2E tests (Playwright); installs Chromium if needed
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npx playwright install --with-deps chromium
-      - npx playwright test
-
-  # --- Checks ---
-  check:
-    desc: Run Svelte/TypeScript check
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run check
-
-  lint:
-    desc: Run ESLint on me-ai-web/src
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run lint
-
-  knip:
-    desc: Find unused exports and dead code in me-ai-web/src
-    dir: '{{.WEB_DIR}}'
-    cmds:
-      - npm run knip
-
-  # --- CI: install (core + npm) then unit + e2e ---
+  # Cross-package: calls tasks from core:, web:, and cortex: namespaces.
   ci:
-    desc: Full CI run (build:core → install:ci → clippy:core → check → lint → unit tests → E2E tests)
+    desc: >
+      Full CI pipeline:
+      install:ci → cortex:check → core:clippy → web:format:check →
+      web:check → web:lint → web:knip → core:test → web:test → web:test:e2e
     deps:
       - task: install:ci
     cmds:
-      - task: clippy:core
-      - task: check
-      - task: lint
-      - task: test
-      - task: test:e2e
+      - task: cortex:check
+      - task: core:clippy
+      - task: web:format:check
+      - task: web:check
+      - task: web:lint
+      - task: web:knip
+      - task: core:test
+      - task: web:test
+      - task: web:test:e2e
 
-  # --- Deploy: install then full build ---
   deploy-build:
-    desc: Build core, install deps reproducibly for CI/deploy, then build web
+    desc: "install:ci → web:build (used by deploy and preview workflows)"
     deps:
       - task: install:ci
     cmds:
-      - task: build:web
+      - task: web:build

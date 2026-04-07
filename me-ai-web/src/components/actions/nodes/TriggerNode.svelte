@@ -51,8 +51,7 @@
         >
           ⚡
         </div>
-        <span
-          class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+        <span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
           >Event Trigger</span
         >
       </div>
@@ -70,15 +69,9 @@
     <div
       class="p-3.5 pt-2.5 flex flex-col gap-2 relative z-[1000] flow-nodrag bg-background rounded-b-xl"
     >
-      <div
-        class="font-semibold text-sm text-foreground flex items-baseline gap-2"
-      >
-        <span class="text-muted-foreground text-xs font-mono"
-          >{data.index ?? "1"}.</span
-        >
-        <span class="truncate" title={data.label}
-          >{data.label || "(Configuring...)"}</span
-        >
+      <div class="font-semibold text-sm text-foreground flex items-baseline gap-2">
+        <span class="text-muted-foreground text-xs font-mono">{data.index ?? "1"}.</span>
+        <span class="truncate" title={data.label}>{data.label || "(Configuring...)"}</span>
       </div>
 
       {#if data.isEditable}
@@ -88,14 +81,15 @@
               class="text-xs font-semibold bg-secondary border border-border rounded-md px-2 py-1.5 text-foreground cursor-pointer outline-none w-full hover:border-border/80 focus:border-primary transition-colors focus:ring-1 focus:ring-primary/20"
               value={data.triggerData?.name ?? ""}
               onchange={(e) =>
-                data.onChange?.({ type: "event_type", name: (e.target as HTMLSelectElement).value })}
+                data.onChange?.({
+                  type: "event_type",
+                  name: (e.target as HTMLSelectElement).value,
+                })}
             >
               <option value="">(Select Event Condition)</option>
-              {#each (Array.isArray(data.eventTypes) ? data.eventTypes : []) as et (et)}
+              {#each Array.isArray(data.eventTypes) ? data.eventTypes : [] as et (et)}
                 <option value={et}
-                  >{et
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (c: string) => c.toUpperCase())}</option
+                  >{et.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</option
                 >
               {/each}
             </select>

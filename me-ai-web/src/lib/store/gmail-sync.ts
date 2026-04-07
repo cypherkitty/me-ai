@@ -56,7 +56,12 @@ interface GmailMessage {
   snippet?: string;
   labelIds?: string[];
   internalDate?: string;
-  payload?: { headers?: Array<{ name: string; value: string }>; body?: { data?: string }; parts?: unknown[]; mimeType?: string };
+  payload?: {
+    headers?: Array<{ name: string; value: string }>;
+    body?: { data?: string };
+    parts?: unknown[];
+    mimeType?: string;
+  };
 }
 
 // ── Public API ──────────────────────────────────────────────────────
@@ -109,8 +114,7 @@ export async function syncGmailMore(
 export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
   const state = await getSyncState(SOURCE_TYPE);
 
-  if (!state)
-    return { synced: false, totalItems: 0, lastSyncAt: null, hasMore: false };
+  if (!state) return { synced: false, totalItems: 0, lastSyncAt: null, hasMore: false };
 
   return {
     synced: true,
@@ -122,7 +126,7 @@ export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
 }
 
 async function getGmailItemCount(): Promise<number> {
-  return Number(await getCore().getItemsCountBySource(SOURCE_TYPE) ?? 0);
+  return Number((await getCore().getItemsCountBySource(SOURCE_TYPE)) ?? 0);
 }
 
 // ── Full sync (initial) ─────────────────────────────────────────────
@@ -136,7 +140,10 @@ async function fullSync(
   onProgress({ phase: "counting", message: "Getting mailbox info..." });
   throwIfAborted(signal);
 
-  const profile = (await getCore().getGmailProfile(token)) as { messagesTotal?: number; historyId?: string };
+  const profile = (await getCore().getGmailProfile(token)) as {
+    messagesTotal?: number;
+    historyId?: string;
+  };
 
   onProgress({
     phase: "listing",
@@ -152,7 +159,12 @@ async function fullSync(
   while (allIds.length < limit) {
     throwIfAborted(signal);
     const remaining = limit - allIds.length;
-    const result = (await getCore().listGmailMessages(token, Math.min(PAGE_SIZE, remaining), pageToken, null)) as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    const result = (await getCore().listGmailMessages(
+      token,
+      Math.min(PAGE_SIZE, remaining),
+      pageToken,
+      null
+    )) as { messages?: Array<{ id: string }>; nextPageToken?: string };
 
     const ids = (result.messages || []).map((m) => m.id);
     allIds.push(...ids);
@@ -221,7 +233,12 @@ async function continueFetch(
   while (allIds.length < limit) {
     throwIfAborted(signal);
     const remaining = limit - allIds.length;
-    const result = (await getCore().listGmailMessages(token, Math.min(PAGE_SIZE, remaining), pageToken, null)) as { messages?: Array<{ id: string }>; nextPageToken?: string };
+    const result = (await getCore().listGmailMessages(
+      token,
+      Math.min(PAGE_SIZE, remaining),
+      pageToken,
+      null
+    )) as { messages?: Array<{ id: string }>; nextPageToken?: string };
 
     const ids = (result.messages || []).map((m) => m.id);
     allIds.push(...ids);
@@ -239,7 +256,13 @@ async function continueFetch(
   nextPageAfterLimit = pageToken || null;
 
   if (allIds.length === 0) {
-    await getCore().upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), state.totalItems ?? 0, "");
+    await getCore().upsertSyncState(
+      SOURCE_TYPE,
+      state.historyId ?? "",
+      Date.now(),
+      state.totalItems ?? 0,
+      ""
+    );
     onProgress({ phase: "done", message: "All messages synced" });
     return { added: 0, errors: 0 };
   }
@@ -247,7 +270,13 @@ async function continueFetch(
   const { added, errors } = await batchFetchAndStore(token, allIds, onProgress, signal);
   const totalItems = await getGmailItemCount();
 
-  await getCore().upsertSyncState(SOURCE_TYPE, state.historyId ?? "", Date.now(), totalItems, nextPageAfterLimit ?? "");
+  await getCore().upsertSyncState(
+    SOURCE_TYPE,
+    state.historyId ?? "",
+    Date.now(),
+    totalItems,
+    nextPageAfterLimit ?? ""
+  );
 
   onProgress({
     phase: "done",
@@ -281,7 +310,12 @@ async function incrementalSync(
   do {
     throwIfAborted(signal);
 
-    const history = (await getCore().listGmailHistory(token, state.historyId, nextPageToken, 500)) as {
+    const history = (await getCore().listGmailHistory(
+      token,
+      state.historyId,
+      nextPageToken,
+      500
+    )) as {
       historyId?: string;
       nextPageToken?: string;
       history?: Array<{
@@ -353,10 +387,7 @@ async function incrementalSync(
 
   onProgress({
     phase: "done",
-    message:
-      added === 0 && deleted === 0
-        ? "Already up to date"
-        : `Synced: +${added} -${deleted}`,
+    message: added === 0 && deleted === 0 ? "Already up to date" : `Synced: +${added} -${deleted}`,
     current: totalItems,
     total: totalItems,
   });
@@ -386,7 +417,9 @@ async function batchFetchAndStore(
     throwIfAborted(signal);
 
     const batch = ids.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(batch.map((id) => getCore().getGmailMessage(token, id, "full")));
+    const results = await Promise.allSettled(
+      batch.map((id) => getCore().getGmailMessage(token, id, "full"))
+    );
 
     const items: StoredItem[] = [];
     for (const result of results) {
@@ -500,15 +533,15 @@ interface ParsedEmail {
 }
 
 async function upsertContacts(items: StoredItem[]): Promise<void> {
-  const contactMap = new Map<
-    string,
-    { email: string; name: string; date: number }
-  >();
+  const contactMap = new Map<string, { email: string; name: string; date: number }>();
 
   for (const item of items) {
     for (const field of [item.from, item.to, item.cc]) {
       if (!field) continue;
-      const addresses = field.split(",").map((s) => s.trim()).filter(Boolean);
+      const addresses = field
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       for (const addr of addresses) {
         const parsed = parseEmailAddress(addr);
         if (parsed && !contactMap.has(parsed.email)) {
@@ -521,7 +554,7 @@ async function upsertContacts(items: StoredItem[]): Promise<void> {
   for (const [email, { name, date }] of contactMap) {
     const existing = await getCore().getContactByEmail(email);
     if (existing != null) {
-      const row = (existing as unknown) as Record<string, unknown>;
+      const row = existing as unknown as Record<string, unknown>;
       await getCore().upsertContact(
         email,
         (row.name as string) || name || "",
@@ -552,7 +585,7 @@ function parseEmailAddress(str: string): ParsedEmail | null {
 async function getSyncState(sourceType: string): Promise<SyncState | null> {
   const r = await getCore().getSyncState(sourceType);
   if (r == null) return null;
-  const row = (r as unknown) as Record<string, unknown>;
+  const row = r as unknown as Record<string, unknown>;
   return {
     sourceType: row.sourceType as string,
     historyId: row.historyId as string,
@@ -569,7 +602,13 @@ async function writeSyncState({
   totalItems,
   oldestPageToken,
 }: SyncState): Promise<void> {
-  await getCore().upsertSyncState(sourceType, historyId, lastSyncAt ?? 0, totalItems, oldestPageToken ?? "");
+  await getCore().upsertSyncState(
+    sourceType,
+    historyId,
+    lastSyncAt ?? 0,
+    totalItems,
+    oldestPageToken ?? ""
+  );
 }
 
 // ── Utilities ───────────────────────────────────────────────────────

@@ -84,9 +84,7 @@
   let categoriesWithEventTypes = $derived.by(() => {
     const res = [];
     for (const catName of CATEGORY_ORDER) {
-      const actionIds = categoryOrder.filter(
-        (id) => eventTypeToCategory[id] === catName,
-      );
+      const actionIds = categoryOrder.filter((id) => eventTypeToCategory[id] === catName);
       if (actionIds.length > 0) {
         res.push({
           name: catName,
@@ -97,7 +95,7 @@
     }
     // Catch any unknown/unmapped event types (e.g. legacy INFORMATIONAL/IMPORTANT/URGENT normalized to info/critical)
     const unknownIds = categoryOrder.filter(
-      (id) => !CATEGORY_ORDER.includes(eventTypeToCategory[id]),
+      (id) => !CATEGORY_ORDER.includes(eventTypeToCategory[id])
     );
     if (unknownIds.length > 0) {
       res.push({
@@ -117,16 +115,11 @@
 
 <div class="flex flex-col h-full overflow-hidden">
   <!-- Page header -->
-  <div
-    class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border"
-  >
+  <div class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border">
     <div>
       <div class="flex items-center gap-2 mb-0.5">
-        <h1 class="text-sm font-semibold tracking-tight text-foreground">
-          Email Triage
-        </h1>
-        <span
-          class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
+        <h1 class="text-sm font-semibold tracking-tight text-foreground">Email Triage</h1>
+        <span class="text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/50"
           >/ scan</span
         >
       </div>
@@ -155,8 +148,7 @@
         <span>{error}</span>
         <button
           onclick={ondismisserror}
-          class="text-destructive/60 hover:text-destructive ml-3 transition-colors"
-          >✕</button
+          class="text-destructive/60 hover:text-destructive ml-3 transition-colors">✕</button
         >
       </div>
     {/if}
@@ -167,8 +159,7 @@
         <span>{successMsg}</span>
         <button
           onclick={ondismisssuccess}
-          class="text-success/60 hover:text-success ml-3 transition-colors"
-          >✕</button
+          class="text-success/60 hover:text-success ml-3 transition-colors">✕</button
         >
       </div>
     {/if}
@@ -193,10 +184,7 @@
           <div class="flex flex-col gap-2">
             <!-- Category Header -->
             <div class="flex items-center gap-2 mb-1 pl-1">
-              <span
-                class="size-2 rounded-full"
-                style:background={catBlock.category.color}
-              ></span>
+              <span class="size-2 rounded-full" style:background={catBlock.category.color}></span>
               <h3
                 class="text-xs font-bold uppercase tracking-widest text-muted-foreground/70"
                 style:color={catBlock.category.color}
@@ -209,8 +197,7 @@
                   >Auto</span
                 >
               {:else}
-                <span
-                  class="ml-auto text-[10px] uppercase text-muted-foreground/40 font-medium"
+                <span class="ml-auto text-[10px] uppercase text-muted-foreground/40 font-medium"
                   >{catBlock.category.policy}</span
                 >
               {/if}
@@ -226,7 +213,8 @@
                   items={(categories[actionId] as unknown as ItemWithStatus[] | undefined) || []}
                   expanded={expandedCategory === actionId}
                   ontoggle={() => ontogglecategory?.(actionId)}
-                  onexecute={(email) => onexecute?.(actionId, email as unknown as Record<string, unknown>)}
+                  onexecute={(email) =>
+                    onexecute?.(actionId, email as unknown as Record<string, unknown>)}
                   {onmarkacted}
                   ondismiss={(id) => ondismiss?.(id)}
                   {onremove}
@@ -243,9 +231,7 @@
         </span>
       </div>
     {:else if !isScanning}
-      <div
-        class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground"
-      >
+      <div class="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
         <svg
           width="40"
           height="40"
@@ -255,19 +241,14 @@
           stroke-width="1.5"
           class="opacity-20"
         >
-          <path
-            d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"
-          />
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
           <rect x="9" y="3" width="6" height="4" rx="1" />
           <path d="m9 14 2 2 4-4" />
         </svg>
         <span class="text-sm">No emails classified yet</span>
-        <p
-          class="text-xs text-muted-foreground/50 text-center max-w-[340px] leading-relaxed"
-        >
-          Click <strong class="text-muted-foreground/70">Scan New</strong> to classify
-          your recent emails. The LLM will determine action types, tags, and summaries
-          automatically.
+        <p class="text-xs text-muted-foreground/50 text-center max-w-[340px] leading-relaxed">
+          Click <strong class="text-muted-foreground/70">Scan New</strong> to classify your recent emails.
+          The LLM will determine action types, tags, and summaries automatically.
         </p>
       </div>
     {/if}

@@ -23,7 +23,10 @@ export async function getAuditLog({
   offset = 0,
   failuresOnly = false,
 }: GetAuditLogOptions = {}): Promise<GetAuditLogResult> {
-  const result = await getCore().getAuditLog(limit, offset, failuresOnly) as unknown as { entries: AuditLogEntry[]; total: number };
+  const result = (await getCore().getAuditLog(limit, offset, failuresOnly)) as unknown as {
+    entries: AuditLogEntry[];
+    total: number;
+  };
   const entries: AuditLogEntry[] = (result.entries ?? []).map((r) => ({
     ...r,
     steps: fromJson<AuditStep[]>(r.steps as unknown as string, []),

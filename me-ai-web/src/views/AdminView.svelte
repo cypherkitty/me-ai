@@ -16,9 +16,10 @@
 </script>
 
 <div class="flex flex-1 min-h-0 overflow-hidden">
-
   <!-- ── Left sidebar ────────────────────────────────────────────── -->
-  <aside class="w-48 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border overflow-hidden">
+  <aside
+    class="w-48 shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border overflow-hidden"
+  >
     <div class="px-4 pt-4 pb-2 shrink-0">
       <span class="text-[0.6rem] font-semibold uppercase tracking-widest text-muted-foreground/40">
         Dashboard
@@ -34,10 +35,13 @@
               ? "text-foreground font-medium bg-sidebar-accent"
               : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/50"
           )}
-          onclick={() => { activeSection = item.id; }}
+          onclick={() => {
+            activeSection = item.id;
+          }}
         >
           {#if activeSection === item.id}
-            <span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"></span>
+            <span class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-primary rounded-full"
+            ></span>
           {/if}
           <item.icon class="size-3.5 shrink-0" />
           <span class="flex-1 tracking-tight">{item.label}</span>
@@ -56,5 +60,4 @@
       <PluginsDashboard />
     {/if}
   </main>
-
 </div>

@@ -36,9 +36,9 @@ Tracks the health of each domain. Updated when significant changes land.
 
 | Area | Score | Notes |
 |------|-------|-------|
-| `.cortex/` knowledge base | B | Newly created; needs iteration |
-| Agent specs (`.agents/`) | B | `me-ai-web.md` deleted; others current |
-| `README.md` | C | Still references sea-query; dev commands bypass Task |
+| `.cortex/` knowledge base | B | Created PR #73; needs iteration as code evolves |
+| Agent specs (`.agents/`) | B | Current; `me-ai-web.md` intentionally removed |
+| `README.md` | B | Fixed in PR #73 |
 | `me-ai-core/REFERENCE.md` | B | External reference patterns |
 
 ## Priority gaps
@@ -46,4 +46,3 @@ Tracks the health of each domain. Updated when significant changes land.
 1. **Test coverage across web** — most components and stores have zero tests
 2. **Core API/integration tests** — Gmail and Twitter API wrappers untested
 3. **E2E expansion** — single spec doesn't cover the three-step flow
-4. **README accuracy** — stale tech references

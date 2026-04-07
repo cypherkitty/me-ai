@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getCore } from "../../lib/store/core-store.js";
-  
+
   import { SvelteSet } from "svelte/reactivity";
 
   interface PluginRegistryAction {
@@ -78,8 +78,8 @@
   <div class="px-6 pt-5 pb-4 shrink-0 border-b border-border">
     <h1 class="text-sm font-semibold tracking-tight text-foreground">Plugin Registry</h1>
     <p class="text-xs text-muted-foreground mt-1">
-      {plugins.length} plugin{plugins.length === 1 ? "" : "s"} · {totalActions} actions available.
-      No LLM required to view or configure.
+      {plugins.length} plugin{plugins.length === 1 ? "" : "s"} · {totalActions} actions available. No
+      LLM required to view or configure.
     </p>
   </div>
 
@@ -98,7 +98,9 @@
                 {isExpanded ? "▾" : "▸"}
               </span>
               <span class="text-sm font-semibold text-foreground">{plugin.name}</span>
-              <code class="text-[0.65rem] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+              <code
+                class="text-[0.65rem] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded"
+              >
                 {plugin.id}
               </code>
               <span class="text-[0.6rem] font-medium text-success">● active</span>
@@ -109,58 +111,59 @@
           </button>
 
           {#if isExpanded}
-          <div class="divide-y divide-border">
-            {#each plugin.actions as action (action.id)}
-              {@const scopeKey = `${plugin.id}:${action.id}`}
-              {@const scopesOpen = expandedScopes.has(scopeKey)}
-              <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors">
-                <div
-                  class="size-8 rounded flex items-center justify-center text-sm shrink-0 bg-muted"
-                >
-                  {ACTION_ICONS[action.id] ?? "·"}
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-sm font-medium text-foreground">{action.name}</span>
-                    <code class="text-[0.6rem] text-muted-foreground font-mono">{action.id}</code>
+            <div class="divide-y divide-border">
+              {#each plugin.actions as action (action.id)}
+                {@const scopeKey = `${plugin.id}:${action.id}`}
+                {@const scopesOpen = expandedScopes.has(scopeKey)}
+                <div class="flex items-start gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors">
+                  <div
+                    class="size-8 rounded flex items-center justify-center text-sm shrink-0 bg-muted"
+                  >
+                    {ACTION_ICONS[action.id] ?? "·"}
                   </div>
-                  <p class="text-xs text-muted-foreground mt-0.5">{action.description}</p>
-                  {#if action.scopes.length}
-                    <div class="mt-1.5">
-                      <button
-                        type="button"
-                        class="text-[0.6rem] text-muted-foreground hover:text-foreground"
-                        onclick={() => toggleScopes(scopeKey)}
-                      >
-                        {#if scopesOpen}▾{:else}▸{/if}
-                        {action.scopes.length} scope{action.scopes.length === 1 ? "" : "s"}
-                      </button>
-                      {#if scopesOpen}
-                        <div class="flex flex-wrap gap-1 mt-1">
-                          {#each action.scopes as scope (scope)}
-                            <span
-                              class="text-[0.55rem] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary"
-                              title={scope}
-                            >
-                              {shortScope(scope)}
-                            </span>
-                          {/each}
-                        </div>
-                      {/if}
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="text-sm font-medium text-foreground">{action.name}</span>
+                      <code class="text-[0.6rem] text-muted-foreground font-mono">{action.id}</code>
                     </div>
-                  {/if}
+                    <p class="text-xs text-muted-foreground mt-0.5">{action.description}</p>
+                    {#if action.scopes.length}
+                      <div class="mt-1.5">
+                        <button
+                          type="button"
+                          class="text-[0.6rem] text-muted-foreground hover:text-foreground"
+                          onclick={() => toggleScopes(scopeKey)}
+                        >
+                          {#if scopesOpen}▾{:else}▸{/if}
+                          {action.scopes.length} scope{action.scopes.length === 1 ? "" : "s"}
+                        </button>
+                        {#if scopesOpen}
+                          <div class="flex flex-wrap gap-1 mt-1">
+                            {#each action.scopes as scope (scope)}
+                              <span
+                                class="text-[0.55rem] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary"
+                                title={scope}
+                              >
+                                {shortScope(scope)}
+                              </span>
+                            {/each}
+                          </div>
+                        {/if}
+                      </div>
+                    {/if}
+                  </div>
                 </div>
-              </div>
-            {/each}
-          </div>
-
+              {/each}
+            </div>
           {/if}
         </div>
       {/each}
 
       {#if plugins.length === 0}
         <div class="py-12 text-center text-muted-foreground text-sm">
-          No plugins registered. Add plugins in <code class="bg-muted px-1 rounded">me-ai-core/src/plugins</code>.
+          No plugins registered. Add plugins in <code class="bg-muted px-1 rounded"
+            >me-ai-core/src/plugins</code
+          >.
         </div>
       {/if}
     </div>

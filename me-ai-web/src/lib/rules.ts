@@ -37,9 +37,7 @@ export async function getEventStats() {
 
 // ── Approvals & Manual Execution ───────────────────────────────────────
 
-export async function getPendingApprovals({
-  limit = 100,
-}: { limit?: number } = {}) {
+export async function getPendingApprovals({ limit = 100 }: { limit?: number } = {}) {
   return getCore().getPendingApprovals(limit);
 }
 

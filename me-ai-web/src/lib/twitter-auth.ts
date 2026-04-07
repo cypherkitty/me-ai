@@ -14,7 +14,15 @@ const TWITTER_AUTH_URL = "https://twitter.com/i/oauth2/authorize";
 const TWITTER_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 const TWITTER_REVOKE_URL = "https://api.twitter.com/2/oauth2/revoke";
 
-const SCOPES = ["tweet.read", "users.read", "like.read", "like.write", "bookmark.read", "bookmark.write", "offline.access"].join(" ");
+const SCOPES = [
+  "tweet.read",
+  "users.read",
+  "like.read",
+  "like.write",
+  "bookmark.read",
+  "bookmark.write",
+  "offline.access",
+].join(" ");
 const LS_VERIFIER_KEY = "me-ai:twitter-pkce-verifier";
 const LS_STATE_KEY = "me-ai:twitter-pkce-state";
 
@@ -24,7 +32,9 @@ let _redirectUri: string | null = null;
 function generateRandomString(length: number = 64): string {
   const array = new Uint8Array(length);
   crypto.getRandomValues(array);
-  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("").slice(0, length);
+  return Array.from(array, (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, length);
 }
 
 async function sha256(plain: string): Promise<ArrayBuffer> {
@@ -44,7 +54,11 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
   return base64UrlEncode(hash);
 }
 
-async function saveToken(accessToken: string, refreshToken: string | undefined, expiresIn: number): Promise<void> {
+async function saveToken(
+  accessToken: string,
+  refreshToken: string | undefined,
+  expiresIn: number
+): Promise<void> {
   await getCore().saveTwitterToken(accessToken, refreshToken, expiresIn);
 }
 
@@ -121,11 +135,18 @@ export async function handleTwitterCallback(
   });
 
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error_description?: string; error?: string };
+    const err = (await res.json().catch(() => ({}))) as {
+      error_description?: string;
+      error?: string;
+    };
     throw new Error(err.error_description || err.error || `Token exchange failed: ${res.status}`);
   }
 
-  const data = (await res.json()) as { access_token: string; refresh_token: string; expires_in?: number };
+  const data = (await res.json()) as {
+    access_token: string;
+    refresh_token: string;
+    expires_in?: number;
+  };
   await saveToken(data.access_token, data.refresh_token, data.expires_in ?? 7200);
 
   return { access_token: data.access_token, refresh_token: data.refresh_token };
@@ -134,7 +155,10 @@ export async function handleTwitterCallback(
 /**
  * Restore a previously saved token if it hasn't expired.
  */
-export async function getSavedTwitterToken(): Promise<{ access_token: string; refresh_token?: string } | null> {
+export async function getSavedTwitterToken(): Promise<{
+  access_token: string;
+  refresh_token?: string;
+} | null> {
   const token = await getCore().getTwitterToken();
   if (token) return { access_token: token.accessToken, refresh_token: token.refreshToken };
   // Try raw (possibly expired) — attempt refresh
@@ -180,11 +204,18 @@ async function refreshTwitterToken(
   });
 
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error_description?: string; error?: string };
+    const err = (await res.json().catch(() => ({}))) as {
+      error_description?: string;
+      error?: string;
+    };
     throw new Error(err.error_description || err.error || `Token refresh failed: ${res.status}`);
   }
 
-  const data = (await res.json()) as { access_token: string; refresh_token?: string; expires_in?: number };
+  const data = (await res.json()) as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in?: number;
+  };
   await saveToken(data.access_token, data.refresh_token ?? refreshTok, data.expires_in ?? 7200);
   return { access_token: data.access_token, refresh_token: data.refresh_token ?? refreshTok };
 }

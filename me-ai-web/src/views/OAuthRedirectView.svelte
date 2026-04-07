@@ -10,14 +10,13 @@
    * (everything after the first `#`) from the raw location.href.
    */
   import { onMount } from "svelte";
-  import { Button }  from "$lib/components/ui/button/index.js";
+  import { Button } from "$lib/components/ui/button/index.js";
   import { CheckCircle, AlertCircle, Loader, Mail } from "lucide-svelte";
-  
 
-  let phase       = $state<"processing" | "success" | "error" | "idle">("idle");
-  let errorMsg    = $state("");
+  let phase = $state<"processing" | "success" | "error" | "idle">("idle");
+  let errorMsg = $state("");
   let tokenTTLMin = $state(0);
-  let savedOk     = $state(false);
+  let savedOk = $state(false);
 
   function parseOAuthFragment(): Record<string, string> {
     // The raw URL looks like:  .../index.html#oauth-redirect#access_token=...
@@ -64,8 +63,9 @@
 
   /** @returns {string} */
   function buildRedirectAuthUrl() {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-      || "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
+    const clientId =
+      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+      "562478245230-1gohf6dtsajqo1lu3kge9k7cthm4sdv6.apps.googleusercontent.com";
     const redirectUri = window.location.origin + window.location.pathname + "#oauth-redirect";
     const scope = "https://www.googleapis.com/auth/gmail.modify";
     return (
@@ -83,10 +83,11 @@
 
 <div class="flex flex-col items-center justify-center min-h-full p-8">
   <div class="w-full max-w-md flex flex-col gap-6">
-
     <!-- Header -->
     <div class="flex flex-col items-center gap-3 text-center">
-      <div class="size-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+      <div
+        class="size-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center"
+      >
         <Mail class="size-6 text-primary" />
       </div>
       <div>
@@ -97,13 +98,11 @@
 
     <!-- Card -->
     <div class="rounded-lg border border-border bg-card p-6 flex flex-col gap-5">
-
       {#if phase === "processing"}
         <div class="flex flex-col items-center gap-3 py-4">
           <Loader class="size-5 text-primary animate-spin" />
           <p class="text-sm text-muted-foreground">Processing authentication…</p>
         </div>
-
       {:else if phase === "success"}
         <div class="flex items-center gap-3 p-3 rounded border border-success/25 bg-success/8">
           <CheckCircle class="size-4 text-success shrink-0" />
@@ -121,13 +120,12 @@
             <Mail class="size-3.5" />
             Go to Sources
           </Button>
-          <Button variant="outline" href="#home" class="w-full">
-            Back to Home
-          </Button>
+          <Button variant="outline" href="#home" class="w-full">Back to Home</Button>
         </div>
-
       {:else if phase === "error"}
-        <div class="flex items-start gap-3 p-3 rounded border border-destructive/25 bg-destructive/8">
+        <div
+          class="flex items-start gap-3 p-3 rounded border border-destructive/25 bg-destructive/8"
+        >
           <AlertCircle class="size-4 text-destructive shrink-0 mt-0.5" />
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-destructive">Authentication failed</p>
@@ -138,16 +136,17 @@
           {@render GoogleIcon()}
           Try again
         </Button>
-
       {:else}
         <!-- idle: no token in URL, show the start screen -->
         <div class="flex flex-col gap-3">
           <p class="text-sm text-muted-foreground leading-relaxed">
-            This flow redirects you to Google and back. Useful in environments
-            where popups are blocked (e.g. Cursor's embedded browser).
+            This flow redirects you to Google and back. Useful in environments where popups are
+            blocked (e.g. Cursor's embedded browser).
           </p>
 
-          <div class="rounded border border-border bg-muted/40 p-3 flex flex-col gap-1.5 text-xs text-muted-foreground">
+          <div
+            class="rounded border border-border bg-muted/40 p-3 flex flex-col gap-1.5 text-xs text-muted-foreground"
+          >
             <div class="flex items-center gap-2">
               <span class="size-1 rounded-full bg-primary shrink-0"></span>
               Click the button — you'll be redirected to Google
@@ -170,13 +169,16 @@
 
         <p class="text-center text-xs text-muted-foreground">
           Prefer popups?
-          <a href="#auth" class="text-primary hover:underline no-underline">Use the standard flow</a>
+          <a href="#auth" class="text-primary hover:underline no-underline">Use the standard flow</a
+          >
         </p>
       {/if}
-
     </div>
 
-    <a href="#chat" class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
+    <a
+      href="#chat"
+      class="text-center text-xs text-muted-foreground hover:text-foreground transition-colors no-underline"
+    >
       Back to Chat
     </a>
   </div>
@@ -184,9 +186,21 @@
 
 {#snippet GoogleIcon()}
   <svg class="size-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    <path
+      fill="#4285F4"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+    />
   </svg>
 {/snippet}

@@ -49,3 +49,7 @@ See [`.cortex/design-docs/plugin-system.md`](design-docs/plugin-system.md).
 All build/test/deploy goes through [Task](https://taskfile.dev). See `.agents/me-ai-builder.md`.
 
 Key tasks: `task install`, `task build`, `task test`, `task ci`, `task deploy-build`.
+
+## CI / CD
+
+See [`.cortex/ci-cd.md`](ci-cd.md) — workflow triggers, what each step does, deploy targets, and how to add new CI checks.

@@ -6,25 +6,14 @@
     getPendingItemsByCategory,
     getPendingCountByCategory,
   } from "../lib/rules.js";
-  
-  import {
-    executePipeline,
-    isAuthenticated,
-  } from "../lib/plugins/execution-service.js";
+
+  import { executePipeline, isAuthenticated } from "../lib/plugins/execution-service.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
   import PipelineGraph from "../components/actions/PipelineGraph.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
-  import {
-    ChevronDown,
-    ChevronRight,
-    Plus,
-    Play,
-    Trash2,
-    Loader,
-    Shield,
-  } from "lucide-svelte";
+  import { ChevronDown, ChevronRight, Plus, Play, Trash2, Loader, Shield } from "lucide-svelte";
 
   interface CatPipeline {
     category: string;
@@ -91,10 +80,7 @@
       const cats = (await getCategoryPipelines()) as CatPipeline[];
       categories = cats;
       const entries = await Promise.all(
-        cats.map(
-          async (c) =>
-            [c.category, await getPendingCountByCategory(c.category)] as const,
-        ),
+        cats.map(async (c) => [c.category, await getPendingCountByCategory(c.category)] as const)
       );
       pendingCounts = Object.fromEntries(entries);
     } catch (e) {
@@ -110,9 +96,7 @@
       return;
     }
     if (cat.actions.length === 0) {
-      alert(
-        "No actions in this category pipeline — add actions first (Edit Actions).",
-      );
+      alert("No actions in this category pipeline — add actions first (Edit Actions).");
       return;
     }
     const items = await getPendingItemsByCategory(cat.category);
@@ -136,12 +120,9 @@
           },
           metadata: { category: item.eventCategory as import("$lib/types").EventCategory },
         };
-        const result = await executePipeline(
-          event,
-          undefined,
-          true,
-          { actionsOverride: cat.actions },
-        );
+        const result = await executePipeline(event, undefined, true, {
+          actionsOverride: cat.actions,
+        });
         if (result.success) ok += 1;
         else failed += 1;
       }
@@ -193,9 +174,16 @@
   }
 
   async function handleEditorSave(
-    actions?: Array<{ id: string; pluginId: string; commandId: string; name: string; description: string; icon?: string }>,
+    actions?: Array<{
+      id: string;
+      pluginId: string;
+      commandId: string;
+      name: string;
+      description: string;
+      icon?: string;
+    }>,
     typesToMove?: string[],
-    typesToDelete?: string[],
+    typesToDelete?: string[]
   ) {
     if (!editingRule || !editingRule.id.startsWith("cat:") || !actions) return;
     const catName = editingRule.id.split(":")[1];
@@ -235,19 +223,14 @@
 
 <div class="flex flex-col h-full overflow-hidden">
   <!-- Header -->
-  <div
-    class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border"
-  >
+  <div class="flex items-center justify-between px-8 pt-5 pb-4 shrink-0 border-b border-border">
     <div>
       <div class="flex items-center gap-2 mb-0.5">
         <Shield class="size-5 text-primary/60" />
-        <h2 class="text-xl font-bold tracking-tight text-foreground">
-          Routing Pipelines
-        </h2>
+        <h2 class="text-xl font-bold tracking-tight text-foreground">Routing Pipelines</h2>
       </div>
       <p class="text-sm text-muted-foreground/60">
-        Categories carry default action pipelines. AI assigns event types to
-        categories.
+        Categories carry default action pipelines. AI assigns event types to categories.
       </p>
     </div>
   </div>
@@ -255,12 +238,8 @@
   <!-- Category cards -->
   <ScrollArea class="flex-1 min-h-0 px-8 py-6">
     {#if loading}
-      <div
-        class="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground"
-      >
-        <div
-          class="size-6 border-2 border-border border-t-primary rounded-full animate-spin"
-        ></div>
+      <div class="flex flex-col items-center justify-center gap-3 py-24 text-muted-foreground">
+        <div class="size-6 border-2 border-border border-t-primary rounded-full animate-spin"></div>
         Loading…
       </div>
     {:else}
@@ -290,9 +269,7 @@
                     class="text-[0.6rem] px-1.5 py-0"
                     style="color: {color}; border-color: {color}40"
                   >
-                    {cat.eventTypes.length} type{cat.eventTypes.length !== 1
-                      ? "s"
-                      : ""}
+                    {cat.eventTypes.length} type{cat.eventTypes.length !== 1 ? "s" : ""}
                   </Badge>
                 </div>
                 <div class="flex items-center gap-2 mt-1">
@@ -300,10 +277,7 @@
                   <select
                     value={cat.policy}
                     onchange={(e) =>
-                      handlePolicyChange(
-                        cat.category,
-                        (e.target as HTMLSelectElement).value,
-                      )}
+                      handlePolicyChange(cat.category, (e.target as HTMLSelectElement).value)}
                     class="h-6 px-1.5 text-xs rounded border border-input bg-background text-foreground"
                   >
                     <option value="auto">Auto-execute</option>
@@ -325,12 +299,8 @@
             </div>
 
             <!-- Pipeline actions -->
-            <div
-              class="px-6 pb-4 border-t border-border/40 pt-3 flex flex-col items-start gap-1"
-            >
-              <div
-                class="flex items-center justify-between w-full gap-2 flex-wrap"
-              >
+            <div class="px-6 pb-4 border-t border-border/40 pt-3 flex flex-col items-start gap-1">
+              <div class="flex items-center justify-between w-full gap-2 flex-wrap">
                 <span
                   class="text-[0.6rem] uppercase tracking-wider text-muted-foreground/40 font-semibold"
                 >
@@ -367,9 +337,7 @@
               </div>
 
               {#if cat.actions.length === 0}
-                <div
-                  class="flex items-center gap-2 mt-2 text-xs text-muted-foreground/30 italic"
-                >
+                <div class="flex items-center gap-2 mt-2 text-xs text-muted-foreground/30 italic">
                   No default actions — user must act manually
                 </div>
               {:else}
@@ -400,9 +368,7 @@
                       <div
                         class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-muted/5 border border-border/30 opacity-80"
                       >
-                        <span class="text-xs font-mono text-foreground/80"
-                          >{et.name}</span
-                        >
+                        <span class="text-xs font-mono text-foreground/80">{et.name}</span>
                         {#if et.autoCreated}
                           <Badge
                             variant="outline"

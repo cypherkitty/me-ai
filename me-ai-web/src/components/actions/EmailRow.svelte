@@ -65,9 +65,7 @@
     {/if}
     {#if item.reason && !showDetails}
       <span class="row-reason"
-        ><strong class="opacity-50 text-[0.6rem] uppercase tracking-widest mr-1"
-          >Reason:</strong
-        >
+        ><strong class="opacity-50 text-[0.6rem] uppercase tracking-widest mr-1">Reason:</strong>
         {item.reason}</span
       >
     {/if}
@@ -84,13 +82,7 @@
             onexecute?.(item);
           }}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            stroke="none"
-          >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         </button>
@@ -156,9 +148,7 @@
         >
           <path d="M3 6h18" />
           <path d="M8 6V4h8v2" />
-          <path
-            d="m19 6-.867 12.142A2 2 0 0 1 16.138 20H7.862a2 2 0 0 1-1.995-1.858L5 6"
-          />
+          <path d="m19 6-.867 12.142A2 2 0 0 1 16.138 20H7.862a2 2 0 0 1-1.995-1.858L5 6" />
         </svg>
       </button>
     {/if}
@@ -170,9 +160,7 @@
     <p class="summary-text">{item.summary}</p>
     {#if item.reason}
       <p class="summary-reason">
-        <strong class="opacity-50 text-[0.6rem] uppercase tracking-widest mr-1"
-          >Reason:</strong
-        >
+        <strong class="opacity-50 text-[0.6rem] uppercase tracking-widest mr-1">Reason:</strong>
         {item.reason}
       </p>
     {/if}

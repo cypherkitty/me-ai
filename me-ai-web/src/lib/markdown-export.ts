@@ -27,9 +27,7 @@ export function emailToMarkdown(message: MessageForMarkdown): string {
   lines.push("---");
   lines.push("");
 
-  const bodyMd = message.htmlBody
-    ? htmlToMarkdownBody(message.htmlBody)
-    : null;
+  const bodyMd = message.htmlBody ? htmlToMarkdownBody(message.htmlBody) : null;
 
   lines.push(bodyMd || message.body || "*(no body)*");
   lines.push("");
@@ -53,7 +51,9 @@ export function htmlToMarkdownBody(html: string): string | null {
 
     for (const el of doc.querySelectorAll("style, script, head")) el.remove();
 
-    return nodeToMarkdown(doc.body).replace(/\n{3,}/g, "\n\n").trim();
+    return nodeToMarkdown(doc.body)
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   } catch {
     return null;
   }
@@ -67,12 +67,14 @@ function isSkippableImage(node: Element, src: string): boolean {
   if ((w > 0 && w <= 3) || (h > 0 && h <= 3)) return true;
 
   const lower = src.toLowerCase();
-  if (lower.includes("spacer") || lower.includes("transparent") || lower.includes("transp.gif")) return true;
+  if (lower.includes("spacer") || lower.includes("transparent") || lower.includes("transp.gif"))
+    return true;
   if (lower.includes("/track") && lower.includes("pixel")) return true;
   if (/amazon\.com\/gp\/r\.html\?/.test(src)) return true;
   if (/[?&](open|track|beacon|pixel|img)=/i.test(lower)) return true;
   if (lower.includes("mail.google.com/mail/u/") && lower.includes("view=fimg")) return false;
-  if (/ci\d+\.\w+\.com\//.test(lower) || (lower.endsWith(".gif") && lower.includes("1x1"))) return true;
+  if (/ci\d+\.\w+\.com\//.test(lower) || (lower.endsWith(".gif") && lower.includes("1x1")))
+    return true;
 
   return false;
 }

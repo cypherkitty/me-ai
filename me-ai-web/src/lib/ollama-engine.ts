@@ -2,11 +2,7 @@
  * Ollama LLM engine adapter. Same interface as llm-engine but uses Ollama HTTP API.
  */
 
-import {
-  streamOllamaChat,
-  testOllamaConnection,
-  getOllamaUrl,
-} from "./ollama-client.js";
+import { streamOllamaChat, testOllamaConnection, getOllamaUrl } from "./ollama-client.js";
 import type { EngineStatus, EngineMessage } from "./core.js";
 
 let _status: EngineStatus = "idle";
@@ -17,7 +13,9 @@ function broadcast(msg: EngineMessage): void {
   for (const fn of _listeners) {
     try {
       fn(msg);
-    } catch { /* no-op */ }
+    } catch {
+      /* no-op */
+    }
   }
 }
 
@@ -87,8 +85,7 @@ export function getOllamaEngine() {
             if (data.content) {
               tokenCount++;
               const elapsed = performance.now() - startTime;
-              const tps =
-                elapsed > 0 ? (tokenCount / elapsed) * 1000 : 0;
+              const tps = elapsed > 0 ? (tokenCount / elapsed) * 1000 : 0;
               broadcast({
                 status: "update",
                 output: data.content,
@@ -102,9 +99,7 @@ export function getOllamaEngine() {
                 status: "complete",
                 tps:
                   data.eval_duration != null
-                    ? Math.round(
-                        (data.eval_count ?? 0) / (data.eval_duration / 1e9) * 10
-                      ) / 10
+                    ? Math.round(((data.eval_count ?? 0) / (data.eval_duration / 1e9)) * 10) / 10
                     : null,
                 numTokens: data.eval_count ?? tokenCount,
               });
@@ -123,11 +118,7 @@ export function getOllamaEngine() {
     generateFull(
       messages: { role: string; content?: string }[],
       options: Record<string, unknown>,
-      onToken?: (x: {
-        tps: number | null;
-        numTokens: number;
-        text: string;
-      }) => void
+      onToken?: (x: { tps: number | null; numTokens: number; text: string }) => void
     ): Promise<{
       text: string;
       tps: number | null;
@@ -155,7 +146,9 @@ export function getOllamaEngine() {
                     numTokens: lastNumTokens,
                     text: output,
                   });
-                } catch { /* no-op */ }
+                } catch {
+                  /* no-op */
+                }
               }
               break;
             case "complete":

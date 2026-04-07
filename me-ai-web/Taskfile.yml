@@ -1,0 +1,80 @@
+# https://taskfile.dev
+# Included by the root Taskfile as namespace "web:" — do not call directly.
+# All tasks run from me-ai-web/ (set by the root include's dir).
+version: "3"
+
+tasks:
+  install:
+    desc: npm install then sync me-ai-core/pkg into node_modules
+    cmds:
+      - npm install
+      - task: copy-core
+
+  install:ci:
+    desc: npm install with CI-safe one-retry fallback, then sync core pkg
+    cmds:
+      - |
+        bash -lc '
+          set -euo pipefail
+          if npm install --foreground-scripts; then
+            exit 0
+          fi
+
+          echo "npm install failed; retrying once after clearing esbuild to recover from transient install races..." >&2
+          rm -rf node_modules/esbuild
+          npm install --foreground-scripts
+        '
+      - task: copy-core
+
+  build:
+    desc: Build me-ai-web with Vite (production)
+    cmds:
+      - npm run build
+
+  dev:
+    desc: Start Vite dev server (run task install once first)
+    cmds:
+      - npm run dev
+
+  copy-core:
+    desc: Copy me-ai-core/pkg into node_modules/me-ai-core (run after core:build)
+    cmds:
+      - rm -rf node_modules/me-ai-core
+      - cp -r ../me-ai-core/pkg node_modules/me-ai-core
+
+  check:
+    desc: Run svelte-check (TypeScript + Svelte types)
+    cmds:
+      - npm run check
+
+  lint:
+    desc: Run ESLint on src/
+    cmds:
+      - npm run lint
+
+  knip:
+    desc: Find unused exports and dead code in src/
+    cmds:
+      - npm run knip
+
+  format:check:
+    desc: Check Prettier formatting in src/
+    cmds:
+      - npm run format:check
+
+  test:
+    desc: Run Vitest unit tests (single run)
+    cmds:
+      - npm run test:ci
+
+  test:e2e:
+    desc: Run Playwright E2E tests (installs Chromium if needed)
+    cmds:
+      - npx playwright install --with-deps chromium
+      - npx playwright test
+
+  kill-dev:
+    desc: Kill all running Vite / npm dev servers
+    cmds:
+      - pkill -f "vite" || true
+      - pkill -f "npm run dev" || true

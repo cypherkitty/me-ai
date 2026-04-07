@@ -1,0 +1,14 @@
+[package]
+name = "cortex-check"
+version = "0.1.0"
+edition = "2021"
+description = "Structural integrity check for the .cortex/ knowledge base"
+
+[[bin]]
+name = "cortex-check"
+path = "src/main.rs"
+
+[dependencies]
+pulldown-cmark = { version = "0.13.3", default-features = false }
+regex = { version = "1.12.3", default-features = false }
+walkdir = { version = "2.5.0", default-features = false }

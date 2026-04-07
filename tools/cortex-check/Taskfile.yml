@@ -1,0 +1,10 @@
+# https://taskfile.dev
+# Included by the root Taskfile as namespace "cortex:" — do not call directly.
+# Tasks run from the repo root (no dir override in the root include).
+version: "3"
+
+tasks:
+  check:
+    desc: Verify .cortex/ link integrity and store inventory (Rust)
+    cmds:
+      - cargo run --manifest-path tools/cortex-check/Cargo.toml
