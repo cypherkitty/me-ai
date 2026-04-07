@@ -25,6 +25,16 @@
   import CloudApiSettings from "./components/chat/CloudApiSettings.svelte";
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
+  import {
+    createChatSession,
+    fallbackChatTitle,
+    getSessionSubtitle,
+    loadChatSessions,
+    normalizeGeneratedTitle,
+    normalizeMessage,
+    saveChatSessions,
+    type ChatSessionRecord,
+  } from "./lib/chat-sessions.js";
 
   const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
 
@@ -47,12 +57,15 @@
     }
   });
   interface ChatMsg {
+    id?: string;
     role?: string;
     type?: string;
     content?: string;
+    createdAt?: number;
     thinking?: string;
     thinkingStartedAt?: number | null;
     thinkingDurationMs?: number | null;
+    stopped?: boolean;
     model?: string;
     status?: string;
     title?: string;
@@ -77,6 +90,9 @@
   let progressItems = $state<Record<string, unknown>[]>([]);
 
   let messages = $state<ChatMsg[]>([]);
+  let chatSessions = $state<ChatSessionRecord[]>([]);
+  let activeChatId = $state<string | null>(null);
+  let titleGenerationChatId = $state<string | null>(null);
   let isRunning = $state(false);
   let tps = $state<number | null>(null);
   let numTokens = $state<number | null>(null);
@@ -91,6 +107,35 @@
   let chatContainer = $state<HTMLElement | null>(null);
   let gpuInfo = $state<Record<string, unknown> | null>(null);
   let generationPhase = $state<string | null>(null);
+  let contextStats = $derived.by(() => {
+    const plainMessages = buildPlainConversation(messages);
+    const messageCount = plainMessages.length;
+    const charCount = plainMessages.reduce((sum, message) => sum + message.content.length, 0);
+    const estimatedTokens = Math.max(0, Math.ceil(charCount / 4));
+    const modelId = engine.modelId ?? selectedModel ?? null;
+
+    let contextWindow: number | null = null;
+    if (modelId) {
+      if (backend === AiBackend.WebGpu) {
+        contextWindow = getCore().getOnnxModelInfo(modelId)?.contextWindow ?? null;
+      } else if (backend === AiBackend.Ollama) {
+        contextWindow = getCore().getOllamaModelInfo(modelId)?.contextWindow ?? null;
+      } else {
+        const apiInfo =
+          apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
+        contextWindow = apiInfo?.contextWindow ?? null;
+      }
+    }
+
+    return {
+      messageCount,
+      charCount,
+      estimatedTokens,
+      contextWindow,
+      usagePercent:
+        contextWindow && contextWindow > 0 ? (estimatedTokens / contextWindow) * 100 : null,
+    };
+  });
 
   // ── Cockpit state ─────────────────────────────────────────────────
   let pendingData = $state<PendingData | null>(null);
@@ -100,10 +145,212 @@
   /** Set when IndexedDB/core is unavailable; settings are not persisted. */
   let storageUnavailable = $state(false);
 
+  function sortSessions(list: ChatSessionRecord[]): ChatSessionRecord[] {
+    return [...list].sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  function ensureMessageMetadata(nextMessages: ChatMsg[]): ChatMsg[] {
+    let changed = false;
+    const normalized = nextMessages.map((message, index) => {
+      const normalizedMessage = normalizeMessage(message, Date.now() + index) as ChatMsg;
+      if (
+        normalizedMessage.id === message.id &&
+        normalizedMessage.createdAt === message.createdAt
+      ) {
+        return message;
+      }
+      changed = true;
+      return normalizedMessage;
+    });
+    return changed ? normalized : nextMessages;
+  }
+
+  function setActiveSessionMessages(nextMessages: ChatMsg[]) {
+    messages = ensureMessageMetadata(nextMessages);
+  }
+
+  function updateSessionRecord(
+    sessionId: string,
+    updater: (session: ChatSessionRecord) => ChatSessionRecord
+  ) {
+    const nextSessions = chatSessions.map((session) =>
+      session.id === sessionId ? updater(session) : session
+    );
+    chatSessions = sortSessions(nextSessions);
+  }
+
+  function activateSession(sessionId: string) {
+    const session = chatSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    activeChatId = session.id;
+    messages = ensureMessageMetadata(session.messages as ChatMsg[]);
+    greetingShown = messages.length > 0;
+    pendingData = null;
+    hasScanData = false;
+    generationPhase = null;
+    tps = null;
+    numTokens = null;
+    if ((status === "ready" || engine.isReady) && messages.length === 0) {
+      greetingShown = false;
+      void showDashboardIfNeeded();
+    }
+  }
+
+  function createAndActivateSession() {
+    const session = createChatSession();
+    chatSessions = sortSessions([session, ...chatSessions]);
+    activateSession(session.id);
+  }
+
+  function renameSession(sessionId: string) {
+    const session = chatSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    const nextTitle = window.prompt(
+      "Rename chat",
+      session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"
+    );
+    if (!nextTitle) return;
+    const trimmed = nextTitle.trim();
+    if (!trimmed) return;
+    updateSessionRecord(sessionId, (current) => ({
+      ...current,
+      title: trimmed,
+      titleStatus: "ready",
+      titleSource: "manual",
+      updatedAt: Date.now(),
+    }));
+  }
+
+  function deleteSession(sessionId: string) {
+    const session = chatSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+    const ok = window.confirm(
+      `Delete "${session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}"?`
+    );
+    if (!ok) return;
+
+    const remaining = chatSessions.filter((item) => item.id !== sessionId);
+    if (remaining.length === 0) {
+      const empty = createChatSession();
+      chatSessions = [empty];
+      activateSession(empty.id);
+      return;
+    }
+
+    chatSessions = sortSessions(remaining);
+    if (activeChatId === sessionId) {
+      activateSession(sortSessions(remaining)[0].id);
+    }
+  }
+
+  function markActiveSessionNeedsTitle() {
+    if (!activeChatId) return;
+    updateSessionRecord(activeChatId, (session) => {
+      if (
+        session.titleSource === "manual" ||
+        session.titleSource === "model" ||
+        session.titleStatus === "pending" ||
+        session.titleStatus === "ready" ||
+        session.title
+      ) {
+        return session;
+      }
+      return {
+        ...session,
+        title: null,
+        titleStatus: "pending",
+      };
+    });
+  }
+
+  async function generateSessionTitle(sessionId: string) {
+    const session = chatSessions.find((item) => item.id === sessionId);
+    if (!session) return;
+
+    if (session.titleSource === "manual" || session.titleSource === "model" || session.title)
+      return;
+
+    const firstUserMessage = session.messages.find(
+      (message) =>
+        message.role === "user" && typeof message.content === "string" && message.content.trim()
+    );
+    if (!firstUserMessage?.content) return;
+
+    titleGenerationChatId = sessionId;
+
+    try {
+      const prompt = [
+        "Write a short title for this chat.",
+        "Rules: 2 to 6 words, plain text only, no quotes, no punctuation unless necessary.",
+        "Base it only on the very first user request.",
+        "Return only the title.",
+        "",
+        `User: ${firstUserMessage.content}`,
+      ].join("\n");
+
+      const result = await engine.generateFull(
+        [
+          {
+            role: "system",
+            content: "You create short descriptive titles for chat sessions.",
+          },
+          { role: "user", content: prompt },
+        ],
+        {
+          maxTokens: 16,
+          temperature: 0.2,
+          enableThinking: false,
+          do_sample: false,
+        }
+      );
+
+      updateSessionRecord(sessionId, (current) => {
+        if (current.titleSource === "manual") return current;
+        return {
+          ...current,
+          title: normalizeGeneratedTitle(result.text, current.messages),
+          titleStatus: "ready",
+          titleSource: "model",
+          updatedAt: Math.max(current.updatedAt, Date.now()),
+        };
+      });
+    } catch {
+      updateSessionRecord(sessionId, (current) => {
+        if (current.titleSource === "manual") return current;
+        return {
+          ...current,
+          title: fallbackChatTitle(current.messages) ?? "Untitled chat",
+          titleStatus: "ready",
+          titleSource: "model",
+        };
+      });
+    } finally {
+      titleGenerationChatId = null;
+    }
+  }
+
+  function formatSessionDate(ts: number): string {
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(ts);
+  }
+
   // ── Shared engine listener ─────────────────────────────────────────
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
+      const savedChats = loadChatSessions();
+      chatSessions = sortSessions(savedChats.sessions);
+      activeChatId = savedChats.activeChatId;
+      const initialSession =
+        savedChats.sessions.find((session) => session.id === savedChats.activeChatId) ??
+        savedChats.sessions[0];
+      messages = ensureMessageMetadata((initialSession?.messages ?? []) as ChatMsg[]);
+      greetingShown = messages.length > 0;
+
       // Restore saved backend, model, and options from settings (IndexedDB)
       try {
         const sv = await getCore().loadSettings();
@@ -238,6 +485,7 @@
 
           case "update": {
             if (!isRunning) break;
+            generationPhase = "generating";
             tps = (msg.tps as number) ?? null;
             numTokens = (msg.numTokens as number) ?? null;
             const last = messages[messages.length - 1];
@@ -254,8 +502,27 @@
             // Update final stats from Ollama
             if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
             if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
+            const wasInterrupted = !!msg.interrupted;
             isRunning = false;
             generationPhase = null;
+
+            if (wasInterrupted) {
+              const last = messages[messages.length - 1];
+              if (last?.role === "assistant") {
+                const stopTime =
+                  typeof last.thinkingStartedAt === "number"
+                    ? Date.now() - last.thinkingStartedAt
+                    : (last.thinkingDurationMs ?? null);
+                messages = [
+                  ...messages.slice(0, -1),
+                  {
+                    ...last,
+                    stopped: !!last.thinking,
+                    thinkingDurationMs: stopTime,
+                  },
+                ];
+              }
+            }
 
             // --- BEGIN INTERCEPTOR ---
             const lastMsg = messages[messages.length - 1];
@@ -325,6 +592,9 @@
           }
 
           case "error":
+            if (titleGenerationChatId && !isRunning) {
+              break;
+            }
             if (loadInitiated) {
               error = msg.data as string;
             }
@@ -351,6 +621,80 @@
       _engineUnsub = unsub;
     })();
     return () => _engineUnsub?.();
+  });
+
+  $effect(() => {
+    const normalized = ensureMessageMetadata(messages);
+    if (normalized !== messages) {
+      messages = normalized;
+    }
+  });
+
+  $effect(() => {
+    if (!activeChatId) return;
+    const activeSession = chatSessions.find((session) => session.id === activeChatId);
+    if (!activeSession) return;
+
+    const messageSnapshot = JSON.stringify(messages);
+    const currentSnapshot = JSON.stringify(activeSession.messages);
+    const hasUserMessages = messages.some((message) => message.role === "user");
+    const nextTitleStatus =
+      activeSession.titleSource === "manual"
+        ? "ready"
+        : hasUserMessages
+          ? activeSession.title
+            ? "ready"
+            : "pending"
+          : "idle";
+    const lastMessageTs = messages[messages.length - 1]?.createdAt;
+    const nextUpdatedAt =
+      typeof lastMessageTs === "number"
+        ? Math.max(activeSession.updatedAt, lastMessageTs)
+        : activeSession.updatedAt;
+
+    if (
+      currentSnapshot === messageSnapshot &&
+      activeSession.titleStatus === nextTitleStatus &&
+      activeSession.updatedAt === nextUpdatedAt
+    ) {
+      return;
+    }
+
+    updateSessionRecord(activeChatId, (session) => ({
+      ...session,
+      messages: JSON.parse(messageSnapshot) as ChatMsg[],
+      titleStatus: nextTitleStatus,
+      updatedAt: nextUpdatedAt,
+    }));
+  });
+
+  $effect(() => {
+    if (!chatSessions.length) return;
+    const snapshot = JSON.stringify({
+      activeChatId,
+      sessions: chatSessions,
+    });
+    try {
+      const parsed = JSON.parse(snapshot) as {
+        activeChatId: string | null;
+        sessions: ChatSessionRecord[];
+      };
+      saveChatSessions(parsed.activeChatId, parsed.sessions);
+    } catch {
+      storageUnavailable = true;
+    }
+  });
+
+  $effect(() => {
+    if (titleGenerationChatId || isRunning || !engine.isReady) return;
+    const nextUntitledSession = chatSessions.find(
+      (session) =>
+        session.titleStatus === "pending" &&
+        session.titleSource !== "manual" &&
+        session.messages.some((message) => message.role === "user")
+    );
+    if (!nextUntitledSession) return;
+    void generateSessionTitle(nextUntitledSession.id);
   });
 
   // ── Dashboard / pending data ──────────────────────────────────────
@@ -736,6 +1080,24 @@
     return modelId.split("/").pop() ?? modelId;
   }
 
+  function getActiveModelLabel(): string | null {
+    const modelId = engine.modelId ?? selectedModel ?? null;
+    if (!modelId) return null;
+
+    if (backend === AiBackend.WebGpu) {
+      return getWebgpuModelLabel(modelId);
+    }
+
+    if (backend === AiBackend.Ollama) {
+      const info = getCore().getOllamaModelInfo(modelId);
+      return info?.displayName ?? info?.name ?? modelId;
+    }
+
+    const info =
+      apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
+    return info?.displayName ?? info?.name ?? modelId;
+  }
+
   function openModelPicker() {
     error = null;
     progressItems = [];
@@ -870,7 +1232,11 @@
 
     // Handle legacy /events command
     if (text.trim().toLowerCase() === "/events") {
-      messages = [...messages, { role: "user", content: text }];
+      const shouldGenerateInitialTitle = !messages.some((message) => message.role === "user");
+      setActiveSessionMessages([...messages, { role: "user", content: text }]);
+      if (shouldGenerateInitialTitle) {
+        markActiveSessionNeedsTitle();
+      }
       try {
         const byCategory = await getClassificationsByCategory({ pendingOnly: true });
         if (!byCategory.order.length) {
@@ -899,37 +1265,61 @@
       return;
     }
 
-    messages = [...messages, { role: "user", content: text }];
-    tps = null;
-    isRunning = true;
-
-    // Build system context — only load heavy email data when the user asks about emails
-    let systemMessages: Array<{ role: string; content: string }> = [];
-    try {
-      const emailKeywords =
-        /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
-      const context = emailKeywords.test(text)
-        ? await getCore().buildEmailContext(text)
-        : (await getCore().buildLlmContext()) || null;
-
-      if (context) {
-        systemMessages = [{ role: "system", content: context }];
-      }
-    } catch {
-      // Non-critical — continue without context
+    const shouldGenerateInitialTitle = !messages.some((message) => message.role === "user");
+    const nextMessages = [...messages, { role: "user", content: text }];
+    setActiveSessionMessages(nextMessages);
+    if (shouldGenerateInitialTitle) {
+      markActiveSessionNeedsTitle();
     }
+    await generateConversation(nextMessages, text);
+  }
 
-    // Only include text messages for the LLM (skip dashboard messages)
-    const plain = messages
+  function stop() {
+    engine.interrupt();
+  }
+
+  function buildPlainConversation(sourceMessages: ChatMsg[]) {
+    return sourceMessages
       .filter(
         (m) =>
           m.type !== "dashboard" &&
           m.type !== "events-by-category" &&
           m.type !== "event-batch" &&
-          m.type !== "event"
+          m.type !== "event" &&
+          m.type !== "task-card"
       )
       .filter((m) => m.role != null && m.content != null)
       .map((m) => ({ role: m.role as string, content: m.content as string }));
+  }
+
+  async function buildSystemMessages(
+    userText: string
+  ): Promise<Array<{ role: string; content: string }>> {
+    try {
+      const emailKeywords =
+        /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
+      const context = emailKeywords.test(userText)
+        ? await getCore().buildEmailContext(userText)
+        : (await getCore().buildLlmContext()) || null;
+
+      if (context) {
+        return [{ role: "system", content: context }];
+      }
+    } catch {
+      // Non-critical — continue without context
+    }
+
+    return [];
+  }
+
+  async function generateConversation(sourceMessages: ChatMsg[], userText: string) {
+    tps = null;
+    numTokens = null;
+    generationPhase = null;
+    isRunning = true;
+
+    const systemMessages = await buildSystemMessages(userText);
+    const plain = buildPlainConversation(sourceMessages);
     engine.generate([...systemMessages, ...plain], {
       enableThinking,
       maxTokens,
@@ -942,92 +1332,131 @@
     scrollToBottom();
   }
 
-  function stop() {
-    engine.interrupt();
+  async function regenerateLastAssistantMessage() {
+    if (isRunning) return;
+    const lastUserIndex = messages.findLastIndex((message) => message.role === "user");
+    if (lastUserIndex === -1) return;
+
+    const lastUser = messages[lastUserIndex];
+    const text = typeof lastUser.content === "string" ? lastUser.content.trim() : "";
+    if (!text) return;
+
+    const nextMessages = ensureMessageMetadata(messages.slice(0, lastUserIndex + 1));
+    setActiveSessionMessages(nextMessages);
+    await generateConversation(nextMessages, text);
   }
 
-  function reset() {
-    engine.reset();
-    messages = [];
-    tps = null;
-    numTokens = null;
-    greetingShown = false;
-    showDashboardIfNeeded();
+  async function editLastUserMessage() {
+    if (isRunning) return;
+    const lastUserIndex = messages.findLastIndex((message) => message.role === "user");
+    if (lastUserIndex === -1) return;
+
+    const lastUser = messages[lastUserIndex];
+    const currentText = typeof lastUser.content === "string" ? lastUser.content : "";
+    const edited = window.prompt("Edit your last message", currentText);
+    if (edited == null) return;
+
+    const nextText = edited.trim();
+    if (!nextText) return;
+
+    const nextMessages = ensureMessageMetadata(
+      messages
+        .slice(0, lastUserIndex + 1)
+        .map((message, index) =>
+          index === lastUserIndex ? { ...message, content: nextText } : message
+        )
+    );
+    setActiveSessionMessages(nextMessages);
+    await generateConversation(nextMessages, nextText);
   }
 </script>
 
-<div class="w-full h-full flex flex-col overflow-hidden">
-  {#if storageUnavailable}
-    <div
-      class="shrink-0 px-3 py-2 text-center text-sm bg-amber-500/20 text-amber-200 border-b border-amber-500/30"
-      role="alert"
-    >
-      Storage unavailable (e.g. private browsing). Settings and data are not persisted.
-    </div>
-  {/if}
-  {#if status === null}
-    <div class="w-full h-full overflow-y-auto flex justify-center">
-      <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
-        <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
-
-        {#if backend === AiBackend.WebGpu}
-          <ModelSelector
-            bind:selectedModel
-            bind:loadDtype
-            bind:loadDevice
-            {gpuInfo}
-            {error}
-            onload={loadModel}
-            onclearerror={() => {
-              error = null;
-            }}
-            onclearcache={clearCacheAndRetry}
-          />
-        {:else if backend === AiBackend.Ollama}
-          <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
-        {:else if backend === AiBackend.Cloud}
-          <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
-        {/if}
+<div class="w-full h-full flex overflow-hidden">
+  <div class="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+    {#if storageUnavailable}
+      <div
+        class="shrink-0 px-3 py-2 text-center text-sm bg-amber-500/20 text-amber-200 border-b border-amber-500/30"
+        role="alert"
+      >
+        Storage unavailable (e.g. private browsing). Settings and data are not persisted.
       </div>
-    </div>
-  {:else if status === "loading"}
-    <LoadingProgress message={loadingMessage} items={progressItems} />
-  {:else}
-    <ChatView
-      {messages}
-      {pendingData}
-      {hasScanData}
-      engineReady={engine.isReady}
-      {isScanning}
-      {isRunning}
-      {tps}
-      {numTokens}
-      {generationPhase}
-      {gpuInfo}
-      bind:enableThinking
-      bind:maxTokens
-      bind:doSample
-      bind:temperature
-      bind:repetitionPenalty
-      backend={backend === AiBackend.Cloud
-        ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-        : backend === AiBackend.Ollama
-          ? "ollama"
-          : "webgpu"}
-      activeModelLabel={backend === AiBackend.WebGpu ? getWebgpuModelLabel(engine.modelId) : null}
-      hasModelIssue={backend === AiBackend.WebGpu && (!!error || !engine.modelId)}
-      bind:chatContainer
-      onsend={send}
-      onstop={stop}
-      onreset={reset}
-      onfixmodel={openModelPicker}
-      onmarkacted={markActed}
-      ondismiss={dismiss}
-      onremove={removeItem}
-      onclearcategory={clearCategory}
-      onscan={triggerScan}
-      oncommand={handleCommand}
-      onexecuted={refreshPendingData}
-    />
-  {/if}
+    {/if}
+    {#if status === null}
+      <div class="w-full h-full overflow-y-auto flex justify-center">
+        <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
+          <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
+
+          {#if backend === AiBackend.WebGpu}
+            <ModelSelector
+              bind:selectedModel
+              bind:loadDtype
+              bind:loadDevice
+              {gpuInfo}
+              {error}
+              onload={loadModel}
+              onclearerror={() => {
+                error = null;
+              }}
+              onclearcache={clearCacheAndRetry}
+            />
+          {:else if backend === AiBackend.Ollama}
+            <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
+          {:else if backend === AiBackend.Cloud}
+            <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
+          {/if}
+        </div>
+      </div>
+    {:else if status === "loading"}
+      <LoadingProgress message={loadingMessage} items={progressItems} />
+    {:else}
+      <ChatView
+        {messages}
+        {pendingData}
+        {hasScanData}
+        engineReady={engine.isReady}
+        {isScanning}
+        {isRunning}
+        {tps}
+        {numTokens}
+        {generationPhase}
+        {gpuInfo}
+        {contextStats}
+        bind:enableThinking
+        bind:maxTokens
+        bind:doSample
+        bind:temperature
+        bind:repetitionPenalty
+        backend={backend === AiBackend.Cloud
+          ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
+          : backend === AiBackend.Ollama
+            ? "ollama"
+            : "webgpu"}
+        activeModelLabel={getActiveModelLabel()}
+        hasModelIssue={!!error || !engine.modelId}
+        chatSessions={sortSessions(chatSessions)}
+        {activeChatId}
+        bind:chatContainer
+        onsend={send}
+        onstop={stop}
+        onfixmodel={openModelPicker}
+        onnewchat={createAndActivateSession}
+        onselectchat={activateSession}
+        onrenamechat={renameSession}
+        ondeletechat={deleteSession}
+        oneditlastuser={editLastUserMessage}
+        onregenerate={regenerateLastAssistantMessage}
+        onsessiontitle={(session) =>
+          session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}
+        onsessionsubtitle={(session) => getSessionSubtitle(session.messages)}
+        onsessiondate={(session) => formatSessionDate(session.updatedAt)}
+        onmarkacted={markActed}
+        ondismiss={dismiss}
+        onremove={removeItem}
+        onclearcategory={clearCategory}
+        onscan={triggerScan}
+        oncommand={handleCommand}
+        onexecuted={refreshPendingData}
+      />
+    {/if}
+  </div>
 </div>
