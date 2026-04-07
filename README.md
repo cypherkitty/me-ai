@@ -6,8 +6,9 @@ A private AI chat and Gmail dashboard that runs **entirely in your browser** —
 
 ## Repository structure
 
-- **`me-ai-web/`** — Svelte 5 + Vite app (UI, IndexedDB via Rexie, auth, Gmail/Twitter APIs). Run `npm install` and `npm run dev` from this directory.
-- **`me-ai-core/`** — Rust WASM crate (business logic, type-safe queries via sea-query; calls into JS for DB execution). Build with `cargo build --target wasm32-unknown-unknown` or `wasm-pack build me-ai-core --target web`.
+- **`me-ai-web/`** — Svelte 5 + Vite 6 app (UI, auth, Gmail/Twitter APIs).
+- **`me-ai-core/`** — Rust WASM crate (business logic, IndexedDB persistence via Rexie, plugins, LLM triage). Build with `wasm-pack build me-ai-core --target web`.
+- **`.cortex/`** — Knowledge base: architecture, design docs, product specs, quality scores, and execution plans.
 
 ## Architecture
 
@@ -19,7 +20,7 @@ The chat serves as the **control interface** on top of this event stream, render
 Data Sources → Events → EventType → Commands → Chat UI
 ```
 
-See [`.cursor/rules/architecture.md`](.cursor/rules/architecture.md) for the full architecture reference.
+See [`.cortex/architecture.md`](.cortex/architecture.md) for the full architecture reference.
 
 ## What it does
 
@@ -47,17 +48,20 @@ See [`.cursor/rules/architecture.md`](.cursor/rules/architecture.md) for the ful
 ## Local development
 
 ```bash
-npm install
-npm run dev
+task install      # build core WASM + npm install
+task build:web    # build the web app (or task build for full rebuild)
 ```
+
+For development with hot-reload, run `npm run dev` from `me-ai-web/`.
 
 Open [http://localhost:5173](http://localhost:5173).
 
 ## Testing
 
 ```bash
-npm test          # watch mode (development)
-npm run test:ci   # single run (CI)
+task test         # unit tests (Vitest)
+task test:e2e     # E2E tests (Playwright)
+task ci           # full CI: install → lint → test → E2E
 ```
 
 ## Deployment

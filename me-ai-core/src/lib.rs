@@ -21,7 +21,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
-use crate::llm::models::{ApiModel, OllamaModel, OnnxModel, OnnxModelGroup};
+use crate::llm::models::{ApiModel, OllamaModel, OllamaModelGroup, OnnxModel, OnnxModelGroup};
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
 use crate::plugins::{ActionInput, ActionMetadata, ActionOverrideInput, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
@@ -830,6 +830,11 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = getOllamaModels)]
     pub fn get_ollama_models(&self) -> Vec<OllamaModel> {
         llm::models::get_ollama_models()
+    }
+
+    #[wasm_bindgen(js_name = getOllamaModelGroups)]
+    pub fn get_ollama_model_groups(&self) -> Vec<OllamaModelGroup> {
+        llm::models::get_ollama_model_groups()
     }
 
     #[wasm_bindgen(js_name = getOllamaModelInfo)]
