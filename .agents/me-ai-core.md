@@ -14,56 +14,6 @@ You are the Rust/WASM developer for **me-ai-core**. You implement and refactor R
 ## Scope
 
 - **`me-ai-core/src/**` — excluding `src/db/`** (owned by me-ai-core-db). No changes in me-ai-web.
-- Domain code calls `DbRef` primitives from `src/db/access.rs`; never use Rexie directly in storage/domain modules.
-
-## Module layout
-
-```
-src/lib.rs          — WASM API surface: all #[wasm_bindgen] exports, MeAiCore struct, init
-src/error.rs        — CoreError enum + rexie_to_core + to_js (boundary converter)
-src/formatting.rs   — ParsedApiError, text/markdown formatting helpers
-
-src/storage/        — Rexie-backed data access (calls DbRef primitives only)
-  aggregations.rs   — CategoryPipelineView, EventStatsResult, PendingApprovalView
-  audit.rs          — AuditStats, GetAuditLogResult
-  catalog.rs        — ActionRow, PluginSummary, SourceRow
-  classifications.rs — ClassificationRow, ClassificationDoc, ClassificationCounts
-  events.rs         — EventCategoryRow, EventTypeRow
-  items.rs          — item CRUD
-  pipelines.rs      — pipeline config
-  rules.rs          — rules, triggers, commands, policies
-  schema.rs         — create_schema_and_migrations, seed reference data
-  settings.rs       — GoogleToken, TwitterToken, SettingValue
-  sync.rs           — sync state
-
-src/llm/            — LLM integration (in-browser only, no server)
-  engine.rs         — LLM dispatch, model routing
-  client.rs         — HTTP client wrappers (reqwest + async-openai)
-  triage.rs         — TriageClassification, email triage logic
-  models.rs         — ApiModel, OllamaModel, OnnxModel, OnnxModelGroup
-  ollama.rs         — OllamaConnectionResult, OllamaModelTag, Ollama API
-
-src/api/            — External API calls (browser fetch via reqwest)
-  gmail.rs          — Gmail REST API
-  twitter.rs        — Twitter REST API
-
-src/integrations/   — Auth + integration orchestration
-  gmail.rs          — Gmail sync, message handling
-  google_auth.rs    — Google OAuth token flow
-  twitter.rs        — Twitter sync, tweet handling
-  twitter_auth.rs   — Twitter OAuth token flow
-
-src/plugins/        — Plugin metadata: actions, scopes, source mapping; execution stays in TS
-  types.rs          — PluginDefinition, ActionMetadata, EventInput, ActionInput, etc.
-  registry.rs       — plugin registration
-  resolution.rs     — PipelineForEventResult, ResolveExecuteResult, ResolveBatchResult
-  pipeline.rs       — PipelineBatchResult, PipelineResult
-  http.rs           — HTTP plugin actions
-  gmail.rs          — Gmail plugin actions
-  twitter.rs        — Twitter plugin actions
-  filesystem.rs     — Filesystem plugin actions
-  utils.rs          — shared plugin helpers
-```
 
 ## WASM API groups (exposed via `MeAiCore` in `lib.rs`)
 
@@ -99,11 +49,12 @@ src/plugins/        — Plugin metadata: actions, scopes, source mapping; execut
 ## Key conventions
 
 - **No fallbacks** — fail explicitly with the appropriate `CoreError` variant; do not silently default.
-- **No DB logic in storage modules** — call `DbRef` primitives from `src/db/access.rs` only.
+- **No DB logic in storage modules** — call `src/db/access.rs`.
 - **Composite keys** use pipe delimiter (e.g. `"plugin_name|action_name"`).
 - **Serde boundary** — `serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true)` for puts; `serde_wasm_bindgen::from_value` for gets.
 - **WASM exports** — all public API methods live in `lib.rs` on `MeAiCore`; `#[wasm_bindgen]` on the impl block. Use `tsify-next` for TypeScript type generation on complex types.
 - Follow patterns in `me-ai-core/REFERENCE.md` (memento-ai alignment: error handling, WASM boundary, HTTP via reqwest).
+- See `.cortex/architecture.md` for module layout and `.cortex/core-beliefs.md` for golden principles.
 
 ## When invoked
 
