@@ -14,6 +14,7 @@ import {
   InterruptableStoppingCriteria,
 } from "@huggingface/transformers";
 import type { ChatMessage } from "me-ai-core";
+import type { PreTrainedTokenizer } from "@huggingface/transformers";
 
 
 
@@ -52,7 +53,7 @@ type Gemma4Message = {
   content: Gemma4MessageContent[];
 };
 type Gemma4Processor = ProcessorInstance & {
-  tokenizer?: ConstructorParameters<typeof TextStreamer>[0];
+  tokenizer?: PreTrainedTokenizer;
   apply_chat_template(
     messages: Gemma4Message[],
     options: { add_generation_prompt: boolean; enable_thinking: boolean }
@@ -444,7 +445,7 @@ async function generate(
     const inputTokens = inputs.input_ids.dims[1];
     reply({ status: "start", phase: "preparing", inputTokens });
 
-    const streamTokenizer =
+    const streamTokenizer: PreTrainedTokenizer | null =
       (processor as Gemma4Processor | null)?.tokenizer ?? tokenizer;
     if (!streamTokenizer) {
       throw new Error("No tokenizer available for streaming");
