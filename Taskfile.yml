@@ -26,6 +26,25 @@ tasks:
       - npm install
       - task: copy:core
 
+  install:ci:
+    desc: "Build core, install npm deps with a CI-safe retry path, then copy pkg to node_modules/me-ai-core"
+    deps:
+      - task: build:core
+    dir: '{{.WEB_DIR}}'
+    cmds:
+      - |
+        bash -lc '
+          set -euo pipefail
+          if npm install --foreground-scripts; then
+            exit 0
+          fi
+
+          echo "npm install failed; retrying once after clearing esbuild to recover from transient install races..." >&2
+          rm -rf node_modules/esbuild
+          npm install --foreground-scripts
+        '
+      - task: copy:core
+
   # --- me-ai-core (Rust WASM) ---
   # wasm-pack writes to CORE_DIR/pkg (e.g. me-ai-core/pkg); sync to CORE_PKG for install/copy.
   build:core:
@@ -123,9 +142,9 @@ tasks:
 
   # --- CI: install (core + npm) then unit + e2e ---
   ci:
-    desc: Full CI run (build:core → install → clippy:core → check → lint → unit tests → E2E tests)
+    desc: Full CI run (build:core → install:ci → clippy:core → check → lint → unit tests → E2E tests)
     deps:
-      - task: install
+      - task: install:ci
     cmds:
       - task: clippy:core
       - task: check
@@ -135,8 +154,8 @@ tasks:
 
   # --- Deploy: install then full build ---
   deploy-build:
-    desc: Build core, install deps, then build web for deploy/preview
+    desc: Build core, install deps reproducibly for CI/deploy, then build web
     deps:
-      - task: install
+      - task: install:ci
     cmds:
-      - task: build
+      - task: build:web

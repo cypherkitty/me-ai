@@ -17,7 +17,7 @@
     "postinstall": "node scripts/ensure-tslib.cjs && node scripts/ensure-core.cjs"
   },
   "dependencies": {
-    "@huggingface/transformers": "4.0.0-next.5",
+    "@huggingface/transformers": "4.0.1",
     "@xyflow/svelte": "^1.5.1",
     "dompurify": "^3.3.2",
     "lucide-svelte": "^0.575.0",
