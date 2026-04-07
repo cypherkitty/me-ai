@@ -8,7 +8,11 @@
     architecture?: string;
     device?: string;
     features?: string[];
-    limits?: { maxBufferSize?: number; maxComputeInvocationsPerWorkgroup?: number; maxComputeWorkgroupStorageSize?: number };
+    limits?: {
+      maxBufferSize?: number;
+      maxComputeInvocationsPerWorkgroup?: number;
+      maxComputeWorkgroupStorageSize?: number;
+    };
   }
   interface ContextStats {
     messageCount: number;
@@ -34,7 +38,11 @@
     return `${Math.round(value / 1_000)}k`;
   }
 
-  function formatContextUsage(estimatedTokens: number, contextWindow: number | null, usagePercent: number | null): string {
+  function formatContextUsage(
+    estimatedTokens: number,
+    contextWindow: number | null,
+    usagePercent: number | null
+  ): string {
     if (contextWindow == null) return `~${formatCompactTokenCount(estimatedTokens)} tokens`;
     const percentLabel =
       usagePercent == null
@@ -54,19 +62,34 @@
       : [{ label: "Vendor", value: backend === "ollama" ? "ollama" : backend }]),
     ...(gpuInfo?.architecture ? [{ label: "Architecture", value: gpuInfo.architecture }] : []),
     ...(contextStats
-      ? [{
-          label: "Chat History Data",
-          value: formatContextUsage(
-            contextStats.estimatedTokens,
-            contextStats.contextWindow,
-            contextStats.usagePercent,
-          ),
-        }]
+      ? [
+          {
+            label: "Chat History Data",
+            value: formatContextUsage(
+              contextStats.estimatedTokens,
+              contextStats.contextWindow,
+              contextStats.usagePercent
+            ),
+          },
+        ]
       : []),
-    ...(gpuInfo?.device && gpuInfo.device !== "unknown" ? [{ label: "Device", value: gpuInfo.device }] : []),
-    ...(gpuInfo?.limits?.maxBufferSize ? [{ label: "Max Buffer", value: formatBytes(gpuInfo.limits.maxBufferSize) }] : []),
-    ...(gpuInfo?.limits?.maxComputeInvocationsPerWorkgroup ? [{ label: "Max Compute", value: String(gpuInfo.limits.maxComputeInvocationsPerWorkgroup) }] : []),
-    ...(gpuInfo?.limits?.maxComputeWorkgroupStorageSize ? [{ label: "Workgroup Storage", value: formatBytes(gpuInfo.limits.maxComputeWorkgroupStorageSize) }] : []),
+    ...(gpuInfo?.device && gpuInfo.device !== "unknown"
+      ? [{ label: "Device", value: gpuInfo.device }]
+      : []),
+    ...(gpuInfo?.limits?.maxBufferSize
+      ? [{ label: "Max Buffer", value: formatBytes(gpuInfo.limits.maxBufferSize) }]
+      : []),
+    ...(gpuInfo?.limits?.maxComputeInvocationsPerWorkgroup
+      ? [{ label: "Max Compute", value: String(gpuInfo.limits.maxComputeInvocationsPerWorkgroup) }]
+      : []),
+    ...(gpuInfo?.limits?.maxComputeWorkgroupStorageSize
+      ? [
+          {
+            label: "Workgroup Storage",
+            value: formatBytes(gpuInfo.limits.maxComputeWorkgroupStorageSize),
+          },
+        ]
+      : []),
   ]);
 </script>
 
@@ -74,8 +97,14 @@
   <div class="grid grid-cols-2 gap-x-6 gap-y-2">
     {#each rows as row (row.label)}
       <div class="flex flex-col gap-px">
-        <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">{row.label}</span>
-        <span class={row.ok ? "text-[0.78rem] font-semibold text-success" : "text-[0.78rem] text-foreground/75 tracking-tight"}>
+        <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+          >{row.label}</span
+        >
+        <span
+          class={row.ok
+            ? "text-[0.78rem] font-semibold text-success"
+            : "text-[0.78rem] text-foreground/75 tracking-tight"}
+        >
           {row.value}
         </span>
       </div>
@@ -84,24 +113,39 @@
     {#if contextStats}
       <div class="col-span-2 grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
         <div class="flex flex-col gap-px">
-          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">Messages</span>
-          <span class="text-[0.78rem] text-foreground/75 tracking-tight">{contextStats.messageCount}</span>
+          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+            >Messages</span
+          >
+          <span class="text-[0.78rem] text-foreground/75 tracking-tight"
+            >{contextStats.messageCount}</span
+          >
         </div>
         <div class="flex flex-col gap-px">
-          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">Chars</span>
-          <span class="text-[0.78rem] text-foreground/75 tracking-tight">{contextStats.charCount.toLocaleString()}</span>
+          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+            >Chars</span
+          >
+          <span class="text-[0.78rem] text-foreground/75 tracking-tight"
+            >{contextStats.charCount.toLocaleString()}</span
+          >
         </div>
         <div class="flex flex-col gap-px">
-          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">Est. Tokens</span>
-          <span class="text-[0.78rem] text-foreground/75 tracking-tight">~{contextStats.estimatedTokens.toLocaleString()}</span>
+          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+            >Est. Tokens</span
+          >
+          <span class="text-[0.78rem] text-foreground/75 tracking-tight"
+            >~{contextStats.estimatedTokens.toLocaleString()}</span
+          >
         </div>
         <div class="flex flex-col gap-px">
-          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40">Scope</span>
+          <span class="text-[0.62rem] font-bold uppercase tracking-wider text-muted-foreground/40"
+            >Scope</span
+          >
           <span class="text-[0.78rem] text-foreground/75 tracking-tight">Current chat history</span>
         </div>
       </div>
       <div class="col-span-2 text-[0.64rem] text-muted-foreground/45 leading-relaxed">
-        Approximate only. This tracks the text history we prepare for the next request, not the model's true internal memory.
+        Approximate only. This tracks the text history we prepare for the next request, not the
+        model's true internal memory.
       </div>
     {/if}
 
@@ -112,7 +156,9 @@
         </span>
         <div class="flex flex-wrap gap-1">
           {#each gpuInfo.features as feat (feat)}
-            <span class="text-[0.58rem] font-mono text-muted-foreground/60 bg-muted border border-border px-1.5 py-0.5 rounded">
+            <span
+              class="text-[0.58rem] font-mono text-muted-foreground/60 bg-muted border border-border px-1.5 py-0.5 rounded"
+            >
               {feat}
             </span>
           {/each}
@@ -124,7 +170,13 @@
 
 <style>
   @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style>

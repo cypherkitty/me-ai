@@ -36,7 +36,7 @@
     type ChatSessionRecord,
   } from "./lib/chat-sessions.js";
 
-  const IS_WEBGPU_AVAILABLE = !!((navigator as unknown as { gpu?: unknown }).gpu);
+  const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
@@ -45,7 +45,10 @@
   let apiModels: ApiModel[] = $state([]);
   $effect(() => {
     const { core } = $coreStore;
-    if (!core) { apiModels = []; return; }
+    if (!core) {
+      apiModels = [];
+      return;
+    }
     try {
       apiModels = (core as unknown as { getApiModels(): ApiModel[] }).getApiModels();
     } catch (e) {
@@ -119,8 +122,7 @@
         contextWindow = getCore().getOllamaModelInfo(modelId)?.contextWindow ?? null;
       } else {
         const apiInfo =
-          apiModels.find((model) => model.id === modelId) ??
-          getCore().getApiModelInfo(modelId);
+          apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
         contextWindow = apiInfo?.contextWindow ?? null;
       }
     }
@@ -131,9 +133,7 @@
       estimatedTokens,
       contextWindow,
       usagePercent:
-        contextWindow && contextWindow > 0
-          ? (estimatedTokens / contextWindow) * 100
-          : null,
+        contextWindow && contextWindow > 0 ? (estimatedTokens / contextWindow) * 100 : null,
     };
   });
 
@@ -153,7 +153,10 @@
     let changed = false;
     const normalized = nextMessages.map((message, index) => {
       const normalizedMessage = normalizeMessage(message, Date.now() + index) as ChatMsg;
-      if (normalizedMessage.id === message.id && normalizedMessage.createdAt === message.createdAt) {
+      if (
+        normalizedMessage.id === message.id &&
+        normalizedMessage.createdAt === message.createdAt
+      ) {
         return message;
       }
       changed = true;
@@ -166,9 +169,12 @@
     messages = ensureMessageMetadata(nextMessages);
   }
 
-  function updateSessionRecord(sessionId: string, updater: (session: ChatSessionRecord) => ChatSessionRecord) {
+  function updateSessionRecord(
+    sessionId: string,
+    updater: (session: ChatSessionRecord) => ChatSessionRecord
+  ) {
     const nextSessions = chatSessions.map((session) =>
-      session.id === sessionId ? updater(session) : session,
+      session.id === sessionId ? updater(session) : session
     );
     chatSessions = sortSessions(nextSessions);
   }
@@ -201,7 +207,7 @@
     if (!session) return;
     const nextTitle = window.prompt(
       "Rename chat",
-      session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat",
+      session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"
     );
     if (!nextTitle) return;
     const trimmed = nextTitle.trim();
@@ -219,7 +225,7 @@
     const session = chatSessions.find((item) => item.id === sessionId);
     if (!session) return;
     const ok = window.confirm(
-      `Delete "${session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}"?`,
+      `Delete "${session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}"?`
     );
     if (!ok) return;
 
@@ -261,10 +267,12 @@
     const session = chatSessions.find((item) => item.id === sessionId);
     if (!session) return;
 
-    if (session.titleSource === "manual" || session.titleSource === "model" || session.title) return;
+    if (session.titleSource === "manual" || session.titleSource === "model" || session.title)
+      return;
 
     const firstUserMessage = session.messages.find(
-      (message) => message.role === "user" && typeof message.content === "string" && message.content.trim(),
+      (message) =>
+        message.role === "user" && typeof message.content === "string" && message.content.trim()
     );
     if (!firstUserMessage?.content) return;
 
@@ -293,7 +301,7 @@
           temperature: 0.2,
           enableThinking: false,
           do_sample: false,
-        },
+        }
       );
 
       updateSessionRecord(sessionId, (current) => {
@@ -334,290 +342,283 @@
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
-    const savedChats = loadChatSessions();
-    chatSessions = sortSessions(savedChats.sessions);
-    activeChatId = savedChats.activeChatId;
-    const initialSession = savedChats.sessions.find((session) => session.id === savedChats.activeChatId) ?? savedChats.sessions[0];
-    messages = ensureMessageMetadata((initialSession?.messages ?? []) as ChatMsg[]);
-    greetingShown = messages.length > 0;
+      const savedChats = loadChatSessions();
+      chatSessions = sortSessions(savedChats.sessions);
+      activeChatId = savedChats.activeChatId;
+      const initialSession =
+        savedChats.sessions.find((session) => session.id === savedChats.activeChatId) ??
+        savedChats.sessions[0];
+      messages = ensureMessageMetadata((initialSession?.messages ?? []) as ChatMsg[]);
+      greetingShown = messages.length > 0;
 
-    // Restore saved backend, model, and options from settings (IndexedDB)
-    try {
-      const sv = await getCore().loadSettings();
-      if (sv.aiBackend !== undefined) backend = sv.aiBackend;
-      if (sv.selectedModel) selectedModel = sv.selectedModel;
-      if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
-      if (sv.loadDtype) loadDtype = sv.loadDtype;
-      if (sv.loadDevice) loadDevice = sv.loadDevice;
-      if (sv.maxTokens != null) maxTokens = sv.maxTokens;
-      if (sv.doSample !== undefined) doSample = sv.doSample;
-      if (sv.temperature != null) temperature = sv.temperature;
-      if (sv.repetitionPenalty != null) repetitionPenalty = sv.repetitionPenalty;
-    } catch {
-      storageUnavailable = true;
-    }
+      // Restore saved backend, model, and options from settings (IndexedDB)
+      try {
+        const sv = await getCore().loadSettings();
+        if (sv.aiBackend !== undefined) backend = sv.aiBackend;
+        if (sv.selectedModel) selectedModel = sv.selectedModel;
+        if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
+        if (sv.loadDtype) loadDtype = sv.loadDtype;
+        if (sv.loadDevice) loadDevice = sv.loadDevice;
+        if (sv.maxTokens != null) maxTokens = sv.maxTokens;
+        if (sv.doSample !== undefined) doSample = sv.doSample;
+        if (sv.temperature != null) temperature = sv.temperature;
+        if (sv.repetitionPenalty != null) repetitionPenalty = sv.repetitionPenalty;
+      } catch {
+        storageUnavailable = true;
+      }
 
-    if (engine.status === "idle") {
-      engine.check();
-    }
-
-    if (engine.isReady) {
-      status = "ready";
-      if (backend === AiBackend.WebGpu) {
+      if (engine.status === "idle") {
         engine.check();
       }
-      showDashboardIfNeeded();
-    }
 
-    const unsub = engine.onMessage((rawMsg) => {
-      const msg = rawMsg as Record<string, unknown>;
-      switch (msg.status) {
-        case "webgpu-info":
-          gpuInfo = msg.data as Record<string, unknown>;
-          break;
-
-        case "loading":
-          status = "loading";
-          loadingMessage = msg.data as string;
-          break;
-
-        case "initiate":
-          progressItems = progressItems.some((item) => item.file === msg.file)
-            ? progressItems.map((item) =>
-                item.file === msg.file ? { ...item, ...msg, done: false } : item,
-              )
-            : [...progressItems, { ...msg, done: false }];
-          break;
-
-        case "progress":
-          progressItems = progressItems.map((item) =>
-            item.file === msg.file ? { ...item, ...msg, done: false } : item,
-          );
-          break;
-
-        case "done":
-          progressItems = progressItems.map((item) =>
-            item.file === msg.file
-              ? {
-                  ...item,
-                  ...msg,
-                  loaded: Number(item.total ?? item.loaded ?? 0),
-                  done: true,
-                }
-              : item,
-          );
-          break;
-
-        case "ready":
-          status = "ready";
-          showDashboardIfNeeded();
-          break;
-
-        case "start":
-          if (!isRunning) break;
-          generationPhase = (msg.phase as string) || "preparing";
-          messages = [
-            ...messages,
-            {
-              role: "assistant",
-              content: "",
-              thinking: "",
-              thinkingStartedAt: null,
-              thinkingDurationMs: null,
-              model: selectedModel,
-            },
-          ];
-          break;
-
-        case "phase":
-          if (!isRunning) break;
-          generationPhase = msg.phase as string;
-          break;
-
-        case "thinking": {
-          if (!isRunning) break;
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          const thinkingStartedAt =
-            typeof last.thinkingStartedAt === "number"
-              ? last.thinkingStartedAt
-              : Date.now();
-          messages = [
-            ...messages.slice(0, -1),
-            {
-              ...last,
-              thinking: (last.thinking || "") + (msg.content as string),
-              thinkingStartedAt,
-              thinkingDurationMs: Date.now() - thinkingStartedAt,
-            },
-          ];
-          scrollToBottom(false);
-          break;
+      if (engine.isReady) {
+        status = "ready";
+        if (backend === AiBackend.WebGpu) {
+          engine.check();
         }
+        showDashboardIfNeeded();
+      }
 
-        case "thinking-done": {
-          if (!isRunning) break;
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          const thinkingStartedAt =
-            typeof last.thinkingStartedAt === "number"
-              ? last.thinkingStartedAt
-              : Date.now();
-          messages = [
-            ...messages.slice(0, -1),
-            {
-              ...last,
-              thinking: msg.content as string,
-              thinkingStartedAt,
-              thinkingDurationMs: Date.now() - thinkingStartedAt,
-            },
-          ];
-          break;
-        }
+      const unsub = engine.onMessage((rawMsg) => {
+        const msg = rawMsg as Record<string, unknown>;
+        switch (msg.status) {
+          case "webgpu-info":
+            gpuInfo = msg.data as Record<string, unknown>;
+            break;
 
-        case "update": {
-          if (!isRunning) break;
-          generationPhase = "generating";
-          tps = (msg.tps as number) ?? null;
-          numTokens = (msg.numTokens as number) ?? null;
-          const last = messages[messages.length - 1];
-          messages = [
-            ...messages.slice(0, -1),
-            { ...last, content: (last.content ?? "") + (msg.output as string) },
-          ];
-          scrollToBottom(false);
-          break;
-        }
+          case "loading":
+            status = "loading";
+            loadingMessage = msg.data as string;
+            break;
 
-        case "complete": {
-          if (!isRunning) break;
-          // Update final stats from Ollama
-          if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
-          if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
-          const wasInterrupted = !!msg.interrupted;
-          isRunning = false;
-          generationPhase = null;
+          case "initiate":
+            progressItems = progressItems.some((item) => item.file === msg.file)
+              ? progressItems.map((item) =>
+                  item.file === msg.file ? { ...item, ...msg, done: false } : item
+                )
+              : [...progressItems, { ...msg, done: false }];
+            break;
 
-          if (wasInterrupted) {
+          case "progress":
+            progressItems = progressItems.map((item) =>
+              item.file === msg.file ? { ...item, ...msg, done: false } : item
+            );
+            break;
+
+          case "done":
+            progressItems = progressItems.map((item) =>
+              item.file === msg.file
+                ? {
+                    ...item,
+                    ...msg,
+                    loaded: Number(item.total ?? item.loaded ?? 0),
+                    done: true,
+                  }
+                : item
+            );
+            break;
+
+          case "ready":
+            status = "ready";
+            showDashboardIfNeeded();
+            break;
+
+          case "start":
+            if (!isRunning) break;
+            generationPhase = (msg.phase as string) || "preparing";
+            messages = [
+              ...messages,
+              {
+                role: "assistant",
+                content: "",
+                thinking: "",
+                thinkingStartedAt: null,
+                thinkingDurationMs: null,
+                model: selectedModel,
+              },
+            ];
+            break;
+
+          case "phase":
+            if (!isRunning) break;
+            generationPhase = msg.phase as string;
+            break;
+
+          case "thinking": {
+            if (!isRunning) break;
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
             const last = messages[messages.length - 1];
-            if (last?.role === "assistant") {
-              const stopTime =
-                typeof last.thinkingStartedAt === "number"
-                  ? Date.now() - last.thinkingStartedAt
-                  : last.thinkingDurationMs ?? null;
-              messages = [
-                ...messages.slice(0, -1),
-                {
-                  ...last,
-                  stopped: !!last.thinking,
-                  thinkingDurationMs: stopTime,
-                },
-              ];
-            }
+            const thinkingStartedAt =
+              typeof last.thinkingStartedAt === "number" ? last.thinkingStartedAt : Date.now();
+            messages = [
+              ...messages.slice(0, -1),
+              {
+                ...last,
+                thinking: (last.thinking || "") + (msg.content as string),
+                thinkingStartedAt,
+                thinkingDurationMs: Date.now() - thinkingStartedAt,
+              },
+            ];
+            scrollToBottom(false);
+            break;
           }
 
-          // --- BEGIN INTERCEPTOR ---
-          const lastMsg = messages[messages.length - 1];
-          if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
-            let newContent = lastMsg.content;
-            let didIntercept = false;
+          case "thinking-done": {
+            if (!isRunning) break;
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
+            const last = messages[messages.length - 1];
+            const thinkingStartedAt =
+              typeof last.thinkingStartedAt === "number" ? last.thinkingStartedAt : Date.now();
+            messages = [
+              ...messages.slice(0, -1),
+              {
+                ...last,
+                thinking: msg.content as string,
+                thinkingStartedAt,
+                thinkingDurationMs: Date.now() - thinkingStartedAt,
+              },
+            ];
+            break;
+          }
 
-            // 1. Intercept Execution Commands
-            const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
-            let match;
-            const executedCategories: string[] = [];
-            while ((match = execRegex.exec(newContent)) !== null) {
-              executedCategories.push(match[1]);
-            }
-            if (executedCategories.length > 0) {
-              newContent = newContent
-                .replace(/\[EXECUTE:CATEGORY:[A-Z_]+\]/g, "")
-                .trim();
-              didIntercept = true;
-              for (const eventType of executedCategories) {
-                if (
-                  pendingData &&
-                  pendingData.categories &&
-                  pendingData.categories[eventType]
-                ) {
-                  runAutomatedExecution(eventType, pendingData.categories[eventType]);
-                }
+          case "update": {
+            if (!isRunning) break;
+            generationPhase = "generating";
+            tps = (msg.tps as number) ?? null;
+            numTokens = (msg.numTokens as number) ?? null;
+            const last = messages[messages.length - 1];
+            messages = [
+              ...messages.slice(0, -1),
+              { ...last, content: (last.content ?? "") + (msg.output as string) },
+            ];
+            scrollToBottom(false);
+            break;
+          }
+
+          case "complete": {
+            if (!isRunning) break;
+            // Update final stats from Ollama
+            if (msg.tps !== undefined) tps = (msg.tps as number) ?? null;
+            if (msg.numTokens !== undefined) numTokens = (msg.numTokens as number) ?? null;
+            const wasInterrupted = !!msg.interrupted;
+            isRunning = false;
+            generationPhase = null;
+
+            if (wasInterrupted) {
+              const last = messages[messages.length - 1];
+              if (last?.role === "assistant") {
+                const stopTime =
+                  typeof last.thinkingStartedAt === "number"
+                    ? Date.now() - last.thinkingStartedAt
+                    : (last.thinkingDurationMs ?? null);
+                messages = [
+                  ...messages.slice(0, -1),
+                  {
+                    ...last,
+                    stopped: !!last.thinking,
+                    thinkingDurationMs: stopTime,
+                  },
+                ];
               }
             }
 
-            // 2. Intercept Dashboard Command
-            if (newContent.includes("[SHOW:DASHBOARD]")) {
-              newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
-              didIntercept = true;
+            // --- BEGIN INTERCEPTOR ---
+            const lastMsg = messages[messages.length - 1];
+            if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
+              let newContent = lastMsg.content;
+              let didIntercept = false;
 
-              // Asynchronously fetch and inject the dashboard (pending only)
-              getClassificationsByCategory({ pendingOnly: true })
-                .then((byCategory) => {
-                  if (byCategory.order.length > 0) {
-                    buildEventsByCategoryMessage(byCategory as unknown as ByCategory).then((eventsMsg) => {
-                      messages = [...messages, eventsMsg];
-                      scrollToBottom();
-                    });
+              // 1. Intercept Execution Commands
+              const execRegex = /\[EXECUTE:CATEGORY:([A-Z_]+)\]/g;
+              let match;
+              const executedCategories: string[] = [];
+              while ((match = execRegex.exec(newContent)) !== null) {
+                executedCategories.push(match[1]);
+              }
+              if (executedCategories.length > 0) {
+                newContent = newContent.replace(/\[EXECUTE:CATEGORY:[A-Z_]+\]/g, "").trim();
+                didIntercept = true;
+                for (const eventType of executedCategories) {
+                  if (pendingData && pendingData.categories && pendingData.categories[eventType]) {
+                    runAutomatedExecution(eventType, pendingData.categories[eventType]);
                   }
-                })
-                .catch((err) => {
-                  messages = [
-                    ...messages,
-                    {
-                      role: "assistant",
-                      content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
-                    },
-                  ];
-                });
+                }
+              }
+
+              // 2. Intercept Dashboard Command
+              if (newContent.includes("[SHOW:DASHBOARD]")) {
+                newContent = newContent.replace(/\[SHOW:DASHBOARD\]/g, "").trim();
+                didIntercept = true;
+
+                // Asynchronously fetch and inject the dashboard (pending only)
+                getClassificationsByCategory({ pendingOnly: true })
+                  .then((byCategory) => {
+                    if (byCategory.order.length > 0) {
+                      buildEventsByCategoryMessage(byCategory as unknown as ByCategory).then(
+                        (eventsMsg) => {
+                          messages = [...messages, eventsMsg];
+                          scrollToBottom();
+                        }
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    messages = [
+                      ...messages,
+                      {
+                        role: "assistant",
+                        content: `Failed to load events dashboard: ${(err as Error)?.message ?? String(err)}`,
+                      },
+                    ];
+                  });
+              }
+
+              if (didIntercept) {
+                messages = [
+                  ...messages.slice(0, -1),
+                  {
+                    ...lastMsg,
+                    content: newContent === "" ? "Okay, here you go:" : newContent,
+                  },
+                ];
+              }
             }
+            // --- END INTERCEPTOR ---
 
-            if (didIntercept) {
-              messages = [
-                ...messages.slice(0, -1),
-                {
-                  ...lastMsg,
-                  content:
-                    newContent === "" ? "Okay, here you go:" : newContent,
-                },
-              ];
-            }
-          }
-          // --- END INTERCEPTOR ---
-
-          refreshPendingData();
-          break;
-        }
-
-        case "error":
-          if (titleGenerationChatId && !isRunning) {
+            refreshPendingData();
             break;
           }
-          if (loadInitiated) {
-            error = msg.data as string;
-          }
-          if (status === "loading") {
-            // Error during model loading - go back to model selector
-            status = null;
-          }
-          if (isRunning) {
-            isRunning = false;
-            generationPhase = null;
-            // Replace empty assistant bubble with error text
-            const errLast = messages[messages.length - 1];
-            if (errLast && errLast.role === "assistant" && !errLast.content) {
-              messages = [
-                ...messages.slice(0, -1),
-                { ...errLast, content: `Error: ${(msg.data as string) || "Unknown error"}` },
-              ];
-            }
-          }
-          break;
-      }
-    });
 
-    _engineUnsub = unsub;
+          case "error":
+            if (titleGenerationChatId && !isRunning) {
+              break;
+            }
+            if (loadInitiated) {
+              error = msg.data as string;
+            }
+            if (status === "loading") {
+              // Error during model loading - go back to model selector
+              status = null;
+            }
+            if (isRunning) {
+              isRunning = false;
+              generationPhase = null;
+              // Replace empty assistant bubble with error text
+              const errLast = messages[messages.length - 1];
+              if (errLast && errLast.role === "assistant" && !errLast.content) {
+                messages = [
+                  ...messages.slice(0, -1),
+                  { ...errLast, content: `Error: ${(msg.data as string) || "Unknown error"}` },
+                ];
+              }
+            }
+            break;
+        }
+      });
+
+      _engineUnsub = unsub;
     })();
     return () => _engineUnsub?.();
   });
@@ -690,7 +691,7 @@
       (session) =>
         session.titleStatus === "pending" &&
         session.titleSource !== "manual" &&
-        session.messages.some((message) => message.role === "user"),
+        session.messages.some((message) => message.role === "user")
     );
     if (!nextUntitledSession) return;
     void generateSessionTitle(nextUntitledSession.id);
@@ -704,9 +705,7 @@
       pendingData = pending as PendingData | null;
       if (pending) {
         greetingShown = true;
-        messages = [
-          { role: "assistant", type: "dashboard", pendingData: pending },
-        ];
+        messages = [{ role: "assistant", type: "dashboard", pendingData: pending }];
         scrollToBottom();
       }
       // Check if user has any scan data at all
@@ -726,9 +725,7 @@
       const dashIdx = messages.findIndex((m) => m.type === "dashboard");
       if (dashIdx !== -1) {
         if (pending && pending.total > 0) {
-          messages = messages.map((m, i) =>
-            i === dashIdx ? { ...m, pendingData: pending } : m,
-          );
+          messages = messages.map((m, i) => (i === dashIdx ? { ...m, pendingData: pending } : m));
         } else {
           // Remove the dashboard if no more pending items
           messages = messages.filter((_, i) => i !== dashIdx);
@@ -736,18 +733,14 @@
       }
 
       // Refresh the last events-by-category message so handled events disappear from the list
-      const eventsByCategoryIdx = messages.findLastIndex(
-        (m) => m.type === "events-by-category",
-      );
+      const eventsByCategoryIdx = messages.findLastIndex((m) => m.type === "events-by-category");
       if (eventsByCategoryIdx !== -1) {
         const byCategory = await getClassificationsByCategory({ pendingOnly: true });
         if (byCategory.order.length === 0) {
           messages = messages.filter((_, i) => i !== eventsByCategoryIdx);
         } else {
           const eventsMsg = await buildEventsByCategoryMessage(byCategory as unknown as ByCategory);
-          messages = messages.map((m, i) =>
-            i === eventsByCategoryIdx ? eventsMsg : m,
-          );
+          messages = messages.map((m, i) => (i === eventsByCategoryIdx ? eventsMsg : m));
         }
       }
 
@@ -804,7 +797,7 @@
               steps: s.map((step) =>
                 step.id === (progress.actionId ?? progress.commandId)
                   ? { ...step, status: "running", startedAt: Date.now() }
-                  : step,
+                  : step
               ),
             });
           } else if (progress.phase === "action_complete") {
@@ -819,14 +812,12 @@
                       expandable: !!r?.message,
                       subContent: r?.message ?? "",
                     }
-                  : step,
+                  : step
               ),
             });
           } else if (progress.phase === "done") {
             updateTask({
-              status: (messages[taskIdx].steps || []).every(
-                (step) => step.status !== "error",
-              )
+              status: (messages[taskIdx].steps || []).every((step) => step.status !== "error")
                 ? "done"
                 : "error",
             });
@@ -844,7 +835,7 @@
             });
           }
         },
-        true, // Auto-approve since user initiated it via chat
+        true // Auto-approve since user initiated it via chat
       );
 
       if (result.success) await refreshPendingData();
@@ -852,9 +843,7 @@
       updateTask({
         status: "error",
         steps: [
-          ...(messages[taskIdx].steps ?? []).filter(
-            (step) => step.status !== "running",
-          ),
+          ...(messages[taskIdx].steps ?? []).filter((step) => step.status !== "running"),
           {
             id: "error",
             label: `Execution failed: ${(e as Error)?.message ?? String(e)}`,
@@ -893,7 +882,9 @@
     const activeBackend =
       backend === AiBackend.Cloud
         ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-        : backend === AiBackend.Ollama ? "ollama" : "webgpu";
+        : backend === AiBackend.Ollama
+          ? "ollama"
+          : "webgpu";
 
     // Push a live task card into the chat.
     // Capture the index so we can mutate through the $state proxy later.
@@ -947,8 +938,7 @@
             totalEmails = progress.total ?? 0;
             if (!classifyStartedAt) classifyStartedAt = Date.now();
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj =
-              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             // Show completed steps + a running step for current email
             messages[taskIdx].steps = [
               {
@@ -968,8 +958,7 @@
             ];
           } else if (progress.phase === "classified") {
             const subject = progress.email?.subject ?? "unknown";
-            const shortSubj =
-              subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
+            const shortSubj = subject.length > 46 ? subject.slice(0, 44) + "…" : subject;
             const cls = progress.result;
             const categoryTier = cls?.categoryTier ?? cls?.category ?? "";
             const action = cls?.action ?? "";
@@ -1031,7 +1020,9 @@
       await refreshPendingData();
 
       // Show scan results as a batch event message in chat
-      const typedScanResults = scanResults as unknown as Parameters<typeof buildBatchEventMessage>[0] | null;
+      const typedScanResults = scanResults as unknown as
+        | Parameters<typeof buildBatchEventMessage>[0]
+        | null;
       if (typedScanResults && typedScanResults.length > 0) {
         const eventMsg = await buildBatchEventMessage(typedScanResults);
         messages = [...messages, eventMsg];
@@ -1040,27 +1031,28 @@
 
       // If no dashboard message exists yet, insert one
       if (pendingData && !messages.some((m) => m.type === "dashboard")) {
-        messages = [
-          { role: "assistant", type: "dashboard", pendingData },
-          ...messages,
-        ];
+        messages = [{ role: "assistant", type: "dashboard", pendingData }, ...messages];
         scrollToBottom();
       }
     } catch (e) {
       console.error("Scan failed:", e);
       messages[taskIdx].status = "error";
       messages[taskIdx].steps = [
-        ...(messages[taskIdx].steps ?? []).filter(
-          (s) => s.status !== "running",
-        ),
-        { id: "error", label: `Scan failed: ${(e as Error)?.message ?? String(e)}`, status: "error" },
+        ...(messages[taskIdx].steps ?? []).filter((s) => s.status !== "running"),
+        {
+          id: "error",
+          label: `Scan failed: ${(e as Error)?.message ?? String(e)}`,
+          status: "error",
+        },
       ];
     } finally {
       isScanning = false;
     }
   }
 
-  function handleCommand(cmd: { event: Record<string, unknown>; commandId: string } | { id: string }) {
+  function handleCommand(
+    cmd: { event: Record<string, unknown>; commandId: string } | { id: string }
+  ) {
     if (!("event" in cmd)) return;
     const { event, commandId } = cmd;
     const evData = event?.data as Record<string, unknown> | undefined;
@@ -1101,7 +1093,8 @@
       return info?.displayName ?? info?.name ?? modelId;
     }
 
-    const info = apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
+    const info =
+      apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
     return info?.displayName ?? info?.name ?? modelId;
   }
 
@@ -1166,10 +1159,7 @@
       !ollamaModels.find((m) => m.name === selectedModel)
     ) {
       if (ollamaModels[0]) selectedModel = ollamaModels[0].name;
-    } else if (
-      backend === AiBackend.Cloud &&
-      !apiModels.find((m) => m.id === selectedModel)
-    ) {
+    } else if (backend === AiBackend.Cloud && !apiModels.find((m) => m.id === selectedModel)) {
       if (apiModels[0]) selectedModel = apiModels[0].id;
     }
   });
@@ -1296,19 +1286,21 @@
           m.type !== "events-by-category" &&
           m.type !== "event-batch" &&
           m.type !== "event" &&
-          m.type !== "task-card",
+          m.type !== "task-card"
       )
       .filter((m) => m.role != null && m.content != null)
       .map((m) => ({ role: m.role as string, content: m.content as string }));
   }
 
-  async function buildSystemMessages(userText: string): Promise<Array<{ role: string; content: string }>> {
+  async function buildSystemMessages(
+    userText: string
+  ): Promise<Array<{ role: string; content: string }>> {
     try {
       const emailKeywords =
         /\b(email|mail|inbox|message|sent|sender|from|subject|unread|gmail|pending|action|archive|delete|reply|follow.?up|prioriti|triage|urgent)\b/i;
       const context = emailKeywords.test(userText)
         ? await getCore().buildEmailContext(userText)
-        : await getCore().buildLlmContext() || null;
+        : (await getCore().buildLlmContext()) || null;
 
       if (context) {
         return [{ role: "system", content: context }];
@@ -1368,9 +1360,11 @@
     if (!nextText) return;
 
     const nextMessages = ensureMessageMetadata(
-      messages.slice(0, lastUserIndex + 1).map((message, index) =>
-        index === lastUserIndex ? { ...message, content: nextText } : message,
-      ),
+      messages
+        .slice(0, lastUserIndex + 1)
+        .map((message, index) =>
+          index === lastUserIndex ? { ...message, content: nextText } : message
+        )
     );
     setActiveSessionMessages(nextMessages);
     await generateConversation(nextMessages, nextText);
@@ -1434,7 +1428,9 @@
         bind:repetitionPenalty
         backend={backend === AiBackend.Cloud
           ? apiModels.find((m) => m.id === selectedModel)?.provider || "cloud"
-          : backend === AiBackend.Ollama ? "ollama" : "webgpu"}
+          : backend === AiBackend.Ollama
+            ? "ollama"
+            : "webgpu"}
         activeModelLabel={getActiveModelLabel()}
         hasModelIssue={!!error || !engine.modelId}
         chatSessions={sortSessions(chatSessions)}
@@ -1449,7 +1445,8 @@
         ondeletechat={deleteSession}
         oneditlastuser={editLastUserMessage}
         onregenerate={regenerateLastAssistantMessage}
-        onsessiontitle={(session) => session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}
+        onsessiontitle={(session) =>
+          session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}
         onsessionsubtitle={(session) => getSessionSubtitle(session.messages)}
         onsessiondate={(session) => formatSessionDate(session.updatedAt)}
         onmarkacted={markActed}

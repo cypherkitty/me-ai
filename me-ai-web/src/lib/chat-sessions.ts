@@ -53,7 +53,10 @@ export function createChatSession(now = safeNow()): ChatSessionRecord {
   };
 }
 
-export function normalizeMessage(message: PersistedChatMessage, fallbackTime = safeNow()): PersistedChatMessage {
+export function normalizeMessage(
+  message: PersistedChatMessage,
+  fallbackTime = safeNow()
+): PersistedChatMessage {
   const createdAt =
     typeof message.createdAt === "number" && Number.isFinite(message.createdAt)
       ? message.createdAt
@@ -73,25 +76,29 @@ export function normalizeSession(session: unknown, fallbackTime = safeNow()): Ch
       ? raw.createdAt
       : fallbackTime;
   const messages = Array.isArray(raw.messages)
-    ? raw.messages.map((msg, index) => normalizeMessage(isObject(msg) ? msg : {}, createdAt + index))
+    ? raw.messages.map((msg, index) =>
+        normalizeMessage(isObject(msg) ? msg : {}, createdAt + index)
+      )
     : [];
   const updatedAt =
     typeof raw.updatedAt === "number" && Number.isFinite(raw.updatedAt)
       ? raw.updatedAt
-      : messages[messages.length - 1]?.createdAt ?? createdAt;
-  const titleStatus = raw.titleStatus === "pending" || raw.titleStatus === "ready" || raw.titleStatus === "idle"
-    ? raw.titleStatus
-    : raw.title
-      ? "ready"
-      : messages.some((msg) => msg.role === "user")
-        ? "pending"
-        : "idle";
+      : (messages[messages.length - 1]?.createdAt ?? createdAt);
+  const titleStatus =
+    raw.titleStatus === "pending" || raw.titleStatus === "ready" || raw.titleStatus === "idle"
+      ? raw.titleStatus
+      : raw.title
+        ? "ready"
+        : messages.some((msg) => msg.role === "user")
+          ? "pending"
+          : "idle";
 
   return {
     id: typeof raw.id === "string" && raw.id.length > 0 ? raw.id : makeId("chat"),
     title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : null,
     titleStatus,
-    titleSource: raw.titleSource === "manual" || raw.titleSource === "model" ? raw.titleSource : null,
+    titleSource:
+      raw.titleSource === "manual" || raw.titleSource === "model" ? raw.titleSource : null,
     createdAt,
     updatedAt,
     messages,
@@ -122,7 +129,8 @@ export function loadChatSessions(): { activeChatId: string | null; sessions: Cha
     }
 
     const activeChatId =
-      typeof parsed.activeChatId === "string" && sessions.some((session) => session.id === parsed.activeChatId)
+      typeof parsed.activeChatId === "string" &&
+      sessions.some((session) => session.id === parsed.activeChatId)
         ? parsed.activeChatId
         : sessions[0].id;
 
@@ -151,12 +159,16 @@ export function clearSavedChatSessions(): void {
 }
 
 export function fallbackChatTitle(messages: PersistedChatMessage[]): string | null {
-  const firstUserMessage = messages.find((message) => message.role === "user" && typeof message.content === "string");
+  const firstUserMessage = messages.find(
+    (message) => message.role === "user" && typeof message.content === "string"
+  );
   if (!firstUserMessage?.content) return null;
 
   const compact = firstUserMessage.content.replace(/\s+/g, " ").trim();
   if (!compact) return null;
-  return compact.length > MAX_TITLE_LENGTH ? `${compact.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…` : compact;
+  return compact.length > MAX_TITLE_LENGTH
+    ? `${compact.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+    : compact;
 }
 
 export function normalizeGeneratedTitle(raw: string, messages: PersistedChatMessage[]): string {
@@ -169,7 +181,9 @@ export function normalizeGeneratedTitle(raw: string, messages: PersistedChatMess
     .trim();
 
   if (cleaned) {
-    return cleaned.length > MAX_TITLE_LENGTH ? `${cleaned.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…` : cleaned;
+    return cleaned.length > MAX_TITLE_LENGTH
+      ? `${cleaned.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
+      : cleaned;
   }
 
   return fallbackChatTitle(messages) ?? "Untitled chat";
@@ -178,7 +192,9 @@ export function normalizeGeneratedTitle(raw: string, messages: PersistedChatMess
 export function getSessionSubtitle(messages: PersistedChatMessage[]): string {
   const lastText = [...messages]
     .reverse()
-    .find((message) => typeof message.content === "string" && message.content.trim().length > 0)?.content;
+    .find(
+      (message) => typeof message.content === "string" && message.content.trim().length > 0
+    )?.content;
 
   if (!lastText) return "No messages yet";
   const compact = lastText.replace(/\s+/g, " ").trim();

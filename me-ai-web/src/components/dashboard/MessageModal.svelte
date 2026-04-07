@@ -32,7 +32,7 @@
   let markdownText = $derived(
     message.body || message.htmlBody
       ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" })
-      : "",
+      : ""
   );
   let jsonText = $derived(emailToJsonString(message));
 
@@ -44,7 +44,10 @@
   }
 
   function downloadMd() {
-    downloadText(markdownText, emailFilename({ ...message, date: message.date != null ? String(message.date) : "" }));
+    downloadText(
+      markdownText,
+      emailFilename({ ...message, date: message.date != null ? String(message.date) : "" })
+    );
   }
 
   function downloadJson() {
@@ -57,12 +60,35 @@
     return DOMPurify.sanitize(raw, {
       ADD_ATTR: ["target"],
       ALLOWED_TAGS: [
-        "h1", "h2", "h3", "h4", "h5", "h6",
-        "p", "br", "hr", "blockquote", "pre", "code",
-        "strong", "b", "em", "i", "a", "img",
-        "ul", "ol", "li",
-        "table", "thead", "tbody", "tr", "th", "td",
-        "del", "s",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "br",
+        "hr",
+        "blockquote",
+        "pre",
+        "code",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "a",
+        "img",
+        "ul",
+        "ol",
+        "li",
+        "table",
+        "thead",
+        "tbody",
+        "tr",
+        "th",
+        "td",
+        "del",
+        "s",
       ],
     });
   }
@@ -76,13 +102,58 @@
     out = out.replace(/\s+on\w+\s*=\s*[^\s>]+/gi, " ");
     return DOMPurify.sanitize(out, {
       ALLOWED_TAGS: [
-        "h1", "h2", "h3", "h4", "h5", "h6", "p", "br", "hr", "div", "span",
-        "a", "img", "strong", "b", "em", "i", "u", "s", "sub", "sup",
-        "ul", "ol", "li", "blockquote", "pre", "code",
-        "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-        "style", "font",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "p",
+        "br",
+        "hr",
+        "div",
+        "span",
+        "a",
+        "img",
+        "strong",
+        "b",
+        "em",
+        "i",
+        "u",
+        "s",
+        "sub",
+        "sup",
+        "ul",
+        "ol",
+        "li",
+        "blockquote",
+        "pre",
+        "code",
+        "table",
+        "thead",
+        "tbody",
+        "tfoot",
+        "tr",
+        "th",
+        "td",
+        "style",
+        "font",
       ],
-      ALLOWED_ATTR: ["href", "src", "alt", "title", "target", "style", "width", "height", "border", "align", "color", "size", "face"],
+      ALLOWED_ATTR: [
+        "href",
+        "src",
+        "alt",
+        "title",
+        "target",
+        "style",
+        "width",
+        "height",
+        "border",
+        "align",
+        "color",
+        "size",
+        "face",
+      ],
       ADD_ATTR: ["target"],
     });
   }
@@ -151,21 +222,18 @@
       <div class="md-body">
         <pre class="md-raw">{jsonText}</pre>
       </div>
-
     {:else if viewMode === "markdown"}
       <!-- ── Markdown view ─────────────────────────────────────────── -->
       <div class="md-toolbar">
         <div class="md-tabs">
-          <button
-            class="md-tab"
-            class:active={mdTab === "raw"}
-            onclick={() => mdTab = "raw"}
-          >Raw</button>
+          <button class="md-tab" class:active={mdTab === "raw"} onclick={() => (mdTab = "raw")}
+            >Raw</button
+          >
           <button
             class="md-tab"
             class:active={mdTab === "preview"}
-            onclick={() => mdTab = "preview"}
-          >Preview</button>
+            onclick={() => (mdTab = "preview")}>Preview</button
+          >
         </div>
         <button class="action-btn download-btn" onclick={downloadMd} title="Download .md file">
           Download
@@ -181,7 +249,6 @@
           </div>
         {/if}
       </div>
-
     {:else}
       <!-- ── Email view ────────────────────────────────────────────── -->
       <div class="modal-meta">
@@ -272,7 +339,10 @@
     font-family: monospace;
     cursor: pointer;
     padding: 0.25rem 0.5rem;
-    transition: border-color 0.15s, color 0.15s, background 0.15s;
+    transition:
+      border-color 0.15s,
+      color 0.15s,
+      background 0.15s;
   }
   .action-btn:hover {
     border-color: #3b82f6;
@@ -525,6 +595,8 @@
     display: inline-block;
   }
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>
