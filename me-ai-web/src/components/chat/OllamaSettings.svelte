@@ -20,8 +20,16 @@
     selectedModel?: string;
     onload?: () => void;
     error?: string | null;
+    isAutoRestoring?: boolean;
+    autoRestoreMessage?: string | null;
   }
-  let { selectedModel = $bindable(), onload, error = $bindable() }: Props = $props();
+  let {
+    selectedModel = $bindable(),
+    onload,
+    error = $bindable(),
+    isAutoRestoring = false,
+    autoRestoreMessage = null,
+  }: Props = $props();
 
   const isLocal =
     typeof window !== "undefined" &&
@@ -317,9 +325,60 @@
 
   <Button
     onclick={handleLoadModel}
-    disabled={!connectionStatus?.connected || !!error}
-    class="w-full"
+    disabled={!connectionStatus?.connected || !!error || isAutoRestoring}
+    class={cn(
+      "w-full",
+      isAutoRestoring && "bg-transparent text-foreground/80 border border-border/60 shadow-none"
+    )}
   >
-    Load Model
+    {#if isAutoRestoring}
+      <span class="inline-flex items-center gap-2">
+        <span class="loading-dots" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+        <span>{autoRestoreMessage ?? "Model already loaded, taking you to chat"}</span>
+      </span>
+    {:else}
+      Load Model
+    {/if}
   </Button>
 </div>
+
+<style>
+  .loading-dots {
+    display: inline-flex;
+    gap: 0.22rem;
+    align-items: center;
+  }
+
+  .loading-dots span {
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.35;
+    animation: selectorDotPulse 1s ease-in-out infinite;
+  }
+
+  .loading-dots span:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+
+  .loading-dots span:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+
+  @keyframes selectorDotPulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+</style>

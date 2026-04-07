@@ -11,6 +11,7 @@
   import OAuthRedirectView from "./views/OAuthRedirectView.svelte";
   import HomeView from "./views/HomeView.svelte";
   import ControlBoard from "./ControlBoard.svelte";
+  import WorkflowHeader from "./components/shared/WorkflowHeader.svelte";
   import { cn } from "$lib/utils.js";
   import {
     Activity,
@@ -56,21 +57,7 @@
     </div>
   {:else if inSources}
     <div class="flex flex-col h-full w-full overflow-hidden">
-      <header class="flex items-center gap-3 px-5 h-11 border-b border-border bg-sidebar shrink-0">
-        <a
-          href="#home"
-          class="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground
-         transition-colors no-underline shrink-0"
-        >
-          <ArrowLeft class="size-3.5" />
-          <span class="tracking-tight">Home</span>
-        </a>
-        <div class="w-px h-4 bg-border shrink-0"></div>
-        <div class="size-6 rounded overflow-hidden flex items-center justify-center shrink-0">
-          <img src="/logo.png" alt="me-ai logo" class="size-full object-cover" />
-        </div>
-        <span class="text-sm font-semibold tracking-tight text-foreground">Sources</span>
-      </header>
+      <WorkflowHeader currentSection="sources" chatStage="chat" />
       <div class="flex-1 min-h-0 overflow-hidden flex flex-col">
         <div style:display={page === "sources" ? "contents" : "none"}><SourcesView /></div>
         <div style:display={page === "plugins" ? "contents" : "none"}><PluginsView /></div>
@@ -277,6 +264,7 @@
       </aside>
 
       <main class="flex-1 min-h-0 overflow-hidden flex flex-col bg-background">
+        <WorkflowHeader currentSection="control" chatStage="chat" />
         <div
           class="flex-1 min-h-0 flex flex-col overflow-hidden"
           style:display={page === "stream" ? "flex" : "none"}

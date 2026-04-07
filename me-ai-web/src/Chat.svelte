@@ -36,7 +36,15 @@
     type ChatSessionRecord,
   } from "./lib/chat-sessions.js";
 
+  interface Props {
+    onstagechange?: (stage: "configure" | "loading" | "chat") => void;
+  }
+  let { onstagechange }: Props = $props();
+
   const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
+  const HF_CACHE_NAME = "transformers-cache";
+  const HF_PREFIX = "https://huggingface.co/";
+  const HOME_STAGE_KEY = "me-ai-home-stage";
 
   // ── State ──────────────────────────────────────────────────────────
   const engine = getUnifiedEngine();
@@ -84,6 +92,9 @@
   let status = $state<string | null>(null); // null | "loading" | "ready"
   let error = $state<string | null>(null);
   let loadingMessage = $state("");
+  let isAutoRestoring = $state(false);
+  let autoRestoreMessage = $state<string | null>(null);
+  let showConfigureScreen = $state(false);
   // Track whether the user has explicitly initiated a load in this session.
   // Prevents stale worker errors from a previous session showing on page load.
   let loadInitiated = false;
@@ -338,10 +349,91 @@
     }).format(ts);
   }
 
+  function inferChatStage(): "configure" | "loading" | "chat" {
+    if (status === "loading") return "loading";
+    if (status === "ready" && !showConfigureScreen) return "chat";
+    return "configure";
+  }
+
+  function getPreferredHomeStage(): "configure" | "chat" {
+    if (typeof localStorage === "undefined") return "configure";
+    return localStorage.getItem(HOME_STAGE_KEY) === "chat" ? "chat" : "configure";
+  }
+
+  function setPreferredHomeStage(stage: "configure" | "chat") {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(HOME_STAGE_KEY, stage);
+  }
+
+  function openConfigureStage() {
+    showConfigureScreen = true;
+    setPreferredHomeStage("configure");
+  }
+
+  function openChatStage() {
+    if (!engine.isReady && status !== "ready") return;
+    showConfigureScreen = false;
+    setPreferredHomeStage("chat");
+  }
+
+  function getModelIdFromCacheUrl(url: string): string | null {
+    if (!url.startsWith(HF_PREFIX)) return null;
+    const path = url.slice(HF_PREFIX.length);
+    const resolveIdx = path.indexOf("/resolve/");
+    if (resolveIdx === -1) return null;
+    return path.slice(0, resolveIdx);
+  }
+
+  async function isWebGpuModelCached(modelId: string | null): Promise<boolean> {
+    if (!modelId || typeof window === "undefined" || !("caches" in window)) return false;
+    try {
+      const cache = await caches.open(HF_CACHE_NAME);
+      const requests = await cache.keys();
+      return requests.some((request) => getModelIdFromCacheUrl(request.url) === modelId);
+    } catch {
+      return false;
+    }
+  }
+
+  function getConfiguredModelLabel(nextBackend: AiBackend, modelId: string | null): string | null {
+    if (!modelId) return null;
+    if (nextBackend === AiBackend.WebGpu) return getWebgpuModelLabel(modelId);
+    if (nextBackend === AiBackend.Ollama) {
+      const info = getCore().getOllamaModelInfo(modelId);
+      return info?.displayName ?? info?.name ?? modelId;
+    }
+    const info =
+      apiModels.find((model) => model.id === modelId) ?? getCore().getApiModelInfo(modelId);
+    return info?.displayName ?? info?.name ?? modelId;
+  }
+
+  async function shouldAutoRestoreModel(sv: SettingValue): Promise<boolean> {
+    if (!sv.selectedModel || sv.aiBackend == null) return false;
+
+    if (sv.aiBackend === AiBackend.WebGpu) {
+      return isWebGpuModelCached(sv.selectedModel);
+    }
+
+    if (sv.aiBackend === AiBackend.Ollama) {
+      return true;
+    }
+
+    const apiInfo =
+      apiModels.find((model) => model.id === sv.selectedModel) ?? getCore().getApiModelInfo(sv.selectedModel);
+    if (!apiInfo) return false;
+    if (apiInfo.provider === "openai") return !!sv.openaiApiKey;
+    if (apiInfo.provider === "anthropic") return !!sv.anthropicApiKey;
+    if (apiInfo.provider === "google") return !!sv.googleApiKey;
+    if (apiInfo.provider === "xai") return !!sv.xaiApiKey;
+    return false;
+  }
+
   // ── Shared engine listener ─────────────────────────────────────────
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
+      let savedSettings: SettingValue | null = null;
+      showConfigureScreen = getPreferredHomeStage() !== "chat";
       const savedChats = loadChatSessions();
       chatSessions = sortSessions(savedChats.sessions);
       activeChatId = savedChats.activeChatId;
@@ -354,6 +446,7 @@
       // Restore saved backend, model, and options from settings (IndexedDB)
       try {
         const sv = await getCore().loadSettings();
+        savedSettings = sv;
         if (sv.aiBackend !== undefined) backend = sv.aiBackend;
         if (sv.selectedModel) selectedModel = sv.selectedModel;
         if (sv.enableThinking !== undefined) enableThinking = sv.enableThinking;
@@ -373,10 +466,32 @@
 
       if (engine.isReady) {
         status = "ready";
+        showConfigureScreen = getPreferredHomeStage() !== "chat";
         if (backend === AiBackend.WebGpu) {
           engine.check();
         }
         showDashboardIfNeeded();
+      } else if (savedSettings) {
+        const sv = savedSettings;
+        const canAutoRestore = await shouldAutoRestoreModel(sv);
+        if (canAutoRestore && sv.selectedModel) {
+          const nextBackend = (sv.aiBackend ?? backend) as AiBackend;
+          backend = nextBackend;
+          selectedModel = sv.selectedModel;
+          if (sv.loadDtype) loadDtype = sv.loadDtype;
+          if (sv.loadDevice) loadDevice = sv.loadDevice;
+
+          const modelLabel = getConfiguredModelLabel(nextBackend, sv.selectedModel) ?? "your model";
+          isAutoRestoring = true;
+          autoRestoreMessage = `${modelLabel} already loaded, taking you to chat`;
+          await tick();
+          await new Promise((resolve) => window.setTimeout(resolve, 900));
+          if (isAutoRestoring && status === null) {
+            showConfigureScreen = false;
+            setPreferredHomeStage("chat");
+            await loadModel();
+          }
+        }
       }
 
       const unsub = engine.onMessage((rawMsg) => {
@@ -420,6 +535,9 @@
 
           case "ready":
             status = "ready";
+            isAutoRestoring = false;
+            autoRestoreMessage = null;
+            showConfigureScreen = getPreferredHomeStage() !== "configure" ? false : showConfigureScreen;
             showDashboardIfNeeded();
             break;
 
@@ -598,6 +716,8 @@
             if (loadInitiated) {
               error = msg.data as string;
             }
+            isAutoRestoring = false;
+            autoRestoreMessage = null;
             if (status === "loading") {
               // Error during model loading - go back to model selector
               status = null;
@@ -621,6 +741,21 @@
       _engineUnsub = unsub;
     })();
     return () => _engineUnsub?.();
+  });
+
+  onMount(() => {
+    const handleOpenConfigure = () => {
+      openConfigureStage();
+    };
+    const handleOpenChat = () => {
+      openChatStage();
+    };
+    window.addEventListener("me-ai:open-configure", handleOpenConfigure);
+    window.addEventListener("me-ai:open-chat", handleOpenChat);
+    return () => {
+      window.removeEventListener("me-ai:open-configure", handleOpenConfigure);
+      window.removeEventListener("me-ai:open-chat", handleOpenChat);
+    };
   });
 
   $effect(() => {
@@ -695,6 +830,10 @@
     );
     if (!nextUntitledSession) return;
     void generateSessionTitle(nextUntitledSession.id);
+  });
+
+  $effect(() => {
+    onstagechange?.(inferChatStage());
   });
 
   // ── Dashboard / pending data ──────────────────────────────────────
@@ -1102,6 +1241,9 @@
     error = null;
     progressItems = [];
     status = null;
+    isAutoRestoring = false;
+    autoRestoreMessage = null;
+    openConfigureStage();
     window.location.hash = "#home";
   }
 
@@ -1122,6 +1264,8 @@
     error = null;
     progressItems = [];
     loadInitiated = true;
+    showConfigureScreen = false;
+    setPreferredHomeStage("chat");
     try {
       const sv = new SettingValue();
       sv.selectedModel = selectedModel;
@@ -1381,7 +1525,7 @@
         Storage unavailable (e.g. private browsing). Settings and data are not persisted.
       </div>
     {/if}
-    {#if status === null}
+    {#if status === null || (status === "ready" && showConfigureScreen)}
       <div class="w-full h-full overflow-y-auto flex justify-center">
         <div class="w-full max-w-2xl px-4 py-8 flex flex-col gap-0">
           <BackendSelector bind:backend isWebGPUAvailable={IS_WEBGPU_AVAILABLE} />
@@ -1393,6 +1537,8 @@
               bind:loadDevice
               {gpuInfo}
               {error}
+              {isAutoRestoring}
+              {autoRestoreMessage}
               onload={loadModel}
               onclearerror={() => {
                 error = null;
@@ -1400,14 +1546,31 @@
               onclearcache={clearCacheAndRetry}
             />
           {:else if backend === AiBackend.Ollama}
-            <OllamaSettings bind:selectedModel bind:error onload={loadModel} />
+            <OllamaSettings
+              bind:selectedModel
+              bind:error
+              {isAutoRestoring}
+              {autoRestoreMessage}
+              onload={loadModel}
+            />
           {:else if backend === AiBackend.Cloud}
-            <CloudApiSettings bind:selectedModel bind:error onload={loadModel} />
+            <CloudApiSettings
+              bind:selectedModel
+              bind:error
+              {isAutoRestoring}
+              {autoRestoreMessage}
+              onload={loadModel}
+            />
           {/if}
         </div>
       </div>
     {:else if status === "loading"}
-      <LoadingProgress message={loadingMessage} items={progressItems} />
+      <LoadingProgress
+        message={loadingMessage}
+        items={progressItems}
+        isAutoRestoring={isAutoRestoring}
+        restoreModelLabel={getConfiguredModelLabel(backend, selectedModel)}
+      />
     {:else}
       <ChatView
         {messages}

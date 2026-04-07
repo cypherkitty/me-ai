@@ -34,6 +34,8 @@
       limits?: { maxBufferSize?: number };
     } | null;
     error?: string | null;
+    isAutoRestoring?: boolean;
+    autoRestoreMessage?: string | null;
     onload: () => void;
     onclearerror?: () => void;
     onclearcache?: () => void;
@@ -44,6 +46,8 @@
     loadDevice = $bindable("webgpu"),
     gpuInfo = null,
     error = null,
+    isAutoRestoring = false,
+    autoRestoreMessage = null,
     onload,
     onclearerror,
     onclearcache,
@@ -147,37 +151,6 @@
     {/if}
   </div>
 
-  <div class="w-full grid grid-cols-2 gap-3 text-left">
-    <div class="flex flex-col gap-1">
-      <Label for="dtype-select" class="text-[0.68rem] uppercase tracking-wider opacity-60"
-        >Dtype</Label
-      >
-      <select
-        id="dtype-select"
-        bind:value={loadDtype}
-        class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        {#each DTYPE_OPTIONS as opt (opt.value)}
-          <option value={opt.value}>{opt.label}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="flex flex-col gap-1">
-      <Label for="device-select" class="text-[0.68rem] uppercase tracking-wider opacity-60"
-        >Device</Label
-      >
-      <select
-        id="device-select"
-        bind:value={loadDevice}
-        class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        {#each DEVICE_OPTIONS as opt (opt.value)}
-          <option value={opt.value}>{opt.label}</option>
-        {/each}
-      </select>
-    </div>
-  </div>
-
   <details class="w-full group">
     <summary
       class="flex items-center gap-2 px-3 py-2 rounded border border-border bg-card text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 cursor-pointer hover:bg-accent transition-colors list-none"
@@ -189,10 +162,45 @@
         stroke="currentColor"
         stroke-width="2.5"><polyline points="9 18 15 12 9 6" /></svg
       >
-      Model Capabilities
+      Optional
     </summary>
-    <Card class="mt-1 w-full text-left">
+    <div class="mt-2 flex flex-col gap-3">
+      <div class="w-full grid grid-cols-2 gap-3 text-left">
+        <div class="flex flex-col gap-1">
+          <Label for="dtype-select" class="text-[0.68rem] uppercase tracking-wider opacity-60"
+            >Dtype</Label
+          >
+          <select
+            id="dtype-select"
+            bind:value={loadDtype}
+            class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {#each DTYPE_OPTIONS as opt (opt.value)}
+              <option value={opt.value}>{opt.label}</option>
+            {/each}
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <Label for="device-select" class="text-[0.68rem] uppercase tracking-wider opacity-60"
+            >Device</Label
+          >
+          <select
+            id="device-select"
+            bind:value={loadDevice}
+            class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {#each DEVICE_OPTIONS as opt (opt.value)}
+              <option value={opt.value}>{opt.label}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <Card class="w-full text-left">
       <CardContent class="pt-0 pb-2 px-0">
+        <div class="px-3 pt-3 pb-1 text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground/40">
+          Model Capabilities
+        </div>
         <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
           <table class="w-full text-xs border-collapse">
             <thead class="sticky top-0 bg-card">
@@ -264,7 +272,8 @@
           · ❌ May fail
         </p>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   </details>
 
   {#if gpuInfo}
@@ -288,10 +297,67 @@
 
   {#if error}
     <p class="text-sm text-destructive">{error}</p>
-    <Button variant="outline" onclick={onclearcache} class="w-full text-xs">
+  <Button variant="outline" onclick={onclearcache} class="w-full text-xs">
       Clear cache & retry
     </Button>
   {/if}
 
-  <Button onclick={onload} disabled={!!error} class="w-full">Load Model</Button>
+  <Button
+    onclick={onload}
+    disabled={!!error || isAutoRestoring}
+    class={cn(
+      "w-full relative",
+      isAutoRestoring && "bg-transparent text-foreground/80 border border-border/60 shadow-none"
+    )}
+  >
+    {#if isAutoRestoring}
+      <span class="inline-flex items-center gap-2">
+        <span class="loading-dots" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+        <span>{autoRestoreMessage ?? "Model already loaded, taking you to chat"}</span>
+      </span>
+    {:else}
+      Load Model
+    {/if}
+  </Button>
 </div>
+
+<style>
+  .loading-dots {
+    display: inline-flex;
+    gap: 0.22rem;
+    align-items: center;
+  }
+
+  .loading-dots span {
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.35;
+    animation: selectorDotPulse 1s ease-in-out infinite;
+  }
+
+  .loading-dots span:nth-child(2) {
+    animation-delay: 0.16s;
+  }
+
+  .loading-dots span:nth-child(3) {
+    animation-delay: 0.32s;
+  }
+
+  @keyframes selectorDotPulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+</style>

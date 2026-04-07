@@ -17,8 +17,10 @@
   interface Props {
     message?: string;
     items?: ProgressItem[];
+    isAutoRestoring?: boolean;
+    restoreModelLabel?: string | null;
   }
-  let { message = "", items = [] }: Props = $props();
+  let { message = "", items = [], isAutoRestoring = false, restoreModelLabel = null }: Props = $props();
   let aggregateSpeedBps = $state<number | null>(null);
   let aggregateEtaSeconds = $state<number | null>(null);
   let lastSampleLoaded = $state<number | null>(null);
@@ -78,7 +80,12 @@
     }
     return formatEta(Math.ceil(liveEtaSeconds));
   });
-  let visibleMessage = $derived(isPreparingModel ? `Preparing model${preparationDots}` : message);
+  let visibleMessage = $derived.by(() => {
+    if (isAutoRestoring && !isPreparingModel) {
+      return `${restoreModelLabel ?? "Saved model"} found on this device. Preparing resources${preparationDots}`;
+    }
+    return isPreparingModel ? `Preparing model${preparationDots}` : message;
+  });
   let sortedItems = $derived(
     [...items].sort((a, b) => {
       const aDone = !!(a.done || (a.total && (a.loaded || 0) >= a.total));
@@ -183,35 +190,43 @@
             <span
               class={cn(
                 "text-[0.68rem] font-semibold uppercase tracking-[0.18em]",
-                isPreparingModel ? "text-success/80" : "text-muted-foreground/60"
+                isPreparingModel || isAutoRestoring ? "text-success/80" : "text-muted-foreground/60"
               )}
             >
-              {isPreparingModel ? "Download complete" : "Total download"}
+              {isPreparingModel
+                ? "Resources ready"
+                : isAutoRestoring
+                  ? "Model found on device"
+                  : "Total download"}
             </span>
             {#if displayedAggregatePct !== null && !isPreparingModel}
               <span class="text-sm font-semibold text-primary tabular-nums">
                 {displayedAggregatePct.toFixed(1)}%
               </span>
-            {:else if isPreparingModel}
+            {:else if isPreparingModel || isAutoRestoring}
               <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-success">
                 <CheckCircle2 class="size-4" />
-                Ready
+                {isPreparingModel ? "Ready" : "Preparing"}
               </span>
             {/if}
           </div>
 
-          {#if displayedAggregatePct !== null && !isPreparingModel}
+          {#if displayedAggregatePct !== null && !isPreparingModel && !isAutoRestoring}
             <Progress value={displayedAggregatePct} class="h-1.5 mb-2.5" />
           {/if}
 
           <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
             <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
               <div class="text-[0.62rem] uppercase tracking-wider text-muted-foreground/45">
-                Downloaded
+                {isAutoRestoring ? "Detected model" : "Downloaded"}
               </div>
               <div class="mt-1 font-semibold text-foreground tabular-nums">
-                {formatBytesPrecise(aggregateLoaded)}
-                {#if aggregateTotal > 0}
+                {#if isAutoRestoring}
+                  {restoreModelLabel ?? "Saved model"}
+                {:else}
+                  {formatBytesPrecise(aggregateLoaded)}
+                {/if}
+                {#if aggregateTotal > 0 && !isAutoRestoring}
                   <span class="text-muted-foreground/35 font-normal">
                     / {formatBytesPrecise(aggregateTotal)}</span
                   >
@@ -220,20 +235,32 @@
             </div>
             <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
               <div class="text-[0.62rem] uppercase tracking-wider text-muted-foreground/45">
-                Files
+                {isAutoRestoring ? "Resources" : "Files"}
               </div>
               <div class="mt-1 font-semibold text-foreground tabular-nums">
-                {completedFiles}/{totalFiles}
+                {#if isAutoRestoring}
+                  {#if items.length > 0}
+                    {completedFiles}/{totalFiles} ready
+                  {:else}
+                    Local cache
+                  {/if}
+                {:else}
+                  {completedFiles}/{totalFiles}
+                {/if}
               </div>
             </div>
             <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
               <div class="text-[0.62rem] uppercase tracking-wider text-muted-foreground/45">
-                Speed
+                {isAutoRestoring ? "Stage" : "Speed"}
               </div>
               <div class="mt-1 font-semibold text-foreground tabular-nums">
-                {#if aggregateSpeedBps && !isPreparingModel}{formatRate(
-                    aggregateSpeedBps
-                  )}{:else}--{/if}
+                {#if isAutoRestoring}
+                  resource prep
+                {:else if aggregateSpeedBps && !isPreparingModel}
+                  {formatRate(aggregateSpeedBps)}
+                {:else}
+                  --
+                {/if}
               </div>
             </div>
             <div class="rounded-lg border border-border/60 bg-background/60 px-3 py-2">
@@ -241,7 +268,9 @@
                 ETA
               </div>
               <div class="mt-1 font-semibold text-foreground tabular-nums">
-                {#if etaLabel}
+                {#if isAutoRestoring}
+                  preparing
+                {:else if etaLabel}
                   {etaLabel}
                 {:else if isPreparingModel}
                   preparing
@@ -251,9 +280,13 @@
               </div>
             </div>
           </div>
-          {#if isPreparingModel}
+          {#if isPreparingModel || isAutoRestoring}
             <div class="mt-3 text-xs text-success/80 tabular-nums">
-              Compiling shaders and warming up model{preparationDots}
+              {#if isAutoRestoring}
+                Model found on this device. Preparing local resources{preparationDots}
+              {:else}
+                Compiling shaders and warming up model{preparationDots}
+              {/if}
             </div>
           {/if}
         </CardContent>
