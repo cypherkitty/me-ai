@@ -2970,6 +2970,15 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @returns {OllamaModelGroup[]}
+     */
+    getOllamaModelGroups() {
+        const ret = wasm.meaicore_getOllamaModelGroups(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
      * @param {string} model_name
      * @returns {OllamaModel | undefined}
      */
@@ -4144,6 +4153,12 @@ export class OllamaModel {
         OllamaModelFinalization.register(obj, obj.__wbg_ptr, obj);
         return obj;
     }
+    static __unwrap(jsValue) {
+        if (!(jsValue instanceof OllamaModel)) {
+            return 0;
+        }
+        return jsValue.__destroy_into_raw();
+    }
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
         this.__wbg_ptr = 0;
@@ -4307,6 +4322,67 @@ export class OllamaModel {
     }
 }
 if (Symbol.dispose) OllamaModel.prototype[Symbol.dispose] = OllamaModel.prototype.free;
+
+export class OllamaModelGroup {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(OllamaModelGroup.prototype);
+        obj.__wbg_ptr = ptr;
+        OllamaModelGroupFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OllamaModelGroupFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ollamamodelgroup_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get label() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_ollamamodelgroup_label(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {OllamaModel[]}
+     */
+    get models() {
+        const ret = wasm.__wbg_get_ollamamodelgroup_models(this.__wbg_ptr);
+        var v1 = getArrayJsValueFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 4, 4);
+        return v1;
+    }
+    /**
+     * @param {string} arg0
+     */
+    set label(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodelgroup_label(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {OllamaModel[]} arg0
+     */
+    set models(arg0) {
+        const ptr0 = passArrayJsValueToWasm0(arg0, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_ollamamodelgroup_models(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) OllamaModelGroup.prototype[Symbol.dispose] = OllamaModelGroup.prototype.free;
 
 export class OllamaModelTag {
     static __wrap(ptr) {
@@ -7326,6 +7402,14 @@ function __wbg_get_imports() {
             const ret = OllamaModel.__wrap(arg0);
             return ret;
         },
+        __wbg_ollamamodel_unwrap: function(arg0) {
+            const ret = OllamaModel.__unwrap(arg0);
+            return ret;
+        },
+        __wbg_ollamamodelgroup_new: function(arg0) {
+            const ret = OllamaModelGroup.__wrap(arg0);
+            return ret;
+        },
         __wbg_ollamamodeltag_new: function(arg0) {
             const ret = OllamaModelTag.__wrap(arg0);
             return ret;
@@ -7884,6 +7968,9 @@ const OllamaConnectionResultFinalization = (typeof FinalizationRegistry === 'und
 const OllamaModelFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodel_free(ptr >>> 0, 1));
+const OllamaModelGroupFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodelgroup_free(ptr >>> 0, 1));
 const OllamaModelTagFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodeltag_free(ptr >>> 0, 1));
