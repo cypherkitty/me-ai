@@ -59,15 +59,15 @@
       }
       const cache = await caches.open(CACHE_NAME);
       const requests = await cache.keys();
-      const ids = new Set<string>();
+      const ids: string[] = [];
       for (const req of requests) {
         const id = modelIdFromUrl(req.url);
-        if (id) ids.add(id);
+        if (id && !ids.includes(id)) ids.push(id);
       }
-      cachedModelIds = [...ids];
+      cachedModelIds = ids;
 
-      const preferredDownloadedModel = models.find((model) => ids.has(model.id));
-      if (preferredDownloadedModel && !ids.has(selectedModel)) {
+      const preferredDownloadedModel = models.find((model) => ids.includes(model.id));
+      if (preferredDownloadedModel && !ids.includes(selectedModel)) {
         selectedModel = preferredDownloadedModel.id;
       }
     } catch {

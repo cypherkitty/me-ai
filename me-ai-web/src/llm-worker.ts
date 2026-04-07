@@ -33,6 +33,37 @@ type TokenizerInstance = InstanceType<typeof AutoTokenizer>;
 type ProcessorInstance = InstanceType<typeof AutoProcessor>;
 type LoadOptions = { dtype?: string; device?: string };
 type DisposableModel = { dispose?: () => Promise<unknown> | unknown };
+type GenerationInputs = {
+  input_ids: { dims: number[] };
+} & Record<string, unknown>;
+type TokenizerWithChatTemplate = TokenizerInstance & {
+  apply_chat_template(
+    messages: ChatMessage[],
+    options: {
+      add_generation_prompt: boolean;
+      return_dict: boolean;
+      enable_thinking?: boolean;
+    }
+  ): GenerationInputs;
+};
+type Gemma4MessageContent = { type: "text"; text: string };
+type Gemma4Message = {
+  role: string;
+  content: Gemma4MessageContent[];
+};
+type Gemma4Processor = ProcessorInstance & {
+  tokenizer?: ConstructorParameters<typeof TextStreamer>[0];
+  apply_chat_template(
+    messages: Gemma4Message[],
+    options: { add_generation_prompt: boolean; enable_thinking: boolean }
+  ): string;
+  (
+    prompt: string,
+    text?: undefined,
+    audio?: undefined,
+    options?: { add_special_tokens: boolean }
+  ): GenerationInputs;
+};
 
 class TextGenerationPipeline {
   static model_id: string | null = null;
@@ -133,7 +164,7 @@ function parseHarmonyOutput(raw: string): { thinking: string | null; response: s
   return { thinking, response };
 }
 
-function normalizeGemma4Messages(messages: ChatMessage[]) {
+function normalizeGemma4Messages(messages: ChatMessage[]): Gemma4Message[] {
   return messages.map((message) => ({
     role: message.role,
     content: [{ type: "text", text: message.content }],
@@ -149,11 +180,12 @@ async function buildInputs(
 ) {
   if (isGemma4Model(modelId)) {
     if (!processor) throw new Error("Gemma 4 processor is not loaded");
-    const prompt = (processor as any).apply_chat_template(
+    const gemma4Processor = processor as Gemma4Processor;
+    const prompt = gemma4Processor.apply_chat_template(
       normalizeGemma4Messages(messages),
       { add_generation_prompt: true, enable_thinking: !!enableThinking }
     );
-    return (processor as any)(prompt, undefined, undefined, { add_special_tokens: false });
+    return gemma4Processor(prompt, undefined, undefined, { add_special_tokens: false });
   }
 
   if (!tokenizer) throw new Error("Tokenizer is not loaded");
@@ -163,18 +195,18 @@ async function buildInputs(
     return_dict: true,
   };
   if (!useHarmony) templateOpts.enable_thinking = !!enableThinking;
-  return (tokenizer as any).apply_chat_template(messages, templateOpts);
+  return (tokenizer as TokenizerWithChatTemplate).apply_chat_template(messages, templateOpts);
 }
 
 function stripGemma4ControlTokens(raw: string): string {
   return raw
-    .replace(/<bos>|<eos>|<pad>|<\|turn\>|<turn\|>|<\|think\|>/g, "")
-    .replace(/<\|channel\>|<channel\|>/g, "")
+    .replace(/<bos>|<eos>|<pad>|<\|turn>|<turn\|>|<\|think\|>/g, "")
+    .replace(/<\|channel>|<channel\|>/g, "")
     .trim();
 }
 
 function parseGemma4Output(raw: string): { thinking: string | null; response: string } {
-  const match = raw.match(/<\|channel\>(?:thought\n)?([\s\S]*?)<channel\|>/);
+  const match = raw.match(/<\|channel>(?:thought\n)?([\s\S]*?)<channel\|>/);
   if (!match) {
     return { thinking: null, response: stripGemma4ControlTokens(raw) };
   }
@@ -188,7 +220,7 @@ function getGemma4ThinkingParts(raw: string): {
   response: string;
   isThinking: boolean;
 } {
-  const match = /<\|channel\>(?:thought\n)?/.exec(raw);
+  const match = /<\|channel>(?:thought\n)?/.exec(raw);
   if (!match) {
     return {
       thinking: "",
@@ -412,9 +444,9 @@ async function generate(
     const inputTokens = inputs.input_ids.dims[1];
     reply({ status: "start", phase: "preparing", inputTokens });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const streamTokenizer = (processor as any)?.tokenizer ?? tokenizer;
-    const streamer = new TextStreamer(streamTokenizer as any, {
+    const streamTokenizer =
+      (processor as Gemma4Processor | null)?.tokenizer ?? tokenizer;
+    const streamer = new TextStreamer(streamTokenizer, {
       skip_prompt: true,
       skip_special_tokens: !useGemma4,
       callback_function: useHarmony ? harmony_callback : useGemma4 ? gemma4_callback : think_callback,
