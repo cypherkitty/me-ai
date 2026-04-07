@@ -343,8 +343,8 @@
           ></span>
         </div>
       {:else if html}
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
         <div class="md-body">
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
           {@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}
         </div>
       {:else if msg.content}
