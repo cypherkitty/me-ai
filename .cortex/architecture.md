@@ -1,0 +1,51 @@
+# Architecture
+
+> **me-ai** is a browser-only AI assistant built on an event-stream model.
+> No backend server. LLM runs in-browser via WebGPU or Ollama. Gmail/Twitter use client-side OAuth.
+
+## Package map
+
+| Package | Stack | Role |
+|---------|-------|------|
+| `me-ai-core/` | Rust → WASM (wasm-pack) | Business logic, persistence (IndexedDB/Rexie), plugins, LLM triage, API clients |
+| `me-ai-web/` | Svelte 5 + Vite 6 + Tailwind 4 | UI, routing, stores, LLM worker (WebGPU), auth flows |
+
+**Dependency direction:** `me-ai-web` → `me-ai-core` (via `file:../me-ai-core/pkg` link). Never the reverse.
+
+## Core WASM facade
+
+All persistence and domain logic is exposed through a single `MeAiCore` struct in `me-ai-core/src/lib.rs`.  
+TypeScript calls WASM methods only — no direct IndexedDB access from app code.
+
+**Persistence:** IndexedDB via the `rexie` crate. Stores and indexes only.  
+See [`.cortex/references/rexie-patterns.md`](references/rexie-patterns.md) for conventions.
+
+## Navigating the code
+
+Don't memorize directory trees — read the source directly. A few orientation hints:
+
+- **Core entry point:** `me-ai-core/src/lib.rs` — the `MeAiCore` struct is the single WASM facade; every public method is here. Follow its `use` imports to find any module.
+- **Web entry point:** 
+  - `me-ai-web/src/App.svelte` → `AppRouter.svelte` for routing. 
+  - Views live in `src/views/`, 
+  - feature components in `src/components/`, 
+  - shared logic in `src/lib/`.
+- **WASM bridge in web:** `src/lib/core.ts` re-exports WASM types and provides `initCore` / `getCore`.
+
+## Three-step user flow
+
+See [`.cortex/product-specs/three-step-flow.md`](product-specs/three-step-flow.md).
+
+## Dynamic action flow (n8n-like)
+
+See [`.cortex/design-docs/n8n-architecture.md`](design-docs/n8n-architecture.md) — the foundational architectural principle.
+
+## Plugin system
+
+See [`.cortex/design-docs/plugin-system.md`](design-docs/plugin-system.md).
+
+## Build system
+
+All build/test/deploy goes through [Task](https://taskfile.dev). See `.agents/me-ai-builder.md`.
+
+Key tasks: `task install`, `task build`, `task test`, `task ci`, `task deploy-build`.
