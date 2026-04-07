@@ -33,6 +33,7 @@ export type {
 
 // Re-export initCore and getCore so existing callers don't need to change paths
 export { initCore, getCore, coreStore } from "./store/core-store.js";
+import { clearSavedChatSessions } from "./chat-sessions.js";
 
 
 export class GmailApiError extends Error {
@@ -87,4 +88,5 @@ export async function getStorageStats(): Promise<{
 export async function clearAllDataAndCheckpoint(): Promise<void> {
   const { getCore } = await import("./store/core-store.js");
   await getCore().clearAllData();
+  clearSavedChatSessions();
 }

@@ -43,6 +43,17 @@
   let cacheSupported = $state(true);
   let scannedCache = $state(false);
 
+  function isCrownedModel(modelId: string): boolean {
+    return modelId === "onnx-community/gemma-4-E2B-it-ONNX";
+  }
+
+  function getOptionPrefix(modelId: string): string {
+    const badges: string[] = [];
+    if (cachedModelIds.includes(modelId)) badges.push("✅");
+    if (isCrownedModel(modelId)) badges.push("👑");
+    return badges.length ? `${badges.join(" ")} ` : "";
+  }
+
   function modelIdFromUrl(url: string): string | null {
     if (!url.startsWith(HF_PREFIX)) return null;
     const path = url.slice(HF_PREFIX.length);
@@ -98,7 +109,7 @@
           <optgroup label={group.label}>
             {#each group.models as model (model.id)}
               <option value={model.id}>
-                {cachedModelIds.includes(model.id) ? "✅ " : ""}{group.label} {model.name} — {model.size}
+                {getOptionPrefix(model.id)}{group.label} {model.name} — {model.size}
               </option>
             {/each}
           </optgroup>
@@ -112,6 +123,9 @@
       {#if selectedInfo}
         {#if cachedModelIds.includes(selectedInfo.id)}
           <p class="text-[0.72rem] text-success/80 font-medium">Cached locally in this browser</p>
+        {/if}
+        {#if isCrownedModel(selectedInfo.id)}
+          <p class="text-[0.72rem] text-warning/90 font-medium">👑 Recommended default for the best browser-side Gemma 4 experience</p>
         {/if}
         <p class="text-xs text-muted-foreground/60 italic">{selectedInfo.description}</p>
       {/if}
@@ -171,7 +185,7 @@
                       model.id === selectedModel ? "bg-primary/5" : "hover:bg-accent"
                     )}>
                       <td class="px-3 py-2 font-medium text-foreground border-b border-border/50">
-                        {group.label} {model.name}
+                        {#if isCrownedModel(model.id)}👑 {/if}{group.label} {model.name}
                         {#if model.id === selectedModel}
                           <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30">current</Badge>
                         {/if}

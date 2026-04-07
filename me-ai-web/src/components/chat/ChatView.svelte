@@ -15,6 +15,8 @@
   import { cn } from "$lib/utils.js";
   import { actionColor } from "../../lib/triage.js";
   import { mountLog } from "../../lib/debug.js";
+  import * as Collapsible from "$lib/components/ui/collapsible/index.js";
+  import { ChevronRight, MessageSquarePlus, Pencil, Trash2 } from "lucide-svelte";
 
   interface PendingData {
     total: number;
@@ -28,6 +30,20 @@
     model?: string;
     pendingData?: PendingData;
     [key: string]: unknown;
+  }
+  interface ChatSession {
+    id: string;
+    title: string | null;
+    titleStatus: "idle" | "pending" | "ready";
+    messages: Array<Record<string, unknown>>;
+    updatedAt: number;
+  }
+  interface ContextStats {
+    messageCount: number;
+    charCount: number;
+    estimatedTokens: number;
+    contextWindow: number | null;
+    usagePercent: number | null;
   }
   interface Props {
     messages?: ChatMsg[];
@@ -48,11 +64,22 @@
     backend?: string;
     activeModelLabel?: string | null;
     hasModelIssue?: boolean;
+    contextStats?: ContextStats | null;
+    chatSessions?: ChatSession[];
+    activeChatId?: string | null;
     chatContainer?: HTMLElement | null;
     onsend?: (text: string) => void;
     onstop?: () => void;
-    onreset?: () => void;
     onfixmodel?: () => void;
+    onnewchat?: () => void;
+    onselectchat?: (chatId: string) => void;
+    onrenamechat?: (chatId: string) => void;
+    ondeletechat?: (chatId: string) => void;
+    oneditlastuser?: () => void;
+    onregenerate?: () => void;
+    onsessiontitle?: (session: ChatSession) => string;
+    onsessionsubtitle?: (session: ChatSession) => string;
+    onsessiondate?: (session: ChatSession) => string;
     onmarkacted?: (id: string) => void;
     ondismiss?: (id: string) => void;
     onremove?: (id: string) => void;
@@ -82,11 +109,22 @@
     backend = "webgpu",
     activeModelLabel = null,
     hasModelIssue = false,
+    contextStats = null,
+    chatSessions = [],
+    activeChatId = null,
     chatContainer = $bindable(),
     onsend,
     onstop,
-    onreset,
     onfixmodel,
+    onnewchat,
+    onselectchat,
+    onrenamechat,
+    ondeletechat,
+    oneditlastuser,
+    onregenerate,
+    onsessiontitle,
+    onsessionsubtitle,
+    onsessiondate,
     onmarkacted,
     ondismiss,
     onremove,
@@ -99,6 +137,22 @@
   let input = $state("");
   let showGpuPanel = $state(false);
   let showGenerationPanel = $state(false);
+  let showChatSessionsPanel = $state(false);
+  let backendIndicatorState = $derived.by(() => {
+    if (hasModelIssue || !activeModelLabel) return "error";
+    if (isRunning && generationPhase === "thinking") return "thinking";
+    if (isRunning && generationPhase !== "preparing") return "generating";
+    return "idle";
+  });
+  let backendHeaderLabel = $derived.by(() => {
+    if (backend === "webgpu" && activeModelLabel) return `WebGPU-${activeModelLabel}`;
+    if (backend === "ollama" && activeModelLabel) return `Ollama-${activeModelLabel}`;
+    if (backend === "openai" && activeModelLabel) return `OpenAI-${activeModelLabel}`;
+    if (backend === "anthropic" && activeModelLabel) return `Anthropic-${activeModelLabel}`;
+    if (backend === "google" && activeModelLabel) return `Google-${activeModelLabel}`;
+    if (backend === "xai" && activeModelLabel) return `xAI-${activeModelLabel}`;
+    return activeModelLabel;
+  });
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -231,16 +285,117 @@
           {/each}
         </div>
       {:else if engineReady}
-        <div
-          class="px-2 py-3 border border-dashed border-border/60 rounded-md text-center"
-        >
-          <p class="text-[0.65rem] text-muted-foreground">No pending items.</p>
-          <button
-            onclick={onscan}
-            class="mt-1.5 text-[0.65rem] font-medium text-primary hover:underline"
+        <div class="space-y-2">
+          <div
+            class="px-2 py-3 border border-dashed border-border/60 rounded-md text-center"
           >
-            Scan Inbox Now
-          </button>
+            <p class="text-[0.65rem] text-muted-foreground">No pending items.</p>
+            <button
+              onclick={onscan}
+              class="mt-1.5 text-[0.65rem] font-medium text-primary hover:underline"
+            >
+              Scan Inbox Now
+            </button>
+          </div>
+
+          <Collapsible.Root bind:open={showChatSessionsPanel}>
+            <Collapsible.Trigger
+              class="w-full inline-flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/50 px-2.5 py-2 text-left text-[0.68rem] text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
+            >
+              <span class="inline-flex items-center gap-1.5">
+                <ChevronRight class={cn("size-3 transition-transform", showChatSessionsPanel && "rotate-90")} />
+                Chat history
+              </span>
+              <span class="text-[0.6rem] uppercase tracking-wider opacity-50">
+                {chatSessions.length}
+              </span>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <div class="mt-1 rounded-md border border-border/50 bg-background/35 p-2 space-y-2">
+                <button
+                  onclick={onnewchat}
+                  disabled={isRunning}
+                  class="w-full inline-flex items-center justify-center gap-1.5 rounded-md border border-primary/20 bg-primary/8 px-2.5 py-2 text-[0.68rem] font-semibold text-primary hover:bg-primary/14 transition-colors disabled:opacity-50"
+                >
+                  <MessageSquarePlus class="size-3.5" />
+                  New chat
+                </button>
+
+                {#if chatSessions.length > 0}
+                  <div class="space-y-2">
+                    {#each chatSessions as session (session.id)}
+                      {@const isActiveSession = session.id === activeChatId}
+                      <div
+                        class={`group rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                          isActiveSession
+                            ? "border-primary/30 bg-primary/10"
+                            : "border-border/50 bg-background/55 hover:bg-background/80"
+                        } ${isRunning && !isActiveSession ? "pointer-events-none opacity-60" : ""}`}
+                        onclick={() => onselectchat?.(session.id)}
+                        onkeydown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            onselectchat?.(session.id);
+                          }
+                        }}
+                        role="button"
+                        tabindex={isRunning && !isActiveSession ? -1 : 0}
+                        aria-pressed={isActiveSession}
+                      >
+                        <div class="flex items-start gap-2">
+                          <div class="min-w-0 flex-1">
+                            {#if session.titleStatus === "pending" && !session.title}
+                              <div class="space-y-1.5 py-0.5">
+                                <div class="h-3 w-24 rounded bg-muted/60 animate-pulse"></div>
+                                <div class="h-3 w-16 rounded bg-muted/40 animate-pulse"></div>
+                              </div>
+                            {:else}
+                              <div class="truncate text-[0.72rem] font-medium text-foreground/95">
+                                {onsessiontitle?.(session) ?? session.title ?? "Untitled chat"}
+                              </div>
+                            {/if}
+
+                            <div class="mt-1 line-clamp-2 text-[0.65rem] leading-relaxed text-muted-foreground/65">
+                              {onsessionsubtitle?.(session) ?? ""}
+                            </div>
+
+                            <div class="mt-1.5 text-[0.58rem] uppercase tracking-wider text-muted-foreground/45">
+                              {onsessiondate?.(session) ?? ""}
+                            </div>
+                          </div>
+
+                          <div class="flex flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button
+                              class="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors"
+                              onclick={(event) => {
+                                event.stopPropagation();
+                                onrenamechat?.(session.id);
+                              }}
+                              title="Rename chat"
+                              type="button"
+                            >
+                              <Pencil class="size-3.5" />
+                            </button>
+                            <button
+                              class="rounded-md p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              onclick={(event) => {
+                                event.stopPropagation();
+                                ondeletechat?.(session.id);
+                              }}
+                              title="Delete chat"
+                              type="button"
+                            >
+                              <Trash2 class="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </div>
       {/if}
     </div>
@@ -251,8 +406,9 @@
     <!-- Stats bar + Generation panel -->
     <div class="flex flex-col border-b border-border shrink-0">
       <div class="flex items-center gap-3 px-6 h-10 bg-card/10">
-        {#if backend === "webgpu" && hasModelIssue}
+        {#if hasModelIssue}
           <div class="flex items-center gap-1.5 text-[0.68rem] text-destructive">
+            <span class={`model-live-dot ${backendIndicatorState}`} aria-hidden="true"></span>
             <span class="font-semibold">No model loaded, re-downloading model.</span>
             <a
               href="#home"
@@ -261,23 +417,26 @@
             >
               Open model picker
             </a>
+            {#if backendHeaderLabel}
+              <span class="text-destructive/70">({backendHeaderLabel})</span>
+            {/if}
           </div>
-        {:else if backend === "webgpu" && activeModelLabel && gpuInfo}
+        {:else if activeModelLabel}
           <Button
             variant="outline"
             size="sm"
             onclick={() => (showGpuPanel = !showGpuPanel)}
-            class="h-5 px-1.5 text-[0.6rem] font-bold uppercase tracking-wider text-success border-success/30 bg-success/8 hover:bg-success/14"
+            class={cn(
+              "h-5 px-1.5 text-[0.6rem] font-bold tracking-wider",
+              backend === "webgpu"
+                ? "uppercase text-success border-success/30 bg-success/8 hover:bg-success/14"
+                : "border-border/70 bg-background/45 text-foreground/80 hover:bg-background/80",
+            )}
           >
-            WebGPU-{activeModelLabel} {showGpuPanel ? "▲" : "▼"}
+            <span>{backendHeaderLabel}</span>
+            <span class={`model-live-dot ${backendIndicatorState}`} aria-hidden="true"></span>
+            {showGpuPanel ? "▲" : "▼"}
           </Button>
-        {:else if backend === "webgpu" && activeModelLabel}
-          <Badge
-            variant="outline"
-            class="text-[0.6rem] font-bold tracking-wider h-5 px-1.5 text-success border-success/30 bg-success/8"
-          >
-            WebGPU-{activeModelLabel}
-          </Badge>
         {:else if BACKEND_META[backend]}
           {@const meta = BACKEND_META[backend]}
           <Badge
@@ -287,7 +446,8 @@
               meta.color,
             )}
           >
-            {meta.label}
+            <span>{backendHeaderLabel ?? meta.label}</span>
+            <span class={`model-live-dot ${backendIndicatorState}`} aria-hidden="true"></span>
           </Badge>
         {/if}
 
@@ -343,11 +503,11 @@
         <Button
           variant="ghost"
           size="sm"
-          onclick={onreset}
+          onclick={onnewchat}
           disabled={isRunning}
           class="h-6 text-xs px-2"
         >
-          Reset
+          New Chat
         </Button>
       </div>
       {#if showGenerationPanel}
@@ -416,8 +576,8 @@
       {/if}
     </div>
 
-    {#if showGpuPanel && gpuInfo}
-      <GpuPanel {gpuInfo} />
+    {#if showGpuPanel && activeModelLabel}
+      <GpuPanel gpuInfo={gpuInfo as { vendor?: string; architecture?: string; device?: string; features?: string[]; limits?: { maxBufferSize?: number; maxComputeInvocationsPerWorkgroup?: number; maxComputeWorkgroupStorageSize?: number } } | null} {backend} {contextStats} />
     {/if}
 
     <!-- Messages -->
@@ -461,6 +621,10 @@
             .slice(0, i)
             .filter((m) => m.role === "assistant")
             .at(-1)?.model}
+          {@const lastAssistantIndex = messages.findLastIndex((m) => m.role === "assistant" && !m.type)}
+          {@const lastUserIndex = messages.findLastIndex((m) => m.role === "user")}
+          {@const isLatestAssistant = msg.role === "assistant" && i === lastAssistantIndex}
+          {@const isLatestUser = msg.role === "user" && i === lastUserIndex}
           <MessageBubble
             msg={msg as unknown as { role: string; content?: string; model?: string; [key: string]: unknown }}
             isLast={i === messages.length - 1}
@@ -468,6 +632,10 @@
             {generationPhase}
             {numTokens}
             {backend}
+            canEditMessage={isLatestUser && !isRunning}
+            canRegenerate={isLatestAssistant && lastUserIndex !== -1 && lastUserIndex < i && !isRunning}
+            {oneditlastuser}
+            {onregenerate}
             showModelName={msg.role === "assistant" &&
               !!msg.model &&
               msg.model !== prevModel}
@@ -508,3 +676,104 @@
     </div>
   </div>
 </div>
+
+<style>
+  .model-live-dot {
+    position: relative;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    display: inline-block;
+    margin-left: 0.15rem;
+    flex-shrink: 0;
+  }
+
+  .model-live-dot::after {
+    content: "";
+    position: absolute;
+    inset: -0.28rem;
+    border-radius: 9999px;
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+
+  .model-live-dot.idle {
+    background: #4ade80;
+    box-shadow: 0 0 0.45rem rgba(74, 222, 128, 0.55);
+    animation: liveIdlePulse 1.8s ease-in-out infinite;
+  }
+
+  .model-live-dot.idle::after {
+    border: 1px solid rgba(74, 222, 128, 0.42);
+    animation: liveRing 1.8s ease-out infinite;
+  }
+
+  .model-live-dot.generating {
+    background: #facc15;
+    box-shadow: 0 0 0.5rem rgba(250, 204, 21, 0.55);
+    animation: liveGeneratePulse 1.05s ease-in-out infinite;
+  }
+
+  .model-live-dot.generating::after {
+    border: 1px solid rgba(250, 204, 21, 0.42);
+    animation: liveRingFast 1.05s ease-out infinite;
+  }
+
+  .model-live-dot.thinking {
+    background: #facc15;
+    box-shadow: 0 0 0.5rem rgba(250, 204, 21, 0.48);
+    animation: liveThinkingBlink 0.95s steps(1, end) infinite;
+  }
+
+  .model-live-dot.thinking::after {
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    animation: liveRingFast 0.95s ease-out infinite;
+  }
+
+  .model-live-dot.error {
+    background: #f87171;
+    box-shadow: 0 0 0.5rem rgba(248, 113, 113, 0.5);
+    animation: liveErrorPulse 1.3s ease-in-out infinite;
+  }
+
+  .model-live-dot.error::after {
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    animation: liveRingFast 1.3s ease-out infinite;
+  }
+
+  @keyframes liveIdlePulse {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50% { transform: scale(1.08); opacity: 1; }
+  }
+
+  @keyframes liveGeneratePulse {
+    0%, 100% { transform: scale(0.95); opacity: 0.88; }
+    50% { transform: scale(1.14); opacity: 1; }
+  }
+
+  @keyframes liveThinkingBlink {
+    0%, 49% {
+      background: #facc15;
+      box-shadow: 0 0 0.5rem rgba(250, 204, 21, 0.48);
+    }
+    50%, 100% {
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 0 0.5rem rgba(255, 255, 255, 0.45);
+    }
+  }
+
+  @keyframes liveErrorPulse {
+    0%, 100% { transform: scale(0.96); opacity: 0.9; }
+    50% { transform: scale(1.12); opacity: 1; }
+  }
+
+  @keyframes liveRing {
+    0% { opacity: 0.55; transform: scale(0.72); }
+    100% { opacity: 0; transform: scale(1.55); }
+  }
+
+  @keyframes liveRingFast {
+    0% { opacity: 0.5; transform: scale(0.74); }
+    100% { opacity: 0; transform: scale(1.65); }
+  }
+</style>

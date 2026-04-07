@@ -29,7 +29,11 @@
   // "email" | "markdown" | "json"
   let viewMode = $state("email");
 
-  let markdownText = $derived(message.body ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" }) : "");
+  let markdownText = $derived(
+    message.body || message.htmlBody
+      ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" })
+      : "",
+  );
   let jsonText = $derived(emailToJsonString(message));
 
   let mdTab = $state("raw"); // "raw" | "preview"
@@ -122,7 +126,7 @@
         >
           .json
         </button>
-        {#if message.body}
+        {#if message.body || message.htmlBody}
           <button
             class="action-btn"
             class:active={viewMode === "markdown"}

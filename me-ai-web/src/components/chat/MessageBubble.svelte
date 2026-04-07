@@ -1,21 +1,25 @@
 <script lang="ts">
   import { marked } from "marked";
   import DOMPurify from "dompurify";
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { mountLog } from "../../lib/debug.js";
   import { getCore } from "../../lib/store/core-store.js";
   const getModelInfo = (id: string) => getCore().getOnnxModelInfo(id);
   const getModelGroups = () => getCore().getOnnxModelGroups();
+  const getOllamaModelInfo = (id: string) => getCore().getOllamaModelInfo(id);
+  const getApiModelInfo = (id: string) => getCore().getApiModelInfo(id);
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
-  import { ChevronRight } from "lucide-svelte";
+  import { Check, ChevronRight, Copy, Pencil, RotateCcw } from "lucide-svelte";
   import { cn } from "$lib/utils.js";
 
   interface ChatMessage {
     role: string;
     content?: string;
+    createdAt?: number;
     thinking?: string;
     thinkingStartedAt?: number | null;
     thinkingDurationMs?: number | null;
+    stopped?: boolean;
     model?: string;
     [key: string]: unknown;
   }
@@ -27,6 +31,10 @@
     numTokens?: number | null;
     backend?: string | null;
     showModelName?: boolean;
+    canEditMessage?: boolean;
+    canRegenerate?: boolean;
+    oneditlastuser?: () => void;
+    onregenerate?: () => void;
   }
   let {
     msg,
@@ -36,6 +44,10 @@
     numTokens = null,
     backend = null,
     showModelName = false,
+    canEditMessage = false,
+    canRegenerate = false,
+    oneditlastuser,
+    onregenerate,
   }: Props = $props();
 
   onMount(() => mountLog(`MessageBubble[${msg.role}]`));
@@ -54,6 +66,14 @@
 
   let modelName = $derived.by(() => {
     if (!msg.model) return null;
+    if (backend === "ollama") {
+      const ollamaInfo = getOllamaModelInfo(msg.model);
+      return ollamaInfo?.displayName ?? ollamaInfo?.name ?? msg.model;
+    }
+    if (backend && backend !== "webgpu") {
+      const apiInfo = getApiModelInfo(msg.model);
+      return apiInfo?.displayName ?? apiInfo?.name ?? msg.model;
+    }
     for (const group of getModelGroups()) {
       const groupedModel = group.models.find((item) => item.id === msg.model);
       if (groupedModel) return `${group.label} ${groupedModel.name}`;
@@ -102,6 +122,24 @@
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   }
 
+  function formatMessageTimestamp(ts: number | null | undefined): string | null {
+    if (typeof ts !== "number" || !Number.isFinite(ts)) return null;
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(ts);
+    } catch {
+      return null;
+    }
+  }
+
+  let messageTimestamp = $derived(formatMessageTimestamp(msg.createdAt ?? null));
+  let copyState = $state<"idle" | "copied">("idle");
+  let copyResetTimer = $state<number | null>(null);
+
   $effect(() => {
     if (isActivelyThinking && !didAutoOpenThinking) {
       showThinking = true;
@@ -141,13 +179,68 @@
     const intervalId = window.setInterval(updateElapsed, 100);
     return () => window.clearInterval(intervalId);
   });
+
+  onDestroy(() => {
+    if (copyResetTimer) window.clearTimeout(copyResetTimer);
+  });
+
+  async function copyAssistantMessage() {
+    const text = typeof msg.content === "string" ? msg.content : "";
+    if (!text) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      copyState = "copied";
+      if (copyResetTimer) window.clearTimeout(copyResetTimer);
+      copyResetTimer = window.setTimeout(() => {
+        copyState = "idle";
+        copyResetTimer = null;
+      }, 2200);
+    } catch {
+      copyState = "idle";
+    }
+  }
 </script>
 
 {#if msg.role === "user"}
   <div class="flex justify-end py-0.5">
-    <div class="max-w-[72%] bg-primary text-primary-foreground px-4 py-2 text-sm leading-relaxed word-break-words whitespace-pre-wrap tracking-tight"
-         style="border-radius: 18px 18px 4px 18px">
-      {msg.content}
+    <div class="flex items-end gap-2 max-w-[78%]">
+      {#if canEditMessage}
+        <button
+          type="button"
+          onclick={oneditlastuser}
+          title="Edit your last message"
+          aria-label="Edit your last message"
+          class="message-action message-action-icon mb-0.5 shrink-0"
+        >
+          <Pencil class="size-3" />
+        </button>
+      {/if}
+
+      <div class="min-w-0">
+      {#if messageTimestamp}
+        <div class="mb-1 text-right text-[0.66rem] text-muted-foreground/55 tabular-nums">
+          {messageTimestamp}
+        </div>
+      {/if}
+      <div class="bg-primary text-primary-foreground px-4 py-2 text-sm leading-relaxed word-break-words whitespace-pre-wrap tracking-tight"
+           style="border-radius: 18px 18px 4px 18px">
+        {msg.content}
+      </div>
+      </div>
     </div>
   </div>
 
@@ -166,6 +259,17 @@
 
       {#if showModelName && modelName}
         <span class="text-xs text-muted-foreground/30">{modelName}</span>
+      {/if}
+
+      {#if messageTimestamp}
+        <span class="text-[0.66rem] text-muted-foreground/45 tabular-nums">{messageTimestamp}</span>
+      {/if}
+
+      {#if msg.stopped}
+        <span class="inline-flex items-center gap-1 text-[0.62rem] text-amber-300/80 uppercase tracking-wider">
+          <span class="size-1.5 rounded-full bg-amber-300/80"></span>
+          Stopped
+        </span>
       {/if}
 
       {#if isStreaming && generationPhase === "thinking"}
@@ -221,8 +325,47 @@
         <div class="md-body">{@html html}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
       {:else if msg.content}
         <div class="md-body plain">{msg.content}{#if isStreaming}<span class="cursor">▋</span>{/if}</div>
+      {:else if msg.stopped}
+        <div class="text-[0.75rem] italic text-muted-foreground/55">Stopped before final answer.</div>
       {/if}
     </div>
+
+    {#if !isStreaming && (msg.content || canRegenerate)}
+      <div class="flex items-center justify-end gap-2 pt-0.5 flex-wrap ml-auto">
+        {#if msg.content}
+          <button
+            type="button"
+            onclick={copyAssistantMessage}
+            class={cn(
+              "message-action message-action-copy",
+              copyState === "copied"
+                ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.08)]"
+                : "border-border/60 bg-background/35 text-muted-foreground/80 hover:text-foreground hover:bg-background/75",
+            )}
+          >
+            {#if copyState === "copied"}
+              <Check class="size-3" />
+              Copied
+            {:else}
+              <Copy class="size-3" />
+              Copy
+            {/if}
+          </button>
+        {/if}
+
+        {#if canRegenerate}
+          <button
+            type="button"
+            onclick={onregenerate}
+            title="Regenerate response"
+            aria-label="Regenerate response"
+            class="message-action message-action-icon"
+          >
+            <RotateCcw class="size-3" />
+          </button>
+        {/if}
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -230,6 +373,47 @@
   @keyframes dotBounce {
     0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
     40% { opacity: 1; transform: scale(1.15); }
+  }
+
+  .message-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 1.7rem;
+    border-radius: 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+    background: color-mix(in srgb, var(--color-background) 38%, transparent);
+    color: color-mix(in srgb, var(--color-muted-foreground) 88%, transparent);
+    padding: 0 0.55rem;
+    font-size: 0.68rem;
+    line-height: 1;
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      border-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  .message-action:hover {
+    color: var(--color-foreground);
+    background: color-mix(in srgb, var(--color-background) 78%, transparent);
+    border-color: color-mix(in srgb, var(--color-border) 88%, transparent);
+  }
+
+  .message-action:active {
+    transform: translateY(1px);
+  }
+
+  .message-action-icon {
+    width: 1.7rem;
+    padding: 0;
+  }
+
+  .message-action-copy {
+    padding-inline: 0.62rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
 
   /* Cursor blink */

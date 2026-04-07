@@ -145,6 +145,7 @@ class TextGenerationPipeline {
 }
 
 const stopping_criteria = new InterruptableStoppingCriteria();
+let generationInterrupted = false;
 
 function isHarmonyModel(model_id: string): boolean {
   return model_id.includes("gpt-oss");
@@ -342,6 +343,8 @@ async function generate(
   } = options;
 
   try {
+    generationInterrupted = false;
+    stopping_criteria.reset();
     const modelId = TextGenerationPipeline.model_id;
     if (!modelId) throw new Error("No model loaded");
     const useHarmony = isHarmonyModel(modelId);
@@ -471,7 +474,9 @@ async function generate(
       stopping_criteria,
     });
 
-    if (useHarmony && harmonyRawBuffer) {
+    const wasInterrupted = generationInterrupted;
+
+    if (useHarmony && harmonyRawBuffer && !wasInterrupted) {
       const { thinking, response } = parseHarmonyOutput(harmonyRawBuffer);
       if (thinking) {
         reply({ status: "phase", phase: "thinking" });
@@ -485,7 +490,7 @@ async function generate(
         reply({ status: "phase", phase: "thinking" });
         reply({ status: "thinking-done", content: thinking, tps, numTokens });
       }
-      const finalResponse = response || stripGemma4ControlTokens(gemma4RawBuffer);
+      const finalResponse = wasInterrupted ? "" : response || stripGemma4ControlTokens(gemma4RawBuffer);
       if (finalResponse.length > gemma4ResponseLength) {
         reply({ status: "phase", phase: "generating" });
         reply({ status: "update", output: finalResponse.slice(gemma4ResponseLength), tps, numTokens });
@@ -494,21 +499,28 @@ async function generate(
 
     if (!useHarmony && !useGemma4 && !thinkingDone && thinkBuffer.length > 0) {
       reply({ status: "thinking-done", content: thinkBuffer, tps, numTokens });
-      reply({ status: "phase", phase: "generating" });
-      reply({
-        status: "update",
-        output:
-          "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
-        tps,
-        numTokens,
-      });
+      if (!wasInterrupted) {
+        reply({ status: "phase", phase: "generating" });
+        reply({
+          status: "update",
+          output:
+            "[Thinking used all tokens — no response generated. Try a shorter prompt.]",
+          tps,
+          numTokens,
+        });
+      }
     }
+
+    stopping_criteria.reset();
+    generationInterrupted = false;
+    reply({ status: "complete", interrupted: wasInterrupted });
+    return;
   } catch (e) {
+    stopping_criteria.reset();
+    generationInterrupted = false;
     console.error("[llm-worker] Generation error:", e);
     reply({ status: "error", data: String(e) });
   }
-
-  reply({ status: "complete" });
 }
 
 interface WorkerMessageData {
@@ -538,6 +550,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessageData>) => {
       await generate(data ?? [], options ?? {}, reply);
       break;
     case "interrupt":
+      generationInterrupted = true;
       stopping_criteria.interrupt();
       break;
     case "reset":
