@@ -30,7 +30,7 @@ function isGemma4Model(model_id: string): boolean {
   return /gemma-4/i.test(model_id);
 }
 
-type TokenizerInstance = InstanceType<typeof AutoTokenizer>;
+type TokenizerInstance = PreTrainedTokenizer;
 type ProcessorInstance = InstanceType<typeof AutoProcessor>;
 type LoadOptions = { dtype?: string; device?: string };
 type DisposableModel = { dispose?: () => Promise<unknown> | unknown };
