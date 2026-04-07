@@ -63,8 +63,8 @@
     return availableModels.length > 0 && availableModels.includes(modelName);
   }
 
+  const ollamaModelGroups = getCore().getOllamaModelGroups();
   const ollamaModels = getCore().getOllamaModels();
-  const recommendedModels = getCore().getRecommendedOllamaModels();
 </script>
 
 <div class="flex flex-col gap-5 w-full max-w-[520px] mx-auto">
@@ -138,20 +138,15 @@
           bind:value={selectedModel}
           class="w-full h-9 px-3 rounded border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
-          <optgroup label="Recommended (ollama pull MODEL_NAME)">
-            {#each recommendedModels as model (model.name)}
-              <option value={model.name}>
-                {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
-              </option>
-            {/each}
-          </optgroup>
-          <optgroup label="Other Models">
-            {#each ollamaModels.filter(m => !m.recommended) as model (model.name)}
-              <option value={model.name}>
-                {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
-              </option>
-            {/each}
-          </optgroup>
+          {#each ollamaModelGroups as group (group.label)}
+            <optgroup label={group.label}>
+              {#each group.models as model (model.name)}
+                <option value={model.name}>
+                  {model.displayName} ({model.params}) – {(model.contextWindow / 1024).toFixed(0)}k ctx{isModelInstalled(model.name) ? " ✓" : ""}
+                </option>
+              {/each}
+            </optgroup>
+          {/each}
         </select>
       </div>
 
@@ -202,30 +197,35 @@
               </tr>
             </thead>
             <tbody>
-              {#each ollamaModels as model (model.name)}
-                <tr class={cn(
-                  "transition-colors",
-                  model.name === selectedModel ? "bg-primary/5" : "hover:bg-accent",
-                  !isModelInstalled(model.name) && "opacity-50"
-                )}>
-                  <td class="px-3 py-1.5 font-medium text-foreground border-b border-border/50">
-                    {model.displayName}
-                    {#if model.name === selectedModel}
-                      <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30">current</Badge>
-                    {/if}
-                    {#if isModelInstalled(model.name)}
-                      <span class="ml-1 text-success text-[0.65rem]">✓</span>
-                    {/if}
-                  </td>
-                  <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">
-                    <strong class="text-foreground">{(model.contextWindow / 1024).toFixed(0)}k</strong>
-                  </td>
-                  <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">{model.params}</td>
-                  <td class="px-3 py-1.5 text-muted-foreground/60 border-b border-border/50">
-                    {#if model.recommended}<span class="text-success mr-1">✅</span>{/if}
-                    {model.tags.slice(0, 2).join(", ")}
-                  </td>
+              {#each ollamaModelGroups as group (group.label)}
+                <tr>
+                  <td colspan="4" class="px-3 pt-3 pb-1 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/40">{group.label}</td>
                 </tr>
+                {#each group.models as model (model.name)}
+                  <tr class={cn(
+                    "transition-colors",
+                    model.name === selectedModel ? "bg-primary/5" : "hover:bg-accent",
+                    !isModelInstalled(model.name) && "opacity-50"
+                  )}>
+                    <td class="px-3 py-1.5 font-medium text-foreground border-b border-border/50">
+                      {model.displayName}
+                      {#if model.name === selectedModel}
+                        <Badge variant="outline" class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30">current</Badge>
+                      {/if}
+                      {#if isModelInstalled(model.name)}
+                        <span class="ml-1 text-success text-[0.65rem]">✓</span>
+                      {/if}
+                    </td>
+                    <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">
+                      <strong class="text-foreground">{(model.contextWindow / 1024).toFixed(0)}k</strong>
+                    </td>
+                    <td class="px-3 py-1.5 tabular-nums text-muted-foreground border-b border-border/50">{model.params}</td>
+                    <td class="px-3 py-1.5 text-muted-foreground/60 border-b border-border/50">
+                      {#if model.recommended}<span class="text-success mr-1">✅</span>{/if}
+                      {model.tags.slice(0, 2).join(", ")}
+                    </td>
+                  </tr>
+                {/each}
               {/each}
             </tbody>
           </table>
