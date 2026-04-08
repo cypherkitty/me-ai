@@ -59,9 +59,9 @@ export async function getStoredEmails({
   return { items: page.map((r) => normaliseRow(r)), total };
 }
 
-// ── Internal helpers ────────────────────────────────────────────────────────
+// ── Row normalisation ────────────────────────────────────────────────────────
 
-function normaliseRow(row: Record<string, unknown>): StoredItem {
+export function normaliseRow(row: Record<string, unknown>): StoredItem {
   return {
     ...row,
     id: row.id as string,

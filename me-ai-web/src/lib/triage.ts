@@ -7,7 +7,8 @@
  */
 
 import { getCore } from "./store/core-store.js";
-import { toJson, fromJson } from "./store/db.js";
+import { toJson } from "./store/db.js";
+import { normaliseRow } from "./store/query-layer.js";
 import { seedEventTypeFromLLM } from "./events.js";
 import type { StoredItem } from "$lib/types";
 import type {
@@ -69,7 +70,7 @@ export async function scanEmails(
   const core = getCore();
   if (force) {
     const rows = (await core.getItemsGmailByDateDesc(count)) as unknown as StoredItemRow[];
-    toProcess = rows.map((r) => normaliseItemRow(r as unknown as Record<string, unknown>));
+    toProcess = rows.map((r) => normaliseRow(r as unknown as Record<string, unknown>));
   } else {
     const [allItems, allClassifications] = await Promise.all([
       core.getItemsGmailByDateDesc(5000) as unknown as Promise<StoredItemRow[]>,
@@ -79,7 +80,7 @@ export async function scanEmails(
     toProcess = (allItems ?? [])
       .filter((r) => !classifiedIds.has((r as unknown as Record<string, unknown>).id as string))
       .slice(0, count)
-      .map((r) => normaliseItemRow(r as unknown as Record<string, unknown>));
+      .map((r) => normaliseRow(r as unknown as Record<string, unknown>));
     skipped = Number((await core.getEmailClassificationsCount()) ?? 0);
   }
 
@@ -99,12 +100,7 @@ export async function scanEmails(
   let totalInputTokens = 0;
   const results: ScanEmailResult[] = [];
 
-  const plugins = core.getPluginsForPrompt();
-  const pluginNames = plugins
-    .filter((p) => p.actions.length)
-    .map((p) => p.pluginName)
-    .join(", ");
-  const systemPrompt = core.buildSystemPrompt(pluginNames);
+  const systemPrompt = getSystemPrompt();
 
   const currentModel = engine.modelId;
   const modelInfo =
@@ -385,11 +381,13 @@ export async function deleteClassification(emailId: string): Promise<void> {
   await getCore().deleteEmailClassification(emailId);
 }
 
-export async function getScanStats(): Promise<{
+export interface ScanStats {
   totalEmails: number;
   classified: number;
   unclassified: number;
-}> {
+}
+
+export async function getScanStats(): Promise<ScanStats> {
   const c = getCore();
   const [totalEmails, classified] = await Promise.all([
     c.getItemsCountGmail().then((n) => Number(n ?? 0)),
@@ -400,16 +398,6 @@ export async function getScanStats(): Promise<{
     classified,
     unclassified: Math.max(0, totalEmails - classified),
   };
-}
-
-function normaliseItemRow(row: Record<string, unknown>): StoredItem {
-  return {
-    ...row,
-    date: row.date != null ? Number(row.date) : null,
-    syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
-    labels: fromJson(String(row.labels ?? ""), []) as string[],
-    raw: fromJson(row.raw != null ? String(row.raw) : null, null),
-  } as StoredItem;
 }
 
 // normaliseClassificationRow — removed: normalisation now happens in Rust

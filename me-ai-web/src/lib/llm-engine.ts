@@ -211,12 +211,30 @@ export function getEngine() {
       });
     },
 
-    clearCache(modelId: string | null): Promise<void> {
+    clearCache(modelId: string | null, timeoutMs = 30_000): Promise<void> {
       return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+          settled = true;
+          clearTimeout(timer);
+          _listeners.delete(handler);
+        };
+
+        const timer = setTimeout(() => {
+          if (!settled) {
+            cleanup();
+            reject(new Error("clearCache timed out: no response from worker"));
+          }
+        }, timeoutMs);
+
         const handler: Listener = (msg) => {
+          if (settled) return;
           if (msg.status === "cacheCleared") {
-            _listeners.delete(handler);
+            cleanup();
             resolve();
+          } else if (msg.status === "error") {
+            cleanup();
+            reject(new Error(`clearCache failed: ${msg.data ?? "unknown worker error"}`));
           }
         };
         _listeners.add(handler);
@@ -225,7 +243,10 @@ export function getEngine() {
           .then((w) => {
             w.postMessage({ type: "clearCache", modelId });
           })
-          .catch(reject);
+          .catch((err) => {
+            cleanup();
+            reject(err);
+          });
       });
     },
 
