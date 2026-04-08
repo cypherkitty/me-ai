@@ -1264,7 +1264,7 @@ fn parse_optional_config(config: Option<JsValue>) -> Result<Option<serde_json::V
 
 fn format_item_for_llm(item: &crate::storage::sync::ItemRow) -> String {
     let date = item.date
-        .and_then(|d| crate::formatting::short_date(d))
+        .and_then(crate::formatting::short_date)
         .unwrap_or_else(|| "Unknown date".to_string());
     let body = crate::formatting::truncate(&item.body, 500);
     [
