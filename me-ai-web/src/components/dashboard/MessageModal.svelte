@@ -30,7 +30,7 @@
   let viewMode = $state("email");
 
   let markdownText = $derived(
-    message.body
+    message.body || message.htmlBody
       ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" })
       : ""
   );
@@ -197,7 +197,7 @@
         >
           .json
         </button>
-        {#if message.body}
+        {#if message.body || message.htmlBody}
           <button
             class="action-btn"
             class:active={viewMode === "markdown"}

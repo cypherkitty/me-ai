@@ -6,12 +6,14 @@
  */
 
 import { getCore } from "./core-store.js";
+import { clearSavedChatSessions } from "../chat-sessions.js";
 
 /**
  * Clear all user data via core (items, syncState, contacts, rules, events, etc.) and reload.
  */
 export async function wipeAllData(): Promise<void> {
   await getCore().clearAllData();
+  clearSavedChatSessions();
   if (typeof window !== "undefined") {
     window.location.reload();
   }
