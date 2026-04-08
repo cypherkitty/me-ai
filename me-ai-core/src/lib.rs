@@ -1251,6 +1251,18 @@ impl MeAiCore {
         )
     }
 
+    /// `MessageForMarkdown`-shaped object → markdown (same rules as the former `markdown-export.ts` helper).
+    #[wasm_bindgen(js_name = emailMessageToMarkdown)]
+    pub fn email_message_to_markdown(&self, message: JsValue) -> String {
+        formatting::markdown_export::email_message_to_markdown(&message)
+    }
+
+    /// Safe `.md` (or other) filename from `subject` + `date` on a message-like object.
+    #[wasm_bindgen(js_name = exportEmailMessageFilename)]
+    pub fn export_email_message_filename(&self, message: JsValue, ext: &str) -> String {
+        formatting::markdown_export::export_email_filename_from_message(&message, ext)
+    }
+
     /// Convert an HTML string to Markdown. Returns `None` if the result is empty.
     #[wasm_bindgen(js_name = htmlToMarkdownBody)]
     pub fn html_to_markdown_body(&self, html: &str) -> Option<String> {

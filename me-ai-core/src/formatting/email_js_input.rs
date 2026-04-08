@@ -1,5 +1,5 @@
 //! Email date values from the JS boundary (`string | number | bigint | null | undefined`).
-//! Mirrors the former me-ai-web `email-utils` / `markdown-export` parsing using `Date.parse` and `Number()`.
+//! Mirrors the former me-ai-web `email-utils` parsing using `Date.parse` and `Number()`.
 
 use wasm_bindgen::prelude::*;
 
@@ -35,8 +35,9 @@ fn js_string_constructor(v: &JsValue) -> String {
         .unwrap_or_default()
 }
 
+/// String coercion for arbitrary JS values (used by markdown export field readers).
 #[cfg(target_arch = "wasm32")]
-fn js_to_string(v: &JsValue) -> Option<String> {
+pub(crate) fn js_to_string(v: &JsValue) -> Option<String> {
     if let Some(s) = v.as_string() {
         return Some(s);
     }

@@ -3,8 +3,7 @@
   import { onMount } from "svelte";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
-  import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
-  import { emailToJsonString, emailJsonFilename, getCore } from "../../lib/core.js";
+  import { downloadText, emailToJsonString, emailJsonFilename, getCore } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
 
   interface Props {
@@ -30,7 +29,10 @@
 
   let markdownText = $derived(
     message.body || message.htmlBody
-      ? emailToMarkdown({ ...message, date: message.date != null ? String(message.date) : "" })
+      ? getCore().emailMessageToMarkdown({
+          ...message,
+          date: message.date != null ? String(message.date) : "",
+        })
       : ""
   );
   let jsonText = $derived(emailToJsonString(message));
@@ -45,7 +47,10 @@
   function downloadMd() {
     downloadText(
       markdownText,
-      emailFilename({ ...message, date: message.date != null ? String(message.date) : "" })
+      getCore().exportEmailMessageFilename(
+        { ...message, date: message.date != null ? String(message.date) : "" },
+        "md"
+      )
     );
   }
 

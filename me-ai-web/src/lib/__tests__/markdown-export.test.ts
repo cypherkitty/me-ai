@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { emailToMarkdown, emailFilename } from "../markdown-export.js";
-import type { MessageForMarkdown } from "../markdown-export.js";
+import type { MessageForMarkdown } from "../core.js";
+import { getCore } from "../store/core-store.js";
 
 const mockEmailDateToEpochMs = (d: unknown): number => {
   if (d === "" || d == null) return 0;
@@ -64,6 +64,25 @@ const mockEmailToMarkdown = (
 
 vi.mock("../store/core-store.js", () => ({
   getCore: () => ({
+    emailMessageToMarkdown: (msg: MessageForMarkdown) => {
+      const dateMs = mockEmailDateToEpochMs(msg.date);
+      const bodyRaw = msg.body;
+      const body =
+        bodyRaw != null && String(bodyRaw).trim().length > 0 ? String(bodyRaw).trim() : undefined;
+      const htmlRaw = msg.htmlBody;
+      const htmlBody =
+        htmlRaw != null && String(htmlRaw).trim().length > 0 ? String(htmlRaw).trim() : undefined;
+      return mockEmailToMarkdown(
+        msg.subject || "",
+        msg.from || "",
+        msg.to || "",
+        dateMs,
+        body,
+        htmlBody
+      );
+    },
+    exportEmailMessageFilename: (msg: MessageForMarkdown, ext: string) =>
+      mockExportFilename(msg.subject || "", mockEmailDateToEpochMs(msg.date), ext),
     emailDateToEpochMs: mockEmailDateToEpochMs,
     exportEmailFilename: (subject: string, date: unknown, ext: string) =>
       mockExportFilename(subject, mockEmailDateToEpochMs(date), ext),
@@ -71,6 +90,9 @@ vi.mock("../store/core-store.js", () => ({
   }),
   coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
+
+const emailToMarkdown = (m: MessageForMarkdown) => getCore().emailMessageToMarkdown(m);
+const emailFilename = (m: MessageForMarkdown) => getCore().exportEmailMessageFilename(m, "md");
 
 const BASIC_MESSAGE: MessageForMarkdown = {
   subject: "Hello World",
