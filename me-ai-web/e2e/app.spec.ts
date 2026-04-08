@@ -4,11 +4,14 @@ import { test, expect } from "@playwright/test";
 // App shell — Chat mode
 // ────────────────────────────────────────────────────────────
 test.describe("App shell", () => {
-  test("renders brand and nav links in chat mode", async ({ page }) => {
+  test("renders brand and workflow links in chat mode", async ({ page }) => {
     await page.goto("/");
 
     await expect(page.getByText("me-ai").first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /Pipeline/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Start here/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Scan&Chat/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Sources/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Control/i })).toBeVisible();
   });
 
   test("shows AI backend selector on load", async ({ page }) => {
@@ -22,16 +25,16 @@ test.describe("App shell", () => {
 });
 
 // ────────────────────────────────────────────────────────────
-// Navigation — Chat → Pipeline mode
+// Navigation — Home workflow
 // ────────────────────────────────────────────────────────────
 test.describe("Navigation", () => {
-  test("navigates to pipeline mode via Pipeline link", async ({ page }) => {
+  test("navigates to control mode via Control link", async ({ page }) => {
     await page.goto("/");
 
-    await page.getByRole("link", { name: /Pipeline/i }).click();
-    await expect(page).toHaveURL(/#stream/);
+    await page.getByRole("link", { name: /Control/i }).click();
+    await expect(page).toHaveURL(/#pipelines/);
 
-    await expect(page.getByRole("link", { name: /Event Stream/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Routing Pipelines" })).toBeVisible();
   });
 
   test("navigates back to chat from pipeline sidebar", async ({ page }) => {
@@ -114,7 +117,9 @@ test.describe("Chat page", () => {
     const hasWebGPU = await page.evaluate(async () => {
       if (!("gpu" in navigator)) return false;
       try {
-        const adapter = await (navigator as unknown as { gpu: { requestAdapter(): Promise<unknown> } }).gpu.requestAdapter();
+        const adapter = await (
+          navigator as unknown as { gpu: { requestAdapter(): Promise<unknown> } }
+        ).gpu.requestAdapter();
         return adapter !== null;
       } catch {
         return false;
