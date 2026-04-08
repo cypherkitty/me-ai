@@ -58,15 +58,6 @@ export async function nukeAllLocalData(): Promise<void> {
 
 // ─── Utilities (no DB) ─────────────────────────────────────────────────────
 
-export function makeItemId(sourceType: string, sourceId: string): string {
-  return `${sourceType}:${sourceId}`;
-}
-
 export function toJson(value: unknown): string {
   return JSON.stringify(value ?? null);
-}
-
-export function fromJson<T>(text: string | null | undefined, fallback: T): T {
-  if (text == null) return fallback;
-  return JSON.parse(text) as T;
 }

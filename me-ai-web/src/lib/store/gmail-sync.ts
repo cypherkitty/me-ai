@@ -34,10 +34,6 @@ export async function syncGmailMore(
   return getCore().syncGmailMore(token, limit, onProgress, signal);
 }
 
-export async function clearGmailData(): Promise<void> {
-  await getCore().clearGmailData();
-}
-
 export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
   return (await getCore().getGmailSyncStatus()) as GmailSyncStatus;
 }
