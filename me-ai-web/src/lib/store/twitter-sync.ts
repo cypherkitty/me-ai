@@ -14,7 +14,7 @@
 import { getCore } from "./core-store.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
 import { getSyncState, writeSyncState, bulkUpsertItems, throwIfAborted } from "./sync-base.js";
-import type { SyncProgress, StoredItem } from "$lib/types";
+import type { SyncProgress, SyncState, StoredItem } from "$lib/types";
 
 const DEFAULT_SYNC_LIMIT = 50;
 

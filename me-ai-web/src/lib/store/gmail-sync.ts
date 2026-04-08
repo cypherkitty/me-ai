@@ -17,7 +17,7 @@ import { getCore } from "./core-store.js";
 import { makeItemId } from "./db.js";
 import { getSyncState, writeSyncState, bulkUpsertItems, throwIfAborted } from "./sync-base.js";
 import { GmailApiError } from "../core.js";
-import type { SyncProgress } from "$lib/types";
+import type { SyncProgress, SyncState } from "$lib/types";
 import type { StoredItem } from "$lib/types";
 
 const SOURCE_TYPE = "gmail";
