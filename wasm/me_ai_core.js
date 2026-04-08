@@ -3144,6 +3144,23 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * `MessageForMarkdown`-shaped object → markdown (same rules as the former `markdown-export.ts` helper).
+     * @param {any} message
+     * @returns {string}
+     */
+    emailMessageToMarkdown(message) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_emailMessageToMarkdown(this.__wbg_ptr, message);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
      * Convert an email to Markdown with a metadata header table (`date_ms`: epoch ms, 0 = unknown).
      * @param {string} subject
      * @param {string} from
@@ -3230,6 +3247,26 @@ export class MeAiCore {
             return getStringFromWasm0(ret[0], ret[1]);
         } finally {
             wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * Safe `.md` (or other) filename from `subject` + `date` on a message-like object.
+     * @param {any} message
+     * @param {string} ext
+     * @returns {string}
+     */
+    exportEmailMessageFilename(message, ext) {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ptr0 = passStringToWasm0(ext, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_exportEmailMessageFilename(this.__wbg_ptr, message, ptr0, len0);
+            deferred2_0 = ret[0];
+            deferred2_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
     }
     /**
@@ -3406,6 +3443,17 @@ export class MeAiCore {
      */
     getAllEventTypes() {
         const ret = wasm.meaicore_getAllEventTypes(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Read the stored API key for a cloud provider (`openai` | `anthropic` | `google` | `xai`), if any.
+     * @param {string} provider
+     * @returns {Promise<string | undefined>}
+     */
+    getApiKeyForProvider(provider) {
+        const ptr0 = passStringToWasm0(provider, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_getApiKeyForProvider(this.__wbg_ptr, ptr0, len0);
         return ret;
     }
     /**
@@ -5250,6 +5298,134 @@ export class OllamaConnectionResult {
     }
 }
 if (Symbol.dispose) OllamaConnectionResult.prototype[Symbol.dispose] = OllamaConnectionResult.prototype.free;
+
+/**
+ * Browser-side Ollama adapter: owns model/status and emits the same events the old TS engine did.
+ */
+export class OllamaLlmEngine {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        OllamaLlmEngineFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_ollamallmengine_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get backend() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.ollamallmengine_backend(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Test Ollama using settings-derived URL from `core`.
+     * @param {MeAiCore} core
+     * @returns {Promise<void>}
+     */
+    check(core) {
+        _assertClass(core, MeAiCore);
+        const ret = wasm.ollamallmengine_check(this.__wbg_ptr, core.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {MeAiCore} core
+     * @param {any} messages
+     * @param {any} options
+     * @returns {Promise<void>}
+     */
+    generate(core, messages, options) {
+        _assertClass(core, MeAiCore);
+        const ret = wasm.ollamallmengine_generate(this.__wbg_ptr, core.__wbg_ptr, messages, options);
+        return ret;
+    }
+    interrupt() {
+        wasm.ollamallmengine_interrupt(this.__wbg_ptr);
+    }
+    /**
+     * @returns {boolean}
+     */
+    get isGenerating() {
+        const ret = wasm.ollamallmengine_isGenerating(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    get isReady() {
+        const ret = wasm.ollamallmengine_isReady(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {MeAiCore} core
+     * @param {string} model_name
+     * @returns {Promise<void>}
+     */
+    loadModel(core, model_name) {
+        _assertClass(core, MeAiCore);
+        const ptr0 = passStringToWasm0(model_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.ollamallmengine_loadModel(this.__wbg_ptr, core.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get modelId() {
+        const ret = wasm.ollamallmengine_modelId(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    constructor() {
+        const ret = wasm.ollamallmengine_new();
+        this.__wbg_ptr = ret >>> 0;
+        OllamaLlmEngineFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    reset() {
+        wasm.ollamallmengine_reset(this.__wbg_ptr);
+    }
+    /**
+     * Receives [`EngineMessage`]-shaped plain objects (same as legacy `ollama-engine.ts`).
+     * @param {any} cb
+     */
+    setOnMessage(cb) {
+        wasm.ollamallmengine_setOnMessage(this.__wbg_ptr, cb);
+    }
+    /**
+     * @returns {string}
+     */
+    get status() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.ollamallmengine_status(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    terminate() {
+        wasm.ollamallmengine_terminate(this.__wbg_ptr);
+    }
+}
+if (Symbol.dispose) OllamaLlmEngine.prototype[Symbol.dispose] = OllamaLlmEngine.prototype.free;
 
 export class OllamaModel {
     static __wrap(ptr) {
@@ -10083,29 +10259,32 @@ function __wbg_get_imports() {
             const ret = arg0.view;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
+        __wbg_warn_2b0a27f629a4bb1e: function(arg0) {
+            console.warn(arg0);
+        },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1268, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1277, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h854880fd3e96ac07);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1513, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1524, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
             const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h8f3c5c7ac28fec1b);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1468, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1479, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hc204ba8f82217bf4);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
             // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 9, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4);
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h4bbfcc5484e3a01b);
             return ret;
         },
         __wbindgen_cast_0000000000000005: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1231, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1240, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h891a7f3f3f60251d);
             return ret;
         },
         __wbindgen_cast_0000000000000006: function(arg0) {
@@ -10261,20 +10440,20 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19(arg0, arg1);
+function wasm_bindgen__convert__closures_____invoke__h891a7f3f3f60251d(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h891a7f3f3f60251d(arg0, arg1);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h854880fd3e96ac07(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h854880fd3e96ac07(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__hc204ba8f82217bf4(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hc204ba8f82217bf4(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h4bbfcc5484e3a01b(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h4bbfcc5484e3a01b(arg0, arg1, arg2);
 }
 
 function wasm_bindgen__convert__closures_____invoke__h8f3c5c7ac28fec1b(arg0, arg1, arg2) {
@@ -10380,6 +10559,9 @@ const MeAiCoreFinalization = (typeof FinalizationRegistry === 'undefined')
 const OllamaConnectionResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_ollamaconnectionresult_free(ptr >>> 0, 1));
+const OllamaLlmEngineFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_ollamallmengine_free(ptr >>> 0, 1));
 const OllamaModelFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_ollamamodel_free(ptr >>> 0, 1));
