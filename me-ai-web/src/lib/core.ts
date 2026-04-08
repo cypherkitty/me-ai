@@ -10,6 +10,8 @@ export {
   AiBackend,
   SettingValue,
   GoogleToken,
+  TwitterOAuthLoginStart,
+  TwitterOAuthTokens,
   TwitterToken,
   GmailProfile,
   TwitterProfile,
@@ -205,59 +207,88 @@ export async function getStorageStats(): Promise<{
 
 // ── Event system (moved from events.ts) ─────────────────────────────────────
 
-export const EVENT_CATEGORY_TIERS: Record<
-  EventCategory,
-  {
-    id: EventCategory;
-    label: string;
-    description: string;
-    autoExecute: boolean;
-    requiresApproval: boolean;
-    color: string;
-  }
-> = {
-  NOISE: {
-    id: "NOISE",
-    label: "Noise",
-    description: "Unimportant messages that can be safely deleted automatically.",
-    autoExecute: true,
-    requiresApproval: false,
-    color: "#6b7280",
-  },
-  INFO: {
-    id: "INFO",
-    label: "Info",
-    description: "Useful but not urgent — will be silently archived.",
-    autoExecute: true,
-    requiresApproval: false,
-    color: "#3b82f6",
-  },
-  CRITICAL: {
-    id: "CRITICAL",
-    label: "Critical",
-    description: "Requires attention. User must review before any action runs.",
-    autoExecute: false,
-    requiresApproval: true,
-    color: "#ef4444",
-  },
+export type EventCategoryTierDef = {
+  id: EventCategory;
+  label: string;
+  description: string;
+  autoExecute: boolean;
+  requiresApproval: boolean;
+  color: string;
 };
+
+export type EventCategoryRowDef = {
+  name: string;
+  label: string;
+  priority: number;
+  color: string;
+  policy: string;
+};
+
+let eventCategoryTiersCache: Record<EventCategory, EventCategoryTierDef> | null = null;
+function getEventCategoryTiersRecord(): Record<EventCategory, EventCategoryTierDef> {
+  if (!eventCategoryTiersCache) {
+    eventCategoryTiersCache = getCore().getEventCategoryTierDefinitions() as Record<
+      EventCategory,
+      EventCategoryTierDef
+    >;
+  }
+  return eventCategoryTiersCache;
+}
+
+/** Tier metadata from Rust (`event_ui`). Resolves lazily after `initCore`. */
+export const EVENT_CATEGORY_TIERS = new Proxy({} as Record<EventCategory, EventCategoryTierDef>, {
+  get(_, prop: string | symbol) {
+    if (typeof prop !== "string") return undefined;
+    return getEventCategoryTiersRecord()[prop as EventCategory];
+  },
+  ownKeys() {
+    return Reflect.ownKeys(getEventCategoryTiersRecord());
+  },
+  getOwnPropertyDescriptor(_, prop) {
+    const t = getEventCategoryTiersRecord();
+    if (typeof prop === "string" && prop in t) {
+      return { configurable: true, enumerable: true, value: t[prop as keyof typeof t] };
+    }
+    return undefined;
+  },
+  has(_, prop) {
+    return typeof prop === "string" && prop in getEventCategoryTiersRecord();
+  },
+});
 
 export const DEFAULT_CATEGORY: EventCategory = "CRITICAL";
 
-export const EVENT_CATEGORIES: Record<
-  string,
-  { name: string; label: string; priority: number; color: string; policy: string }
-> = {
-  noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
-  info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "auto" },
-  critical: {
-    name: "critical",
-    label: "Critical",
-    priority: 3,
-    color: "#ef4444",
-    policy: "manual",
+let eventCategoriesCache: Record<string, EventCategoryRowDef> | null = null;
+function getEventCategoriesRecord(): Record<string, EventCategoryRowDef> {
+  if (!eventCategoriesCache) {
+    eventCategoriesCache = getCore().getEventCategoriesStatic() as Record<
+      string,
+      EventCategoryRowDef
+    >;
+  }
+  return eventCategoriesCache;
+}
+
+/** Lowercase category rows from Rust (`event_ui`). */
+export const EVENT_CATEGORIES = new Proxy({} as Record<string, EventCategoryRowDef>, {
+  get(_, prop: string | symbol) {
+    if (typeof prop !== "string") return undefined;
+    return getEventCategoriesRecord()[prop];
   },
-};
+  ownKeys() {
+    return Reflect.ownKeys(getEventCategoriesRecord());
+  },
+  getOwnPropertyDescriptor(_, prop) {
+    const c = getEventCategoriesRecord();
+    if (typeof prop === "string" && prop in c) {
+      return { configurable: true, enumerable: true, value: c[prop] };
+    }
+    return undefined;
+  },
+  has(_, prop) {
+    return typeof prop === "string" && prop in getEventCategoriesRecord();
+  },
+});
 
 export function categoryTierToName(category: EventCategory): string {
   return getCore().categoryTierToName(category || "");
@@ -280,16 +311,13 @@ export async function seedEventTypeFromLLM(
 }
 
 export async function getActionsForEvent(eventType: string): Promise<Action[]> {
-  const pipeline = (await getCore().getPipelineForEventResolved(eventType)) as {
-    actions?: Array<{ pluginId: string; commandId: string; order: number }>;
-  } | null;
-  if (!pipeline?.actions?.length) return [];
-  return pipeline.actions.map((a: { pluginId: string; commandId: string }, i: number) => ({
-    id: (a.commandId || "cmd") + "_" + i,
-    pluginId: a.pluginId ?? "",
-    commandId: a.commandId ?? "",
-    name: (a.commandId ?? "").replace(/_/g, " "),
-    description: "",
+  const rows = await getCore().getActionsForEventDisplay(eventType);
+  return rows.map((a) => ({
+    id: a.id,
+    pluginId: a.pluginId,
+    commandId: a.commandId,
+    name: a.name,
+    description: a.description,
   }));
 }
 
@@ -472,13 +500,6 @@ export function parseClassification(
   if (response == null || typeof response !== "string" || !response.trim()) return null;
   const result = getCore().parseClassification(response);
   if (!result) return null;
-  let tags: string[] = [];
-  try {
-    const parsed: unknown = JSON.parse(result.tags);
-    if (Array.isArray(parsed)) tags = parsed as string[];
-  } catch {
-    /* keep empty */
-  }
   return {
     action: result.action,
     category: result.category as "noise" | "info" | "critical",
@@ -486,7 +507,7 @@ export function parseClassification(
     suggestedActions: [],
     reason: result.reason,
     summary: result.summary,
-    tags,
+    tags: result.tagsArray,
   };
 }
 

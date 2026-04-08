@@ -24,7 +24,11 @@ rexie = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 async-openai = { version = "0.33", default-features = false, features = ["responses"] }
 base64 = { version = "0.22", default-features = false, features = ["std"] }
+getrandom = { version = "0.2", features = ["js"] }
+hex = "0.4"
 regex-lite = "0.1"
+sha2 = "0.10"
+urlencoding = "2.1"
 scraper = { version = "0.22", default-features = false }
 tsify-next = { version = "0.5", default-features = false, features = ["js"] }
 async-trait = "0.1"

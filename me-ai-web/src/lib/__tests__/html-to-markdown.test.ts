@@ -9,12 +9,20 @@ import { describe, it, expect, vi } from "vitest";
 
 const mockCore = {
   emailToMarkdown: vi.fn(
-    (subject: string, from: string, to: string, date: string, body: string, htmlBody: string) => {
-      // Simplified mock that returns basic markdown
+    (
+      subject: string,
+      from: string,
+      to: string,
+      dateMs: number,
+      body: string | undefined,
+      htmlBody: string | undefined
+    ) => {
+      const dateStr =
+        dateMs > 0 && Number.isFinite(dateMs) ? new Date(dateMs).toISOString().slice(0, 10) : "";
       const lines = [`# ${subject}`, "", "| | |", "|---|---|"];
       lines.push(`| **From** | ${from} |`);
       lines.push(`| **To** | ${to} |`);
-      lines.push(`| **Date** | ${date} |`);
+      lines.push(`| **Date** | ${dateStr} |`);
       lines.push("", "---", "");
       lines.push(htmlBody ? "(html converted)" : body || "*(no body)*");
       return lines.join("\n");
@@ -64,7 +72,7 @@ describe("emailToMarkdown", () => {
       "Sub",
       "a@b.com",
       "c@d.com",
-      expect.any(String),
+      Date.parse("2026-01-01"),
       "body",
       "<p>html</p>"
     );

@@ -3,7 +3,7 @@
 //! In the browser, [`now_ms`] uses [`Performance`](web_sys::Performance) (`time_origin + now`).
 //! Offline / tests fall back to [`std::time::SystemTime`].
 
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 
 /// Current wall time as Unix milliseconds.
 pub fn now_ms() -> i64 {
@@ -43,6 +43,49 @@ pub fn format_utc_ymd_from_ms(date_ms: i64) -> Option<String> {
     }
     let d = DateTime::<Utc>::from_timestamp_millis(date_ms)?.date_naive();
     Some(format!("{:04}-{:02}-{:02}", d.year(), d.month(), d.day()))
+}
+
+/// English short month + day + year + 12h time in UTC (approximates `en-US` `toLocaleDateString` + time).
+pub fn format_display_datetime_en_us_utc(date_ms: i64) -> String {
+    if date_ms <= 0 {
+        return String::new();
+    }
+    let Some(dt) = DateTime::<Utc>::from_timestamp_millis(date_ms) else {
+        return String::new();
+    };
+    let month = match dt.month() {
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        _ => "Dec",
+    };
+    let hour24 = dt.hour();
+    let (h12, ampm) = if hour24 == 0 {
+        (12u32, "AM")
+    } else if hour24 < 12 {
+        (hour24, "AM")
+    } else if hour24 == 12 {
+        (12u32, "PM")
+    } else {
+        (hour24 - 12, "PM")
+    };
+    format!(
+        "{} {}, {}, {}:{:02} {}",
+        month,
+        dt.day(),
+        dt.year(),
+        h12,
+        dt.minute(),
+        ampm
+    )
 }
 
 /// US-style M/D/YYYY in UTC (replaces `Date#toLocaleDateString('en-US')` for prompts).

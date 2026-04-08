@@ -14,7 +14,6 @@
 
   import { syncGmail, syncGmailMore, getGmailSyncStatus } from "../lib/store/gmail-sync.js";
   import {
-    initTwitterAuth,
     requestTwitterAccessToken,
     getSavedTwitterToken,
     revokeTwitterToken,
@@ -436,10 +435,6 @@
     twClientId = savedTwId || "";
     twClientIdInput = savedTwId || "";
 
-    if (twClientId) {
-      initTwitterAuth(twClientId);
-    }
-
     // Check for OAuth callback
     const hash = window.location.hash;
     if (hash.includes("oauth-twitter")) {
@@ -448,7 +443,11 @@
       const state = url.searchParams.get("state");
       if (code && state) {
         try {
-          const result = await handleTwitterCallback(code, state);
+          const cid = twClientId || initSv.twitterClientId || "";
+          if (!cid) {
+            throw new Error("Twitter Client ID missing — save it under Sources first.");
+          }
+          const result = await handleTwitterCallback(code, state, cid);
           twAccessToken = result.access_token;
           await twFetchProfile();
           // Clean up URL
@@ -480,7 +479,6 @@
     sv.twitterClientId = t;
     await getCore().saveSettings(sv);
     twClientId = t;
-    initTwitterAuth(t);
     twShowClientIdEdit = false;
   }
 
@@ -493,8 +491,7 @@
         twLoadingAuth = false;
         return;
       }
-      initTwitterAuth(twClientId);
-      await requestTwitterAccessToken(); // redirects to Twitter
+      await requestTwitterAccessToken(twClientId); // redirects to Twitter
     } catch (e) {
       twError = errMsg(e);
       twLoadingAuth = false;

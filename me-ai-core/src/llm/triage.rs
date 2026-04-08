@@ -114,6 +114,15 @@ pub struct TriageClassification {
     pub tags: String, // JSON-encoded string array e.g. `["tag1","tag2"]`
 }
 
+#[wasm_bindgen]
+impl TriageClassification {
+    /// Parsed tag list (empty if `tags` JSON is invalid).
+    #[wasm_bindgen(getter, js_name = tagsArray)]
+    pub fn tags_array(&self) -> Vec<String> {
+        serde_json::from_str(&self.tags).unwrap_or_default()
+    }
+}
+
 /// Build the LLM system prompt from a comma-separated list of active plugin names.
 pub fn build_system_prompt(plugin_names: &str) -> String {
     format!(

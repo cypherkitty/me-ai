@@ -1,3 +1,11 @@
+import {
+  makeChatEntityId,
+  fallbackChatTitleFromUserContent,
+  firstUserMessageContentForTitle,
+  normalizeGeneratedChatTitle,
+  sessionSubtitleFromMessagesJson,
+} from "me-ai-core";
+
 export interface PersistedChatMessage {
   id?: string;
   role?: string;
@@ -24,17 +32,9 @@ interface ChatSessionsSnapshot {
 }
 
 const STORAGE_KEY = "me_ai_chat_sessions_v1";
-const MAX_TITLE_LENGTH = 72;
 
 function safeNow(): number {
   return Date.now();
-}
-
-function makeId(prefix: string): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}_${crypto.randomUUID()}`;
-  }
-  return `${prefix}_${safeNow()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -43,7 +43,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 export function createChatSession(now = safeNow()): ChatSessionRecord {
   return {
-    id: makeId("chat"),
+    id: makeChatEntityId("chat"),
     title: null,
     titleStatus: "idle",
     titleSource: null,
@@ -64,7 +64,10 @@ export function normalizeMessage(
 
   return {
     ...message,
-    id: typeof message.id === "string" && message.id.length > 0 ? message.id : makeId("msg"),
+    id:
+      typeof message.id === "string" && message.id.length > 0
+        ? message.id
+        : makeChatEntityId("msg"),
     createdAt,
   };
 }
@@ -94,7 +97,7 @@ export function normalizeSession(session: unknown, fallbackTime = safeNow()): Ch
           : "idle";
 
   return {
-    id: typeof raw.id === "string" && raw.id.length > 0 ? raw.id : makeId("chat"),
+    id: typeof raw.id === "string" && raw.id.length > 0 ? raw.id : makeChatEntityId("chat"),
     title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : null,
     titleStatus,
     titleSource:
@@ -159,44 +162,15 @@ export function clearSavedChatSessions(): void {
 }
 
 export function fallbackChatTitle(messages: PersistedChatMessage[]): string | null {
-  const firstUserMessage = messages.find(
-    (message) => message.role === "user" && typeof message.content === "string"
-  );
-  if (!firstUserMessage?.content) return null;
-
-  const compact = firstUserMessage.content.replace(/\s+/g, " ").trim();
-  if (!compact) return null;
-  return compact.length > MAX_TITLE_LENGTH
-    ? `${compact.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
-    : compact;
+  const content = firstUserMessageContentForTitle(JSON.stringify(messages));
+  if (content == null) return null;
+  return fallbackChatTitleFromUserContent(content) ?? null;
 }
 
 export function normalizeGeneratedTitle(raw: string, messages: PersistedChatMessage[]): string {
-  const cleaned = raw
-    .replace(/^['"`]+|['"`]+$/g, "")
-    .replace(/^title\s*:\s*/i, "")
-    .split(/\r?\n/)[0]
-    .replace(/[*_#]+/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (cleaned) {
-    return cleaned.length > MAX_TITLE_LENGTH
-      ? `${cleaned.slice(0, MAX_TITLE_LENGTH - 1).trimEnd()}…`
-      : cleaned;
-  }
-
-  return fallbackChatTitle(messages) ?? "Untitled chat";
+  return normalizeGeneratedChatTitle(raw, JSON.stringify(messages));
 }
 
 export function getSessionSubtitle(messages: PersistedChatMessage[]): string {
-  const lastText = [...messages]
-    .reverse()
-    .find(
-      (message) => typeof message.content === "string" && message.content.trim().length > 0
-    )?.content;
-
-  if (!lastText) return "No messages yet";
-  const compact = lastText.replace(/\s+/g, " ").trim();
-  return compact.length > 82 ? `${compact.slice(0, 81).trimEnd()}…` : compact;
+  return sessionSubtitleFromMessagesJson(JSON.stringify(messages));
 }

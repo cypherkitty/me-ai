@@ -13,6 +13,7 @@ import {
   getSystemPrompt,
   CLASSIFICATION_CONFIG,
   itemDateMs,
+  parseClassification,
 } from "./core.js";
 import type { StoredItem } from "$lib/types";
 import type {
@@ -171,25 +172,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
       totalOutputTokens += numTokens;
       totalInputTokens += inputTokens;
 
-      const coreResult = core.parseClassification(response);
-      const classification: ClassificationResult | null = coreResult
-        ? {
-            action: coreResult.action,
-            category: coreResult.category as "noise" | "info" | "critical",
-            categoryTier: coreResult.categoryTier as "NOISE" | "INFO" | "CRITICAL",
-            suggestedActions: [],
-            reason: coreResult.reason,
-            summary: coreResult.summary,
-            tags: (() => {
-              try {
-                const parsed: unknown = JSON.parse(coreResult.tags);
-                return Array.isArray(parsed) ? (parsed as string[]) : [];
-              } catch {
-                return [];
-              }
-            })(),
-          }
-        : null;
+      const classification = parseClassification(response);
       const emailElapsed = performance.now() - emailStart;
 
       if (classification) {

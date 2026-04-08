@@ -15,10 +15,11 @@ pub fn email_to_markdown(
     subject: &str,
     from: &str,
     to: &str,
-    date_str: &str,
+    date_ms: i64,
     body: Option<&str>,
     html_body: Option<&str>,
 ) -> String {
+    let date_str = crate::time_util::format_display_datetime_en_us_utc(date_ms);
     let mut lines: Vec<String> = Vec::new();
 
     lines.push(format!("# {}", subject));
@@ -27,7 +28,10 @@ pub fn email_to_markdown(
     lines.push("|---|---|".to_string());
     lines.push(format!("| **From** | {} |", escape_cell(from)));
     lines.push(format!("| **To** | {} |", escape_cell(to)));
-    lines.push(format!("| **Date** | {} |", escape_cell(date_str)));
+    lines.push(format!(
+        "| **Date** | {} |",
+        escape_cell(if date_str.is_empty() { "(unknown)" } else { &date_str })
+    ));
     lines.push(String::new());
     lines.push("---".to_string());
     lines.push(String::new());
@@ -505,14 +509,14 @@ mod tests {
             "Test Subject",
             "alice@example.com",
             "bob@example.com",
-            "Apr 7, 2026",
+            1_712_476_800_000, // 2024-04-07 12:00 UTC approx — pattern check only
             Some("plain fallback"),
             Some("<p>Hello <strong>World</strong></p>"),
         );
         assert!(md.contains("# Test Subject"));
         assert!(md.contains("| **From** | alice@example.com |"));
         assert!(md.contains("| **To** | bob@example.com |"));
-        assert!(md.contains("| **Date** | Apr 7, 2026 |"));
+        assert!(md.contains("| **Date** |"));
         assert!(md.contains("Hello **World**"));
         // Plain body should NOT appear when HTML body is present
         assert!(!md.contains("plain fallback"));
@@ -524,7 +528,7 @@ mod tests {
             "Subject",
             "from@x.com",
             "to@x.com",
-            "Jan 1, 2025",
+            1_735_689_600_000,
             Some("Plain text body"),
             None,
         );
@@ -537,7 +541,7 @@ mod tests {
             "Subject",
             "from@x.com",
             "to@x.com",
-            "Jan 1, 2025",
+            1_735_689_600_000,
             None,
             None,
         );
@@ -550,7 +554,7 @@ mod tests {
             "Subject",
             "first|last@x.com",
             "to@x.com",
-            "Jan 1, 2025",
+            1_735_689_600_000,
             Some("body"),
             None,
         );

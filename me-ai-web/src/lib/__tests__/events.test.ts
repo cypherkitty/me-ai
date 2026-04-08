@@ -8,10 +8,52 @@ import {
   getActionsForEvent,
 } from "../core.js";
 
+const mockTierDefs = {
+  NOISE: {
+    id: "NOISE",
+    label: "Noise",
+    description: "Unimportant messages that can be safely deleted automatically.",
+    autoExecute: true,
+    requiresApproval: false,
+    color: "#6b7280",
+  },
+  INFO: {
+    id: "INFO",
+    label: "Info",
+    description: "Useful but not urgent — will be silently archived.",
+    autoExecute: true,
+    requiresApproval: false,
+    color: "#3b82f6",
+  },
+  CRITICAL: {
+    id: "CRITICAL",
+    label: "Critical",
+    description: "Requires attention. User must review before any action runs.",
+    autoExecute: false,
+    requiresApproval: true,
+    color: "#ef4444",
+  },
+};
+
+const mockCategoryDefs = {
+  noise: { name: "noise", label: "Noise", priority: 1, color: "#6b7280", policy: "auto" },
+  info: { name: "info", label: "Info", priority: 2, color: "#3b82f6", policy: "auto" },
+  critical: {
+    name: "critical",
+    label: "Critical",
+    priority: 3,
+    color: "#ef4444",
+    policy: "manual",
+  },
+};
+
 const mockCore = {
   categoryTierToName: (tier: string) => tier.toLowerCase(),
   getEmailClassifications: vi.fn().mockResolvedValue([]),
   getPipelineForEventResolved: vi.fn().mockResolvedValue(null),
+  getEventCategoryTierDefinitions: vi.fn().mockReturnValue(mockTierDefs),
+  getEventCategoriesStatic: vi.fn().mockReturnValue(mockCategoryDefs),
+  getActionsForEventDisplay: vi.fn().mockResolvedValue([]),
   upsertEventType: vi.fn().mockResolvedValue(undefined),
   getCategoryForEventType: vi.fn().mockResolvedValue("CRITICAL"),
   seedEventTypeFromLLM: vi.fn().mockResolvedValue(undefined),
@@ -96,7 +138,7 @@ describe("seedEventTypeFromLLM", () => {
 describe("getActionsForEvent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCore.getPipelineForEventResolved.mockResolvedValue(null);
+    mockCore.getActionsForEventDisplay.mockResolvedValue([]);
   });
 
   it("returns empty array for unknown event type with no pipeline", async () => {
@@ -108,12 +150,22 @@ describe("getActionsForEvent", () => {
   });
 
   it("maps resolved pipeline actions to Action objects", async () => {
-    mockCore.getPipelineForEventResolved.mockResolvedValue({
-      actions: [
-        { pluginId: "gmail", commandId: "trash", order: 0 },
-        { pluginId: "gmail", commandId: "mark_read", order: 1 },
-      ],
-    });
+    mockCore.getActionsForEventDisplay.mockResolvedValue([
+      {
+        id: "trash_0",
+        pluginId: "gmail",
+        commandId: "trash",
+        name: "trash",
+        description: "",
+      },
+      {
+        id: "mark_read_1",
+        pluginId: "gmail",
+        commandId: "mark_read",
+        name: "mark read",
+        description: "",
+      },
+    ]);
     const result = await getActionsForEvent("DELETE");
     expect(result).toHaveLength(2);
     expect(result[0].pluginId).toBe("gmail");

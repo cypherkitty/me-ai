@@ -14,7 +14,10 @@ mod storage;
 mod sync;
 mod error;
 mod formatting;
+mod chat_session;
+mod event_ui;
 mod llm;
+mod oauth;
 mod plugins;
 mod time_util;
 
@@ -28,9 +31,12 @@ use crate::llm::models::{ApiModel, OllamaModel, OllamaModelGroup, OnnxModel, Onn
 use crate::llm::ollama::{OllamaConnectionResult, OllamaModelTag};
 use crate::llm::triage::TriageClassification;
 use crate::plugins::{ActionInput, ActionMetadata, ActionOverrideInput, EventInput, PipelineBatchResult, PipelineResult, PluginDefinition, PluginForPrompt};
-use crate::plugins::resolution::{PipelineForEventResult, ResolveExecuteResult, ResolveBatchResult};
+use crate::plugins::resolution::{
+    PipelineActionDisplay, PipelineForEventResult, ResolveBatchResult, ResolveExecuteResult,
+};
 use crate::formatting::ParsedApiError;
 use crate::storage::aggregations::{CategoryPipelineView, EventStatsResult, PendingApprovalView, PendingItemByCategoryResult};
+use crate::oauth::twitter::{TwitterOAuthLoginStart, TwitterOAuthTokens};
 use crate::storage::settings::{GoogleToken, SettingValue, TwitterToken};
 use crate::storage::audit::{AuditStats, GetAuditLogParsedResult, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
@@ -101,6 +107,18 @@ impl MeAiCore {
     pub async fn get_all_event_types(&self) -> Result<Vec<String>, JsValue> {
         let db = &self.rexie_db;
         Ok(storage::events::get_all_event_types(db).await?)
+    }
+
+    /// Static tier copy for dashboard (NOISE / INFO / CRITICAL).
+    #[wasm_bindgen(js_name = getEventCategoryTierDefinitions)]
+    pub fn get_event_category_tier_definitions(&self) -> JsValue {
+        event_ui::get_event_category_tier_definitions()
+    }
+
+    /// Static category rows keyed by lowercase name (`noise`, `info`, `critical`).
+    #[wasm_bindgen(js_name = getEventCategoriesStatic)]
+    pub fn get_event_categories_static(&self) -> JsValue {
+        event_ui::get_event_categories_static()
     }
 
     /// Look up the category tier for an event type.
@@ -285,6 +303,121 @@ impl MeAiCore {
             .map_err(|e| error_to_js(&e))
     }
 
+    /// PKCE step: verifier, state, and Twitter authorize URL (store verifier/state in JS; then redirect).
+    #[wasm_bindgen(js_name = twitterOAuthBeginLogin)]
+    pub fn twitter_oauth_begin_login(
+        &self,
+        client_id: &str,
+        redirect_uri: &str,
+    ) -> Result<TwitterOAuthLoginStart, JsValue> {
+        oauth::twitter::begin_login(client_id, redirect_uri).map_err(|e| error_to_js(&e))
+    }
+
+    /// Exchange the OAuth `code` for tokens and persist them.
+    #[wasm_bindgen(js_name = twitterOAuthExchangeCode)]
+    pub async fn twitter_oauth_exchange_code(
+        &self,
+        client_id: &str,
+        redirect_uri: &str,
+        code: &str,
+        code_verifier: &str,
+    ) -> Result<TwitterOAuthTokens, JsValue> {
+        let db = &self.rexie_db;
+        let (access, refresh, exp_secs) = oauth::twitter::exchange_authorization_code(
+            client_id,
+            redirect_uri,
+            code,
+            code_verifier,
+        )
+        .await
+        .map_err(|e| error_to_js(&e))?;
+        let expires_at = crate::time_util::now_ms() as f64 + exp_secs * 1000.0;
+        storage::settings::save_twitter_token(db, &access, refresh.as_deref(), expires_at)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        Ok(TwitterOAuthTokens {
+            access_token: access,
+            refresh_token: refresh,
+        })
+    }
+
+    /// Valid access token from storage, or refresh using stored refresh token and Twitter client id from settings.
+    /// Returns a plain object `{ accessToken, refreshToken? }` or `null`.
+    #[wasm_bindgen(js_name = twitterOAuthSession)]
+    pub async fn twitter_oauth_session(&self) -> Result<JsValue, JsValue> {
+        #[derive(serde::Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Dto {
+            access_token: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            refresh_token: Option<String>,
+        }
+
+        let db = &self.rexie_db;
+        if let Some(t) =
+            storage::settings::get_twitter_token(db).await.map_err(|e| error_to_js(&e))?
+        {
+            let dto = Dto {
+                access_token: t.access_token(),
+                refresh_token: t.refresh_token(),
+            };
+            return serde_wasm_bindgen::to_value(&dto).map_err(|e| JsValue::from_str(&e.to_string()));
+        }
+
+        let sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
+        let Some(cid) = sv.twitter_client_id() else {
+            return Ok(JsValue::NULL);
+        };
+        let raw = storage::settings::get_twitter_token_raw(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        let Some(refresh) = raw.as_ref().and_then(|t| t.refresh_token().filter(|s| !s.is_empty()))
+        else {
+            return Ok(JsValue::NULL);
+        };
+
+        let (access, refr, exp_secs) = match oauth::twitter::refresh_with_refresh_token(&cid, &refresh).await {
+            Ok(x) => x,
+            Err(_) => {
+                let _ = storage::settings::clear_twitter_token(db).await;
+                return Ok(JsValue::NULL);
+            }
+        };
+        let expires_at = crate::time_util::now_ms() as f64 + exp_secs * 1000.0;
+        storage::settings::save_twitter_token(db, &access, refr.as_deref(), expires_at)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+
+        let t = storage::settings::get_twitter_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        let Some(tok) = t else {
+            return Ok(JsValue::NULL);
+        };
+        let dto = Dto {
+            access_token: tok.access_token(),
+            refresh_token: tok.refresh_token(),
+        };
+        serde_wasm_bindgen::to_value(&dto).map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
+    /// Revoke token at Twitter (best effort) and clear local Twitter token.
+    #[wasm_bindgen(js_name = twitterOAuthRevoke)]
+    pub async fn twitter_oauth_revoke(&self) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        let sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
+        if let Some(cid) = sv.twitter_client_id() {
+            if let Some(tok) =
+                storage::settings::get_twitter_token_raw(db).await.map_err(|e| error_to_js(&e))?
+            {
+                let _ = oauth::twitter::revoke_access_token(&cid, &tok.access_token()).await;
+            }
+        }
+        storage::settings::clear_twitter_token(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = logAuditExecution)]
     pub async fn log_audit_execution(
@@ -376,6 +509,19 @@ impl MeAiCore {
         plugins::resolution::get_pipeline_for_event(db, event_type)
             .await
             .map_err(|e| error_to_js(&e))
+    }
+
+    /// Pipeline actions formatted for the UI (`Action` list).
+    #[wasm_bindgen(js_name = getActionsForEventDisplay)]
+    pub async fn get_actions_for_event_display(&self, event_type: &str) -> Result<Vec<PipelineActionDisplay>, JsValue> {
+        let db = &self.rexie_db;
+        let p = plugins::resolution::get_pipeline_for_event(db, event_type)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        Ok(match p {
+            Some(r) => plugins::resolution::pipeline_actions_to_display(&r.actions),
+            None => Vec::new(),
+        })
     }
 
     #[wasm_bindgen(js_name = updateCategoryPipeline)]
@@ -958,22 +1104,24 @@ impl MeAiCore {
         formatting::short_date(date_ms as i64)
     }
 
+    #[wasm_bindgen(js_name = formatDisplayDateEnUs)]
+    pub fn format_display_date_en_us(&self, ms: f64) -> String {
+        crate::time_util::format_display_datetime_en_us_utc(ms as i64)
+    }
+
     #[wasm_bindgen(js_name = exportFilename)]
     pub fn export_filename(&self, subject: &str, date_ms: f64, ext: &str) -> String {
         formatting::export_filename(subject, date_ms as i64, ext)
     }
 
-    /// Convert an email to Markdown with a metadata header table.
-    ///
-    /// `date_str` should already be locale-formatted (the TS side calls
-    /// `formatDate()` before passing it here).
+    /// Convert an email to Markdown with a metadata header table (`date_ms`: epoch ms, 0 = unknown).
     #[wasm_bindgen(js_name = emailToMarkdown)]
     pub fn email_to_markdown(
         &self,
         subject: &str,
         from: &str,
         to: &str,
-        date_str: &str,
+        date_ms: f64,
         body: Option<String>,
         html_body: Option<String>,
     ) -> String {
@@ -981,7 +1129,7 @@ impl MeAiCore {
             subject,
             from,
             to,
-            date_str,
+            date_ms as i64,
             body.as_deref(),
             html_body.as_deref(),
         )
