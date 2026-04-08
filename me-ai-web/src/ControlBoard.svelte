@@ -2,17 +2,18 @@
   import { getCore } from "./lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
+  import { scanEmails } from "$lib/triage";
   import {
-    scanEmails,
     getClassificationsByCategory,
     getClassificationCounts,
     updateClassificationStatus,
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
-  } from "$lib/triage";
-  import type { ScanProgress, ScanStats } from "$lib/triage";
-  import { getCategoryForEventType, categoryTierToName } from "$lib/events";
+    getCategoryForEventType,
+    categoryTierToName,
+  } from "$lib/core";
+  import type { ScanProgress, ScanStats } from "$lib/core";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
   import { SettingValue, ScanHistory } from "./lib/core.js";
 

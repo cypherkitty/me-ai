@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import { getSavedToken, isTokenValid } from "../lib/google-auth.js";
   import { getSavedTwitterToken } from "../lib/twitter-auth.js";
-  import { getEventStats } from "../lib/rules.js";
-  import { getClassificationCounts } from "../lib/triage.js";
+  import { getCore } from "../lib/store/core-store.js";
+  import { getClassificationCounts } from "../lib/core.js";
   import { getGmailSyncStatus } from "../lib/store/gmail-sync.js";
   import { getTwitterSyncStatus } from "../lib/store/twitter-sync.js";
   import { getUnifiedEngine } from "../lib/unified-engine.js";
@@ -84,7 +84,7 @@
     }
 
     try {
-      const stats = (await getEventStats()) as { total?: number };
+      const stats = (await getCore().getEventStats()) as { total?: number };
       pipelineCount = stats.total ?? 0;
     } catch {
       /* no-op */

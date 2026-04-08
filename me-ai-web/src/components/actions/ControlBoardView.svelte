@@ -2,10 +2,10 @@
   import ScanControl from "./ScanControl.svelte";
   import ActionGroup from "./ActionGroup.svelte";
   import PromptInspector from "./PromptInspector.svelte";
-  import { actionColor } from "../../lib/triage.js";
-  import { EVENT_CATEGORIES } from "../../lib/events.js";
+  import { actionColor } from "../../lib/core.js";
+  import { EVENT_CATEGORIES } from "../../lib/core.js";
   import type { StoredItem } from "$lib/types.js";
-  import type { ScanProgress, ScanStats } from "../../lib/triage.js";
+  import type { ScanProgress, ScanStats } from "../../lib/core.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { ShieldCheck } from "lucide-svelte";
 

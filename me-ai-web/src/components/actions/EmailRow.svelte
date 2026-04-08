@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { StoredItem } from "$lib/types.js";
-  import { tagColor } from "../../lib/triage.js";
+  import { tagColor } from "../../lib/core.js";
 
   interface EmailItem extends StoredItem {
     status?: string;

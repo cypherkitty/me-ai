@@ -3,7 +3,7 @@
   import { getCore } from "../../lib/store/core-store.js";
   const getModels = () => getCore().getOnnxModels();
   const getModelGroups = () => getCore().getOnnxModelGroups();
-  import { formatBytes } from "../../lib/format.js";
+  import { formatBytes } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Label } from "$lib/components/ui/label/index.js";

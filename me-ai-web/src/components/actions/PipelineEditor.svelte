@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { updateRule } from "../../lib/rules.js";
-  import { getAllEventTypes } from "../../lib/events.js";
+  import { getCore } from "../../lib/store/core-store.js";
+  import { getAllEventTypes } from "../../lib/core.js";
   import { getAvailableActions } from "../../lib/plugins/execution-service.js";
   import { onMount, untrack } from "svelte";
 
@@ -208,7 +208,7 @@
         if (customSave) {
           onSave?.(rule.actions, typesToMove, typesToDelete);
         } else {
-          await updateRule(rule.id, {
+          await getCore().updateRule(rule.id, {
             actions: rule.actions,
             triggers: rule.triggers,
             name: rule.name,

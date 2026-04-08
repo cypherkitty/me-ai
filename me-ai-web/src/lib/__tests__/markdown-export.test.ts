@@ -21,8 +21,37 @@ const mockExportFilename = (subject: string, dateMs: number, ext: string): strin
   return `${shortDate(dateMs)}_${slugify(subject)}.${ext}`;
 };
 
+const mockEmailToMarkdown = (
+  subject: string,
+  from: string,
+  to: string,
+  dateStr: string,
+  body: string,
+  _htmlBody: string
+): string => {
+  const escapeCell = (t: string) => (t || "").replace(/\|/g, "\\|");
+  const lines = [
+    `# ${subject}`,
+    "",
+    "| | |",
+    "|---|---|",
+    `| **From** | ${escapeCell(from)} |`,
+    `| **To** | ${escapeCell(to)} |`,
+    `| **Date** | ${dateStr} |`,
+    "",
+    "---",
+    "",
+    body || "*(no body)*",
+    "",
+  ];
+  return lines.join("\n");
+};
+
 vi.mock("../store/core-store.js", () => ({
-  getCore: () => ({ exportFilename: mockExportFilename }),
+  getCore: () => ({
+    exportFilename: mockExportFilename,
+    emailToMarkdown: mockEmailToMarkdown,
+  }),
   coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
 

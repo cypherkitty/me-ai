@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getSystemPrompt, CLASSIFICATION_CONFIG, formatEmailPrompt } from "../../lib/triage.js";
+  import { getSystemPrompt, CLASSIFICATION_CONFIG, formatEmailPrompt } from "../../lib/core.js";
 
   interface Props {
     open?: boolean;

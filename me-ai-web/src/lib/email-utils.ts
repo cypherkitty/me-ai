@@ -1,6 +1,6 @@
 /**
- * Email utilities — pure functions delegate to me-ai-core.
- * Local wrappers preserve existing call signatures.
+ * Email utilities — browser-only helpers that require Intl/DOM APIs.
+ * Pure functions delegate to me-ai-core; only formatDate stays in TS.
  */
 import { getCore } from "./store/core-store.js";
 import type { MessageLike } from "./core.js";
@@ -33,7 +33,6 @@ export function initial(fromStr: string | null | undefined): string {
 
 /**
  * Generate a safe export filename from an email message.
- * Wraps core exportFilename(subject, dateMs, ext).
  */
 export function exportFilename(message: MessageLike, ext: string): string {
   const dateMs =
@@ -44,6 +43,3 @@ export function exportFilename(message: MessageLike, ext: string): string {
         : new Date(message.date).getTime();
   return getCore().exportFilename(message.subject ?? "", dateMs, ext);
 }
-
-// groupByAction — removed: logic moved to me-ai-core
-// (see storage::classifications::get_classifications_by_category in Rust)

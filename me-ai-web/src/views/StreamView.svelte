@@ -2,11 +2,9 @@
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
   import type { EventCategory } from "$lib/types.js";
-  import { getEventStats, getPendingApprovals } from "../lib/rules.js";
-  import { getAuditLog } from "../lib/store/audit.js";
 
   import { executePipeline } from "../lib/plugins/execution-service.js";
-  import { updateClassificationStatus } from "../lib/triage.js";
+  import { updateClassificationStatus } from "../lib/core.js";
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -81,15 +79,20 @@
     try {
       // Fetch both executed events (auditLog) and pending/awaiting (emailClassifications)
       const [{ entries: auditEntries }, pendingRows, st] = await Promise.all([
-        getAuditLog({ limit: 200 }),
-        getPendingApprovals({ limit: 200 }).then((r) => r ?? []),
-        getEventStats(),
+        getCore().getAuditLogParsed(200, 0, false) as Promise<{
+          entries: unknown[];
+          total: number;
+        }>,
+        getCore()
+          .getPendingApprovals(200)
+          .then((r: unknown) => r ?? []),
+        getCore().getEventStats(),
       ]);
 
       // Tag executed entries (audit entries have emailId, executedAt, etc.)
-      const executed: StreamEvent[] = auditEntries.map((e) => ({
+      const executed: StreamEvent[] = (auditEntries as Array<Record<string, unknown>>).map((e) => ({
         ...e,
-        _streamStatus: e.success ? "completed" : "failed",
+        _streamStatus: (e as { success?: boolean }).success ? "completed" : "failed",
       }));
       // Tag pending entries
       const pending: StreamEvent[] = (pendingRows as unknown as Record<string, unknown>[]).map(

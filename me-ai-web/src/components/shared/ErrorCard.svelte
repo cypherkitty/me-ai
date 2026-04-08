@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { parseError } from "../../lib/error-parser.js";
+  import { parseError } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
   import { Button } from "$lib/components/ui/button/index.js";
 

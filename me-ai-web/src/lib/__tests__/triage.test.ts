@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { parseClassification, actionColor, tagColor } from "../triage.js";
+import { parseClassification, actionColor, tagColor } from "../core.js";
 
 const mockCore = {
   getOnnxModels: () => [],

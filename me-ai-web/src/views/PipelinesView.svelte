@@ -1,11 +1,6 @@
 <script lang="ts">
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import {
-    getCategoryPipelines,
-    getPendingItemsByCategory,
-    getPendingCountByCategory,
-  } from "../lib/rules.js";
 
   import { executePipeline, isAuthenticated } from "../lib/plugins/execution-service.js";
   import PipelineEditor from "../components/actions/PipelineEditor.svelte";
@@ -77,10 +72,12 @@
   async function load() {
     loading = true;
     try {
-      const cats = (await getCategoryPipelines()) as CatPipeline[];
+      const cats = (await getCore().getCategoryPipelines()) as CatPipeline[];
       categories = cats;
       const entries = await Promise.all(
-        cats.map(async (c) => [c.category, await getPendingCountByCategory(c.category)] as const)
+        cats.map(
+          async (c) => [c.category, await getCore().getPendingCountByCategory(c.category)] as const
+        )
       );
       pendingCounts = Object.fromEntries(entries);
     } catch (e) {
@@ -99,7 +96,7 @@
       alert("No actions in this category pipeline — add actions first (Edit Actions).");
       return;
     }
-    const items = await getPendingItemsByCategory(cat.category);
+    const items = await getCore().getPendingItemsByCategory(cat.category, 500);
     if (items.length === 0) {
       alert(`No pending items in ${cat.label}.`);
       return;

@@ -11,6 +11,7 @@ mod api;
 mod db;
 mod integrations;
 mod storage;
+mod sync;
 mod error;
 mod formatting;
 mod llm;
@@ -32,7 +33,7 @@ use crate::storage::settings::{GoogleToken, SettingValue, TwitterToken};
 use crate::storage::audit::{AuditStats, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
 use crate::storage::classifications::{ClassificationRow, ClassificationDoc, ClassificationsByCategory, ClassificationCounts};
-use crate::storage::events::{EventCategoryRow, EventTypeRow};
+use crate::storage::events::{EventCategoryRow, EventCategoryTier, EventTypeRow};
 use crate::storage::pipelines::{PipelineActionInput, PipelineActionRow};
 use crate::storage::rules::{CreateRulePayload, EventRow, RuleSavePayload, RuleUpdateInput, RuleView};
 use crate::storage::sync::{ContactRow, ItemRow, SyncStateRow, ItemInput, SyncStateInput, ContactInput};
@@ -75,6 +76,39 @@ impl MeAiCore {
     ) -> Result<(), JsValue> {
         let db = &self.rexie_db;
         Ok(storage::events::upsert_event_type(db, name, label, category_name, auto_created).await?)
+    }
+
+    /// Static 3-tier definitions: NOISE / INFO / CRITICAL.
+    #[wasm_bindgen(js_name = getEventCategoryTiers)]
+    pub fn get_event_category_tiers(&self) -> Vec<EventCategoryTier> {
+        storage::events::get_event_category_tiers()
+    }
+
+    /// Seed event type from LLM classification (normalize + upsert).
+    #[wasm_bindgen(js_name = seedEventTypeFromLLM)]
+    pub async fn seed_event_type_from_llm(&self, event_type: &str, category: &str) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        Ok(storage::events::seed_event_type_from_llm(db, event_type, category).await?)
+    }
+
+    /// All known event type names (from eventTypes store + classifications).
+    #[wasm_bindgen(js_name = getAllEventTypes)]
+    pub async fn get_all_event_types(&self) -> Result<Vec<String>, JsValue> {
+        let db = &self.rexie_db;
+        Ok(storage::events::get_all_event_types(db).await?)
+    }
+
+    /// Look up the category tier for an event type.
+    #[wasm_bindgen(js_name = getCategoryForEventType)]
+    pub async fn get_category_for_event_type(&self, event_type: &str) -> Result<String, JsValue> {
+        let db = &self.rexie_db;
+        Ok(storage::events::get_category_for_event_type(db, event_type).await?)
+    }
+
+    /// Normalize a raw category string to NOISE / INFO / CRITICAL.
+    #[wasm_bindgen(js_name = normalizeCategory)]
+    pub fn normalize_category(&self, raw: &str) -> String {
+        storage::events::normalize_category(raw).to_string()
     }
 
     #[wasm_bindgen(js_name = getSources)]
@@ -278,6 +312,14 @@ impl MeAiCore {
     pub async fn get_audit_log(&self, limit: u32, offset: u32, failures_only: bool) -> Result<GetAuditLogResult, JsValue> {
         let db = &self.rexie_db;
         Ok(storage::audit::get_audit_log(db, limit as i64, offset as i64, failures_only).await?)
+    }
+
+    /// Audit log with `steps` pre-parsed from JSON string to array.
+    /// Returns `{ entries: AuditLogEntry[], total: number }` as plain JsValue.
+    #[wasm_bindgen(js_name = getAuditLogParsed)]
+    pub async fn get_audit_log_parsed(&self, limit: u32, offset: u32, failures_only: bool) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        Ok(storage::audit::get_audit_log_parsed(db, limit as i64, offset as i64, failures_only).await?)
     }
 
     #[wasm_bindgen(js_name = clearAuditLog)]
@@ -715,6 +757,15 @@ impl MeAiCore {
         Ok(storage::sync::get_items_gmail_by_date_desc(db, limit).await?)
     }
 
+    /// Fetch stored Gmail emails with optional text search filtering and
+    /// normalized fields (labels as array, raw as object).
+    /// Returns `{ items: StoredItem[], total: number }` as plain JsValue.
+    #[wasm_bindgen(js_name = getStoredEmailsFiltered)]
+    pub async fn get_stored_emails_filtered(&self, query: Option<String>, limit: u32, offset: u32) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        Ok(storage::items::get_stored_emails_filtered(db, query.as_deref(), limit, offset).await?)
+    }
+
     #[wasm_bindgen(js_name = getItemsBySource)]
     pub async fn get_items_by_source(&self, source_type: &str, limit: u32, offset: u32) -> Result<Vec<ItemRow>, JsValue> {
         let db = &self.rexie_db;
@@ -897,6 +948,36 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = exportFilename)]
     pub fn export_filename(&self, subject: &str, date_ms: f64, ext: &str) -> String {
         formatting::export_filename(subject, date_ms as i64, ext)
+    }
+
+    /// Convert an email to Markdown with a metadata header table.
+    ///
+    /// `date_str` should already be locale-formatted (the TS side calls
+    /// `formatDate()` before passing it here).
+    #[wasm_bindgen(js_name = emailToMarkdown)]
+    pub fn email_to_markdown(
+        &self,
+        subject: &str,
+        from: &str,
+        to: &str,
+        date_str: &str,
+        body: Option<String>,
+        html_body: Option<String>,
+    ) -> String {
+        formatting::markdown::email_to_markdown(
+            subject,
+            from,
+            to,
+            date_str,
+            body.as_deref(),
+            html_body.as_deref(),
+        )
+    }
+
+    /// Convert an HTML string to Markdown. Returns `None` if the result is empty.
+    #[wasm_bindgen(js_name = htmlToMarkdownBody)]
+    pub fn html_to_markdown_body(&self, html: &str) -> Option<String> {
+        formatting::markdown::html_to_markdown_body(html)
     }
 
     // ── Triage ───────────────────────────────────────────────────────────────────
@@ -1249,6 +1330,122 @@ impl MeAiCore {
         })?;
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
+    }
+
+    // ── Sync orchestration ──────────────────────────────────────────────────────
+
+    /// Full or incremental Gmail sync.
+    /// Returns `{ added, deleted?, errors }` as JsValue.
+    #[wasm_bindgen(js_name = syncGmail)]
+    pub async fn sync_gmail(
+        &self,
+        token: &str,
+        limit: u32,
+        on_progress: Option<Function>,
+        signal: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let result = sync::gmail::sync_gmail(db, token, limit, &on_progress, &signal)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    /// Continue downloading older Gmail messages.
+    /// Returns `{ added, errors }` as JsValue.
+    #[wasm_bindgen(js_name = syncGmailMore)]
+    pub async fn sync_gmail_more(
+        &self,
+        token: &str,
+        limit: u32,
+        on_progress: Option<Function>,
+        signal: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let result = sync::gmail::sync_gmail_more(db, token, limit, &on_progress, &signal)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    /// Clear all local Gmail data (items, sync state, contacts).
+    #[wasm_bindgen(js_name = clearGmailData)]
+    pub async fn clear_gmail_data(&self) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        sync::gmail::clear_gmail_data(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    /// Get Gmail sync status.
+    /// Returns `{ synced, totalItems, lastSyncAt, hasMore, historyId? }` as JsValue.
+    #[wasm_bindgen(js_name = getGmailSyncStatus)]
+    pub async fn get_gmail_sync_status(&self) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let status = sync::gmail::get_gmail_sync_status(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&status)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    /// Full or incremental Twitter sync.
+    /// Returns `{ added, errors }` as JsValue.
+    #[wasm_bindgen(js_name = syncTwitter)]
+    pub async fn sync_twitter(
+        &self,
+        token: &str,
+        limit: u32,
+        on_progress: Option<Function>,
+        signal: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let result = sync::twitter::sync_twitter(db, token, limit, &on_progress, &signal)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    /// Continue fetching older tweets.
+    /// Returns `{ added, errors }` as JsValue.
+    #[wasm_bindgen(js_name = syncTwitterMore)]
+    pub async fn sync_twitter_more(
+        &self,
+        token: &str,
+        limit: u32,
+        on_progress: Option<Function>,
+        signal: Option<JsValue>,
+    ) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let result = sync::twitter::sync_twitter_more(db, token, limit, &on_progress, &signal)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&result)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+    }
+
+    /// Clear all local Twitter data (items + sync state).
+    #[wasm_bindgen(js_name = clearTwitterData)]
+    pub async fn clear_twitter_data(&self) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        sync::twitter::clear_twitter_data(db)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    /// Get Twitter sync status.
+    /// Returns `{ synced, totalItems, lastSyncAt, hasMore }` as JsValue.
+    #[wasm_bindgen(js_name = getTwitterSyncStatus)]
+    pub async fn get_twitter_sync_status(&self) -> Result<JsValue, JsValue> {
+        let db = &self.rexie_db;
+        let status = sync::twitter::get_twitter_sync_status(db)
+            .await
+            .map_err(|e| error_to_js(&e))?;
+        serde_wasm_bindgen::to_value(&status)
+            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
     }
 }
 

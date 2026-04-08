@@ -9,7 +9,7 @@ import { getCore } from "../store/core-store.js";
 import { getSavedToken } from "../google-auth.js";
 import { getDefaultDirectory } from "./filesystem-store.js";
 import { executeFilesystemAction } from "./filesystem-executor.js";
-import { EVENT_CATEGORY_TIERS } from "../events.js";
+import { EVENT_CATEGORY_TIERS } from "../core.js";
 import type { EmailEvent, ExecutionProgress, ActionExecutionResult } from "$lib/types";
 import { ActionMetadata } from "../core.js";
 import type { ResolveExecuteResult, ResolveBatchResult, EventInput } from "../core.js";

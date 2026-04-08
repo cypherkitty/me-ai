@@ -1,10 +1,9 @@
 <script lang="ts">
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import { getPendingApprovals, getCategoryPipelines } from "../lib/rules.js";
 
   import { executePipeline } from "../lib/plugins/execution-service.js";
-  import { updateClassificationStatus } from "../lib/triage.js";
+  import { updateClassificationStatus } from "../lib/core.js";
 
   import PipelineTrace from "../components/PipelineTrace.svelte";
   import { Button } from "$lib/components/ui/button/index.js";
@@ -46,7 +45,7 @@
     loading = true;
     execState = {};
     try {
-      events = (await getPendingApprovals({ limit: 100 })) as ApprovalEvent[];
+      events = (await getCore().getPendingApprovals(100)) as ApprovalEvent[];
     } catch (e) {
       console.error("ApprovalsView:", e);
     }
@@ -86,7 +85,7 @@
     const categoryName = String(evt.event_category ?? "")
       .toLowerCase()
       .trim();
-    const pipelines = await getCategoryPipelines();
+    const pipelines = await getCore().getCategoryPipelines();
     const cat = (pipelines as unknown as Array<{ category?: string; actions?: unknown[] }>).find(
       (c) => c.category?.toLowerCase().trim() === categoryName
     );

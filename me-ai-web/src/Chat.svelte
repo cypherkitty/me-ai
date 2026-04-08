@@ -4,20 +4,16 @@
   import type { ApiModel } from "./lib/core.js";
   import { coreStore, getCore } from "./lib/store/core-store.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
-  import { getPendingActions } from "./lib/store/query-layer.js";
-  import {
-    buildBatchEventMessage,
-    buildEventsByCategoryMessage,
-    type ByCategory,
-  } from "./lib/events.js";
-  import { getClassificationsByCategory } from "./lib/triage.js";
+  import { buildBatchEventMessage, buildEventsByCategoryMessage } from "./lib/core.js";
+  import type { ByCategory } from "./lib/core.js";
+  import { getClassificationsByCategory } from "./lib/core.js";
   import {
     updateClassificationStatus,
     deleteClassification,
     clearClassificationsByAction,
-    scanEmails,
     getScanStats,
-  } from "./lib/triage.js";
+  } from "./lib/core.js";
+  import { scanEmails } from "./lib/triage.js";
   import { executePipelineBatch } from "./lib/plugins/execution-service.js";
   import BackendSelector from "./components/chat/BackendSelector.svelte";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
@@ -701,7 +697,11 @@
   async function showDashboardIfNeeded() {
     if (greetingShown || messages.length > 0) return;
     try {
-      const pending = await getPendingActions();
+      const cbcResult = await getCore().getClassificationsByCategory(true);
+      const pending =
+        cbcResult.total === 0
+          ? null
+          : { categories: cbcResult.categories, order: cbcResult.order, total: cbcResult.total };
       pendingData = pending as PendingData | null;
       if (pending) {
         greetingShown = true;
@@ -718,7 +718,11 @@
 
   async function refreshPendingData() {
     try {
-      const pending = await getPendingActions();
+      const cbcResult = await getCore().getClassificationsByCategory(true);
+      const pending =
+        cbcResult.total === 0
+          ? null
+          : { categories: cbcResult.categories, order: cbcResult.order, total: cbcResult.total };
       pendingData = pending as PendingData | null;
 
       // Update the dashboard message in-place if it exists

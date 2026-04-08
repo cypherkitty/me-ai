@@ -107,6 +107,134 @@ struct EventTypeStoreRow {
     auto_created: bool,
 }
 
+// ── Tier definitions ──────────────────────────────────────────────────
+
+/// Static tier definition returned by `getEventCategoryTiers`.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventCategoryTier {
+    pub id: String,
+    pub label: String,
+    pub description: String,
+    #[wasm_bindgen(js_name = "autoExecute")]
+    pub auto_execute: bool,
+    #[wasm_bindgen(js_name = "requiresApproval")]
+    pub requires_approval: bool,
+    pub color: String,
+}
+
+pub fn get_event_category_tiers() -> Vec<EventCategoryTier> {
+    vec![
+        EventCategoryTier {
+            id: "NOISE".into(),
+            label: "Noise".into(),
+            description: "Unimportant messages that can be safely deleted automatically.".into(),
+            auto_execute: true,
+            requires_approval: false,
+            color: "#6b7280".into(),
+        },
+        EventCategoryTier {
+            id: "INFO".into(),
+            label: "Info".into(),
+            description: "Useful but not urgent — will be silently archived.".into(),
+            auto_execute: true,
+            requires_approval: false,
+            color: "#3b82f6".into(),
+        },
+        EventCategoryTier {
+            id: "CRITICAL".into(),
+            label: "Critical".into(),
+            description: "Requires attention. User must review before any action runs.".into(),
+            auto_execute: false,
+            requires_approval: true,
+            color: "#ef4444".into(),
+        },
+    ]
+}
+
+/// Normalize a raw category string to one of: NOISE, INFO, CRITICAL.
+pub fn normalize_category(raw: &str) -> &'static str {
+    match raw.to_uppercase().as_str() {
+        "NOISE" => "NOISE",
+        "INFO" | "INFORMATIONAL" => "INFO",
+        "CRITICAL" | "IMPORTANT" | "URGENT" => "CRITICAL",
+        _ => "CRITICAL",
+    }
+}
+
+/// Normalize category to lowercase: NOISE → noise, INFO → info, CRITICAL → critical.
+pub fn normalize_category_lower(raw: &str) -> &'static str {
+    match normalize_category(raw) {
+        "NOISE" => "noise",
+        "INFO" => "info",
+        _ => "critical",
+    }
+}
+
+/// Seed an event type from LLM classification. Normalizes the category and
+/// upserts into the eventTypes store.
+pub async fn seed_event_type_from_llm(
+    db: &RexieDb,
+    event_type: &str,
+    category: &str,
+) -> Result<(), CoreError> {
+    // Normalize event type name
+    let normalized: String = event_type
+        .to_uppercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' { c } else if c == ' ' { '_' } else { '\0' })
+        .filter(|&c| c != '\0')
+        .collect();
+    if normalized.is_empty() {
+        return Ok(());
+    }
+
+    let cat = normalize_category_lower(category);
+    let label = normalized.replace('_', " ");
+    upsert_event_type(db, &normalized, &label, cat, true).await
+}
+
+/// Fetch all known event type names (from both the eventTypes store and classifications).
+pub async fn get_all_event_types(db: &RexieDb) -> Result<Vec<String>, CoreError> {
+    use std::collections::BTreeSet;
+
+    let type_rows: Vec<EventTypeRow> = db.store_get_all(store::SM_EVENT_TYPES, None, None).await?;
+    let mut names: BTreeSet<String> = type_rows.into_iter().map(|r| r.name).collect();
+
+    // Also collect action names from classifications
+    let class_rows: Vec<ClassificationActionOnly> =
+        db.store_get_all(store::EMAIL_CLASSIFICATIONS, None, None).await?;
+    for row in class_rows {
+        if let Some(action) = row.action {
+            if !action.is_empty() {
+                names.insert(action);
+            }
+        }
+    }
+
+    Ok(names.into_iter().collect())
+}
+
+/// Look up the category for an event type from the eventTypes store.
+pub async fn get_category_for_event_type(
+    db: &RexieDb,
+    event_type: &str,
+) -> Result<String, CoreError> {
+    let normalized = event_type.to_uppercase();
+    if let Some(row) = db.store_get::<EventTypeRow>(store::SM_EVENT_TYPES, &normalized).await? {
+        if let Some(cat) = &row.category_name {
+            return Ok(normalize_category(cat).to_string());
+        }
+    }
+    Ok("CRITICAL".to_string())
+}
+
+#[derive(Deserialize)]
+struct ClassificationActionOnly {
+    action: Option<String>,
+}
+
 /// Insert event type if not present (for LLM-seeded types).
 pub async fn upsert_event_type(
     db: &RexieDb,

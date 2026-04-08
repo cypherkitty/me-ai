@@ -13,7 +13,7 @@
   import { Label } from "$lib/components/ui/label/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { cn } from "$lib/utils.js";
-  import { actionColor } from "../../lib/triage.js";
+  import { actionColor } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronRight, MessageSquarePlus, Pencil, Trash2 } from "lucide-svelte";

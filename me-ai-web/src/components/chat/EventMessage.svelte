@@ -1,7 +1,7 @@
 <script lang="ts">
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import TaskCard from "./TaskCard.svelte";
-  import { stringToHue } from "../../lib/format.js";
+  import { stringToHue } from "../../lib/core.js";
   import {
     executePipeline,
     executePipelineBatch,
