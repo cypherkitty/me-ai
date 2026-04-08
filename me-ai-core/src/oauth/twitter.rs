@@ -1,7 +1,7 @@
 //! Twitter/X OAuth 2.0 PKCE token exchange, refresh, and revoke (no navigation).
 //!
-//! Authorization URL and PKCE verifier/state are produced here; the app stores verifier/state
-//! and performs the browser redirect / callback parsing in TypeScript.
+//! Authorization URL and PKCE verifier/state are produced here; the app persists verifier/state
+//! in IndexedDB (`saveTwitterPkcePending`) and performs the browser redirect / callback in TypeScript.
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;

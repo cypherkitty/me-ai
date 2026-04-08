@@ -1,12 +1,9 @@
 /**
- * Twitter/X OAuth 2.0 PKCE — browser-only wiring (localStorage + redirect).
- * PKCE, token exchange, refresh, and revoke are implemented in me-ai-core (Rust).
+ * Twitter/X OAuth 2.0 PKCE — browser-only wiring (IndexedDB + redirect).
+ * PKCE material is stored via me-ai-core until the callback; token exchange, refresh, and revoke are in Rust.
  */
 
 import { getCore } from "./store/core-store.js";
-
-const LS_VERIFIER_KEY = "me-ai:twitter-pkce-verifier";
-const LS_STATE_KEY = "me-ai:twitter-pkce-state";
 
 function defaultRedirectUri(): string {
   return `${window.location.origin}/#oauth-twitter`;
@@ -21,8 +18,7 @@ export async function requestTwitterAccessToken(
 ): Promise<void> {
   const uri = redirectUri ?? defaultRedirectUri();
   const start = getCore().twitterOAuthBeginLogin(clientId, uri);
-  localStorage.setItem(LS_VERIFIER_KEY, start.verifier);
-  localStorage.setItem(LS_STATE_KEY, start.state);
+  await getCore().saveTwitterPkcePending(start.verifier, start.state);
   window.location.href = start.authorizeUrl;
 }
 
@@ -35,21 +31,16 @@ export async function handleTwitterCallback(
   clientId: string,
   redirectUri?: string
 ): Promise<{ access_token: string; refresh_token: string }> {
-  const savedState = localStorage.getItem(LS_STATE_KEY);
-  const codeVerifier = localStorage.getItem(LS_VERIFIER_KEY);
-
-  localStorage.removeItem(LS_STATE_KEY);
-  localStorage.removeItem(LS_VERIFIER_KEY);
-
-  if (!savedState || savedState !== state) {
-    throw new Error("Invalid state parameter — possible CSRF attack.");
+  const pending = await getCore().takeTwitterPkcePending();
+  if (!pending) {
+    throw new Error("Missing PKCE session — auth flow may have been interrupted.");
   }
-  if (!codeVerifier) {
-    throw new Error("Missing PKCE code verifier — auth flow may have been interrupted.");
+  if (pending.state !== state) {
+    throw new Error("Invalid state parameter — possible CSRF attack.");
   }
 
   const uri = redirectUri ?? defaultRedirectUri();
-  const tokens = await getCore().twitterOAuthExchangeCode(clientId, uri, code, codeVerifier);
+  const tokens = await getCore().twitterOAuthExchangeCode(clientId, uri, code, pending.verifier);
   return {
     access_token: tokens.accessToken,
     refresh_token: tokens.refreshToken ?? "",

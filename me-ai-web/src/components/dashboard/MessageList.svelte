@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { StoredItem } from "$lib/types.js";
   import { onMount } from "svelte";
-  import { formatDate, extractName, initial } from "../../lib/email-utils.js";
-  import { mountLog } from "../../lib/debug.js";
+  import { getCore } from "../../lib/core.js";
+  import { mountLog } from "$lib/debug";
 
   interface Props {
     messages?: StoredItem[];
@@ -22,15 +22,15 @@
       <div
         class="size-[34px] rounded-full bg-muted text-muted-foreground flex items-center justify-center text-sm font-semibold shrink-0"
       >
-        {initial(msg.from)}
+        {getCore().initial(msg.from)}
       </div>
       <div class="flex-1 min-w-0 flex flex-col gap-0.5">
         <div class="flex items-baseline justify-between gap-2">
           <span class="text-[0.84rem] font-semibold text-foreground truncate"
-            >{extractName(msg.from)}</span
+            >{getCore().extractName(msg.from)}</span
           >
           <span class="text-[0.68rem] text-muted-foreground/40 whitespace-nowrap shrink-0"
-            >{formatDate(msg.date)}</span
+            >{getCore().formatEmailDisplayDate(msg.date)}</span
           >
         </div>
         <div class="text-[0.8rem] text-foreground/70 truncate">{msg.subject}</div>

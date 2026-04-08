@@ -3,9 +3,8 @@
   import { onMount } from "svelte";
   import { marked } from "marked";
   import DOMPurify from "dompurify";
-  import { formatDate } from "../../lib/email-utils.js";
   import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
-  import { emailToJsonString, emailJsonFilename } from "../../lib/core.js";
+  import { emailToJsonString, emailJsonFilename, getCore } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
 
   interface Props {
@@ -262,7 +261,7 @@
         </div>
         <div class="meta-row">
           <span class="meta-label">Date:</span>
-          <span>{formatDate(message.date)}</span>
+          <span>{getCore().formatEmailDisplayDate(message.date)}</span>
         </div>
       </div>
       <div class="modal-body">

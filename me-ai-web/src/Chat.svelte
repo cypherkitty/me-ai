@@ -22,15 +22,16 @@
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
   import {
-    createChatSession,
-    fallbackChatTitle,
-    getSessionSubtitle,
-    loadChatSessions,
-    normalizeGeneratedTitle,
-    normalizeMessage,
-    saveChatSessions,
+    normalizeChatMessage,
+    fallbackChatTitleFromMessagesJson,
+    normalizeGeneratedChatTitle,
+    sessionSubtitleFromMessagesJson,
     type ChatSessionRecord,
-  } from "./lib/chat-sessions.js";
+  } from "me-ai-core";
+
+  function fallbackChatTitle(messages: unknown[]) {
+    return fallbackChatTitleFromMessagesJson(JSON.stringify(messages));
+  }
 
   const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
 
@@ -148,7 +149,10 @@
   function ensureMessageMetadata(nextMessages: ChatMsg[]): ChatMsg[] {
     let changed = false;
     const normalized = nextMessages.map((message, index) => {
-      const normalizedMessage = normalizeMessage(message, Date.now() + index) as ChatMsg;
+      const normalizedMessage = normalizeChatMessage(
+        message as object,
+        Date.now() + index
+      ) as ChatMsg;
       if (
         normalizedMessage.id === message.id &&
         normalizedMessage.createdAt === message.createdAt
@@ -193,7 +197,7 @@
   }
 
   function createAndActivateSession() {
-    const session = createChatSession();
+    const session = getCore().createChatSession(Date.now());
     chatSessions = sortSessions([session, ...chatSessions]);
     activateSession(session.id);
   }
@@ -203,7 +207,7 @@
     if (!session) return;
     const nextTitle = window.prompt(
       "Rename chat",
-      session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"
+      session.title || fallbackChatTitle(session.messages) || "Untitled chat"
     );
     if (!nextTitle) return;
     const trimmed = nextTitle.trim();
@@ -221,13 +225,13 @@
     const session = chatSessions.find((item) => item.id === sessionId);
     if (!session) return;
     const ok = window.confirm(
-      `Delete "${session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}"?`
+      `Delete "${session.title || fallbackChatTitle(session.messages) || "Untitled chat"}"?`
     );
     if (!ok) return;
 
     const remaining = chatSessions.filter((item) => item.id !== sessionId);
     if (remaining.length === 0) {
-      const empty = createChatSession();
+      const empty = getCore().createChatSession(Date.now());
       chatSessions = [empty];
       activateSession(empty.id);
       return;
@@ -253,7 +257,7 @@
       }
       return {
         ...session,
-        title: null,
+        title: "",
         titleStatus: "pending",
       };
     });
@@ -266,7 +270,7 @@
     if (session.titleSource === "manual" || session.titleSource === "model" || session.title)
       return;
 
-    const firstUserMessage = session.messages.find(
+    const firstUserMessage = (session.messages as ChatMsg[]).find(
       (message) =>
         message.role === "user" && typeof message.content === "string" && message.content.trim()
     );
@@ -304,7 +308,7 @@
         if (current.titleSource === "manual") return current;
         return {
           ...current,
-          title: normalizeGeneratedTitle(result.text, current.messages),
+          title: normalizeGeneratedChatTitle(result.text, JSON.stringify(current.messages)),
           titleStatus: "ready",
           titleSource: "model",
           updatedAt: Math.max(current.updatedAt, Date.now()),
@@ -338,12 +342,13 @@
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
-      const savedChats = loadChatSessions();
+      const savedChats = await getCore().loadChatSessions();
       chatSessions = sortSessions(savedChats.sessions);
-      activeChatId = savedChats.activeChatId;
+      activeChatId = savedChats.activeChatId || null;
       const initialSession =
-        savedChats.sessions.find((session) => session.id === savedChats.activeChatId) ??
-        savedChats.sessions[0];
+        savedChats.sessions.find(
+          (session: ChatSessionRecord) => session.id === savedChats.activeChatId
+        ) ?? savedChats.sessions[0];
       messages = ensureMessageMetadata((initialSession?.messages ?? []) as ChatMsg[]);
       greetingShown = messages.length > 0;
 
@@ -670,15 +675,21 @@
       activeChatId,
       sessions: chatSessions,
     });
+    let parsed: { activeChatId: string | null; sessions: ChatSessionRecord[] };
     try {
-      const parsed = JSON.parse(snapshot) as {
+      parsed = JSON.parse(snapshot) as {
         activeChatId: string | null;
         sessions: ChatSessionRecord[];
       };
-      saveChatSessions(parsed.activeChatId, parsed.sessions);
     } catch {
       storageUnavailable = true;
+      return;
     }
+    void getCore()
+      .saveChatSessions(parsed.activeChatId ?? undefined, parsed.sessions)
+      .catch(() => {
+        storageUnavailable = true;
+      });
   });
 
   $effect(() => {
@@ -687,7 +698,7 @@
       (session) =>
         session.titleStatus === "pending" &&
         session.titleSource !== "manual" &&
-        session.messages.some((message) => message.role === "user")
+        (session.messages as ChatMsg[]).some((message) => message.role === "user")
     );
     if (!nextUntitledSession) return;
     void generateSessionTitle(nextUntitledSession.id);
@@ -1450,8 +1461,9 @@
         oneditlastuser={editLastUserMessage}
         onregenerate={regenerateLastAssistantMessage}
         onsessiontitle={(session) =>
-          session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}
-        onsessionsubtitle={(session) => getSessionSubtitle(session.messages)}
+          session.title || fallbackChatTitle(session.messages) || "Untitled chat"}
+        onsessionsubtitle={(session) =>
+          sessionSubtitleFromMessagesJson(JSON.stringify(session.messages))}
         onsessiondate={(session) => formatSessionDate(session.updatedAt)}
         onmarkacted={markActed}
         ondismiss={dismiss}

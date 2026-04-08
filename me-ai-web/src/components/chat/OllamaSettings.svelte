@@ -1,14 +1,7 @@
 <script lang="ts">
   import { getCore } from "../../lib/store/core-store.js";
 
-  import {
-    getOllamaUrl,
-    getOllamaUrlAsync,
-    setOllamaUrl,
-    testOllamaConnection,
-    listOllamaModels,
-    type OllamaConnectionResult,
-  } from "../../lib/ollama-client.js";
+  import type { OllamaConnectionResult } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Input } from "$lib/components/ui/input/index.js";
   import { Label } from "$lib/components/ui/label/index.js";
@@ -27,22 +20,24 @@
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-  let ollamaUrl = $state(getOllamaUrl());
+  let ollamaUrl = $state(getCore().defaultOllamaBaseUrl());
   let isTestingConnection = $state(false);
   let connectionStatus = $state<OllamaConnectionResult | null>(null);
   let availableModels = $state<string[]>([]);
 
   $effect(() => {
-    getOllamaUrlAsync().then((url) => {
-      ollamaUrl = url;
-      testConnection();
-    });
+    getCore()
+      .getResolvedOllamaUrl()
+      .then((url) => {
+        ollamaUrl = url;
+        testConnection();
+      });
   });
 
   async function testConnection() {
     isTestingConnection = true;
     connectionStatus = null;
-    const result = await testOllamaConnection(ollamaUrl);
+    const result = await getCore().testOllamaConnection(ollamaUrl);
     connectionStatus = result;
     isTestingConnection = false;
     if (result.connected) loadAvailableModels();
@@ -50,16 +45,16 @@
 
   async function loadAvailableModels() {
     try {
-      const models = await listOllamaModels(ollamaUrl);
+      const models = await getCore().listOllamaModels(ollamaUrl);
       availableModels = models.map((m: { name: string }) => m.name);
     } catch {
       availableModels = [];
     }
   }
 
-  function handleUrlChange() {
-    setOllamaUrl(ollamaUrl);
-    testConnection();
+  async function handleUrlChange() {
+    await getCore().setOllamaUrl(ollamaUrl);
+    await testConnection();
   }
 
   function handleLoadModel() {

@@ -66,8 +66,8 @@ Never mock what you can instantiate.
 
 **TypeScript:** use real module functions with controlled inputs. Only mock
 at a true external boundary — specifically WASM (`me-ai-core`) and browser
-APIs (`IndexedDB`, `localStorage`, `fetch`) that cannot run in Vitest's
-node/jsdom environment.
+APIs (`fetch`, and IndexedDB when not going through WASM) that cannot run in Vitest's
+node/jsdom environment. Application data uses Rexie only via core; do not add `localStorage` or `sessionStorage`.
 
 When you reach for `vi.mock()`, ask first: can I pass a real value instead?
 If yes, do that. If the only reason to mock is to avoid a slow or complex

@@ -342,8 +342,8 @@
             >
               <span class="flex-1">
                 <strong class="text-destructive/80 font-semibold">This cannot be undone.</strong>
-                Deletes IndexedDB and caches, all cached model weights (Cache API), and localStorage.
-                The page will reload fresh.
+                Deletes all IndexedDB databases, caches, and cached model weights (Cache API). The page
+                will reload fresh.
               </span>
               <div class="flex items-center gap-3 shrink-0">
                 <button
@@ -378,7 +378,7 @@
             >
               <span class="text-xs text-destructive/80 font-semibold">Wipe everything</span>
               <span class="text-[0.65rem] text-muted-foreground/40"
-                >IndexedDB · model cache · localStorage — full reset.</span
+                >IndexedDB · model cache — full reset.</span
               >
             </button>
           {/if}

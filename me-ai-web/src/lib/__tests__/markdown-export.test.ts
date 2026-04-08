@@ -2,6 +2,20 @@ import { describe, it, expect, vi } from "vitest";
 import { emailToMarkdown, emailFilename } from "../markdown-export.js";
 import type { MessageForMarkdown } from "../markdown-export.js";
 
+const mockEmailDateToEpochMs = (d: unknown): number => {
+  if (d === "" || d == null) return 0;
+  if (typeof d === "number" && Number.isFinite(d)) return d;
+  if (typeof d === "bigint") return Number(d);
+  const s = String(d).trim();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
   const slugify = (s: string) => {
     const src = s || "email";
@@ -50,7 +64,9 @@ const mockEmailToMarkdown = (
 
 vi.mock("../store/core-store.js", () => ({
   getCore: () => ({
-    exportFilename: mockExportFilename,
+    emailDateToEpochMs: mockEmailDateToEpochMs,
+    exportEmailFilename: (subject: string, date: unknown, ext: string) =>
+      mockExportFilename(subject, mockEmailDateToEpochMs(date), ext),
     emailToMarkdown: mockEmailToMarkdown,
   }),
   coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },

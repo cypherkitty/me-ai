@@ -1,19 +1,31 @@
 /**
  * Lightweight debug logger.
  *
- * OFF by default. Enable in the browser console:
- *   localStorage.setItem("debug", "true")
+ * OFF by default. Enable via IndexedDB settings (`debugLogging: true` on `SettingValue`, then `saveSettings`), or call `setDebugLoggingEnabled(true)` from the console after core init.
  *
- * Disable:
- *   localStorage.removeItem("debug")
- *
- * Then reload the page.
+ * `refreshDebugFromSettings()` runs after `initCore()` in `main.ts`.
  */
 
-const enabled = typeof localStorage !== "undefined" && localStorage.getItem("debug") === "true";
+import { getCore } from "./store/core-store.js";
+
+let debugLoggingEnabled = false;
+
+export async function refreshDebugFromSettings(): Promise<void> {
+  try {
+    const sv = await getCore().loadSettings();
+    debugLoggingEnabled = sv.debugLogging === true;
+  } catch {
+    debugLoggingEnabled = false;
+  }
+}
+
+/** For tests or console: override without persisting. */
+export function setDebugLoggingEnabled(v: boolean): void {
+  debugLoggingEnabled = v;
+}
 
 function debug(...args: unknown[]): void {
-  if (enabled) console.log("[debug]", ...args);
+  if (debugLoggingEnabled) console.log("[debug]", ...args);
 }
 
 /**

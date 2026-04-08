@@ -6,21 +6,22 @@
  */
 
 import { getCore } from "./core-store.js";
-import { clearSavedChatSessions } from "../chat-sessions.js";
 
 /**
  * Clear all user data via core (items, syncState, contacts, rules, events, etc.) and reload.
  */
 export async function wipeAllData(): Promise<void> {
-  await getCore().clearAllData();
-  clearSavedChatSessions();
+  const core = getCore();
+  await core.clearAllData();
+  await core.clearChatSessions();
   if (typeof window !== "undefined") {
     window.location.reload();
   }
 }
 
 /**
- * Delete the IndexedDB database "me-ai", clear caches and localStorage, then reload.
+ * Delete all IndexedDB databases, clear the Cache API (e.g. model weights), then reload.
+ * App state must use Rexie only — no web Storage API.
  */
 export async function nukeAllLocalData(): Promise<void> {
   const dbs = (await indexedDB.databases?.()) ?? [];
@@ -49,8 +50,6 @@ export async function nukeAllLocalData(): Promise<void> {
   } catch (e) {
     console.warn("[db] nukeAllLocalData: Cache API failed:", (e as Error)?.message);
   }
-  localStorage.clear();
-  sessionStorage.clear();
   if (typeof window !== "undefined") {
     window.location.reload();
   }
