@@ -20,6 +20,8 @@ TypeScript calls WASM methods only — no direct IndexedDB access from app code.
 **Persistence:** IndexedDB via the `rexie` crate. Stores and indexes only.  
 See [`.cortex/references/rexie-patterns.md`](references/rexie-patterns.md) for conventions.
 
+**WASM / browser FFI:** Prefer pure Rust in `me-ai-core`; use `js-sys` / `web-sys` only in the rare host-only cases described in [`.cortex/coding-standards/rust.md`](coding-standards/rust.md).
+
 ## Navigating the code
 
 Don't memorize directory trees — read the source directly. A few orientation hints:

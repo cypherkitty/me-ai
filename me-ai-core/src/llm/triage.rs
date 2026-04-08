@@ -366,14 +366,8 @@ pub fn format_email_prompt(
     labels: &str,
     body: &str,
 ) -> String {
-    let date_str = if date_ms > 0 {
-        let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(date_ms as f64));
-        d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::undefined())
-            .as_string()
-            .unwrap_or_else(|| "Unknown date".to_string())
-    } else {
-        "Unknown date".to_string()
-    };
+    let date_str = crate::time_util::format_utc_mdy_from_ms(date_ms)
+        .unwrap_or_else(|| "Unknown date".to_string());
 
     format!(
         "Subject: {subject}\nFrom: {from}\nTo: {to}\nDate: {date_str}\nLabels: {labels}\n\n{body}"

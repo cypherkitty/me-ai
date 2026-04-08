@@ -4,14 +4,9 @@
  */
 
 import { getCore } from "./core-store.js";
-import type { SyncProgress } from "$lib/types";
+import type { SyncProgress, SyncStatus } from "$lib/types";
 
-export interface TwitterSyncStatus {
-  synced: boolean;
-  totalItems: number;
-  lastSyncAt: number | null;
-  hasMore: boolean;
-}
+export type TwitterSyncStatus = SyncStatus;
 
 interface SyncTwitterOptions {
   limit?: number;
@@ -38,5 +33,5 @@ export async function clearTwitterData(): Promise<void> {
 }
 
 export async function getTwitterSyncStatus(): Promise<TwitterSyncStatus> {
-  return (await getCore().getTwitterSyncStatus()) as TwitterSyncStatus;
+  return getCore().getTwitterSyncStatus();
 }

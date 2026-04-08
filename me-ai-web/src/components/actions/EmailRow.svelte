@@ -27,10 +27,11 @@
     onremove,
   }: Props = $props();
 
-  function formatDate(timestamp: number | null | undefined) {
-    if (!timestamp) return "";
+  function formatDate(timestamp: number | bigint | null | undefined) {
+    if (timestamp == null) return "";
     try {
-      return new Date(timestamp).toLocaleDateString("en-US", {
+      const ms = typeof timestamp === "bigint" ? Number(timestamp) : timestamp;
+      return new Date(ms).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       });

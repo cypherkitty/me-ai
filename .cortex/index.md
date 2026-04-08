@@ -17,7 +17,7 @@ Read this file, then follow the links relevant to your task.
 | [`exec-plans/`](exec-plans/README.md) | Execution plans for complex work |
 | [`references/rexie-patterns.md`](references/rexie-patterns.md) | Rexie/IndexedDB conventions |
 | [`coding-standards/typescript.md`](coding-standards/typescript.md) | No `null`, discriminated unions, `??` over `\|\|` |
-| [`coding-standards/rust.md`](coding-standards/rust.md) | Type-driven development, `enum` over strings, no `unwrap()` outside tests |
+| [`coding-standards/rust.md`](coding-standards/rust.md) | Type-driven development, `enum` over strings, no `unwrap()` outside tests; minimal `js_sys` / `web_sys` |
 
 ## Agent roles
 

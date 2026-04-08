@@ -10,13 +10,6 @@
   import Chat from "../Chat.svelte";
   import { GitBranch, CheckCircle2, Zap, ScanSearch, Mail, ShieldCheck } from "lucide-svelte";
 
-  interface SyncStatus {
-    synced: boolean;
-    totalItems: number;
-    lastSyncAt: number | null;
-    hasMore: boolean;
-  }
-
   let gmailConnected = $state(false);
   let emailCount = $state(0);
   let scannedCount = $state(0);
@@ -45,16 +38,16 @@
     }
 
     try {
-      const status = (await getGmailSyncStatus()) as SyncStatus;
-      emailCount = status.totalItems ?? 0;
+      const status = await getGmailSyncStatus();
+      emailCount = Number(status.totalItems ?? 0);
     } catch {
       /* no-op */
     }
 
     // Also count Twitter items
     try {
-      const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
-      emailCount += twStatus.totalItems ?? 0;
+      const twStatus = await getTwitterSyncStatus();
+      emailCount += Number(twStatus.totalItems ?? 0);
     } catch {
       /* no-op */
     }

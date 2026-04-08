@@ -1,11 +1,15 @@
 //! Rules and events CRUD via Rexie (sm_rules, sm_rule_triggers, sm_rule_commands, sm_events).
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
+
+static RULE_ID_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[wasm_bindgen(typescript_custom_section)]
 const RULES_TYPES: &'static str = r#"
@@ -571,10 +575,12 @@ pub struct RuleUpdateInput {
 
 /// Create a new rule with a generated ID. Returns the generated ID.
 pub async fn create_rule(db: &RexieDb, payload: CreateRulePayload) -> Result<String, CoreError> {
-    let now = js_sys::Date::now() as i64;
-    let rand = js_sys::Math::random().to_string();
-    let rand_part = rand.trim_start_matches("0.").chars().take(5).collect::<String>();
-    let id = format!("rule_{}_{}", now, rand_part);
+    let now = crate::time_util::now_ms();
+    let id = format!(
+        "rule_{}_{}",
+        now,
+        RULE_ID_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
     let save = RuleSavePayload {
         id: id.clone(),
         name: payload.name,

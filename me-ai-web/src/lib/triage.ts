@@ -9,10 +9,10 @@
 import { getCore } from "./store/core-store.js";
 import { toJson } from "./store/db.js";
 import {
-  normaliseRow,
   seedEventTypeFromLLM,
   getSystemPrompt,
   CLASSIFICATION_CONFIG,
+  itemDateMs,
 } from "./core.js";
 import type { StoredItem } from "$lib/types";
 import type {
@@ -20,7 +20,7 @@ import type {
   ScanResult,
   ScanOptions,
   TriageEngine,
-  StoredItemRow,
+  ItemRow,
 } from "./core.js";
 
 // Re-export for callers that still import from triage
@@ -53,18 +53,18 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
 
   const core = getCore();
   if (force) {
-    const rows = (await core.getItemsGmailByDateDesc(count)) as unknown as StoredItemRow[];
-    toProcess = rows.map((r) => normaliseRow(r as unknown as Record<string, unknown>));
+    const rows = await core.getItemsGmailByDateDesc(count);
+    toProcess = rows.map((r: ItemRow) => r.toStoredItem());
   } else {
     const [allItems, allClassifications] = await Promise.all([
-      core.getItemsGmailByDateDesc(5000) as unknown as Promise<StoredItemRow[]>,
-      core.getEmailClassifications(undefined, 5000) as unknown as Promise<{ emailId?: string }[]>,
+      core.getItemsGmailByDateDesc(5000),
+      core.getEmailClassifications(undefined, 5000),
     ]);
     const classifiedIds = new Set((allClassifications ?? []).map((c) => c.emailId).filter(Boolean));
     toProcess = (allItems ?? [])
-      .filter((r) => !classifiedIds.has((r as unknown as Record<string, unknown>).id as string))
+      .filter((r) => !classifiedIds.has(r.id))
       .slice(0, count)
-      .map((r) => normaliseRow(r as unknown as Record<string, unknown>));
+      .map((r) => r.toStoredItem());
     skipped = Number((await core.getEmailClassificationsCount()) ?? 0);
   }
 
@@ -100,10 +100,10 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
     const emailPrompt = core.formatEmailPrompt(
       email.subject || "",
       email.from || "",
-      (email as { to?: string }).to || "",
-      email.date ?? 0,
-      ((email as { labels?: string[] }).labels ?? []).join(", "),
-      (email as { body?: string }).body ?? (email as { snippet?: string }).snippet ?? ""
+      email.to || "",
+      itemDateMs(email.date),
+      (email.labels ?? []).join(", "),
+      email.body ?? email.snippet ?? ""
     );
     const promptMessages = [
       { role: "system", content: systemPrompt },
@@ -120,7 +120,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
       email: {
         subject: email.subject,
         from: email.from,
-        date: email.date != null ? String(email.date) : undefined,
+        date: email.date != null ? String(itemDateMs(email.date)) : undefined,
       },
       prompt: { system: systemPrompt, user: emailPrompt },
       systemPromptLength: systemPrompt.length,
@@ -155,7 +155,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
             email: {
               subject: email.subject,
               from: email.from,
-              date: email.date != null ? String(email.date) : undefined,
+              date: email.date != null ? String(itemDateMs(email.date)) : undefined,
             },
             live: { tps: tokenInfo.tps, numTokens: tokenInfo.numTokens },
             streamingText: tokenInfo.text || "",
@@ -202,7 +202,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
           tags: toJson(classification.tags),
           subject: email.subject || "(no subject)",
           from: email.from || "",
-          date: email.date ?? undefined,
+          date: email.date != null ? itemDateMs(email.date) : undefined,
           scannedAt,
           status: "pending",
         });
@@ -213,7 +213,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
 
         results.push({
           success: true,
-          email: { subject: email.subject, from: email.from, date: email.date },
+          email: { subject: email.subject, from: email.from, date: itemDateMs(email.date) },
           classification,
           rawResponse: response,
           stats: { tps, numTokens, inputTokens, elapsed: emailElapsed },
@@ -230,7 +230,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
           email: {
             subject: email.subject,
             from: email.from,
-            date: email.date != null ? String(email.date) : undefined,
+            date: email.date != null ? String(itemDateMs(email.date)) : undefined,
           },
           result: classification,
           rawResponse: response,
@@ -249,7 +249,7 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
       const errMsg = err.message;
       results.push({
         success: false,
-        email: { subject: email.subject, from: email.from, date: email.date },
+        email: { subject: email.subject, from: email.from, date: itemDateMs(email.date) },
         error: errMsg.length > 200 ? errMsg.slice(0, 200) + "..." : errMsg,
         promptSize: emailPrompt.length,
       });

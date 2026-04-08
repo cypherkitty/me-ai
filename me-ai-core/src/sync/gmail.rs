@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 
 use js_sys::Function;
-use wasm_bindgen::JsValue;
+use web_sys::AbortSignal;
 
 use crate::api::gmail;
 use crate::db::RexieDb;
@@ -39,7 +39,7 @@ pub async fn sync_gmail(
     token: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     let state = sync::get_sync_state(db, SOURCE_TYPE).await?;
 
@@ -74,7 +74,7 @@ pub async fn sync_gmail_more(
     token: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     let state = sync::get_sync_state(db, SOURCE_TYPE).await?;
 
@@ -126,7 +126,7 @@ async fn full_sync(
     token: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     emit_progress(on_progress, &SyncProgress::new("counting", "Getting mailbox info..."));
     check_aborted(signal)?;
@@ -218,7 +218,7 @@ async fn continue_fetch(
     state: &SyncStateRow,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     emit_progress(
         on_progress,
@@ -317,7 +317,7 @@ async fn incremental_sync(
     token: &str,
     state: &SyncStateRow,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     emit_progress(on_progress, &SyncProgress::new("syncing", "Checking for changes..."));
     check_aborted(signal)?;
@@ -446,7 +446,7 @@ async fn batch_fetch_and_store(
     token: &str,
     ids: &[String],
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<(u32, u32), CoreError> {
     let total = ids.len() as u32;
     emit_progress(
@@ -554,14 +554,13 @@ fn normalize_gmail_message(msg: &serde_json::Value) -> ItemInput {
     }
 }
 
-/// Parse a date string (RFC 2822 style) into epoch millis. Falls back to internalDate, then now.
+/// Parse a date string (RFC 2822 / ISO) into epoch millis. Falls back to internalDate, then now.
 fn parse_date(date_str: &str, internal_date: &str) -> i64 {
     if !date_str.is_empty() {
-        // Try parsing with js_sys::Date for maximum browser compatibility
-        let d = js_sys::Date::new(&JsValue::from_str(date_str));
-        let t = d.get_time();
-        if t.is_finite() && t > 0.0 {
-            return t as i64;
+        if let Some(ms) = crate::time_util::parse_http_date_to_ms(date_str) {
+            if ms > 0 {
+                return ms;
+            }
         }
     }
     if !internal_date.is_empty() {

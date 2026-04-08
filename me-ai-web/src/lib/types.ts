@@ -4,8 +4,9 @@
  */
 export type {
   StoredItem,
-  StoredItemRow,
+  ItemRow,
   SyncState,
+  SyncStatus,
   SyncProgress,
   GetStoredEmailsOptions,
   GetStoredEmailsResult,
@@ -20,4 +21,5 @@ export type {
   ExecutionProgress,
   AuditStep,
   AuditLogEntry,
+  AuditLogEntryParsed,
 } from "./core.js";

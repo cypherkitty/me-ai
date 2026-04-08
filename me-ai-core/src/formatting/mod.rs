@@ -80,14 +80,9 @@ pub fn slugify(subject: &str) -> String {
     if slug.is_empty() { "email".to_string() } else { slug }
 }
 
-/// Format date_ms (epoch ms) as "YYYY-MM-DD". Returns `None` for non-positive values.
+/// Format date_ms (epoch ms) as UTC `YYYY-MM-DD`. Returns `None` for non-positive values.
 pub fn short_date(date_ms: i64) -> Option<String> {
-    if date_ms <= 0 { return None; }
-    let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(date_ms as f64));
-    let y = d.get_full_year();
-    let m = d.get_month() + 1;  // 0-indexed
-    let day = d.get_date();
-    Some(format!("{:04}-{:02}-{:02}", y, m, day))
+    crate::time_util::format_utc_ymd_from_ms(date_ms)
 }
 
 /// Generate a safe export filename: "{YYYY-MM-DD}_{slug}.{ext}".
@@ -342,7 +337,7 @@ mod tests {
         assert_eq!(slugify(&long).len(), 60);
     }
 
-    // ── short_date (non-positive values only; date formatting needs WASM runtime) ──
+    // ── short_date (UTC; non-positive → None) ──
 
     #[test]
     fn short_date_zero_returns_none() {
@@ -353,6 +348,11 @@ mod tests {
     fn short_date_negative_returns_none() {
         assert_eq!(short_date(-1), None);
         assert_eq!(short_date(-1_000_000), None);
+    }
+
+    #[test]
+    fn short_date_known_epoch() {
+        assert_eq!(short_date(1_710_505_800_000), Some("2024-03-15".to_string()));
     }
 
     // ── parse_api_error ──────────────────────────────────────────────

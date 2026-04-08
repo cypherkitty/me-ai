@@ -294,13 +294,13 @@
     loadingMessages = true;
     try {
       const offset = append ? localOffset : 0;
-      const result = (await getCore().getStoredEmailsFiltered(
+      const result = await getCore().getStoredEmailsFiltered(
         searchQuery || undefined,
         LOCAL_PAGE_SIZE,
         offset
-      )) as { items: StoredItem[]; total: number };
+      );
       emailMessages = append ? [...emailMessages, ...result.items] : result.items;
-      totalLocalMessages = result.total;
+      totalLocalMessages = Number(result.total);
       localOffset = emailMessages.length;
     } catch (e) {
       gmailError = `Failed to load messages: ${errMsg(e)}`;
@@ -386,9 +386,10 @@
     }
   }
 
-  function formatTimeAgo(ts: number | null | undefined) {
-    if (!ts) return "never";
-    const s = Math.floor((Date.now() - ts) / 1000);
+  function formatTimeAgo(ts: number | bigint | null | undefined) {
+    if (ts == null) return "never";
+    const ms = typeof ts === "bigint" ? Number(ts) : ts;
+    const s = Math.floor((Date.now() - ms) / 1000);
     if (s < 60) return "just now";
     const m = Math.floor(s / 60);
     if (m < 60) return `${m}m ago`;

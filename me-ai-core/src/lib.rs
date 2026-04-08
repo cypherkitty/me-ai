@@ -16,9 +16,11 @@ mod error;
 mod formatting;
 mod llm;
 mod plugins;
+mod time_util;
 
 use js_sys::Function;
 use wasm_bindgen::prelude::*;
+use web_sys::AbortSignal;
 
 use crate::db::RexieDb;
 use crate::error::{to_js as error_to_js, CoreError};
@@ -30,13 +32,16 @@ use crate::plugins::resolution::{PipelineForEventResult, ResolveExecuteResult, R
 use crate::formatting::ParsedApiError;
 use crate::storage::aggregations::{CategoryPipelineView, EventStatsResult, PendingApprovalView, PendingItemByCategoryResult};
 use crate::storage::settings::{GoogleToken, SettingValue, TwitterToken};
-use crate::storage::audit::{AuditStats, GetAuditLogResult};
+use crate::storage::audit::{AuditStats, GetAuditLogParsedResult, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
 use crate::storage::classifications::{ClassificationRow, ClassificationDoc, ClassificationsByCategory, ClassificationCounts};
 use crate::storage::events::{EventCategoryRow, EventCategoryTier, EventTypeRow};
 use crate::storage::pipelines::{PipelineActionInput, PipelineActionRow};
 use crate::storage::rules::{CreateRulePayload, EventRow, RuleSavePayload, RuleUpdateInput, RuleView};
-use crate::storage::sync::{ContactRow, ItemRow, SyncStateRow, ItemInput, SyncStateInput, ContactInput};
+use crate::storage::sync::{
+    ContactRow, ContactInput, GetStoredEmailsResult, ItemInput, ItemRow, SyncStateInput, SyncStateRow,
+};
+use crate::sync::{SyncResult, SyncStatus};
 
 /// Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
 #[wasm_bindgen(js_name = MeAiCore)]
@@ -212,7 +217,7 @@ impl MeAiCore {
         expires_in: f64,
     ) -> Result<(), JsValue> {
         let db = &self.rexie_db;
-        let expires_at = js_sys::Date::now() + expires_in * 1000.0;
+        let expires_at = time_util::now_ms() as f64 + expires_in * 1000.0;
         storage::settings::save_google_token(db, access_token, expires_at)
             .await
             .map_err(|e| error_to_js(&e))
@@ -266,7 +271,7 @@ impl MeAiCore {
         expires_in: f64,
     ) -> Result<(), JsValue> {
         let db = &self.rexie_db;
-        let expires_at = js_sys::Date::now() + expires_in * 1000.0;
+        let expires_at = time_util::now_ms() as f64 + expires_in * 1000.0;
         storage::settings::save_twitter_token(db, access_token, refresh_token.as_deref(), expires_at)
             .await
             .map_err(|e| error_to_js(&e))
@@ -315,9 +320,13 @@ impl MeAiCore {
     }
 
     /// Audit log with `steps` pre-parsed from JSON string to array.
-    /// Returns `{ entries: AuditLogEntry[], total: number }` as plain JsValue.
     #[wasm_bindgen(js_name = getAuditLogParsed)]
-    pub async fn get_audit_log_parsed(&self, limit: u32, offset: u32, failures_only: bool) -> Result<JsValue, JsValue> {
+    pub async fn get_audit_log_parsed(
+        &self,
+        limit: u32,
+        offset: u32,
+        failures_only: bool,
+    ) -> Result<GetAuditLogParsedResult, JsValue> {
         let db = &self.rexie_db;
         Ok(storage::audit::get_audit_log_parsed(db, limit as i64, offset as i64, failures_only).await?)
     }
@@ -759,9 +768,13 @@ impl MeAiCore {
 
     /// Fetch stored Gmail emails with optional text search filtering and
     /// normalized fields (labels as array, raw as object).
-    /// Returns `{ items: StoredItem[], total: number }` as plain JsValue.
     #[wasm_bindgen(js_name = getStoredEmailsFiltered)]
-    pub async fn get_stored_emails_filtered(&self, query: Option<String>, limit: u32, offset: u32) -> Result<JsValue, JsValue> {
+    pub async fn get_stored_emails_filtered(
+        &self,
+        query: Option<String>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<GetStoredEmailsResult, JsValue> {
         let db = &self.rexie_db;
         Ok(storage::items::get_stored_emails_filtered(db, query.as_deref(), limit, offset).await?)
     }
@@ -1154,38 +1167,37 @@ impl MeAiCore {
     }
 
     // ── Gmail API ────────────────────────────────────────────────────────────────
-    // These methods return raw JSON blobs from the Gmail REST API. JsValue is
-    // the correct return type here: the data is opaque to core and consumed
-    // directly by me-ai-web JavaScript/TypeScript code.
+    // Responses are `serde_json::Value` in Rust (`api::gmail`), then bridged to JS
+    // as plain JSON objects via `serde_json_value_to_js`.
 
     #[wasm_bindgen(js_name = getGmailProfile)]
     pub async fn get_gmail_profile(&self, token: &str) -> Result<JsValue, JsValue> {
         let v = api::gmail::get_profile(token).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = listGmailMessages)]
     pub async fn list_gmail_messages(&self, token: &str, max_results: u32, page_token: Option<String>, q: Option<String>) -> Result<JsValue, JsValue> {
         let v = api::gmail::list_messages(token, max_results, page_token.as_deref(), q.as_deref()).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = getGmailMessage)]
     pub async fn get_gmail_message(&self, token: &str, message_id: &str, format: &str) -> Result<JsValue, JsValue> {
         let v = api::gmail::get_message(token, message_id, format).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = getGmailMessagesBatch)]
     pub async fn get_gmail_messages_batch(&self, token: &str, message_ids: Vec<String>, batch_size: u32) -> Result<JsValue, JsValue> {
         let v = api::gmail::get_messages_batch(token, message_ids, batch_size).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = listGmailHistory)]
     pub async fn list_gmail_history(&self, token: &str, start_history_id: &str, page_token: Option<String>, max_results: u32) -> Result<JsValue, JsValue> {
         let v = api::gmail::list_history(token, start_history_id, page_token.as_deref(), max_results).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = parseGmailBody)]
@@ -1204,86 +1216,84 @@ impl MeAiCore {
     }
 
     // ── Twitter API ──────────────────────────────────────────────────────────────
-    // These methods return raw JSON blobs from the Twitter v2 REST API. JsValue is
-    // the correct return type here: the data is opaque to core and consumed
-    // directly by me-ai-web JavaScript/TypeScript code.
+    // Same pattern as Gmail: typed `serde_json::Value` in `api::twitter`, then bridge.
 
     #[wasm_bindgen(js_name = getTwitterMe)]
     pub async fn get_twitter_me(&self, token: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::get_me(token).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = getTwitterTimeline)]
     pub async fn get_twitter_timeline(&self, token: &str, user_id: &str, max_results: u32, pagination_token: Option<String>) -> Result<JsValue, JsValue> {
         let v = api::twitter::get_user_timeline(token, user_id, max_results, pagination_token.as_deref()).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = getTwitterMentions)]
     pub async fn get_twitter_mentions(&self, token: &str, user_id: &str, max_results: u32, pagination_token: Option<String>) -> Result<JsValue, JsValue> {
         let v = api::twitter::get_user_mentions(token, user_id, max_results, pagination_token.as_deref()).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = searchTwitterRecentTweets)]
     pub async fn search_twitter_recent_tweets(&self, token: &str, query: &str, max_results: u32) -> Result<JsValue, JsValue> {
         let v = api::twitter::search_recent_tweets(token, query, max_results).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = getTwitterTweet)]
     pub async fn get_twitter_tweet(&self, token: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::get_tweet(token, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterLike)]
     pub async fn twitter_like(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::like_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterUnlike)]
     pub async fn twitter_unlike(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::unlike_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterRetweet)]
     pub async fn twitter_retweet(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::retweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterUnretweet)]
     pub async fn twitter_unretweet(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::unretweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterBookmark)]
     pub async fn twitter_bookmark(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::bookmark_tweet(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterRemoveBookmark)]
     pub async fn twitter_remove_bookmark(&self, token: &str, user_id: &str, tweet_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::remove_bookmark(token, user_id, tweet_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterMuteUser)]
     pub async fn twitter_mute_user(&self, token: &str, source_user_id: &str, target_user_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::mute_user(token, source_user_id, target_user_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     #[wasm_bindgen(js_name = twitterBlockUser)]
     pub async fn twitter_block_user(&self, token: &str, source_user_id: &str, target_user_id: &str) -> Result<JsValue, JsValue> {
         let v = api::twitter::block_user(token, source_user_id, target_user_id).await.map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        serde_json_value_to_js(v)
     }
 
     // ── Error parsing ────────────────────────────────────────────────────────────
@@ -1335,39 +1345,33 @@ impl MeAiCore {
     // ── Sync orchestration ──────────────────────────────────────────────────────
 
     /// Full or incremental Gmail sync.
-    /// Returns `{ added, deleted?, errors }` as JsValue.
     #[wasm_bindgen(js_name = syncGmail)]
     pub async fn sync_gmail(
         &self,
         token: &str,
         limit: u32,
         on_progress: Option<Function>,
-        signal: Option<JsValue>,
-    ) -> Result<JsValue, JsValue> {
+        signal: Option<AbortSignal>,
+    ) -> Result<SyncResult, JsValue> {
         let db = &self.rexie_db;
-        let result = sync::gmail::sync_gmail(db, token, limit, &on_progress, &signal)
+        sync::gmail::sync_gmail(db, token, limit, &on_progress, signal.as_ref())
             .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+            .map_err(|e| error_to_js(&e))
     }
 
     /// Continue downloading older Gmail messages.
-    /// Returns `{ added, errors }` as JsValue.
     #[wasm_bindgen(js_name = syncGmailMore)]
     pub async fn sync_gmail_more(
         &self,
         token: &str,
         limit: u32,
         on_progress: Option<Function>,
-        signal: Option<JsValue>,
-    ) -> Result<JsValue, JsValue> {
+        signal: Option<AbortSignal>,
+    ) -> Result<SyncResult, JsValue> {
         let db = &self.rexie_db;
-        let result = sync::gmail::sync_gmail_more(db, token, limit, &on_progress, &signal)
+        sync::gmail::sync_gmail_more(db, token, limit, &on_progress, signal.as_ref())
             .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+            .map_err(|e| error_to_js(&e))
     }
 
     /// Clear all local Gmail data (items, sync state, contacts).
@@ -1380,51 +1384,40 @@ impl MeAiCore {
     }
 
     /// Get Gmail sync status.
-    /// Returns `{ synced, totalItems, lastSyncAt, hasMore, historyId? }` as JsValue.
     #[wasm_bindgen(js_name = getGmailSyncStatus)]
-    pub async fn get_gmail_sync_status(&self) -> Result<JsValue, JsValue> {
+    pub async fn get_gmail_sync_status(&self) -> Result<SyncStatus, JsValue> {
         let db = &self.rexie_db;
-        let status = sync::gmail::get_gmail_sync_status(db)
-            .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&status)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        sync::gmail::get_gmail_sync_status(db).await.map_err(|e| error_to_js(&e))
     }
 
     /// Full or incremental Twitter sync.
-    /// Returns `{ added, errors }` as JsValue.
     #[wasm_bindgen(js_name = syncTwitter)]
     pub async fn sync_twitter(
         &self,
         token: &str,
         limit: u32,
         on_progress: Option<Function>,
-        signal: Option<JsValue>,
-    ) -> Result<JsValue, JsValue> {
+        signal: Option<AbortSignal>,
+    ) -> Result<SyncResult, JsValue> {
         let db = &self.rexie_db;
-        let result = sync::twitter::sync_twitter(db, token, limit, &on_progress, &signal)
+        sync::twitter::sync_twitter(db, token, limit, &on_progress, signal.as_ref())
             .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+            .map_err(|e| error_to_js(&e))
     }
 
     /// Continue fetching older tweets.
-    /// Returns `{ added, errors }` as JsValue.
     #[wasm_bindgen(js_name = syncTwitterMore)]
     pub async fn sync_twitter_more(
         &self,
         token: &str,
         limit: u32,
         on_progress: Option<Function>,
-        signal: Option<JsValue>,
-    ) -> Result<JsValue, JsValue> {
+        signal: Option<AbortSignal>,
+    ) -> Result<SyncResult, JsValue> {
         let db = &self.rexie_db;
-        let result = sync::twitter::sync_twitter_more(db, token, limit, &on_progress, &signal)
+        sync::twitter::sync_twitter_more(db, token, limit, &on_progress, signal.as_ref())
             .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&result)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+            .map_err(|e| error_to_js(&e))
     }
 
     /// Clear all local Twitter data (items + sync state).
@@ -1437,16 +1430,17 @@ impl MeAiCore {
     }
 
     /// Get Twitter sync status.
-    /// Returns `{ synced, totalItems, lastSyncAt, hasMore }` as JsValue.
     #[wasm_bindgen(js_name = getTwitterSyncStatus)]
-    pub async fn get_twitter_sync_status(&self) -> Result<JsValue, JsValue> {
+    pub async fn get_twitter_sync_status(&self) -> Result<SyncStatus, JsValue> {
         let db = &self.rexie_db;
-        let status = sync::twitter::get_twitter_sync_status(db)
-            .await
-            .map_err(|e| error_to_js(&e))?;
-        serde_wasm_bindgen::to_value(&status)
-            .map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
+        sync::twitter::get_twitter_sync_status(db).await.map_err(|e| error_to_js(&e))
     }
+}
+
+/// Serialize [`api::ApiJson`] (Gmail/Twitter bodies) for wasm-bindgen consumers.
+#[inline]
+fn serde_json_value_to_js(v: api::ApiJson) -> Result<JsValue, JsValue> {
+    serde_wasm_bindgen::to_value(&v).map_err(|e| error_to_js(&CoreError::Serialize(e.to_string())))
 }
 
 fn parse_optional_config(config: Option<JsValue>) -> Result<Option<serde_json::Value>, JsValue> {

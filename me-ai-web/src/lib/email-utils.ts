@@ -5,11 +5,12 @@
 import { getCore } from "./store/core-store.js";
 import type { MessageLike } from "./core.js";
 
-/** Format a date string/number for display (browser locale). */
-export function formatDate(dateStr: string | number | null | undefined): string {
-  if (!dateStr) return "";
+/** Format a date string/number/bigint (WASM i64) for display (browser locale). */
+export function formatDate(dateStr: string | number | bigint | null | undefined): string {
+  if (dateStr === "" || dateStr == null) return "";
+  const ms = typeof dateStr === "bigint" ? Number(dateStr) : dateStr;
   try {
-    return new Date(dateStr as string | number).toLocaleDateString("en-US", {
+    return new Date(ms as string | number).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
       year: "numeric",
@@ -38,8 +39,10 @@ export function exportFilename(message: MessageLike, ext: string): string {
   const dateMs =
     message.date == null
       ? 0
-      : typeof message.date === "number"
-        ? message.date
-        : new Date(message.date).getTime();
+      : typeof message.date === "bigint"
+        ? Number(message.date)
+        : typeof message.date === "number"
+          ? message.date
+          : new Date(message.date).getTime();
   return getCore().exportFilename(message.subject ?? "", dateMs, ext);
 }

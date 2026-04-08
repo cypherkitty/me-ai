@@ -27,8 +27,10 @@ export type {
   OllamaTokenData,
   GenerateFullResult,
   StoredItem,
-  StoredItemRow,
+  ItemRow,
   SyncState,
+  SyncResult,
+  SyncStatus,
   SyncProgress,
   GetStoredEmailsOptions,
   GetStoredEmailsResult,
@@ -37,6 +39,9 @@ export type {
   ActionExecutionResult,
   AuditStep,
   AuditLogEntry,
+  AuditLogStep,
+  AuditLogEntryParsed,
+  GetAuditLogParsedResult,
   LogExecutionParams,
   GetAuditLogOptions,
   Action,
@@ -114,7 +119,6 @@ import type {
   GetClassificationsByCategoryOptions,
   ClassificationView,
   ClassificationResult,
-  StoredItem,
   PluginForPrompt,
 } from "me-ai-core";
 
@@ -394,14 +398,16 @@ export function emailToJsonString(message: MessageLike): string {
 
 export function emailJsonFilename(message: {
   subject?: string;
-  date?: number | string | null;
+  date?: number | string | bigint | null;
 }): string {
   const dateMs =
     message.date == null
       ? 0
-      : typeof message.date === "number"
-        ? message.date
-        : new Date(message.date).getTime();
+      : typeof message.date === "bigint"
+        ? Number(message.date)
+        : typeof message.date === "number"
+          ? message.date
+          : new Date(message.date).getTime();
   return getCore().exportFilename(message.subject ?? "", dateMs, "json");
 }
 
@@ -519,35 +525,10 @@ export const CLASSIFICATION_CONFIG = {
   doSample: false,
 };
 
-// ── Row normalization (temporary — will move to Rust in Phase 5) ────────────
-
-export function normaliseRow(row: Record<string, unknown>): StoredItem {
-  const parseJson = <T>(text: string | null | undefined, fallback: T): T => {
-    if (text == null) return fallback;
-    return JSON.parse(text) as T;
-  };
-  return {
-    ...row,
-    id: row.id as string,
-    sourceType: row.sourceType as string,
-    sourceId: row.sourceId as string,
-    threadKey: row.threadKey as string,
-    type: row.type as string,
-    from: row.from as string,
-    to: row.to as string,
-    cc: row.cc as string,
-    subject: row.subject as string,
-    snippet: row.snippet as string,
-    body: row.body as string,
-    htmlBody: row.htmlBody as string | null,
-    date: row.date != null ? Number(row.date) : null,
-    syncedAt: row.syncedAt != null ? Number(row.syncedAt) : null,
-    labels: parseJson<string[]>(row.labels as string, []),
-    raw: parseJson(row.raw as string, null),
-    messageId: (row.messageId as string) ?? "",
-    inReplyTo: (row.inReplyTo as string) ?? "",
-    references: (row.references as string) ?? "",
-  } as StoredItem;
+/** Milliseconds for WASM `StoredItem` / `ItemRow` dates (`bigint` in bindings). */
+export function itemDateMs(d: bigint | number | null | undefined): number {
+  if (d == null) return 0;
+  return typeof d === "bigint" ? Number(d) : d;
 }
 
 export async function clearAllDataAndCheckpoint(): Promise<void> {

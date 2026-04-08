@@ -3,6 +3,7 @@
 
 use base64::Engine as _;
 
+use super::ApiJson;
 use crate::error::CoreError;
 
 const BASE: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
@@ -11,7 +12,7 @@ fn bearer(token: &str) -> reqwest::header::HeaderValue {
     format!("Bearer {token}").parse().unwrap()
 }
 
-pub async fn get_profile(token: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_profile(token: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/profile");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -36,7 +37,7 @@ pub async fn list_messages(
     max_results: u32,
     page_token: Option<&str>,
     q: Option<&str>,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/messages");
     let mut req = reqwest::Client::new()
         .get(&url)
@@ -61,7 +62,7 @@ pub async fn list_messages(
     resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/messages/{message_id}");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -86,7 +87,7 @@ pub async fn get_messages_batch(
     token: &str,
     message_ids: Vec<String>,
     batch_size: u32,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let _ = batch_size; // sequential in WASM
     let client = reqwest::Client::new();
     let mut results: Vec<serde_json::Value> = Vec::with_capacity(message_ids.len());
@@ -104,7 +105,7 @@ pub async fn get_messages_batch(
             }
         }
     }
-    Ok(serde_json::Value::Array(results))
+    Ok(ApiJson::Array(results))
 }
 
 pub async fn list_history(
@@ -112,7 +113,7 @@ pub async fn list_history(
     start_history_id: &str,
     page_token: Option<&str>,
     max_results: u32,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/history");
     let mut req = reqwest::Client::new()
         .get(&url)

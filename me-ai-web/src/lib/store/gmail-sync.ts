@@ -4,15 +4,9 @@
  */
 
 import { getCore } from "./core-store.js";
-import type { SyncProgress } from "$lib/types";
+import type { SyncProgress, SyncStatus } from "$lib/types";
 
-export interface GmailSyncStatus {
-  synced: boolean;
-  totalItems: number;
-  lastSyncAt: number | null;
-  hasMore: boolean;
-  historyId?: string;
-}
+export type GmailSyncStatus = SyncStatus;
 
 interface SyncGmailOptions {
   limit?: number;
@@ -35,5 +29,5 @@ export async function syncGmailMore(
 }
 
 export async function getGmailSyncStatus(): Promise<GmailSyncStatus> {
-  return (await getCore().getGmailSyncStatus()) as GmailSyncStatus;
+  return getCore().getGmailSyncStatus();
 }
