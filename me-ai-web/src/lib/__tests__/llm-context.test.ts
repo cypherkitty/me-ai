@@ -12,8 +12,8 @@ describe("llm-context core exports", () => {
 });
 
 describe("no full table scans in lightweight context path", () => {
-  it("query-layer must not export getTopSenders", async () => {
-    const src = await importSource("../store/query-layer.ts");
+  it("core.ts must not export getTopSenders", async () => {
+    const src = await importSource("../core.ts");
     expect(src).not.toMatch(/export\s+.*getTopSenders/);
   });
 });
