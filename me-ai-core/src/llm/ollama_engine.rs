@@ -7,7 +7,8 @@ use wasm_bindgen::prelude::*;
 
 use crate::error::to_js as error_to_js;
 use crate::llm::ollama::{
-    self, parse_stream_chat_js, stream_ollama_chat_with_emit, OllamaTokenEmit,
+    self, ollama_chat_messages_from_js, ollama_stream_options_from_js, stream_ollama_chat_with_emit,
+    OllamaStreamChatParams, OllamaTokenEmit,
 };
 use crate::MeAiCore;
 
@@ -255,13 +256,21 @@ impl OllamaLlmEngine {
             }
         };
 
-        let (messages_ser, temperature, num_predict, keep_alive) = match parse_stream_chat_js(&messages, &options) {
+        let messages_in = match ollama_chat_messages_from_js(&messages) {
             Ok(v) => v,
             Err(e) => {
                 self.emit(&json!({ "status": "error", "data": e.to_string() }));
                 return Ok(());
             }
         };
+        let stream_options = match ollama_stream_options_from_js(&options) {
+            Ok(v) => v,
+            Err(e) => {
+                self.emit(&json!({ "status": "error", "data": e.to_string() }));
+                return Ok(());
+            }
+        };
+        let params = OllamaStreamChatParams::from_inputs(messages_in, stream_options);
 
         {
             let mut inner = self.inner.borrow_mut();
@@ -278,10 +287,7 @@ impl OllamaLlmEngine {
         let gen_result = stream_ollama_chat_with_emit(
             &url,
             &model_name,
-            messages_ser,
-            temperature,
-            num_predict,
-            keep_alive.as_str(),
+            params,
             |em: &OllamaTokenEmit| {
                 if em.done {
                     let tps: Option<f64> = match (em.eval_count, em.eval_duration) {
