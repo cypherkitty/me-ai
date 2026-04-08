@@ -170,7 +170,9 @@
         type="submit"
         disabled={isChecking || isAutoRestoring || !apiKeys[activeProvider as keyof typeof apiKeys]}
         class={`w-full ${
-          isAutoRestoring ? "bg-transparent text-foreground/80 border border-border/60 shadow-none" : ""
+          isAutoRestoring
+            ? "bg-transparent text-foreground/80 border border-border/60 shadow-none"
+            : ""
         }`}
       >
         {#if isAutoRestoring}

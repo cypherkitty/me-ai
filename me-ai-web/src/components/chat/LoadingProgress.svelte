@@ -20,7 +20,12 @@
     isAutoRestoring?: boolean;
     restoreModelLabel?: string | null;
   }
-  let { message = "", items = [], isAutoRestoring = false, restoreModelLabel = null }: Props = $props();
+  let {
+    message = "",
+    items = [],
+    isAutoRestoring = false,
+    restoreModelLabel = null,
+  }: Props = $props();
   let aggregateSpeedBps = $state<number | null>(null);
   let aggregateEtaSeconds = $state<number | null>(null);
   let lastSampleLoaded = $state<number | null>(null);

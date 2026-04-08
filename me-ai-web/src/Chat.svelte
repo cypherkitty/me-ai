@@ -423,7 +423,8 @@
     }
 
     const apiInfo =
-      apiModels.find((model) => model.id === sv.selectedModel) ?? getCore().getApiModelInfo(sv.selectedModel);
+      apiModels.find((model) => model.id === sv.selectedModel) ??
+      getCore().getApiModelInfo(sv.selectedModel);
     if (!apiInfo) return false;
     if (apiInfo.provider === "openai") return !!sv.openaiApiKey;
     if (apiInfo.provider === "anthropic") return !!sv.anthropicApiKey;
@@ -541,7 +542,8 @@
             status = "ready";
             isAutoRestoring = false;
             autoRestoreMessage = null;
-            showConfigureScreen = getPreferredHomeStage() !== "configure" ? false : showConfigureScreen;
+            showConfigureScreen =
+              getPreferredHomeStage() !== "configure" ? false : showConfigureScreen;
             showDashboardIfNeeded();
             break;
 
@@ -1584,7 +1586,7 @@
       <LoadingProgress
         message={loadingMessage}
         items={progressItems}
-        isAutoRestoring={isAutoRestoring}
+        {isAutoRestoring}
         restoreModelLabel={getConfiguredModelLabel(backend, selectedModel)}
       />
     {:else}

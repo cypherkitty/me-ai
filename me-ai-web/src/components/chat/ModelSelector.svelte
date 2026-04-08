@@ -198,81 +198,83 @@
       </div>
 
       <Card class="w-full text-left">
-      <CardContent class="pt-0 pb-2 px-0">
-        <div class="px-3 pt-3 pb-1 text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground/40">
-          Model Capabilities
-        </div>
-        <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
-          <table class="w-full text-xs border-collapse">
-            <thead class="sticky top-0 bg-card">
-              <tr>
-                {#each ["Model", "Context", "Email Limit", "Status"] as h (h)}
-                  <th
-                    class="text-left px-3 py-2 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 border-b border-border"
-                    >{h}</th
-                  >
-                {/each}
-              </tr>
-            </thead>
-            <tbody>
-              {#each modelGroups as group (group.label)}
+        <CardContent class="pt-0 pb-2 px-0">
+          <div
+            class="px-3 pt-3 pb-1 text-[0.62rem] font-bold uppercase tracking-widest text-muted-foreground/40"
+          >
+            Model Capabilities
+          </div>
+          <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+            <table class="w-full text-xs border-collapse">
+              <thead class="sticky top-0 bg-card">
                 <tr>
-                  <td
-                    colspan="4"
-                    class="px-3 pt-3 pb-1 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/40"
-                    >{group.label}</td
-                  >
-                </tr>
-                {#each group.models as model (model.id)}
-                  <tr
-                    class={cn(
-                      "transition-colors",
-                      model.id === selectedModel ? "bg-primary/5" : "hover:bg-accent"
-                    )}
-                  >
-                    <td class="px-3 py-2 font-medium text-foreground border-b border-border/50">
-                      {#if isCrownedModel(model.id)}👑
-                      {/if}{group.label}
-                      {model.name}
-                      {#if model.id === selectedModel}
-                        <Badge
-                          variant="outline"
-                          class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30"
-                          >current</Badge
-                        >
-                      {/if}
-                    </td>
-                    <td class="px-3 py-2 tabular-nums border-b border-border/50">
-                      <strong class="text-foreground"
-                        >{(model.contextWindow / 1024).toFixed(0)}k</strong
-                      >
-                    </td>
-                    <td
-                      class="px-3 py-2 tabular-nums text-muted-foreground border-b border-border/50"
+                  {#each ["Model", "Context", "Email Limit", "Status"] as h (h)}
+                    <th
+                      class="text-left px-3 py-2 text-[0.6rem] font-bold uppercase tracking-wider text-muted-foreground/40 border-b border-border"
+                      >{h}</th
                     >
-                      ~{(model.maxEmailTokens / 1000).toFixed(0)}k
-                    </td>
-                    <td class="px-3 py-2 border-b border-border/50">
-                      {#if model.recommendedForEmailProcessing}
-                        <span class="text-success">✅</span>
-                      {:else if model.maxEmailTokens >= 6000}
-                        <span class="text-warning">⚠️</span>
-                      {:else}
-                        <span class="text-destructive">❌</span>
-                      {/if}
-                    </td>
+                  {/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each modelGroups as group (group.label)}
+                  <tr>
+                    <td
+                      colspan="4"
+                      class="px-3 pt-3 pb-1 text-[0.6rem] font-bold uppercase tracking-widest text-muted-foreground/40"
+                      >{group.label}</td
+                    >
                   </tr>
+                  {#each group.models as model (model.id)}
+                    <tr
+                      class={cn(
+                        "transition-colors",
+                        model.id === selectedModel ? "bg-primary/5" : "hover:bg-accent"
+                      )}
+                    >
+                      <td class="px-3 py-2 font-medium text-foreground border-b border-border/50">
+                        {#if isCrownedModel(model.id)}👑
+                        {/if}{group.label}
+                        {model.name}
+                        {#if model.id === selectedModel}
+                          <Badge
+                            variant="outline"
+                            class="ml-1 text-[0.5rem] h-3.5 px-1 py-0 text-primary border-primary/30"
+                            >current</Badge
+                          >
+                        {/if}
+                      </td>
+                      <td class="px-3 py-2 tabular-nums border-b border-border/50">
+                        <strong class="text-foreground"
+                          >{(model.contextWindow / 1024).toFixed(0)}k</strong
+                        >
+                      </td>
+                      <td
+                        class="px-3 py-2 tabular-nums text-muted-foreground border-b border-border/50"
+                      >
+                        ~{(model.maxEmailTokens / 1000).toFixed(0)}k
+                      </td>
+                      <td class="px-3 py-2 border-b border-border/50">
+                        {#if model.recommendedForEmailProcessing}
+                          <span class="text-success">✅</span>
+                        {:else if model.maxEmailTokens >= 6000}
+                          <span class="text-warning">⚠️</span>
+                        {:else}
+                          <span class="text-destructive">❌</span>
+                        {/if}
+                      </td>
+                    </tr>
+                  {/each}
                 {/each}
-              {/each}
-            </tbody>
-          </table>
-        </div>
-        <p class="px-3 pt-2 pb-1 text-[0.62rem] text-muted-foreground/40 leading-relaxed">
-          <strong class="opacity-80">Context</strong> = max input.
-          <strong class="opacity-80">Email Limit</strong> = WebGPU safe limit. ✅ Recommended · ⚠️ Limited
-          · ❌ May fail
-        </p>
-      </CardContent>
+              </tbody>
+            </table>
+          </div>
+          <p class="px-3 pt-2 pb-1 text-[0.62rem] text-muted-foreground/40 leading-relaxed">
+            <strong class="opacity-80">Context</strong> = max input.
+            <strong class="opacity-80">Email Limit</strong> = WebGPU safe limit. ✅ Recommended · ⚠️ Limited
+            · ❌ May fail
+          </p>
+        </CardContent>
       </Card>
     </div>
   </details>
@@ -298,7 +300,7 @@
 
   {#if error}
     <p class="text-sm text-destructive">{error}</p>
-  <Button variant="outline" onclick={onclearcache} class="w-full text-xs">
+    <Button variant="outline" onclick={onclearcache} class="w-full text-xs">
       Clear cache & retry
     </Button>
   {/if}

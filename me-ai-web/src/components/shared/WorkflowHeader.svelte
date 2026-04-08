@@ -114,7 +114,11 @@
   });
 
   const configureState = $derived(
-    chatStage === "configure" || chatStage === "loading" ? "active" : engineReady ? "done" : "active"
+    chatStage === "configure" || chatStage === "loading"
+      ? "active"
+      : engineReady
+        ? "done"
+        : "active"
   );
   const scanChatState = $derived(
     currentSection === "scan-chat" || chatStage === "chat"
@@ -126,7 +130,13 @@
         : "idle"
   );
   const sourcesState = $derived(
-    currentSection === "sources" ? "active" : gmailConnected ? "done" : engineReady ? "active" : "idle"
+    currentSection === "sources"
+      ? "active"
+      : gmailConnected
+        ? "done"
+        : engineReady
+          ? "active"
+          : "idle"
   );
   const controlState = $derived(
     currentSection === "control"
@@ -144,7 +154,9 @@
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(HOME_STAGE_KEY, stage);
     }
-    window.dispatchEvent(new CustomEvent(stage === "chat" ? "me-ai:open-chat" : "me-ai:open-configure"));
+    window.dispatchEvent(
+      new CustomEvent(stage === "chat" ? "me-ai:open-chat" : "me-ai:open-configure")
+    );
   }
 
   function goStartHere(event: Event) {
@@ -199,7 +211,11 @@
     {:else}
       <div class="flex items-center justify-center gap-0 overflow-x-auto">
         <nav aria-label="Progress" class="flex items-center min-w-max">
-          <a href="#home" onclick={goStartHere} class="relative flex items-center group no-underline">
+          <a
+            href="#home"
+            onclick={goStartHere}
+            class="relative flex items-center group no-underline"
+          >
             <div
               class={`flex items-center gap-2.5 px-3 py-1.5 rounded-full transition-all duration-300 ${
                 currentSection === "start"
@@ -225,7 +241,9 @@
                 {/if}
               </div>
               <div class="flex flex-col">
-                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none">Start here</span>
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Start here</span
+                >
                 {#if chatStage === "loading"}
                   <span class="text-[0.6rem] opacity-80 mt-1 leading-none">Preparing model</span>
                 {:else if configureState === "done" && currentSection !== "start"}
@@ -237,7 +255,9 @@
             </div>
           </a>
 
-          <div class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${scanChatState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}></div>
+          <div
+            class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${scanChatState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}
+          ></div>
 
           <a
             href="#home"
@@ -273,19 +293,27 @@
                 {/if}
               </div>
               <div class="flex flex-col">
-                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none">Scan&amp;Chat</span>
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Scan&amp;Chat</span
+                >
                 {#if scanChatState === "done"}
-                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none">{scannedCount.toLocaleString()} classified</span>
+                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{scannedCount.toLocaleString()} classified</span
+                  >
                 {:else if scanChatState === "active"}
                   <span class="text-[0.6rem] opacity-80 mt-1 leading-none">Ready to work</span>
                 {:else}
-                  <span class="text-[0.6rem] opacity-60 mt-1 leading-none">Complete setup first</span>
+                  <span class="text-[0.6rem] opacity-60 mt-1 leading-none"
+                    >Complete setup first</span
+                  >
                 {/if}
               </div>
             </div>
           </a>
 
-          <div class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${sourcesState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}></div>
+          <div
+            class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${sourcesState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}
+          ></div>
 
           <a href="#sources" class="relative flex items-center group no-underline">
             <div
@@ -317,9 +345,13 @@
                 {/if}
               </div>
               <div class="flex flex-col">
-                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none">Sources</span>
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Sources</span
+                >
                 {#if sourcesState === "done"}
-                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none">{emailCount.toLocaleString()} synced</span>
+                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{emailCount.toLocaleString()} synced</span
+                  >
                 {:else if sourcesState === "active"}
                   <span class="text-[0.6rem] opacity-80 mt-1 leading-none">Connect your data</span>
                 {:else}
@@ -329,7 +361,9 @@
             </div>
           </a>
 
-          <div class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${controlState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}></div>
+          <div
+            class={`w-6 sm:w-12 md:w-16 h-px mx-2 transition-colors duration-500 ${controlState !== "idle" ? "bg-primary/40" : "bg-border/60"}`}
+          ></div>
 
           <a href="#pipelines" class="relative flex items-center group no-underline">
             <div
@@ -361,9 +395,13 @@
                 {/if}
               </div>
               <div class="flex flex-col">
-                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none">Control</span>
+                <span class="text-[0.7rem] font-bold uppercase tracking-wider leading-none"
+                  >Control</span
+                >
                 {#if controlState === "done"}
-                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none">{pipelineCount} {pipelineCount === 1 ? "rule" : "rules"} active</span>
+                  <span class="text-[0.6rem] opacity-80 mt-1 leading-none"
+                    >{pipelineCount} {pipelineCount === 1 ? "rule" : "rules"} active</span
+                  >
                 {:else if controlState === "active"}
                   <span class="text-[0.6rem] opacity-80 mt-1 leading-none">Configure rules</span>
                 {:else}
