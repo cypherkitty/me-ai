@@ -53,3 +53,12 @@ Key tasks: `task install`, `task build`, `task test`, `task ci`, `task deploy-bu
 ## CI / CD
 
 See [`.cortex/ci-cd.md`](ci-cd.md) — workflow triggers, what each step does, deploy targets, and how to add new CI checks.
+
+## Coding standards
+
+Language-level rules that every contributor and agent must follow:
+
+- [`.cortex/coding-standards/typescript.md`](coding-standards/typescript.md) — no `null`, discriminated unions, `??` over `||`
+- [`.cortex/coding-standards/rust.md`](coding-standards/rust.md) — type-driven development, `enum` over strings, no `unwrap()` outside tests
+
+High-level statements are in [`.cortex/core-beliefs.md`](core-beliefs.md) §12–13.
