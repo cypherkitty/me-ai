@@ -19,7 +19,10 @@ export async function refreshDebugFromSettings(): Promise<void> {
   }
 }
 
-/** For tests or console: override without persisting. */
+/**
+ * For tests or console: override without persisting.
+ * @public
+ */
 export function setDebugLoggingEnabled(v: boolean): void {
   debugLoggingEnabled = v;
 }
