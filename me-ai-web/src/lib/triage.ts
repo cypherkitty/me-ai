@@ -93,10 +93,6 @@ async function scanEmails(engine: TriageEngine, options: ScanOptions = {}): Prom
     core.getApiModelInfo(currentModel ?? "");
   if (!modelInfo) throw new Error(`Unknown model: ${currentModel}`);
 
-  const _modelDisplayName =
-    (modelInfo as { displayName?: string; name?: string }).displayName ??
-    (modelInfo as { name?: string }).name;
-
   for (let i = 0; i < toProcess.length; i++) {
     if (signal?.aborted) break;
 
