@@ -8,6 +8,7 @@
 
 export {
   AiBackend,
+  OllamaLlmEngine,
   SettingValue,
   GoogleToken,
   TwitterOAuthLoginStart,
@@ -103,6 +104,18 @@ export type {
   ClassificationCounts,
   TriageClassification,
 } from "me-ai-core";
+
+/** Input shape for `getCore().emailMessageToMarkdown` / `exportEmailMessageFilename`. */
+export type MessageForMarkdown = {
+  subject: string;
+  from: string;
+  to: string;
+  date: string | number | bigint;
+  body: string | null;
+  htmlBody?: string | null;
+};
+
+export { downloadText } from "./download-text.js";
 
 // Re-export initCore and getCore so existing callers don't need to change paths
 export { initCore, getCore, coreStore } from "./store/core-store.js";

@@ -1,11 +1,12 @@
 /**
  * @vitest-environment jsdom
  *
- * HTML-to-Markdown conversion moved to Rust (formatting/markdown.rs).
- * The Rust module has 33 unit tests covering all conversion paths.
- * These TS tests are skipped since they require WASM initialization.
+ * HTML-to-Markdown conversion lives in Rust (formatting/markdown.rs).
+ * Message → markdown orchestration lives in Rust (`emailMessageToMarkdown`).
  */
 import { describe, it, expect, vi } from "vitest";
+import type { MessageForMarkdown } from "../core.js";
+import { getCore } from "../store/core-store.js";
 
 const mockEmailDateToEpochMs = (d: unknown): number => {
   if (d === "" || d == null) return 0;
@@ -21,32 +22,53 @@ const mockEmailDateToEpochMs = (d: unknown): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+function emailToMarkdownImpl(
+  subject: string,
+  from: string,
+  to: string,
+  dateMs: number,
+  body: string | undefined,
+  htmlBody: string | undefined
+): string {
+  const dateStr =
+    dateMs > 0 && Number.isFinite(dateMs) ? new Date(dateMs).toISOString().slice(0, 10) : "";
+  const lines = [`# ${subject}`, "", "| | |", "|---|---|"];
+  lines.push(`| **From** | ${from} |`);
+  lines.push(`| **To** | ${to} |`);
+  lines.push(`| **Date** | ${dateStr} |`);
+  lines.push("", "---", "");
+  lines.push(htmlBody ? "(html converted)" : body || "*(no body)*");
+  return lines.join("\n");
+}
+
 const mockCore = {
   emailDateToEpochMs: mockEmailDateToEpochMs,
   exportEmailFilename: vi.fn((subject: string, date: unknown, ext: string) => {
     const ms = mockEmailDateToEpochMs(date);
     return `${ms > 0 ? "2026-02-14" : "unknown-date"}_${subject}.${ext}`;
   }),
-  emailToMarkdown: vi.fn(
-    (
-      subject: string,
-      from: string,
-      to: string,
-      dateMs: number,
-      body: string | undefined,
-      htmlBody: string | undefined
-    ) => {
-      const dateStr =
-        dateMs > 0 && Number.isFinite(dateMs) ? new Date(dateMs).toISOString().slice(0, 10) : "";
-      const lines = [`# ${subject}`, "", "| | |", "|---|---|"];
-      lines.push(`| **From** | ${from} |`);
-      lines.push(`| **To** | ${to} |`);
-      lines.push(`| **Date** | ${dateStr} |`);
-      lines.push("", "---", "");
-      lines.push(htmlBody ? "(html converted)" : body || "*(no body)*");
-      return lines.join("\n");
-    }
-  ),
+  emailToMarkdown: vi.fn(emailToMarkdownImpl),
+  emailMessageToMarkdown: vi.fn((msg: MessageForMarkdown) => {
+    const dateMs = mockEmailDateToEpochMs(msg.date);
+    const bodyRaw = msg.body;
+    const body =
+      bodyRaw != null && String(bodyRaw).trim() !== "" ? String(bodyRaw).trim() : undefined;
+    const htmlRaw = msg.htmlBody;
+    const htmlBody =
+      htmlRaw != null && String(htmlRaw).trim() !== "" ? String(htmlRaw).trim() : undefined;
+    return (mockCore.emailToMarkdown as typeof emailToMarkdownImpl)(
+      msg.subject || "",
+      msg.from || "",
+      msg.to || "",
+      dateMs,
+      body,
+      htmlBody
+    );
+  }),
+  exportEmailMessageFilename: vi.fn((msg: MessageForMarkdown, ext: string) => {
+    const ms = mockEmailDateToEpochMs(msg.date);
+    return `${ms > 0 ? "2026-02-14" : "unknown-date"}_${msg.subject || ""}.${ext}`;
+  }),
   htmlToMarkdownBody: vi.fn((_html: string) => null as string | null),
 };
 
@@ -55,8 +77,18 @@ vi.mock("../store/core-store.js", () => ({
   coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
 
-// Import after mock setup
-const { emailToMarkdown, emailFilename } = await import("../markdown-export.js");
+const emailToMarkdown = (m: MessageForMarkdown) => getCore().emailMessageToMarkdown(m);
+const emailFilename = (m: Pick<MessageForMarkdown, "subject" | "date">) =>
+  getCore().exportEmailMessageFilename(
+    {
+      subject: m.subject,
+      from: "",
+      to: "",
+      date: m.date,
+      body: null,
+    },
+    "md"
+  );
 
 describe("emailToMarkdown", () => {
   it("includes metadata table with subject, from, to, date", () => {
@@ -75,7 +107,8 @@ describe("emailToMarkdown", () => {
     expect(md).toContain("---");
   });
 
-  it("delegates to core.emailToMarkdown", () => {
+  it("emailMessageToMarkdown unpacks into the same args as emailToMarkdown", () => {
+    vi.mocked(mockCore.emailToMarkdown).mockClear();
     emailToMarkdown({
       subject: "Sub",
       from: "a@b.com",

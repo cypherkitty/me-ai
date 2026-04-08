@@ -1,6 +1,6 @@
 //! HTML-to-Markdown conversion for email export.
 //!
-//! Ported from `me-ai-web/src/lib/markdown-export.ts`.
+//! Message-shaped JS → full markdown document is orchestrated in `formatting::markdown_export`.
 //! Uses the `scraper` crate instead of the browser DOMParser.
 
 use scraper::{ElementRef, Html, Node};

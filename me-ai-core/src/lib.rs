@@ -1,11 +1,11 @@
-//! me-ai-core: business logic and IndexedDB persistence via Rexie (WASM).
+//! me-ai-core: business logic and `IndexedDB` persistence via Rexie (WASM).
 //!
 //! **Architecture: Rust owns all DB access; no JS adapter.**
-//! - Persistence is IndexedDB via the Rexie crate. No SQL; stores and indexes only.
+//! - Persistence is `IndexedDB` via the Rexie crate. No SQL; stores and indexes only.
 //! - TS calls core WASM methods only; no query/exec from the app layer.
 //!
 //! Error handling: [thiserror](https://docs.rs/thiserror) + [anyhow](https://docs.rs/anyhow) internally;
-//! errors are converted to JsValue at the WASM boundary.
+//! errors are converted to [`JsValue`](wasm_bindgen::JsValue) at the WASM boundary.
 
 mod api;
 mod db;
@@ -53,10 +53,18 @@ use crate::storage::sync::{
 };
 use crate::sync::{SyncResult, SyncStatus};
 
+pub use llm::ollama_engine::OllamaLlmEngine;
+
 /// Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
 #[wasm_bindgen(js_name = MeAiCore)]
 pub struct MeAiCore {
     rexie_db: RexieDb,
+}
+
+impl MeAiCore {
+    pub(crate) fn rexie_db(&self) -> &RexieDb {
+        &self.rexie_db
+    }
 }
 
 #[wasm_bindgen(js_class = MeAiCore)]
@@ -1121,15 +1129,9 @@ impl MeAiCore {
 
     #[wasm_bindgen(js_name = getResolvedOllamaUrl)]
     pub async fn get_resolved_ollama_url(&self) -> Result<String, JsValue> {
-        let db = &self.rexie_db;
-        let sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
-        if let Some(url) = sv.ollama_url() {
-            let t = url.trim();
-            if !t.is_empty() {
-                return Ok(t.to_string());
-            }
-        }
-        Ok(llm::ollama::default_ollama_base_url())
+        llm::ollama::resolved_ollama_url(self.rexie_db())
+            .await
+            .map_err(|e| error_to_js(&e))
     }
 
     #[wasm_bindgen(js_name = setOllamaUrl)]
@@ -1247,6 +1249,18 @@ impl MeAiCore {
             body.as_deref(),
             html_body.as_deref(),
         )
+    }
+
+    /// `MessageForMarkdown`-shaped object → markdown (same rules as the former `markdown-export.ts` helper).
+    #[wasm_bindgen(js_name = emailMessageToMarkdown)]
+    pub fn email_message_to_markdown(&self, message: JsValue) -> String {
+        formatting::markdown_export::email_message_to_markdown(&message)
+    }
+
+    /// Safe `.md` (or other) filename from `subject` + `date` on a message-like object.
+    #[wasm_bindgen(js_name = exportEmailMessageFilename)]
+    pub fn export_email_message_filename(&self, message: JsValue, ext: &str) -> String {
+        formatting::markdown_export::export_email_filename_from_message(&message, ext)
     }
 
     /// Convert an HTML string to Markdown. Returns `None` if the result is empty.
@@ -1571,6 +1585,13 @@ impl MeAiCore {
         Ok(llm::client::test_api_connection(provider, api_key).await?)
     }
 
+    /// Read the stored API key for a cloud provider (`openai` | `anthropic` | `google` | `xai`), if any.
+    #[wasm_bindgen(js_name = getApiKeyForProvider)]
+    pub async fn get_api_key_for_provider(&self, provider: &str) -> Result<Option<String>, JsValue> {
+        let db = &self.rexie_db;
+        Ok(llm::client::get_stored_api_key_for_provider(db, provider).await?)
+    }
+
     /// Stream chat completion from a cloud API provider.
     /// `on_token` receives TokenPayload JSON objects during streaming.
     #[wasm_bindgen(js_name = streamChat)]
@@ -1585,21 +1606,10 @@ impl MeAiCore {
         let msgs = messages;
         let opts = options;
 
-        // Fetch API key from IndexedDB settings
         let db = &self.rexie_db;
-        let key_name = format!("{provider}ApiKey");
-        let api_key_raw = storage::schema::get_setting(db, &key_name)
-            .await?
-            .ok_or_else(|| {
-                error_to_js(&CoreError::Llm(format!(
-                    "No API key configured for {provider}. Please check your settings."
-                )))
-            })?;
-        let api_key = serde_json::from_str::<String>(&api_key_raw).map_err(|e| {
-            error_to_js(&CoreError::Deserialize(format!(
-                "Stored API key for {provider} is not valid JSON: {e}"
-            )))
-        })?;
+        let api_key = llm::client::require_api_key_for_provider(db, provider)
+            .await
+            .map_err(|e| error_to_js(&e))?;
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
     }

@@ -1,6 +1,8 @@
 //! Twitter/X API v2 — wrapper using reqwest.
 //! Matches the interface of me-ai-web/src/lib/twitter-api.ts.
 
+use std::fmt::Write;
+
 use super::ApiJson;
 use crate::error::CoreError;
 
@@ -94,7 +96,7 @@ pub async fn get_user_timeline(
         "/users/{user_id}/tweets?max_results={max}&tweet.fields=created_at,author_id,public_metrics,referenced_tweets,conversation_id,text&user.fields=username,name&expansions=author_id"
     );
     if let Some(pt) = pagination_token {
-        path += &format!("&pagination_token={pt}");
+        let _ = write!(path, "&pagination_token={pt}");
     }
     twitter_get(token, &path).await
 }
@@ -110,7 +112,7 @@ pub async fn get_user_mentions(
         "/users/{user_id}/mentions?max_results={max}&tweet.fields=created_at,author_id,public_metrics,text&user.fields=username,name&expansions=author_id"
     );
     if let Some(pt) = pagination_token {
-        path += &format!("&pagination_token={pt}");
+        let _ = write!(path, "&pagination_token={pt}");
     }
     twitter_get(token, &path).await
 }

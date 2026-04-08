@@ -5,7 +5,9 @@ use js_sys::Function;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+use crate::db::RexieDb;
 use crate::error::CoreError;
+use crate::storage::settings;
 
 #[wasm_bindgen(typescript_custom_section)]
 const OLLAMA_STREAMING_TYPES: &'static str = r#"
@@ -64,6 +66,18 @@ pub fn default_ollama_base_url_for_hostname(hostname: &str) -> String {
     }
 }
 
+/// Effective base URL: persisted non-empty `ollamaUrl` setting, else hostname default.
+pub async fn resolved_ollama_url(db: &RexieDb) -> Result<String, CoreError> {
+    let sv = settings::load_settings(db).await?;
+    if let Some(url) = sv.ollama_url() {
+        let t = url.trim();
+        if !t.is_empty() {
+            return Ok(t.to_string());
+        }
+    }
+    Ok(default_ollama_base_url())
+}
+
 /// Default Ollama base URL from `window.location.hostname` (WASM); localhost URL for native tests.
 pub fn default_ollama_base_url() -> String {
     #[cfg(target_arch = "wasm32")]
@@ -86,17 +100,57 @@ pub struct OllamaChatMessageInput {
     pub content: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
-#[serde(default)]
-#[serde(rename_all = "camelCase")]
-struct StreamOllamaOptionsInput {
+/// Parsed `StreamOllamaOptions` from JS (`temperature`, `maxTokens`, `keepAlive`).
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub(crate) struct OllamaStreamChatOptions {
     temperature: Option<f64>,
     max_tokens: Option<u32>,
     keep_alive: Option<String>,
 }
 
+/// Normalized `/api/chat` body inputs after parsing [`OllamaChatMessageInput`] and [`OllamaStreamChatOptions`].
+pub(crate) struct OllamaStreamChatParams {
+    pub(crate) messages: Vec<OllamaChatMessageSer>,
+    pub(crate) temperature: f64,
+    pub(crate) num_predict: u32,
+    pub(crate) keep_alive: String,
+}
+
+impl OllamaStreamChatParams {
+    pub(crate) fn from_inputs(messages: Vec<OllamaChatMessageInput>, options: OllamaStreamChatOptions) -> Self {
+        let temperature = options.temperature.unwrap_or(0.7);
+        let num_predict = options.max_tokens.unwrap_or(4096);
+        let keep_alive = options.keep_alive.unwrap_or_else(|| "10m".to_string());
+        let messages = messages
+            .into_iter()
+            .map(|m| OllamaChatMessageSer { role: m.role, content: m.content })
+            .collect();
+        Self {
+            messages,
+            temperature,
+            num_predict,
+            keep_alive,
+        }
+    }
+}
+
+/// Deserialize `OllamaChatMessage[]` from a JS value (WASM boundary only).
+pub(crate) fn ollama_chat_messages_from_js(value: &JsValue) -> Result<Vec<OllamaChatMessageInput>, CoreError> {
+    serde_wasm_bindgen::from_value(value.clone()).map_err(|e| CoreError::Llm(e.to_string()))
+}
+
+/// Deserialize `StreamOllamaOptions` from a JS value; `null` / `undefined` → defaults.
+pub(crate) fn ollama_stream_options_from_js(value: &JsValue) -> Result<OllamaStreamChatOptions, CoreError> {
+    if value.is_null() || value.is_undefined() {
+        Ok(OllamaStreamChatOptions::default())
+    } else {
+        serde_wasm_bindgen::from_value(value.clone()).map_err(|e| CoreError::Llm(e.to_string()))
+    }
+}
+
 #[derive(Serialize)]
-struct OllamaChatMessageSer {
+pub(crate) struct OllamaChatMessageSer {
     role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     content: Option<String>,
@@ -135,17 +189,18 @@ struct OllamaStreamMessage {
     content: Option<String>,
 }
 
+/// One chunk emitted while parsing the Ollama NDJSON stream (`/api/chat`).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OllamaTokenEmit {
-    content: String,
-    done: bool,
+pub(crate) struct OllamaTokenEmit {
+    pub(crate) content: String,
+    pub(crate) done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    total_duration: Option<f64>,
+    pub(crate) total_duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    eval_count: Option<u32>,
+    pub(crate) eval_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    eval_duration: Option<f64>,
+    pub(crate) eval_duration: Option<f64>,
 }
 
 fn emit_ollama_token(on_token: &Function, payload: &OllamaTokenEmit) {
@@ -154,37 +209,29 @@ fn emit_ollama_token(on_token: &Function, payload: &OllamaTokenEmit) {
     }
 }
 
-/// Stream `/api/chat` (NDJSON). Invokes `on_token` for each chunk; returns full concatenated text.
-pub async fn stream_ollama_chat(
+/// Stream `/api/chat` (NDJSON). Invokes `on_emit` for each parsed chunk; returns full text.
+pub(crate) async fn stream_ollama_chat_with_emit<F>(
     url: &str,
     model: &str,
-    messages_js: JsValue,
-    options_js: JsValue,
-    on_token: &Function,
-) -> Result<String, CoreError> {
-    let messages_in: Vec<OllamaChatMessageInput> =
-        serde_wasm_bindgen::from_value(messages_js).map_err(|e| CoreError::Llm(e.to_string()))?;
-    let opts: StreamOllamaOptionsInput = if options_js.is_null() || options_js.is_undefined() {
-        StreamOllamaOptionsInput::default()
-    } else {
-        serde_wasm_bindgen::from_value(options_js).map_err(|e| CoreError::Llm(e.to_string()))?
-    };
-
-    let temperature = opts.temperature.unwrap_or(0.7);
-    let num_predict = opts.max_tokens.unwrap_or(4096);
-    let keep_alive = opts.keep_alive.as_deref().unwrap_or("10m");
-
-    let messages: Vec<OllamaChatMessageSer> = messages_in
-        .into_iter()
-        .map(|m| OllamaChatMessageSer { role: m.role, content: m.content })
-        .collect();
+    params: OllamaStreamChatParams,
+    mut on_emit: F,
+) -> Result<String, CoreError>
+where
+    F: FnMut(&OllamaTokenEmit),
+{
+    let OllamaStreamChatParams {
+        messages,
+        temperature,
+        num_predict,
+        keep_alive,
+    } = params;
 
     let body = OllamaChatRequest {
         model,
         messages,
         stream: true,
         options: OllamaRunOptions { temperature, num_predict },
-        keep_alive,
+        keep_alive: keep_alive.as_str(),
     };
 
     let endpoint = format!("{}/api/chat", url.trim_end_matches('/'));
@@ -230,31 +277,25 @@ pub async fn stream_ollama_chat(
                 if let Some(ref c) = msg.content {
                     if !c.is_empty() {
                         full_text.push_str(c);
-                        emit_ollama_token(
-                            on_token,
-                            &OllamaTokenEmit {
-                                content: c.clone(),
-                                done: false,
-                                total_duration: data.total_duration,
-                                eval_count: data.eval_count,
-                                eval_duration: data.eval_duration,
-                            },
-                        );
+                        on_emit(&OllamaTokenEmit {
+                            content: c.clone(),
+                            done: false,
+                            total_duration: data.total_duration,
+                            eval_count: data.eval_count,
+                            eval_duration: data.eval_duration,
+                        });
                     }
                 }
             }
 
             if data.done {
-                emit_ollama_token(
-                    on_token,
-                    &OllamaTokenEmit {
-                        content: String::new(),
-                        done: true,
-                        total_duration: data.total_duration,
-                        eval_count: data.eval_count,
-                        eval_duration: data.eval_duration,
-                    },
-                );
+                on_emit(&OllamaTokenEmit {
+                    content: String::new(),
+                    done: true,
+                    total_duration: data.total_duration,
+                    eval_count: data.eval_count,
+                    eval_duration: data.eval_duration,
+                });
                 finished = true;
                 break;
             }
@@ -266,6 +307,20 @@ pub async fn stream_ollama_chat(
     }
 
     Ok(full_text)
+}
+
+/// Stream `/api/chat` (NDJSON). Invokes `on_token` for each chunk; returns full concatenated text.
+pub async fn stream_ollama_chat(
+    url: &str,
+    model: &str,
+    messages_js: JsValue,
+    options_js: JsValue,
+    on_token: &Function,
+) -> Result<String, CoreError> {
+    let messages = ollama_chat_messages_from_js(&messages_js)?;
+    let options = ollama_stream_options_from_js(&options_js)?;
+    let params = OllamaStreamChatParams::from_inputs(messages, options);
+    stream_ollama_chat_with_emit(url, model, params, |payload| emit_ollama_token(on_token, payload)).await
 }
 
 pub async fn test_ollama_connection(url: &str) -> Result<OllamaConnectionResult, CoreError> {
@@ -352,5 +407,32 @@ mod tests {
             default_ollama_base_url_for_hostname("me-ai.metaelon.space"),
             DEFAULT_REMOTE
         );
+    }
+
+    #[test]
+    fn stream_chat_params_defaults_and_options() {
+        let messages = vec![OllamaChatMessageInput {
+            role: "user".into(),
+            content: Some("hi".into()),
+        }];
+        let p = OllamaStreamChatParams::from_inputs(messages, OllamaStreamChatOptions::default());
+        assert_eq!(p.temperature, 0.7);
+        assert_eq!(p.num_predict, 4096);
+        assert_eq!(p.keep_alive, "10m");
+        assert_eq!(p.messages.len(), 1);
+        assert_eq!(p.messages[0].role, "user");
+        assert_eq!(p.messages[0].content, Some("hi".into()));
+
+        let opts: OllamaStreamChatOptions = serde_json::from_value(serde_json::json!({
+            "temperature": 0.2,
+            "maxTokens": 512,
+            "keepAlive": "5m",
+        }))
+        .unwrap();
+        let p2 = OllamaStreamChatParams::from_inputs(vec![], opts);
+        assert_eq!(p2.temperature, 0.2);
+        assert_eq!(p2.num_predict, 512);
+        assert_eq!(p2.keep_alive, "5m");
+        assert!(p2.messages.is_empty());
     }
 }

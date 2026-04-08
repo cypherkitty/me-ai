@@ -2,6 +2,7 @@
 
 pub mod markdown;
 
+pub(crate) mod markdown_export;
 mod email_js_input;
 pub use email_js_input::{
     email_date_to_epoch_ms, export_email_filename_from_js, format_email_display_date,

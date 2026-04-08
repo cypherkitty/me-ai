@@ -1,22 +1,46 @@
 # CI / CD
 
-Three GitHub Actions workflows cover verification, deployment, and PR previews.
-All of them delegate to `Taskfile.yml` — they set up the environment, then run `task`.
+Four workflow files live under [`.github/workflows/`](../.github/workflows/). Most jobs delegate to the root [`Taskfile.yml`](../Taskfile.yml) after installing Node, Rust, wasm-pack, and Task.
 
-## Workflows at a glance
+## Reproduce GitHub CI locally
 
-| Workflow | Trigger | Job | What it does |
-|----------|---------|-----|--------------|
-| `ci.yml` | PR to `main`, push to `main` | `test` | Full quality gate |
-| `deploy.yml` | Push to `main`, manual dispatch | `deploy` | Build + publish to GitHub Pages |
-| `preview.yml` | PR opened / updated / closed | `preview` | Build + publish ephemeral PR preview |
-| `cortex-gardening.yml` | Weekly (Mon 09:00 UTC), manual | `gardening` | Cursor agent drift check → GitHub issue |
+The **CI** workflow’s only substantive step is `task ci` (see [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)).
+
+From the **repository root**, with the same tooling CI expects:
+
+| Requirement | Notes |
+|---------------|--------|
+| [Task](https://taskfile.dev) v3 | `arduino/setup-task@v2` on CI |
+| Node **20** | CI uses `actions/setup-node@v4` with `node-version: 20` (match this locally to avoid engine warnings) |
+| Rust **stable** + `wasm32-unknown-unknown` | `dtolnay/rust-toolchain@stable` on CI |
+| **wasm-pack** | CI: `curl … wasm-pack/installer/init.sh`; deploy/preview: `jetli/wasm-pack-action@v0.4.0` |
+
+Run:
+
+```bash
+task ci
+```
+
+That runs, in order: `install:ci` (dependency) then `cortex:check`, `core:clippy`, `web:format:check`, `web:check`, `web:lint`, `web:knip`, `core:test`, `web:test`, `web:test:e2e` — see the root `Taskfile.yml` `ci` task. No workflow YAML change is needed when you add steps there; only change [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) if the **runner environment** (versions, caches, secrets) must change.
 
 ---
 
-## CI (`ci.yml`) — the quality gate
+## Workflows at a glance
+
+| Workflow file | Trigger | Job | What it does |
+|---------------|---------|-----|--------------|
+| [`ci.yml`](../.github/workflows/ci.yml) | PR to `main`, push to `main` | `test` | Full quality gate (`task ci`) |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | Push to `main`, manual dispatch | `deploy` | Build + publish to GitHub Pages |
+| [`preview.yml`](../.github/workflows/preview.yml) | PR opened / updated / closed | `preview` | Build + publish ephemeral PR preview |
+| [`cortex-gardening.yml`](../.github/workflows/cortex-gardening.yml) | Weekly (Mon 09:00 UTC), manual | `gardening` | `cursor-agent` drift check → optional GitHub issue |
+
+---
+
+## CI ([`ci.yml`](../.github/workflows/ci.yml)) — the quality gate
 
 Runs on every PR and every push to `main`. A PR **must** pass this before merge.
+
+**Runner steps:** checkout → Node 20 + npm cache (`me-ai-web/package.json`) → Rust stable + wasm32 → wasm-pack (curl installer) → Task → **`task ci`**.
 
 **What `task ci` does (in order):**
 
@@ -33,13 +57,13 @@ Runs on every PR and every push to `main`. A PR **must** pass this before merge.
 
 Task names follow the `<namespace>:<task>` convention — see [taskfile-architecture.md](references/taskfile-architecture.md).
 
-**Environment:** Node 20, Rust stable + `wasm32-unknown-unknown`, wasm-pack (via curl installer).
+**Environment:** Ubuntu `ubuntu-latest`, Node 20, Rust stable + `wasm32-unknown-unknown`, wasm-pack (curl installer).
 
-If any step fails, the workflow fails. There are no skipped steps in CI.
+If any step fails, the workflow fails. There are no skipped steps in CI (Playwright may report individual tests as skipped by design).
 
 ---
 
-## Deploy (`deploy.yml`) — production release
+## Deploy ([`deploy.yml`](../.github/workflows/deploy.yml)) — production release
 
 Runs on every push to `main` (so after a PR merges) and can be triggered manually via `workflow_dispatch`.
 
@@ -57,7 +81,7 @@ Runs on every push to `main` (so after a PR merges) and can be triggered manuall
 
 ---
 
-## PR Preview (`preview.yml`) — ephemeral preview per PR
+## PR Preview ([`preview.yml`](../.github/workflows/preview.yml)) — ephemeral preview per PR
 
 Runs on every PR open, update (synchronize), and close.
 
@@ -72,28 +96,27 @@ Uses `rossjrw/pr-preview-action` which posts the preview URL as a PR comment and
 
 ---
 
-## Environment setup (shared across all workflows)
+## Environment setup (shared across workflows)
 
-| Tool | How it's installed |
-|------|-------------------|
-| Node 20 | `actions/setup-node@v4` |
-| Rust stable + `wasm32-unknown-unknown` | `dtolnay/rust-toolchain@stable` |
-| wasm-pack | `jetli/wasm-pack-action@v0.4.0` (deploy/preview) or curl installer (CI) |
-| Task | `arduino/setup-task@v2` |
+| Tool | CI (`ci.yml`) | Deploy / preview |
+|------|----------------|------------------|
+| Node 20 | `actions/setup-node@v4` + npm cache on `me-ai-web/package.json` | Same; **deploy** omits `cache: npm` so `file:../me-ai-core/pkg` is never stale |
+| Rust + wasm32 | `dtolnay/rust-toolchain@stable` | Same |
+| wasm-pack | **curl** official installer | `jetli/wasm-pack-action@v0.4.0` |
+| Task | `arduino/setup-task@v2` | Same |
 
 ---
 
-## Cortex Gardening (`cortex-gardening.yml`) — weekly drift check
+## Cortex Gardening ([`cortex-gardening.yml`](../.github/workflows/cortex-gardening.yml)) — weekly drift check
 
 Runs every Monday at 09:00 UTC (and on manual `workflow_dispatch`).
 
 **What it does:**
 
-1. Collects all files changed in the last 7 days (excluding `.cortex/` and `.cursor/` themselves).
-2. Passes the list + recent commit log to a Cursor agent (`PunGrumpy/cursor-action@main`).
-3. The agent reads `.cortex/` and reports any documentation that may be stale.
-4. If drift is found, a GitHub issue is opened with label `cortex-gardening`.
-5. If nothing changed, or the agent reports "No drift detected.", no issue is opened.
+1. Collects paths touched in the last 7 days (`git log --since`, excluding `.cortex/` and `.cursor/`). If none, the job no-ops.
+2. Installs the **Cursor CLI** (`curl -fsSL https://cursor.com/install | sh`) and restores auth from the `CURSOR_CLI_CONFIG` secret into `~/.cursor/cli-config.json`.
+3. Runs **`cursor-agent`** in ask mode (`--print --output-format text --mode ask`) with a fixed prompt that lists key `.cortex/` files, the changed paths, and recent commits; the model must either list concrete drift or reply exactly `No drift detected.`
+4. **`actions/github-script@v7`** reads `/tmp/agent-output.txt`: if the summary is not `No drift detected.`, it opens an issue labeled `cortex-gardening`; otherwise it skips.
 
 **Auth setup (one-time, local):**
 

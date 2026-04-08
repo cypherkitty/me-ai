@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn parse_strips_think_block_without_closing_tag() {
         // No closing </think> — everything from <think> onward is discarded
-        let response = r#"<think>no closing tag here"#;
+        let response = r"<think>no closing tag here";
         assert!(parse_classification(response).is_none());
     }
 
