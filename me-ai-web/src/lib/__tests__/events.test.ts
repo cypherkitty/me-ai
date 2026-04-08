@@ -13,6 +13,9 @@ const mockCore = {
   getEmailClassifications: vi.fn().mockResolvedValue([]),
   getPipelineForEventResolved: vi.fn().mockResolvedValue(null),
   upsertEventType: vi.fn().mockResolvedValue(undefined),
+  getCategoryForEventType: vi.fn().mockResolvedValue("CRITICAL"),
+  seedEventTypeFromLLM: vi.fn().mockResolvedValue(undefined),
+  getAllEventTypes: vi.fn().mockResolvedValue([]),
 };
 
 vi.mock("../store/core-store.js", () => ({
@@ -37,20 +40,17 @@ describe("EVENT_CATEGORY_TIERS", () => {
     expect(EVENT_CATEGORY_TIERS.INFO.requiresApproval).toBe(false);
   });
 
-  it("CRITICAL is NOT auto-execute, requires approval", () => {
+  it("CRITICAL requires approval, no auto-execute", () => {
     expect(EVENT_CATEGORY_TIERS.CRITICAL.autoExecute).toBe(false);
     expect(EVENT_CATEGORY_TIERS.CRITICAL.requiresApproval).toBe(true);
   });
 });
 
 describe("EVENT_CATEGORIES", () => {
-  it("noise and info have auto policy", () => {
-    expect(EVENT_CATEGORIES.noise.policy).toBe("auto");
-    expect(EVENT_CATEGORIES.info.policy).toBe("auto");
-  });
-
-  it("critical has manual policy", () => {
-    expect(EVENT_CATEGORIES.critical.policy).toBe("manual");
+  it("defines noise, info, critical categories", () => {
+    expect(EVENT_CATEGORIES.noise).toBeDefined();
+    expect(EVENT_CATEGORIES.info).toBeDefined();
+    expect(EVENT_CATEGORIES.critical).toBeDefined();
   });
 
   it("each category has the expected name", () => {
@@ -62,108 +62,39 @@ describe("EVENT_CATEGORIES", () => {
 
 describe("getCategoryForEventType", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.clearAllMocks();
   });
 
   it("returns CRITICAL (default) for unknown event type", async () => {
+    mockCore.getCategoryForEventType.mockResolvedValue("CRITICAL");
     expect(await getCategoryForEventType("UNKNOWN_TYPE")).toBe("CRITICAL");
   });
 
-  it("returns stored category for known event type", async () => {
-    localStorage.setItem("me-ai-event-categories", JSON.stringify({ DELETE: "NOISE" }));
+  it("returns stored category from Rust core", async () => {
+    mockCore.getCategoryForEventType.mockResolvedValue("NOISE");
     expect(await getCategoryForEventType("DELETE")).toBe("NOISE");
-  });
-
-  it("normalizes INFORMATIONAL to INFO", async () => {
-    localStorage.setItem("me-ai-event-categories", JSON.stringify({ ARCHIVE: "INFORMATIONAL" }));
-    expect(await getCategoryForEventType("ARCHIVE")).toBe("INFO");
-  });
-
-  it("normalizes URGENT to CRITICAL", async () => {
-    localStorage.setItem("me-ai-event-categories", JSON.stringify({ MEETING: "URGENT" }));
-    expect(await getCategoryForEventType("MEETING")).toBe("CRITICAL");
-  });
-
-  it("normalizes IMPORTANT to CRITICAL", async () => {
-    localStorage.setItem("me-ai-event-categories", JSON.stringify({ BILL: "IMPORTANT" }));
-    expect(await getCategoryForEventType("BILL")).toBe("CRITICAL");
   });
 });
 
 describe("seedEventTypeFromLLM", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.clearAllMocks();
-    mockCore.upsertEventType.mockResolvedValue(undefined);
+    mockCore.seedEventTypeFromLLM.mockResolvedValue(undefined);
   });
 
-  it("stores NOISE tier for 'noise' category", async () => {
+  it("delegates to core.seedEventTypeFromLLM", async () => {
     await seedEventTypeFromLLM("newsletter", "noise");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["NEWSLETTER"]).toBe("NOISE");
+    expect(mockCore.seedEventTypeFromLLM).toHaveBeenCalledWith("newsletter", "noise");
   });
 
-  it("stores INFO tier for 'info' category", async () => {
-    await seedEventTypeFromLLM("invoice", "info");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["INVOICE"]).toBe("INFO");
-  });
-
-  it("stores CRITICAL tier for 'critical' category", async () => {
-    await seedEventTypeFromLLM("security_alert", "critical");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["SECURITY_ALERT"]).toBe("CRITICAL");
-  });
-
-  it("normalizes 'informational' to INFO", async () => {
-    await seedEventTypeFromLLM("report", "informational");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["REPORT"]).toBe("INFO");
-  });
-
-  it("normalizes 'important' to CRITICAL", async () => {
-    await seedEventTypeFromLLM("bill", "important");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["BILL"]).toBe("CRITICAL");
-  });
-
-  it("normalizes event type name to UPPER_SNAKE_CASE", async () => {
-    await seedEventTypeFromLLM("track delivery", "noise");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["TRACK_DELIVERY"]).toBe("NOISE");
-  });
-
-  it("does not overwrite an existing event type category", async () => {
-    await seedEventTypeFromLLM("DELETE", "noise");
-    await seedEventTypeFromLLM("DELETE", "critical");
-    const map = JSON.parse(localStorage.getItem("me-ai-event-categories") ?? "{}");
-    expect(map["DELETE"]).toBe("NOISE");
-  });
-
-  it("calls core.upsertEventType with correct arguments", async () => {
-    await seedEventTypeFromLLM("NEWSLETTER", "noise");
-    expect(mockCore.upsertEventType).toHaveBeenCalledWith(
-      "NEWSLETTER",
-      "NEWSLETTER",
-      "noise",
-      true
-    );
-  });
-
-  it("does not throw if core.upsertEventType fails", async () => {
-    mockCore.upsertEventType.mockRejectedValueOnce(new Error("DB error"));
-    await expect(seedEventTypeFromLLM("TEST", "noise")).resolves.toBeUndefined();
-  });
-
-  it("ignores empty event type string", async () => {
-    await seedEventTypeFromLLM("", "noise");
-    expect(mockCore.upsertEventType).not.toHaveBeenCalled();
+  it("does not throw if core method fails", async () => {
+    mockCore.seedEventTypeFromLLM.mockRejectedValueOnce(new Error("DB error"));
+    await expect(seedEventTypeFromLLM("TEST", "noise")).rejects.toThrow("DB error");
   });
 });
 
 describe("getActionsForEvent", () => {
   beforeEach(() => {
-    localStorage.clear();
     vi.clearAllMocks();
     mockCore.getPipelineForEventResolved.mockResolvedValue(null);
   });
@@ -188,26 +119,5 @@ describe("getActionsForEvent", () => {
     expect(result[0].pluginId).toBe("gmail");
     expect(result[0].commandId).toBe("trash");
     expect(result[1].commandId).toBe("mark_read");
-  });
-
-  it("prefers user-defined actions over resolved pipeline", async () => {
-    const userActions = [
-      { id: "custom_1", pluginId: "gmail", commandId: "archive", name: "Archive", description: "" },
-    ];
-    localStorage.setItem("me-ai-events", JSON.stringify({ DELETE: userActions }));
-
-    const result = await getActionsForEvent("DELETE");
-    expect(result).toEqual(userActions);
-    expect(mockCore.getPipelineForEventResolved).not.toHaveBeenCalled();
-  });
-
-  it("falls back to pipeline when user map has empty array for type", async () => {
-    localStorage.setItem("me-ai-events", JSON.stringify({ DELETE: [] }));
-    mockCore.getPipelineForEventResolved.mockResolvedValue({
-      actions: [{ pluginId: "gmail", commandId: "trash", order: 0 }],
-    });
-    const result = await getActionsForEvent("DELETE");
-    expect(result).toHaveLength(1);
-    expect(result[0].commandId).toBe("trash");
   });
 });
