@@ -1571,6 +1571,13 @@ impl MeAiCore {
         Ok(llm::client::test_api_connection(provider, api_key).await?)
     }
 
+    /// Read the stored API key for a cloud provider (`openai` | `anthropic` | `google` | `xai`), if any.
+    #[wasm_bindgen(js_name = getApiKeyForProvider)]
+    pub async fn get_api_key_for_provider(&self, provider: &str) -> Result<Option<String>, JsValue> {
+        let db = &self.rexie_db;
+        Ok(llm::client::get_stored_api_key_for_provider(db, provider).await?)
+    }
+
     /// Stream chat completion from a cloud API provider.
     /// `on_token` receives TokenPayload JSON objects during streaming.
     #[wasm_bindgen(js_name = streamChat)]
@@ -1585,21 +1592,10 @@ impl MeAiCore {
         let msgs = messages;
         let opts = options;
 
-        // Fetch API key from IndexedDB settings
         let db = &self.rexie_db;
-        let key_name = format!("{provider}ApiKey");
-        let api_key_raw = storage::schema::get_setting(db, &key_name)
-            .await?
-            .ok_or_else(|| {
-                error_to_js(&CoreError::Llm(format!(
-                    "No API key configured for {provider}. Please check your settings."
-                )))
-            })?;
-        let api_key = serde_json::from_str::<String>(&api_key_raw).map_err(|e| {
-            error_to_js(&CoreError::Deserialize(format!(
-                "Stored API key for {provider} is not valid JSON: {e}"
-            )))
-        })?;
+        let api_key = llm::client::require_api_key_for_provider(db, provider)
+            .await
+            .map_err(|e| error_to_js(&e))?;
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
     }

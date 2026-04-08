@@ -13,7 +13,9 @@ use std::str::FromStr;
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
+use crate::db::RexieDb;
 use crate::error::CoreError;
+use crate::storage::schema;
 
 #[wasm_bindgen(typescript_custom_section)]
 const CLIENT_TYPES: &'static str = r#"
@@ -518,6 +520,38 @@ mod tests {
     fn parse_sse_text_mixed_input() {
         let input = "\ndata: alpha\n: comment\nevent: ping\ndata: beta\ndata: [DONE]\ndata: ignored\n";
         assert_eq!(parse_sse_text(input), vec!["alpha", "beta"]);
+    }
+}
+
+/// IndexedDB `settings` key for the provider API key (`openaiApiKey`, …).
+pub fn settings_key_for_provider_api_key(provider: &str) -> Result<&'static str, CoreError> {
+    match provider {
+        "openai" => Ok("openaiApiKey"),
+        "anthropic" => Ok("anthropicApiKey"),
+        "google" => Ok("googleApiKey"),
+        "xai" => Ok("xaiApiKey"),
+        _ => Err(CoreError::Llm(format!("unknown API provider: {provider}"))),
+    }
+}
+
+/// Read the stored API key for a cloud provider, if present and valid JSON string.
+pub async fn get_stored_api_key_for_provider(db: &RexieDb, provider: &str) -> Result<Option<String>, CoreError> {
+    let key = settings_key_for_provider_api_key(provider)?;
+    let Some(raw) = schema::get_setting(db, key).await? else {
+        return Ok(None);
+    };
+    serde_json::from_str::<String>(&raw)
+        .map(Some)
+        .map_err(|e| CoreError::Deserialize(format!("Stored API key for {provider} is not valid JSON: {e}")))
+}
+
+/// Same as [`get_stored_api_key_for_provider`] but errors when missing or empty.
+pub async fn require_api_key_for_provider(db: &RexieDb, provider: &str) -> Result<String, CoreError> {
+    match get_stored_api_key_for_provider(db, provider).await? {
+        Some(k) if !k.is_empty() => Ok(k),
+        _ => Err(CoreError::Llm(format!(
+            "No API key configured for {provider}. Please check your settings."
+        ))),
     }
 }
 
