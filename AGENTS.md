@@ -11,6 +11,8 @@
 - [`.cortex/tech-debt-tracker.md`](.cortex/tech-debt-tracker.md) — known debt items
 - [`.cortex/exec-plans/`](.cortex/exec-plans/README.md) — execution plans for complex work
 - [`.cortex/references/rexie-patterns.md`](.cortex/references/rexie-patterns.md) — Rexie/IndexedDB conventions
+- [`.cortex/coding-standards/typescript.md`](.cortex/coding-standards/typescript.md) — no `null`, discriminated unions, `??` over `||`
+- [`.cortex/coding-standards/rust.md`](.cortex/coding-standards/rust.md) — type-driven development, `enum` over strings, no `unwrap()` outside tests
 
 ## Agents
 

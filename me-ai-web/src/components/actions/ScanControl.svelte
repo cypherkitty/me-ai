@@ -1,6 +1,6 @@
 <script lang="ts">
   import ScanLiveView from "./ScanLiveView.svelte";
-  import type { ScanProgress } from "../../lib/triage.js";
+  import type { ScanProgress, ScanStats } from "../../lib/triage.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Search } from "lucide-svelte";
 
@@ -8,9 +8,9 @@
     engineStatus?: string;
     modelName?: string;
     isScanning?: boolean;
-    scanProgress?: unknown;
+    scanProgress?: ScanProgress | null;
     scanCount?: number;
-    stats?: unknown;
+    stats?: ScanStats | null;
     onscan?: () => void;
     onrescan?: () => void;
     oninspect?: () => void;
@@ -59,9 +59,7 @@
     return engineStatus === "ready" && !isScanning;
   }
 
-  let isVisuallyScanning = $derived(
-    isScanning && (scanProgress as Record<string, unknown> | null)?.phase !== "done"
-  );
+  let isVisuallyScanning = $derived(isScanning && scanProgress?.phase !== "done");
 </script>
 
 <div class="rounded border border-border bg-card mb-4 overflow-hidden">
@@ -96,15 +94,14 @@
   </div>
 
   {#if stats}
-    {@const _stats = stats as Record<string, unknown>}
     <div
       class="flex items-center gap-2 px-4 py-2 border-b border-border/40 text-xs text-muted-foreground/60"
     >
-      <span class="tabular-nums">{_stats.totalEmails} in storage</span>
+      <span class="tabular-nums">{stats.totalEmails} in storage</span>
       <span class="text-muted-foreground/20">·</span>
-      <span class="tabular-nums">{_stats.classified} classified</span>
+      <span class="tabular-nums">{stats.classified} classified</span>
       <span class="text-muted-foreground/20">·</span>
-      <span class="tabular-nums">{_stats.unclassified} new</span>
+      <span class="tabular-nums">{stats.unclassified} new</span>
     </div>
   {/if}
 
@@ -150,12 +147,7 @@
     </p>
   {/if}
 
-  {#if isScanning || (scanProgress as Record<string, unknown> | null)?.phase === "done"}
-    <ScanLiveView
-      progress={scanProgress as ScanProgress | null}
-      {onstop}
-      {oninspect}
-      onclose={oncloseprogress}
-    />
+  {#if isScanning || scanProgress?.phase === "done"}
+    <ScanLiveView progress={scanProgress} {onstop} {oninspect} onclose={oncloseprogress} />
   {/if}
 </div>

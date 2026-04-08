@@ -112,6 +112,11 @@ export class GmailApiError extends Error {
   }
 }
 
+// ── Shared constants ──────────────────────────────────────────────────────────
+
+/** Cache storage key for downloaded transformers.js model weights. */
+export const TRANSFORMERS_CACHE_NAME = "transformers-cache";
+
 // ── Browser-only helpers (cannot live in Rust) ───────────────────────────────
 
 export async function getStorageStats(): Promise<{
@@ -133,22 +138,14 @@ export async function getStorageStats(): Promise<{
   ];
   const tables: Record<string, number> = {};
   for (const tbl of tableNames) {
-    try {
-      tables[tbl] = Number(await core.getTableCount(tbl)) || 0;
-    } catch {
-      tables[tbl] = 0;
-    }
+    tables[tbl] = Number(await core.getTableCount(tbl));
   }
   let usageBytes = 0;
   const supported =
     typeof navigator !== "undefined" && "storage" in navigator && "estimate" in navigator.storage;
   if (supported) {
-    try {
-      const est = await navigator.storage.estimate();
-      usageBytes = est.usage ?? 0;
-    } catch {
-      /* ignore */
-    }
+    const est = await navigator.storage.estimate();
+    usageBytes = est.usage ?? 0;
   }
   return { supported, usageBytes, tables };
 }

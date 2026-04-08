@@ -401,3 +401,259 @@ pub fn category_tier_to_name(tier: &str) -> String {
     }
     .to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── category_tier_to_name ─────────────────────────────────────────
+
+    #[test]
+    fn tier_noise() {
+        assert_eq!(category_tier_to_name("NOISE"), "noise");
+    }
+
+    #[test]
+    fn tier_noise_lowercase_input() {
+        assert_eq!(category_tier_to_name("noise"), "noise");
+    }
+
+    #[test]
+    fn tier_info() {
+        assert_eq!(category_tier_to_name("INFO"), "info");
+    }
+
+    #[test]
+    fn tier_critical() {
+        assert_eq!(category_tier_to_name("CRITICAL"), "critical");
+    }
+
+    #[test]
+    fn tier_unknown_defaults_to_critical() {
+        assert_eq!(category_tier_to_name("UNKNOWN"), "critical");
+        assert_eq!(category_tier_to_name(""), "critical");
+    }
+
+    // ── action_color / tag_color ──────────────────────────────────────
+
+    #[test]
+    fn action_color_is_hsl_string() {
+        let c = action_color("PROMOTION");
+        assert!(c.starts_with("hsl("), "expected hsl(...), got: {c}");
+        assert!(c.contains("55%"), "expected 55% saturation in: {c}");
+    }
+
+    #[test]
+    fn tag_color_is_hsl_string() {
+        let c = tag_color("finance");
+        assert!(c.starts_with("hsl("), "expected hsl(...), got: {c}");
+        assert!(c.contains("40%"), "expected 40% saturation in: {c}");
+    }
+
+    #[test]
+    fn action_color_stable_across_calls() {
+        assert_eq!(action_color("RECEIPT"), action_color("RECEIPT"));
+    }
+
+    // ── build_system_prompt ───────────────────────────────────────────
+
+    #[test]
+    fn system_prompt_contains_plugin_names() {
+        let p = build_system_prompt("Gmail, Twitter");
+        assert!(p.contains("Gmail, Twitter"), "plugin names not found in prompt");
+    }
+
+    #[test]
+    fn system_prompt_empty_plugins_uses_none_sentinel() {
+        let p = build_system_prompt("");
+        assert!(p.contains("(none)"), "empty plugin list should show '(none)'");
+    }
+
+    #[test]
+    fn system_prompt_contains_required_keys() {
+        let p = build_system_prompt("Gmail");
+        assert!(p.contains("\"action\""), "prompt must include action field");
+        assert!(p.contains("\"category\""), "prompt must include category field");
+        assert!(p.contains("\"tags\""), "prompt must include tags field");
+        assert!(p.contains("UPPER_SNAKE_CASE"), "prompt must describe action format");
+    }
+
+    // ── strip_think_blocks (via parse_classification) ─────────────────
+
+    #[test]
+    fn parse_strips_think_blocks_before_json() {
+        let response = r#"<think>Let me reason...</think>
+{"action": "RECEIPT", "category": "info", "reason": "Order confirmation", "summary": "Your order was received.", "tags": ["receipt"]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "RECEIPT");
+        assert_eq!(c.category, "info");
+    }
+
+    #[test]
+    fn parse_strips_think_blocks_case_insensitive() {
+        let response = r#"<THINK>reasoning here</THINK>{"action":"NEWSLETTER","category":"noise","reason":"Mass mail","summary":"Weekly digest.","tags":["newsletter"]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "NEWSLETTER");
+    }
+
+    #[test]
+    fn parse_strips_think_block_without_closing_tag() {
+        // No closing </think> — everything from <think> onward is discarded
+        let response = r#"<think>no closing tag here"#;
+        assert!(parse_classification(response).is_none());
+    }
+
+    // ── parse_classification — valid inputs ───────────────────────────
+
+    #[test]
+    fn parse_valid_json_all_fields() {
+        let response = r#"{"action":"SHIPPING_UPDATE","category":"info","reason":"Package shipped.","summary":"Your order is on its way.","tags":["shipping","delivery"]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "SHIPPING_UPDATE");
+        assert_eq!(c.category, "info");
+        assert_eq!(c.category_tier, "INFO");
+        assert!(c.reason.contains("shipped"));
+        assert!(c.tags.contains("shipping"));
+    }
+
+    #[test]
+    fn parse_strips_markdown_json_fence() {
+        let response = "```json\n{\"action\":\"PROMOTION\",\"category\":\"noise\",\"reason\":\"Ad\",\"summary\":\"Sale ad.\",\"tags\":[\"ad\"]}\n```";
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "PROMOTION");
+        assert_eq!(c.category, "noise");
+        assert_eq!(c.category_tier, "NOISE");
+    }
+
+    #[test]
+    fn parse_strips_bare_code_fence() {
+        let response = "```\n{\"action\":\"BILLING_REMINDER\",\"category\":\"critical\",\"reason\":\"Invoice due\",\"summary\":\"Payment due.\",\"tags\":[\"billing\"]}\n```";
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "BILLING_REMINDER");
+        assert_eq!(c.category, "critical");
+        assert_eq!(c.category_tier, "CRITICAL");
+    }
+
+    #[test]
+    fn parse_action_normalized_to_upper_snake_case() {
+        let response = r#"{"action":"shipping update","category":"info","reason":"r","summary":"s","tags":[]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "SHIPPING_UPDATE");
+    }
+
+    #[test]
+    fn parse_action_with_hyphens_becomes_underscores() {
+        let response = r#"{"action":"SOCIAL-MENTION","category":"info","reason":"r","summary":"s","tags":[]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "SOCIAL_MENTION");
+    }
+
+    #[test]
+    fn parse_category_informational_maps_to_info() {
+        let response = r#"{"action":"UPDATE","category":"informational","reason":"r","summary":"s","tags":[]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.category, "info");
+        assert_eq!(c.category_tier, "INFO");
+    }
+
+    #[test]
+    fn parse_category_important_maps_to_critical() {
+        let response = r#"{"action":"ALERT","category":"important","reason":"r","summary":"s","tags":[]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.category, "critical");
+        assert_eq!(c.category_tier, "CRITICAL");
+    }
+
+    #[test]
+    fn parse_unknown_category_falls_back_to_critical() {
+        let response = r#"{"action":"ALERT","category":"weird","reason":"r","summary":"s","tags":[]}"#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.category, "critical");
+    }
+
+    #[test]
+    fn parse_tags_lowercased_and_limited_to_10() {
+        let many_tags: Vec<String> = (0..15).map(|i| format!("\"TAG{i}\"")).collect();
+        let response = format!(
+            r#"{{"action":"UPDATE","category":"info","reason":"r","summary":"s","tags":[{}]}}"#,
+            many_tags.join(",")
+        );
+        let c = parse_classification(&response).expect("should parse");
+        let tags: Vec<String> = serde_json::from_str(&c.tags).unwrap();
+        assert!(tags.len() <= 10, "tags should be capped at 10");
+        // All tags are lowercase
+        for tag in &tags {
+            assert_eq!(*tag, tag.to_lowercase(), "tag '{tag}' should be lowercase");
+        }
+    }
+
+    #[test]
+    fn parse_json_with_surrounding_text() {
+        let response = r#"Here is my classification:
+{"action":"RECEIPT","category":"info","reason":"Order placed.","summary":"Your receipt.","tags":["receipt"]}
+That's it."#;
+        let c = parse_classification(response).expect("should parse");
+        assert_eq!(c.action, "RECEIPT");
+    }
+
+    // ── parse_classification — invalid / rejected inputs ──────────────
+
+    #[test]
+    fn parse_empty_response_returns_none() {
+        assert!(parse_classification("").is_none());
+        assert!(parse_classification("   ").is_none());
+    }
+
+    #[test]
+    fn parse_invalid_json_returns_none() {
+        assert!(parse_classification("not json at all").is_none());
+        assert!(parse_classification("{broken json}").is_none());
+    }
+
+    #[test]
+    fn parse_missing_action_field_returns_none() {
+        let response = r#"{"category":"info","reason":"r","summary":"s","tags":[]}"#;
+        assert!(parse_classification(response).is_none());
+    }
+
+    #[test]
+    fn parse_jargon_action_rejected() {
+        let cases = [
+            r#"{"action":"postgres sslmode=require","category":"info","reason":"r","summary":"s","tags":[]}"#,
+            r#"{"action":"connection_string=value","category":"info","reason":"r","summary":"s","tags":[]}"#,
+            r#"{"action":"sslmode=disable","category":"info","reason":"r","summary":"s","tags":[]}"#,
+        ];
+        for case in &cases {
+            assert!(parse_classification(case).is_none(), "expected None for: {case}");
+        }
+    }
+
+    #[test]
+    fn parse_action_too_long_rejected() {
+        let long_action = "A".repeat(51);
+        let response = format!(
+            r#"{{"action":"{long_action}","category":"info","reason":"r","summary":"s","tags":[]}}"#
+        );
+        assert!(parse_classification(&response).is_none());
+    }
+
+    #[test]
+    fn parse_action_exactly_50_chars_accepted() {
+        let action = "A".repeat(50);
+        let response = format!(
+            r#"{{"action":"{action}","category":"info","reason":"r","summary":"s","tags":[]}}"#
+        );
+        let c = parse_classification(&response).expect("50-char action should be accepted");
+        assert_eq!(c.action.len(), 50);
+    }
+
+    #[test]
+    fn parse_reason_truncated_to_300_chars() {
+        let long_reason = "x".repeat(500);
+        let response = format!(
+            r#"{{"action":"UPDATE","category":"info","reason":"{long_reason}","summary":"s","tags":[]}}"#
+        );
+        let c = parse_classification(&response).expect("should parse");
+        assert!(c.reason.len() <= 300, "reason should be truncated to 300 chars");
+    }
+}

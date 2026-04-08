@@ -13,7 +13,8 @@
 
 import { getCore } from "./core-store.js";
 import { getUserTimeline, getMe, buildUserMap } from "../twitter-api.js";
-import type { SyncState, SyncProgress, StoredItemRow } from "$lib/types";
+import { getSyncState, writeSyncState, bulkUpsertItems, throwIfAborted } from "./sync-base.js";
+import type { SyncProgress, StoredItem } from "$lib/types";
 
 const DEFAULT_SYNC_LIMIT = 50;
 
@@ -40,6 +41,8 @@ interface TweetRow {
   referenced_tweets?: unknown[];
   public_metrics?: { like_count?: number; retweet_count?: number };
 }
+
+type UserMap = Map<string, { username?: string; name?: string }>;
 
 /** Timeline response shape. */
 interface TimelineResponse {
@@ -351,21 +354,18 @@ async function continueFetch(
 
 function normalizeTweet(
   tweet: TweetRow,
-  userMap: Map<string, { username?: string; name?: string }> | undefined,
+  userMap: UserMap | undefined,
   currentUsername: string
-): StoredItemRow {
+): StoredItem {
   const author = userMap?.get(tweet.author_id ?? "");
   const authorHandle = author?.username || currentUsername || "unknown";
   const text = tweet.text || "";
   const subject = text.slice(0, 120).replace(/\n/g, " ");
   const date = tweet.created_at ? new Date(tweet.created_at).getTime() : Date.now();
 
-  const labelsJson = tweet.public_metrics
-    ? JSON.stringify([
-        `♡${tweet.public_metrics.like_count ?? 0}`,
-        `🔄${tweet.public_metrics.retweet_count ?? 0}`,
-      ])
-    : "[]";
+  const labels = tweet.public_metrics
+    ? [`♡${tweet.public_metrics.like_count ?? 0}`, `🔄${tweet.public_metrics.retweet_count ?? 0}`]
+    : [];
 
   return {
     id: `twitter:${tweet.id}`,
@@ -381,93 +381,17 @@ function normalizeTweet(
     body: text,
     htmlBody: null,
     date,
-    labels: labelsJson,
+    labels,
     messageId: tweet.id,
     inReplyTo: "",
     references: "",
-    raw: JSON.stringify(tweet),
+    raw: tweet,
     syncedAt: Date.now(),
   };
 }
 
-// ── Bulk DB helpers ─────────────────────────────────────────────────
-
-async function bulkUpsertItems(items: StoredItemRow[]): Promise<void> {
-  if (!items.length) return;
-
-  const rows = items.map((item) => ({
-    id: item.id,
-    sourceType: item.sourceType,
-    sourceId: item.sourceId ?? undefined,
-    threadKey: item.threadKey ?? undefined,
-    type: item.type ?? undefined,
-    from: item.from ?? undefined,
-    to: item.to ?? undefined,
-    cc: item.cc ?? undefined,
-    subject: item.subject ?? undefined,
-    snippet: item.snippet ?? undefined,
-    body: item.body ?? undefined,
-    htmlBody: item.htmlBody ?? undefined,
-    date: item.date ?? undefined,
-    labels: typeof item.labels === "string" ? item.labels : JSON.stringify(item.labels ?? []),
-    messageId: item.messageId ?? undefined,
-    inReplyTo: item.inReplyTo ?? undefined,
-    references: item.references ?? undefined,
-    raw: typeof item.raw === "string" ? item.raw : JSON.stringify(item.raw ?? null),
-    syncedAt: item.syncedAt ?? undefined,
-  }));
-  try {
-    await getCore().insertItemsBatch(rows);
-  } catch {
-    /* ignore */
-  }
-}
-
-// ── syncState helpers ───────────────────────────────────────────────
-
-async function getSyncState(sourceType: string): Promise<SyncState | null> {
-  try {
-    const r = await getCore().getSyncState(sourceType);
-    if (r == null) return null;
-    const row = r as unknown as Record<string, unknown>;
-    return {
-      sourceType: row.sourceType as string,
-      historyId: row.historyId as string,
-      lastSyncAt: Number(row.lastSyncAt),
-      totalItems: Number(row.totalItems),
-      oldestPageToken: (row.oldestPageToken as string) || "",
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function writeSyncState({
-  sourceType,
-  historyId,
-  lastSyncAt,
-  totalItems,
-  oldestPageToken,
-}: SyncState): Promise<void> {
-  await getCore().upsertSyncState(
-    sourceType,
-    historyId,
-    lastSyncAt ?? 0,
-    totalItems ?? 0,
-    oldestPageToken || ""
-  );
-}
+// ── Local helpers ───────────────────────────────────────────────────
 
 async function getNewestTweetId(): Promise<string | null> {
-  try {
-    return (await getCore().getNewestSourceId("twitter")) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// ── Utilities ───────────────────────────────────────────────────────
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  return (await getCore().getNewestSourceId("twitter")) ?? null;
 }

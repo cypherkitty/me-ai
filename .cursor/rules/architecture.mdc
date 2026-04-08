@@ -22,6 +22,8 @@ The repository knowledge base lives in `.cortex/`. Start here, then follow links
 - **[`.cortex/tech-debt-tracker.md`](.cortex/tech-debt-tracker.md)** — Known debt items
 - **[`.cortex/exec-plans/`](.cortex/exec-plans/README.md)** — Execution plans for complex work
 - **[`.cortex/references/`](.cortex/references/rexie-patterns.md)** — Rexie/IndexedDB conventions
+- **[`.cortex/coding-standards/typescript.md`](.cortex/coding-standards/typescript.md)** — no `null` in TS, discriminated unions, `??` over `||`
+- **[`.cortex/coding-standards/rust.md`](.cortex/coding-standards/rust.md)** — type-driven Rust: `enum` over strings, no `unwrap()` outside tests
 
 ## Project layout
 

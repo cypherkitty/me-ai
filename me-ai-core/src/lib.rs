@@ -499,13 +499,7 @@ impl MeAiCore {
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineResult, JsValue> {
-        let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => {
-                Some(serde_wasm_bindgen::from_value(v)
-                    .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
-            }
-            _ => None,
-        };
+        let config = parse_optional_config(config)?;
         Ok(plugins::execute_pipeline(actions, event, access_token, on_progress, config).await?)
     }
 
@@ -518,13 +512,7 @@ impl MeAiCore {
         on_progress: Option<Function>,
         config: Option<JsValue>,
     ) -> Result<PipelineBatchResult, JsValue> {
-        let config: Option<serde_json::Value> = match config {
-            Some(v) if !v.is_null() && !v.is_undefined() => {
-                Some(serde_wasm_bindgen::from_value(v)
-                    .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?)
-            }
-            _ => None,
-        };
+        let config = parse_optional_config(config)?;
         Ok(plugins::execute_pipeline_batch(actions, events, access_token, on_progress, config).await?)
     }
 
@@ -902,7 +890,7 @@ impl MeAiCore {
     }
 
     #[wasm_bindgen(js_name = shortDate)]
-    pub fn short_date(&self, date_ms: f64) -> String {
+    pub fn short_date(&self, date_ms: f64) -> Option<String> {
         formatting::short_date(date_ms as i64)
     }
 
@@ -964,16 +952,16 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = getDataSummary)]
     pub async fn get_data_summary(&self) -> Result<String, JsValue> {
         let db = &self.rexie_db;
-        let total_emails = storage::items::get_items_count_gmail(db).await.unwrap_or(0);
+        let total_emails = storage::items::get_items_count_gmail(db).await.map_err(|e| error_to_js(&e))?;
         if total_emails == 0 { return Ok(String::new()); }
-        let total_contacts = storage::items::get_contacts_count(db).await.unwrap_or(0);
+        let total_contacts = storage::items::get_contacts_count(db).await.map_err(|e| error_to_js(&e))?;
         let mut lines = vec![format!("Stored data: {} emails, {} contacts.", total_emails, total_contacts)];
-        let min = storage::items::get_items_date_min(db).await.unwrap_or(None);
-        let max = storage::items::get_items_date_max(db).await.unwrap_or(None);
+        let min = storage::items::get_items_date_min(db).await.map_err(|e| error_to_js(&e))?;
+        let max = storage::items::get_items_date_max(db).await.map_err(|e| error_to_js(&e))?;
         if let (Some(oldest), Some(newest)) = (min, max) {
-            let from = formatting::short_date(oldest);
-            let to = formatting::short_date(newest);
-            lines.push(format!("Date range: {} to {}.", from, to));
+            if let (Some(from), Some(to)) = (formatting::short_date(oldest), formatting::short_date(newest)) {
+                lines.push(format!("Date range: {} to {}.", from, to));
+            }
         }
         Ok(lines.join(" "))
     }
@@ -982,18 +970,20 @@ impl MeAiCore {
     #[wasm_bindgen(js_name = getDetailedSummary)]
     pub async fn get_detailed_summary(&self) -> Result<String, JsValue> {
         let db = &self.rexie_db;
-        let total_emails = storage::items::get_items_count_gmail(db).await.unwrap_or(0);
+        let total_emails = storage::items::get_items_count_gmail(db).await.map_err(|e| error_to_js(&e))?;
         if total_emails == 0 { return Ok("No emails stored locally.".to_string()); }
-        let total_contacts = storage::items::get_contacts_count(db).await.unwrap_or(0);
+        let total_contacts = storage::items::get_contacts_count(db).await.map_err(|e| error_to_js(&e))?;
         let mut parts = vec![
             "## Data Summary".to_string(),
             format!("- **Emails:** {}", total_emails),
             format!("- **Contacts:** {}", total_contacts),
         ];
-        let min = storage::items::get_items_date_min(db).await.unwrap_or(None);
-        let max = storage::items::get_items_date_max(db).await.unwrap_or(None);
+        let min = storage::items::get_items_date_min(db).await.map_err(|e| error_to_js(&e))?;
+        let max = storage::items::get_items_date_max(db).await.map_err(|e| error_to_js(&e))?;
         if let (Some(oldest), Some(newest)) = (min, max) {
-            parts.push(format!("- **Date range:** {} — {}", formatting::short_date(oldest), formatting::short_date(newest)));
+            if let (Some(from), Some(to)) = (formatting::short_date(oldest), formatting::short_date(newest)) {
+                parts.push(format!("- **Date range:** {} — {}", from, to));
+            }
         }
         Ok(parts.join("\n"))
     }
@@ -1020,7 +1010,7 @@ impl MeAiCore {
         ];
         // Check pending actions
         let db = &self.rexie_db;
-        let pending_count = storage::classifications::count_pending_classifications(db).await.unwrap_or(0);
+        let pending_count = storage::classifications::count_pending_classifications(db).await.map_err(|e| error_to_js(&e))?;
         if pending_count > 0 {
             parts.push(format!("Pending emails awaiting manual execution: {} total.", pending_count));
             parts.push("If the user asks you to execute or handle a pending category, append [EXECUTE:CATEGORY:EVENT_TYPE] to the end of your response.".to_string());
@@ -1036,7 +1026,7 @@ impl MeAiCore {
         let mut parts = vec![detailed];
 
         let db = &self.rexie_db;
-        let pending_count = storage::classifications::count_pending_classifications(db).await.unwrap_or(0);
+        let pending_count = storage::classifications::count_pending_classifications(db).await.map_err(|e| error_to_js(&e))?;
         if pending_count > 0 {
             parts.extend([
                 String::new(),
@@ -1252,18 +1242,30 @@ impl MeAiCore {
                     "No API key configured for {provider}. Please check your settings."
                 )))
             })?;
-        let api_key = serde_json::from_str::<String>(&api_key_raw).unwrap_or(api_key_raw);
+        let api_key = serde_json::from_str::<String>(&api_key_raw).map_err(|e| {
+            error_to_js(&CoreError::Deserialize(format!(
+                "Stored API key for {provider} is not valid JSON: {e}"
+            )))
+        })?;
 
         Ok(llm::client::stream_api_chat(provider, model_name, &api_key, msgs, opts, on_token).await?)
     }
 }
 
+fn parse_optional_config(config: Option<JsValue>) -> Result<Option<serde_json::Value>, JsValue> {
+    match config {
+        Some(v) if !v.is_null() && !v.is_undefined() => {
+            Ok(Some(serde_wasm_bindgen::from_value(v)
+                .map_err(|e| error_to_js(&CoreError::Deserialize(e.to_string())))?))
+        }
+        _ => Ok(None),
+    }
+}
+
 fn format_item_for_llm(item: &crate::storage::sync::ItemRow) -> String {
-    let date = if let Some(d) = item.date {
-        if d > 0 { crate::formatting::short_date(d) } else { "Unknown date".to_string() }
-    } else {
-        "Unknown date".to_string()
-    };
+    let date = item.date
+        .and_then(|d| crate::formatting::short_date(d))
+        .unwrap_or_else(|| "Unknown date".to_string());
     let body = crate::formatting::truncate(&item.body, 500);
     [
         format!("**Subject:** {}", item.subject),

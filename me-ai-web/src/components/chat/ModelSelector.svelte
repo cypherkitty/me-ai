@@ -10,8 +10,9 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import { Card, CardContent } from "$lib/components/ui/card/index.js";
   import { cn } from "$lib/utils.js";
+  import { TRANSFORMERS_CACHE_NAME } from "../../lib/core.js";
 
-  const CACHE_NAME = "transformers-cache";
+  const CACHE_NAME = TRANSFORMERS_CACHE_NAME;
   const HF_PREFIX = "https://huggingface.co/";
 
   const DTYPE_OPTIONS = [

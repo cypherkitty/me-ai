@@ -14,9 +14,10 @@
  */
 
 import { getCore } from "./core-store.js";
-import { makeItemId, toJson } from "./db.js";
+import { makeItemId } from "./db.js";
+import { getSyncState, writeSyncState, bulkUpsertItems, throwIfAborted } from "./sync-base.js";
 import { GmailApiError } from "../core.js";
-import type { SyncState, SyncProgress } from "$lib/types";
+import type { SyncProgress } from "$lib/types";
 import type { StoredItem } from "$lib/types";
 
 const SOURCE_TYPE = "gmail";
@@ -496,31 +497,6 @@ function normalizeGmailMessage(msg: GmailMessage): StoredItem {
 
 // ── Bulk DB helpers ─────────────────────────────────────────────────
 
-async function bulkUpsertItems(items: StoredItem[]): Promise<void> {
-  const rows = items.map((item) => ({
-    id: item.id,
-    sourceType: item.sourceType,
-    sourceId: item.sourceId ?? undefined,
-    threadKey: item.threadKey ?? undefined,
-    type: item.type ?? undefined,
-    from: item.from ?? undefined,
-    to: item.to ?? undefined,
-    cc: item.cc ?? undefined,
-    subject: item.subject ?? undefined,
-    snippet: item.snippet ?? undefined,
-    body: item.body ?? undefined,
-    htmlBody: item.htmlBody ?? undefined,
-    date: item.date ?? undefined,
-    labels: toJson(item.labels),
-    messageId: item.messageId ?? undefined,
-    inReplyTo: item.inReplyTo ?? undefined,
-    references: item.references ?? undefined,
-    raw: toJson(item.raw),
-    syncedAt: item.syncedAt ?? undefined,
-  }));
-  await getCore().insertItemsBatch(rows);
-}
-
 async function bulkDeleteItems(ids: string[]): Promise<void> {
   await getCore().deleteItemsByIds(ids);
 }
@@ -578,43 +554,4 @@ function parseEmailAddress(str: string): ParsedEmail | null {
   const email = str.toLowerCase().trim();
   if (email.includes("@")) return { email, name: "" };
   return null;
-}
-
-// ── syncState helpers ───────────────────────────────────────────────
-
-async function getSyncState(sourceType: string): Promise<SyncState | null> {
-  const r = await getCore().getSyncState(sourceType);
-  if (r == null) return null;
-  const row = r as unknown as Record<string, unknown>;
-  return {
-    sourceType: row.sourceType as string,
-    historyId: row.historyId as string,
-    lastSyncAt: row.lastSyncAt != null ? Number(row.lastSyncAt) : null,
-    totalItems: row.totalItems != null ? Number(row.totalItems) : 0,
-    oldestPageToken: (row.oldestPageToken as string) ?? "",
-  };
-}
-
-async function writeSyncState({
-  sourceType,
-  historyId,
-  lastSyncAt,
-  totalItems,
-  oldestPageToken,
-}: SyncState): Promise<void> {
-  await getCore().upsertSyncState(
-    sourceType,
-    historyId,
-    lastSyncAt ?? 0,
-    totalItems,
-    oldestPageToken ?? ""
-  );
-}
-
-// ── Utilities ───────────────────────────────────────────────────────
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) {
-    throw new DOMException("Sync was cancelled", "AbortError");
-  }
 }

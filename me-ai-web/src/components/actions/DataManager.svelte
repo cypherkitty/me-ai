@@ -29,12 +29,14 @@
   let confirm = $state<string | null>(null);
   let busy = $state(false);
   let loading = $state(true);
+  let loadError = $state<string | null>(null);
   let categoryOrder = $state<string[]>([]);
   let storage = $state<StorageStats | null>(null);
   let idb = $state<IdbSummary | null>(null);
 
   async function load() {
     loading = true;
+    loadError = null;
     try {
       const [emailCount, classCount, contactCount] = await Promise.all([
         getCore()
@@ -47,12 +49,7 @@
           .getContactsCount()
           .then((n) => Number(n ?? 0)),
       ]);
-      let idbBytes = 0;
-      try {
-        idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
-      } catch {
-        /* no-op */
-      }
+      const idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
       idb = {
         emailCount,
         classCount,
@@ -67,6 +64,8 @@
         order: string[];
       };
       categoryOrder = result.order;
+    } catch (e) {
+      loadError = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
     }
@@ -130,6 +129,10 @@
       <div class="flex items-center justify-center py-16 text-muted-foreground gap-3">
         <div class="size-4 rounded-full border-2 border-border border-t-primary animate-spin"></div>
         <span class="text-xs">Loading…</span>
+      </div>
+    {:else if loadError}
+      <div class="flex items-center gap-2 py-16 text-destructive text-xs">
+        <span>Failed to load storage data: {loadError}</span>
       </div>
     {:else}
       <div class="flex flex-col gap-8 max-w-2xl relative">

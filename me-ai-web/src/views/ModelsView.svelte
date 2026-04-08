@@ -7,9 +7,10 @@
   import { cn } from "$lib/utils.js";
   import { getCore } from "../lib/store/core-store.js";
   import type { OnnxModel as Model } from "../lib/core.js";
+  import { TRANSFORMERS_CACHE_NAME } from "../lib/core.js";
   const getModels = () => getCore().getOnnxModels();
 
-  const CACHE_NAME = "transformers-cache";
+  const CACHE_NAME = TRANSFORMERS_CACHE_NAME;
   const HF_PREFIX = "https://huggingface.co/";
 
   interface CachedModel {
