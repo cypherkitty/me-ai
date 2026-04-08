@@ -12,6 +12,7 @@ export {
   GoogleToken,
   TwitterOAuthLoginStart,
   TwitterOAuthTokens,
+  TwitterPkcePending,
   TwitterToken,
   GmailProfile,
   TwitterProfile,
@@ -106,7 +107,6 @@ export type {
 // Re-export initCore and getCore so existing callers don't need to change paths
 export { initCore, getCore, coreStore } from "./store/core-store.js";
 import { getCore } from "./store/core-store.js";
-import { clearSavedChatSessions } from "./chat-sessions.js";
 
 // Local imports for types used in this file's function signatures
 import type {
@@ -554,6 +554,7 @@ export function itemDateMs(d: bigint | number | null | undefined): number {
 
 export async function clearAllDataAndCheckpoint(): Promise<void> {
   const { getCore } = await import("./store/core-store.js");
-  await getCore().clearAllData();
-  clearSavedChatSessions();
+  const core = getCore();
+  await core.clearAllData();
+  await core.clearChatSessions();
 }

@@ -15,6 +15,10 @@ mod sync;
 mod error;
 mod formatting;
 mod chat_session;
+pub use chat_session::{
+    ChatSessionRecord, ChatSessionsLoadResult, ChatSessionsSnapshot, ChatTitleSource, ChatTitleStatus,
+    PersistedChatMessage,
+};
 mod event_ui;
 mod llm;
 mod oauth;
@@ -37,7 +41,7 @@ use crate::plugins::resolution::{
 use crate::formatting::ParsedApiError;
 use crate::storage::aggregations::{CategoryPipelineView, EventStatsResult, PendingApprovalView, PendingItemByCategoryResult};
 use crate::oauth::twitter::{TwitterOAuthLoginStart, TwitterOAuthTokens};
-use crate::storage::settings::{GoogleToken, SettingValue, TwitterToken};
+use crate::storage::settings::{GoogleToken, SettingValue, TwitterPkcePending, TwitterToken};
 use crate::storage::audit::{AuditStats, GetAuditLogParsedResult, GetAuditLogResult};
 use crate::storage::catalog::{ActionRow, PluginSummary, SourceRow};
 use crate::storage::classifications::{ClassificationRow, ClassificationDoc, ClassificationsByCategory, ClassificationCounts};
@@ -200,6 +204,45 @@ impl MeAiCore {
         Ok(storage::schema::clear_all_data(db).await?)
     }
 
+    /// Load chat sessions from IndexedDB (`settings` key `me_ai_chat_sessions_v1`).
+    #[wasm_bindgen(js_name = loadChatSessions)]
+    pub async fn load_chat_sessions_store(&self) -> Result<ChatSessionsLoadResult, JsValue> {
+        let db = &self.rexie_db;
+        chat_session::load_chat_sessions(db).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = saveChatSessions)]
+    pub async fn save_chat_sessions_js(
+        &self,
+        active_chat_id: Option<String>,
+        sessions: Vec<ChatSessionRecord>,
+    ) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        chat_session::save_chat_sessions(db, active_chat_id, sessions.as_slice())
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = clearChatSessions)]
+    pub async fn clear_chat_sessions_js(&self) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        chat_session::clear_chat_sessions(db).await.map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = createChatSession)]
+    pub fn create_chat_session_wasm(&self, now: f64) -> Result<ChatSessionRecord, JsValue> {
+        chat_session::create_chat_session(now).map_err(|e| error_to_js(&e))
+    }
+
+    /// Import chat sessions from a JSON snapshot string into IndexedDB.
+    #[wasm_bindgen(js_name = importChatSessionsFromJson)]
+    pub async fn import_chat_sessions_from_json_js(&self, json: &str) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        chat_session::import_chat_sessions_from_json(db, json)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
     #[wasm_bindgen(js_name = loadSettings)]
     pub async fn load_settings(&self) -> Result<SettingValue, JsValue> {
         let db = &self.rexie_db;
@@ -303,7 +346,7 @@ impl MeAiCore {
             .map_err(|e| error_to_js(&e))
     }
 
-    /// PKCE step: verifier, state, and Twitter authorize URL (store verifier/state in JS; then redirect).
+    /// PKCE step: verifier, state, and Twitter authorize URL. Call `saveTwitterPkcePending` before redirect.
     #[wasm_bindgen(js_name = twitterOAuthBeginLogin)]
     pub fn twitter_oauth_begin_login(
         &self,
@@ -311,6 +354,20 @@ impl MeAiCore {
         redirect_uri: &str,
     ) -> Result<TwitterOAuthLoginStart, JsValue> {
         oauth::twitter::begin_login(client_id, redirect_uri).map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = saveTwitterPkcePending)]
+    pub async fn save_twitter_pkce_pending_js(&self, verifier: &str, state: &str) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        storage::settings::save_twitter_pkce_pending(db, verifier, state)
+            .await
+            .map_err(|e| error_to_js(&e))
+    }
+
+    #[wasm_bindgen(js_name = takeTwitterPkcePending)]
+    pub async fn take_twitter_pkce_pending_js(&self) -> Result<Option<TwitterPkcePending>, JsValue> {
+        let db = &self.rexie_db;
+        storage::settings::take_twitter_pkce_pending(db).await.map_err(|e| error_to_js(&e))
     }
 
     /// Exchange the OAuth `code` for tokens and persist them.
@@ -1057,6 +1114,45 @@ impl MeAiCore {
         Ok(llm::ollama::list_ollama_models(url).await?)
     }
 
+    #[wasm_bindgen(js_name = defaultOllamaBaseUrl)]
+    pub fn default_ollama_base_url(&self) -> String {
+        llm::ollama::default_ollama_base_url()
+    }
+
+    #[wasm_bindgen(js_name = getResolvedOllamaUrl)]
+    pub async fn get_resolved_ollama_url(&self) -> Result<String, JsValue> {
+        let db = &self.rexie_db;
+        let sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
+        if let Some(url) = sv.ollama_url() {
+            let t = url.trim();
+            if !t.is_empty() {
+                return Ok(t.to_string());
+            }
+        }
+        Ok(llm::ollama::default_ollama_base_url())
+    }
+
+    #[wasm_bindgen(js_name = setOllamaUrl)]
+    pub async fn set_ollama_url(&self, url: &str) -> Result<(), JsValue> {
+        let db = &self.rexie_db;
+        let mut sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
+        sv.set_ollama_url(url.to_string());
+        storage::settings::save_settings(db, &sv).await.map_err(|e| error_to_js(&e))
+    }
+
+    /// `options` and `messages` are plain JS objects/arrays (`StreamOllamaOptions`, `OllamaChatMessage[]`).
+    #[wasm_bindgen(js_name = streamOllamaChat)]
+    pub async fn stream_ollama_chat(
+        &self,
+        model_name: &str,
+        messages: JsValue,
+        options: JsValue,
+        on_token: &Function,
+        url: &str,
+    ) -> Result<String, JsValue> {
+        Ok(llm::ollama::stream_ollama_chat(url, model_name, messages, options, on_token).await?)
+    }
+
     // ── Formatting utilities ─────────────────────────────────────────────────────
 
     #[wasm_bindgen(js_name = formatBytes)]
@@ -1109,9 +1205,27 @@ impl MeAiCore {
         crate::time_util::format_display_datetime_en_us_utc(ms as i64)
     }
 
+    /// Format an email `date` field from JS (`string | number | bigint | null | undefined`) for UI lists/detail.
+    #[wasm_bindgen(js_name = formatEmailDisplayDate)]
+    pub fn format_email_display_date(&self, date: JsValue) -> String {
+        formatting::format_email_display_date(&date)
+    }
+
+    /// Parse an email `date` from JS to epoch ms (`0` if missing or unparseable). Used before `emailToMarkdown` / exports.
+    #[wasm_bindgen(js_name = emailDateToEpochMs)]
+    pub fn email_date_to_epoch_ms_js(&self, date: JsValue) -> f64 {
+        formatting::email_date_to_epoch_ms(&date)
+    }
+
     #[wasm_bindgen(js_name = exportFilename)]
     pub fn export_filename(&self, subject: &str, date_ms: f64, ext: &str) -> String {
         formatting::export_filename(subject, date_ms as i64, ext)
+    }
+
+    /// Safe export filename from subject + JS date value (same parsing as [`Self::email_date_to_epoch_ms_js`]).
+    #[wasm_bindgen(js_name = exportEmailFilename)]
+    pub fn export_email_filename(&self, subject: &str, date: JsValue, ext: &str) -> String {
+        formatting::export_email_filename_from_js(subject, &date, ext)
     }
 
     /// Convert an email to Markdown with a metadata header table (`date_ms`: epoch ms, 0 = unknown).

@@ -2,8 +2,8 @@
  * Ollama LLM engine adapter. Same interface as llm-engine but uses Ollama HTTP API.
  */
 
-import { streamOllamaChat, testOllamaConnection, getOllamaUrl } from "./ollama-client.js";
-import type { EngineStatus, EngineMessage } from "./core.js";
+import { getCore } from "./store/core-store.js";
+import type { EngineStatus, EngineMessage, OllamaTokenData } from "./core.js";
 
 let _status: EngineStatus = "idle";
 let _modelName: string | null = null;
@@ -24,12 +24,14 @@ export function getOllamaEngine() {
     async check(): Promise<void> {
       _status = "loading";
       broadcast({ status: "loading", data: "Testing Ollama connection..." });
-      const result = await testOllamaConnection();
+      const core = getCore();
+      const url = await core.getResolvedOllamaUrl();
+      const result = await core.testOllamaConnection(url);
       if (result.connected) {
         _status = "idle";
         broadcast({
           status: "ready",
-          data: { type: "ollama", version: result.version, url: getOllamaUrl() },
+          data: { type: "ollama", version: result.version, url },
         });
       } else {
         _status = "idle";
@@ -47,7 +49,9 @@ export function getOllamaEngine() {
         status: "loading",
         data: `Connecting to Ollama model: ${modelName}...`,
       });
-      const result = await testOllamaConnection();
+      const core = getCore();
+      const url = await core.getResolvedOllamaUrl();
+      const result = await core.testOllamaConnection(url);
       if (!result.connected) {
         _status = "idle";
         _modelName = null;
@@ -74,14 +78,16 @@ export function getOllamaEngine() {
       let tokenCount = 0;
       const startTime = performance.now();
       try {
-        await streamOllamaChat(
+        const core = getCore();
+        const url = await core.getResolvedOllamaUrl();
+        await core.streamOllamaChat(
           _modelName,
           messages,
           {
             temperature: (options.temperature as number) ?? 0.7,
             maxTokens: (options.maxTokens as number) ?? 4096,
           },
-          (data) => {
+          (data: OllamaTokenData) => {
             if (data.content) {
               tokenCount++;
               const elapsed = performance.now() - startTime;
@@ -104,7 +110,8 @@ export function getOllamaEngine() {
                 numTokens: data.eval_count ?? tokenCount,
               });
             }
-          }
+          },
+          url
         );
       } catch (error) {
         _status = "ready";

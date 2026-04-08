@@ -7,7 +7,26 @@
  */
 import { describe, it, expect, vi } from "vitest";
 
+const mockEmailDateToEpochMs = (d: unknown): number => {
+  if (d === "" || d == null) return 0;
+  if (typeof d === "number" && Number.isFinite(d)) return d;
+  if (typeof d === "bigint") return Number(d);
+  const s = String(d).trim();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const mockCore = {
+  emailDateToEpochMs: mockEmailDateToEpochMs,
+  exportEmailFilename: vi.fn((subject: string, date: unknown, ext: string) => {
+    const ms = mockEmailDateToEpochMs(date);
+    return `${ms > 0 ? "2026-02-14" : "unknown-date"}_${subject}.${ext}`;
+  }),
   emailToMarkdown: vi.fn(
     (
       subject: string,
@@ -29,9 +48,6 @@ const mockCore = {
     }
   ),
   htmlToMarkdownBody: vi.fn((_html: string) => null as string | null),
-  exportFilename: vi.fn(
-    (subject: string, _dateMs: number, ext: string) => `2026-02-14_${subject}.${ext}`
-  ),
 };
 
 vi.mock("../store/core-store.js", () => ({
@@ -72,7 +88,7 @@ describe("emailToMarkdown", () => {
       "Sub",
       "a@b.com",
       "c@d.com",
-      Date.parse("2026-01-01"),
+      mockEmailDateToEpochMs("2026-01-01"),
       "body",
       "<p>html</p>"
     );

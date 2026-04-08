@@ -17,6 +17,7 @@
   import { mountLog } from "../../lib/debug.js";
   import * as Collapsible from "$lib/components/ui/collapsible/index.js";
   import { ChevronRight, MessageSquarePlus, Pencil, Trash2 } from "lucide-svelte";
+  import type { ChatSessionRecord } from "me-ai-core";
 
   interface PendingData {
     total: number;
@@ -30,13 +31,6 @@
     model?: string;
     pendingData?: PendingData;
     [key: string]: unknown;
-  }
-  interface ChatSession {
-    id: string;
-    title: string | null;
-    titleStatus: "idle" | "pending" | "ready";
-    messages: Array<Record<string, unknown>>;
-    updatedAt: number;
   }
   interface ContextStats {
     messageCount: number;
@@ -65,7 +59,7 @@
     activeModelLabel?: string | null;
     hasModelIssue?: boolean;
     contextStats?: ContextStats | null;
-    chatSessions?: ChatSession[];
+    chatSessions?: ChatSessionRecord[];
     activeChatId?: string | null;
     chatContainer?: HTMLElement | null;
     onsend?: (text: string) => void;
@@ -77,9 +71,9 @@
     ondeletechat?: (chatId: string) => void;
     oneditlastuser?: () => void;
     onregenerate?: () => void;
-    onsessiontitle?: (session: ChatSession) => string;
-    onsessionsubtitle?: (session: ChatSession) => string;
-    onsessiondate?: (session: ChatSession) => string;
+    onsessiontitle?: (session: ChatSessionRecord) => string;
+    onsessionsubtitle?: (session: ChatSessionRecord) => string;
+    onsessiondate?: (session: ChatSessionRecord) => string;
     onmarkacted?: (id: string) => void;
     ondismiss?: (id: string) => void;
     onremove?: (id: string) => void;
@@ -342,7 +336,7 @@
                               </div>
                             {:else}
                               <div class="truncate text-[0.72rem] font-medium text-foreground/95">
-                                {onsessiontitle?.(session) ?? session.title ?? "Untitled chat"}
+                                {onsessiontitle?.(session) || session.title || "Untitled chat"}
                               </div>
                             {/if}
 

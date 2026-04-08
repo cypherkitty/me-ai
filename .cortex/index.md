@@ -15,7 +15,7 @@ Read this file, then follow the links relevant to your task.
 | [`quality-score.md`](quality-score.md) | Health grades per domain |
 | [`tech-debt-tracker.md`](tech-debt-tracker.md) | Known debt items |
 | [`exec-plans/`](exec-plans/README.md) | Execution plans for complex work |
-| [`references/rexie-patterns.md`](references/rexie-patterns.md) | Rexie/IndexedDB conventions |
+| [`references/rexie-patterns.md`](references/rexie-patterns.md) | Rexie/IndexedDB conventions, storage policy (Rexie-only app data), store inventory |
 | [`coding-standards/typescript.md`](coding-standards/typescript.md) | No `null`, discriminated unions, `??` over `\|\|` |
 | [`coding-standards/rust.md`](coding-standards/rust.md) | Type-driven development, `enum` over strings, no `unwrap()` outside tests; minimal `js_sys` / `web_sys` |
 

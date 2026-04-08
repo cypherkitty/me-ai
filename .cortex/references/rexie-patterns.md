@@ -1,6 +1,19 @@
 # Rexie / IndexedDB Patterns
 
-Conventions for the persistence layer in `me-ai-core/src/db/`.
+Conventions for the persistence layer in `me-ai-core/src/db/` and how it relates to the rest of the browser stack.
+
+## Storage policy (application data)
+
+**Rexie-backed IndexedDB is the only permitted persistence for app state.** The web layer must not use `localStorage`, `sessionStorage`, or ad-hoc IndexedDB opens. Everything goes through `MeAiCore` (WASM), which owns the single database named `"me-ai"`.
+
+| Concern | Where it lives |
+|---------|----------------|
+| Settings, tokens, OAuth PKCE pending, chat snapshot key, scan history, etc. | `settings` store (and other Rexie stores) via `me-ai-core` |
+| User data (items, rules, classifications, …) | Domain stores in `me-ai-core/src/db/` |
+| Verbose mount/debug logging | `SettingValue.debugLogging` → `debugLogging` key in `settings` (load/save via `loadSettings` / `saveSettings`) |
+| Transformer model weights | **Cache API** (browser), used by `@huggingface/transformers` — not Rexie; `nukeAllLocalData` in `me-ai-web` still clears caches for a full reset |
+
+Vitest cannot run Rexie; tests mock `me-ai-core` at the WASM boundary rather than touching `localStorage`.
 
 ## Schema definition (`rexie_schema.rs`)
 
