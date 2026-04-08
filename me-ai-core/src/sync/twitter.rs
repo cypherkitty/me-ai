@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 
 use js_sys::Function;
-use wasm_bindgen::JsValue;
+use web_sys::AbortSignal;
 
 use crate::api::twitter;
 use crate::db::RexieDb;
@@ -36,7 +36,7 @@ pub async fn sync_twitter(
     token: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     check_aborted(signal)?;
 
@@ -58,7 +58,7 @@ pub async fn sync_twitter_more(
     token: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     check_aborted(signal)?;
 
@@ -110,7 +110,7 @@ async fn full_sync(
     username: &str,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     let mut added: u32 = 0;
     let mut errors: u32 = 0;
@@ -211,7 +211,7 @@ async fn incremental_sync(
     state: &sync::SyncStateRow,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     let mut added: u32 = 0;
     let mut errors: u32 = 0;
@@ -339,7 +339,7 @@ async fn continue_fetch(
     state: &sync::SyncStateRow,
     limit: u32,
     on_progress: &Option<Function>,
-    signal: &Option<JsValue>,
+    signal: Option<&AbortSignal>,
 ) -> Result<SyncResult, CoreError> {
     let mut added: u32 = 0;
     let mut errors: u32 = 0;
@@ -447,9 +447,9 @@ fn normalize_tweet(
     let subject = text.chars().take(120).collect::<String>().replace('\n', " ");
 
     let date = if !created_at.is_empty() {
-        let d = js_sys::Date::new(&JsValue::from_str(created_at));
-        let t = d.get_time();
-        if t.is_finite() && t > 0.0 { t as i64 } else { now_ms() }
+        crate::time_util::parse_http_date_to_ms(created_at)
+            .filter(|&ms| ms > 0)
+            .unwrap_or_else(now_ms)
     } else {
         now_ms()
     };

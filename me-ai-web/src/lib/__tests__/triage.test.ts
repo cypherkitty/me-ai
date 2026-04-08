@@ -72,6 +72,7 @@ const mockCore = {
       reason,
       summary,
       tags: JSON.stringify(tags),
+      tagsArray: tags,
     };
   },
   actionColor: (action: string) => {

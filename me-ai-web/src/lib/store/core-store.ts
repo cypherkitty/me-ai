@@ -32,6 +32,7 @@ export async function initCore(): Promise<void> {
     const base = typeof import.meta.env.BASE_URL === "string" ? import.meta.env.BASE_URL : "/";
     const wasmUrl = `${base}wasm/me_ai_core_bg.wasm`;
     await initDefault({ module_or_path: wasmUrl });
+    // wasm-bindgen async `constructor` compiles to `new MeAiCore()` returning a Promise.
     const core = await new MeAiCore();
     await core.createSchemaAndMigrations();
     coreStore.set({ core, initFailed: false });

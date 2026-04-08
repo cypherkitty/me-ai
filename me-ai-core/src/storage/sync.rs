@@ -9,33 +9,6 @@ use crate::error::CoreError;
 
 #[wasm_bindgen(typescript_custom_section)]
 const SYNC_TYPES: &'static str = r#"
-export interface StoredItem {
-    id: string;
-    sourceType: string;
-    sourceId: string;
-    threadKey: string;
-    type: string;
-    from: string;
-    to: string;
-    cc: string;
-    subject: string;
-    snippet: string;
-    body: string;
-    htmlBody: string | null;
-    date: number | null;
-    labels: string[];
-    messageId: string;
-    inReplyTo: string;
-    references: string;
-    raw: unknown;
-    syncedAt: number | null;
-}
-
-export interface StoredItemRow extends Omit<StoredItem, 'labels' | 'raw'> {
-    labels: string;
-    raw: string;
-}
-
 export interface SyncState {
     sourceType: string;
     historyId: string;
@@ -57,11 +30,6 @@ export interface GetStoredEmailsOptions {
     offset?: number;
 }
 
-export interface GetStoredEmailsResult {
-    items: StoredItem[];
-    total: number;
-}
-
 export interface PendingActionsResult {
     categories: Record<string, unknown[]>;
     order: string[];
@@ -70,7 +38,7 @@ export interface PendingActionsResult {
 
 export interface MessageLike {
     subject?: string;
-    date?: number | string | null;
+    date?: number | string | bigint | null;
     raw?: unknown;
 }
 "#;
@@ -157,6 +125,92 @@ pub struct ItemRow {
     #[serde(rename = "syncedAt")]
     #[wasm_bindgen(js_name = "syncedAt")]
     pub synced_at: Option<i64>,
+}
+
+/// Stored item with parsed `labels` and `raw` for the JS boundary (matches former `normaliseRow` output).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct StoredItem {
+    pub id: String,
+    #[wasm_bindgen(js_name = "sourceType")]
+    pub source_type: String,
+    #[wasm_bindgen(js_name = "sourceId")]
+    pub source_id: String,
+    #[wasm_bindgen(js_name = "threadKey")]
+    pub thread_key: String,
+    #[wasm_bindgen(js_name = "type")]
+    pub r#type: String,
+    #[wasm_bindgen(js_name = "from")]
+    pub from_addr: String,
+    #[wasm_bindgen(js_name = "to")]
+    pub to: String,
+    pub cc: String,
+    pub subject: String,
+    pub snippet: String,
+    pub body: String,
+    #[wasm_bindgen(js_name = "htmlBody")]
+    pub html_body: Option<String>,
+    pub date: Option<i64>,
+    pub labels: Vec<String>,
+    /// Original Gmail/API JSON; dynamic shape — `JsValue` is the correct wasm boundary type.
+    pub raw: JsValue,
+    #[wasm_bindgen(js_name = "messageId")]
+    pub message_id: String,
+    #[wasm_bindgen(js_name = "inReplyTo")]
+    pub in_reply_to: String,
+    pub references: String,
+    #[wasm_bindgen(js_name = "syncedAt")]
+    pub synced_at: Option<i64>,
+}
+
+impl StoredItem {
+    pub fn from_item_row(row: &ItemRow) -> Self {
+        let labels: Vec<String> = serde_json::from_str(&row.labels).unwrap_or_default();
+        let raw_val: serde_json::Value = row
+            .raw
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+            .unwrap_or(serde_json::Value::Null);
+        let raw = serde_wasm_bindgen::to_value(&raw_val).unwrap_or(JsValue::NULL);
+        Self {
+            id: row.id.clone(),
+            source_type: row.source_type.clone(),
+            source_id: row.source_id.clone(),
+            thread_key: row.thread_key.clone(),
+            r#type: row.r#type.clone(),
+            from_addr: row.from.clone(),
+            to: row.to.clone(),
+            cc: row.cc.clone(),
+            subject: row.subject.clone(),
+            snippet: row.snippet.clone(),
+            body: row.body.clone(),
+            html_body: row.html_body.clone(),
+            date: row.date,
+            labels,
+            raw,
+            message_id: row.message_id.clone(),
+            in_reply_to: row.in_reply_to.clone(),
+            references: row.references.clone(),
+            synced_at: row.synced_at,
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl ItemRow {
+    /// Parse `labels` / `raw` JSON strings into UI-facing fields (replaces TS `normaliseRow`).
+    #[wasm_bindgen(js_name = toStoredItem)]
+    pub fn to_stored_item(&self) -> StoredItem {
+        StoredItem::from_item_row(self)
+    }
+}
+
+/// Paginated stored emails from `get_stored_emails_filtered`.
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct GetStoredEmailsResult {
+    pub items: Vec<StoredItem>,
+    pub total: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Tsify)]

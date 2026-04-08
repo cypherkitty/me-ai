@@ -158,6 +158,23 @@ fn load() -> Result<Data, CoreError> { ... }
 
 ---
 
+## Rule: Minimize `js_sys` and `web_sys` (WASM targets)
+
+**Default:** Implement behaviour in **Rust** — `std`, normal dependencies (`chrono`, `serde`, …), and domain logic. If something can be done correctly without calling the browser, do it in Rust.
+
+**`js-sys` and `web-sys` must not be used** for that class of work. In practice, **most** code paths do not need them; reaching for JS or Web APIs “because it is easy” is not allowed.
+
+**Rare exceptions:** Either crate is allowed only when the capability is **genuinely host/browser-only** and **cannot** be expressed with portable Rust (including crates already approved for `me-ai-core`). Examples: accepting a value the host must construct (e.g. `AbortSignal` from a `fetch` flow), or another stable Web API with **no** reasonable Rust-side substitute on `wasm32-unknown-unknown`. When you add such a dependency:
+
+- Enable the **smallest** set of `web-sys` feature flags needed for that type or call.
+- Leave a **one-line comment** at the call site: why pure Rust (or a Rust crate) cannot apply.
+
+**Explicitly avoid:** `js_sys::Date`, `js_sys::Math`, and similar, for time, parsing, randomness, or formatting — use Rust (`SystemTime`, monotonic/high-resolution wall clock patterns, `chrono`, atomic counters, etc.) instead.
+
+**Callbacks:** Prefer `wasm_bindgen::closure::Closure` or `#[wasm_bindgen]`-shaped bindings over treating everything as `js_sys::Function`. If a third-party path still requires `Function`, keep it at the boundary and do not spread `js_sys` types through domain code.
+
+---
+
 ## Clippy enforcement
 
 The following Clippy lints are enabled in CI and must pass clean:
@@ -169,4 +186,4 @@ The following Clippy lints are enabled in CI and must pass clean:
 | `clippy::str_to_string` | Unnecessary `&String` params |
 | `clippy::pedantic` (selected) | Various type-level improvements |
 
-Run `task lint` to check locally before pushing.
+Run `task core:clippy` to check locally before pushing.

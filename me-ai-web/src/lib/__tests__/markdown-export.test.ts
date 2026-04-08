@@ -25,11 +25,12 @@ const mockEmailToMarkdown = (
   subject: string,
   from: string,
   to: string,
-  dateStr: string,
-  body: string,
-  _htmlBody: string
+  dateMs: number,
+  body: string | undefined,
+  htmlBody: string | undefined
 ): string => {
   const escapeCell = (t: string) => (t || "").replace(/\|/g, "\\|");
+  const dateStr = dateMs > 0 && Number.isFinite(dateMs) ? new Date(dateMs).toISOString() : "";
   const lines = [
     `# ${subject}`,
     "",
@@ -41,7 +42,7 @@ const mockEmailToMarkdown = (
     "",
     "---",
     "",
-    body || "*(no body)*",
+    htmlBody ? "(html converted)" : body || "*(no body)*",
     "",
   ];
   return lines.join("\n");

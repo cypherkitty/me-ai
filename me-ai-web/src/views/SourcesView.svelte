@@ -14,7 +14,6 @@
 
   import { syncGmail, syncGmailMore, getGmailSyncStatus } from "../lib/store/gmail-sync.js";
   import {
-    initTwitterAuth,
     requestTwitterAccessToken,
     getSavedTwitterToken,
     revokeTwitterToken,
@@ -294,13 +293,13 @@
     loadingMessages = true;
     try {
       const offset = append ? localOffset : 0;
-      const result = (await getCore().getStoredEmailsFiltered(
+      const result = await getCore().getStoredEmailsFiltered(
         searchQuery || undefined,
         LOCAL_PAGE_SIZE,
         offset
-      )) as { items: StoredItem[]; total: number };
+      );
       emailMessages = append ? [...emailMessages, ...result.items] : result.items;
-      totalLocalMessages = result.total;
+      totalLocalMessages = Number(result.total);
       localOffset = emailMessages.length;
     } catch (e) {
       gmailError = `Failed to load messages: ${errMsg(e)}`;
@@ -386,9 +385,10 @@
     }
   }
 
-  function formatTimeAgo(ts: number | null | undefined) {
-    if (!ts) return "never";
-    const s = Math.floor((Date.now() - ts) / 1000);
+  function formatTimeAgo(ts: number | bigint | null | undefined) {
+    if (ts == null) return "never";
+    const ms = typeof ts === "bigint" ? Number(ts) : ts;
+    const s = Math.floor((Date.now() - ms) / 1000);
     if (s < 60) return "just now";
     const m = Math.floor(s / 60);
     if (m < 60) return `${m}m ago`;
@@ -435,10 +435,6 @@
     twClientId = savedTwId || "";
     twClientIdInput = savedTwId || "";
 
-    if (twClientId) {
-      initTwitterAuth(twClientId);
-    }
-
     // Check for OAuth callback
     const hash = window.location.hash;
     if (hash.includes("oauth-twitter")) {
@@ -447,7 +443,11 @@
       const state = url.searchParams.get("state");
       if (code && state) {
         try {
-          const result = await handleTwitterCallback(code, state);
+          const cid = twClientId || initSv.twitterClientId || "";
+          if (!cid) {
+            throw new Error("Twitter Client ID missing — save it under Sources first.");
+          }
+          const result = await handleTwitterCallback(code, state, cid);
           twAccessToken = result.access_token;
           await twFetchProfile();
           // Clean up URL
@@ -479,7 +479,6 @@
     sv.twitterClientId = t;
     await getCore().saveSettings(sv);
     twClientId = t;
-    initTwitterAuth(t);
     twShowClientIdEdit = false;
   }
 
@@ -492,8 +491,7 @@
         twLoadingAuth = false;
         return;
       }
-      initTwitterAuth(twClientId);
-      await requestTwitterAccessToken(); // redirects to Twitter
+      await requestTwitterAccessToken(twClientId); // redirects to Twitter
     } catch (e) {
       twError = errMsg(e);
       twLoadingAuth = false;

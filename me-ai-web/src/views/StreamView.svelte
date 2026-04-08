@@ -79,10 +79,7 @@
     try {
       // Fetch both executed events (auditLog) and pending/awaiting (emailClassifications)
       const [{ entries: auditEntries }, pendingRows, st] = await Promise.all([
-        getCore().getAuditLogParsed(200, 0, false) as Promise<{
-          entries: unknown[];
-          total: number;
-        }>,
+        getCore().getAuditLogParsed(200, 0, false),
         getCore()
           .getPendingApprovals(200)
           .then((r: unknown) => r ?? []),
@@ -90,9 +87,23 @@
       ]);
 
       // Tag executed entries (audit entries have emailId, executedAt, etc.)
-      const executed: StreamEvent[] = (auditEntries as Array<Record<string, unknown>>).map((e) => ({
-        ...e,
-        _streamStatus: (e as { success?: boolean }).success ? "completed" : "failed",
+      const executed: StreamEvent[] = auditEntries.map((e) => ({
+        id: e.id,
+        emailId: e.emailId,
+        subject: e.subject,
+        from: e.from,
+        eventType: e.eventType,
+        success: e.success,
+        error: e.error,
+        executedAt: Number(e.executedAt),
+        steps: e.steps.map((s) => ({
+          id: s.actionId,
+          label: s.actionName,
+          commandId: s.commandId,
+          message: s.message,
+          status: s.success ? "ok" : "err",
+        })),
+        _streamStatus: e.success ? "completed" : "failed",
       }));
       // Tag pending entries
       const pending: StreamEvent[] = (pendingRows as unknown as Record<string, unknown>[]).map(

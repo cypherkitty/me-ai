@@ -5,15 +5,28 @@
  */
 
 import { getCore } from "./store/core-store.js";
-import { formatDate, exportFilename } from "./email-utils.js";
+import { exportFilename } from "./email-utils.js";
 
 export interface MessageForMarkdown {
   subject: string;
   from: string;
   to: string;
-  date: string;
+  date: string | number;
   body: string | null;
   htmlBody?: string | null;
+}
+
+function emailDateInputToEpochMs(date: string | number | null | undefined): number {
+  if (date === "" || date == null) return 0;
+  if (typeof date === "number" && Number.isFinite(date)) return date;
+  const s = String(date).trim();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 /**
@@ -21,21 +34,32 @@ export interface MessageForMarkdown {
  * Delegates HTML conversion to Rust.
  */
 export function emailToMarkdown(message: MessageForMarkdown): string {
+  const dateMs = emailDateInputToEpochMs(message.date);
+  const bodyRaw = message.body;
+  const body = bodyRaw != null && bodyRaw.trim().length > 0 ? bodyRaw : undefined;
+  const htmlRaw = message.htmlBody;
+  const htmlBody = htmlRaw != null && htmlRaw.trim().length > 0 ? htmlRaw : undefined;
   return getCore().emailToMarkdown(
     message.subject || "",
     message.from || "",
     message.to || "",
-    formatDate(message.date),
-    message.body || "",
-    message.htmlBody || ""
+    dateMs,
+    body,
+    htmlBody
   );
 }
 
 /**
  * Generate a safe filename from an email subject.
  */
-export function emailFilename(message: { subject: string; date: string }): string {
-  return exportFilename(message, "md");
+export function emailFilename(message: { subject: string; date: string | number }): string {
+  return exportFilename(
+    {
+      subject: message.subject,
+      date: emailDateInputToEpochMs(message.date),
+    },
+    "md"
+  );
 }
 
 /**

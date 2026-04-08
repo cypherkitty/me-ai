@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AuditLogEntry } from "$lib/types.js";
+  import type { AuditLogEntryParsed } from "$lib/types.js";
   import { getCore } from "../lib/store/core-store.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { FileText } from "lucide-svelte";
 
-  let entries = $state<AuditLogEntry[]>([]);
+  let entries = $state<AuditLogEntryParsed[]>([]);
   let total = $state(0);
   let loading = $state(false);
   let failuresOnly = $state(false);
@@ -16,12 +16,9 @@
   async function load() {
     loading = true;
     try {
-      const result = (await getCore().getAuditLogParsed(100, 0, failuresOnly)) as {
-        entries: AuditLogEntry[];
-        total: number;
-      };
+      const result = await getCore().getAuditLogParsed(100, 0, failuresOnly);
       entries = result.entries;
-      total = result.total;
+      total = Number(result.total);
     } finally {
       loading = false;
     }
@@ -34,9 +31,9 @@
     confirmClear = false;
   }
 
-  function formatTime(ts: number | null | undefined) {
-    if (!ts) return "—";
-    const d = new Date(ts);
+  function formatTime(ts: number | bigint | null | undefined) {
+    if (ts == null) return "—";
+    const d = new Date(typeof ts === "bigint" ? Number(ts) : ts);
     return d.toLocaleString("en-US", {
       month: "short",
       day: "numeric",

@@ -114,6 +114,15 @@ pub struct TriageClassification {
     pub tags: String, // JSON-encoded string array e.g. `["tag1","tag2"]`
 }
 
+#[wasm_bindgen]
+impl TriageClassification {
+    /// Parsed tag list (empty if `tags` JSON is invalid).
+    #[wasm_bindgen(getter, js_name = tagsArray)]
+    pub fn tags_array(&self) -> Vec<String> {
+        serde_json::from_str(&self.tags).unwrap_or_default()
+    }
+}
+
 /// Build the LLM system prompt from a comma-separated list of active plugin names.
 pub fn build_system_prompt(plugin_names: &str) -> String {
     format!(
@@ -366,14 +375,8 @@ pub fn format_email_prompt(
     labels: &str,
     body: &str,
 ) -> String {
-    let date_str = if date_ms > 0 {
-        let d = js_sys::Date::new(&wasm_bindgen::JsValue::from_f64(date_ms as f64));
-        d.to_locale_date_string("en-US", &wasm_bindgen::JsValue::undefined())
-            .as_string()
-            .unwrap_or_else(|| "Unknown date".to_string())
-    } else {
-        "Unknown date".to_string()
-    };
+    let date_str = crate::time_util::format_utc_mdy_from_ms(date_ms)
+        .unwrap_or_else(|| "Unknown date".to_string());
 
     format!(
         "Subject: {subject}\nFrom: {from}\nTo: {to}\nDate: {date_str}\nLabels: {labels}\n\n{body}"

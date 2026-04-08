@@ -486,7 +486,7 @@ pub async fn get_google_token(db: &RexieDb) -> Result<Option<GoogleToken>, CoreE
     match sv.google_token {
         Some(ref t)
             if t.expires_at > 0.0
-                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+                && (crate::time_util::now_ms() as f64) < t.expires_at - EXPIRY_MARGIN_MS =>
         {
             Ok(Some(t.clone()))
         }
@@ -529,7 +529,7 @@ pub async fn is_google_token_valid(db: &RexieDb) -> Result<bool, CoreError> {
 pub async fn get_google_token_ttl(db: &RexieDb) -> Result<f64, CoreError> {
     match get_google_token_raw(db).await? {
         Some(t) if t.expires_at > 0.0 => {
-            let remaining = t.expires_at - EXPIRY_MARGIN_MS - js_sys::Date::now();
+            let remaining = t.expires_at - EXPIRY_MARGIN_MS - crate::time_util::now_ms() as f64;
             Ok(if remaining > 0.0 { remaining } else { 0.0 })
         }
         _ => Ok(0.0),
@@ -542,7 +542,7 @@ pub async fn get_twitter_token(db: &RexieDb) -> Result<Option<TwitterToken>, Cor
     match sv.twitter_token {
         Some(ref t)
             if t.expires_at > 0.0
-                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+                && (crate::time_util::now_ms() as f64) < t.expires_at - EXPIRY_MARGIN_MS =>
         {
             Ok(Some(t.clone()))
         }

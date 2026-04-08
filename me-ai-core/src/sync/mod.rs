@@ -6,15 +6,16 @@
 //! - `clear_*_data` — wipe all local data for a source
 //! - `get_*_sync_status` — return current sync status
 //!
-//! Progress is reported via `js_sys::Function` callbacks.
-//! AbortSignal support uses `js_sys::Reflect::get` to check `signal.aborted`.
+//! Progress is reported via JS function callbacks ([`js_sys::Function`]).
+//! Abort cancellation uses [`web_sys::AbortSignal`] from the JS boundary.
 
 pub mod gmail;
 pub mod twitter;
 
 use js_sys::Function;
 use serde::Serialize;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
+use web_sys::AbortSignal;
 
 use crate::error::CoreError;
 
@@ -61,28 +62,30 @@ impl SyncProgress {
 
 // ── SyncResult ─────────────────────────────────────────────────────────
 
-/// Result of a sync operation, returned to JS as JsValue.
-#[derive(Clone, Debug, Serialize)]
+/// Result of a sync operation (WASM-typed boundary).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
 pub struct SyncResult {
     pub added: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[wasm_bindgen(js_name = "deleted")]
     pub deleted: Option<u32>,
     pub errors: u32,
 }
 
 // ── SyncStatus ─────────────────────────────────────────────────────────
 
-/// Status of a sync source, returned to JS as JsValue.
-#[derive(Clone, Debug, Serialize)]
+/// Status of a sync source (WASM-typed boundary).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
 pub struct SyncStatus {
     pub synced: bool,
-    #[serde(rename = "totalItems")]
+    #[wasm_bindgen(js_name = "totalItems")]
     pub total_items: i64,
-    #[serde(rename = "lastSyncAt")]
+    #[wasm_bindgen(js_name = "lastSyncAt")]
     pub last_sync_at: Option<i64>,
-    #[serde(rename = "hasMore")]
+    #[wasm_bindgen(js_name = "hasMore")]
     pub has_more: bool,
-    #[serde(rename = "historyId", skip_serializing_if = "Option::is_none")]
+    #[wasm_bindgen(js_name = "historyId")]
     pub history_id: Option<String>,
 }
 
@@ -97,20 +100,15 @@ pub fn emit_progress(on_progress: &Option<Function>, payload: &SyncProgress) {
     }
 }
 
-/// Check if the AbortSignal has been aborted. Returns `Err(CoreError::Aborted)` if so.
-pub fn check_aborted(signal: &Option<JsValue>) -> Result<(), CoreError> {
-    if let Some(s) = signal {
-        let aborted = js_sys::Reflect::get(s, &"aborted".into())
-            .map(|v| v.as_bool().unwrap_or(false))
-            .unwrap_or(false);
-        if aborted {
-            return Err(CoreError::Aborted("Sync was cancelled".into()));
-        }
+/// Check if the [`AbortSignal`] has been aborted. Returns `Err(CoreError::Aborted)` if so.
+pub fn check_aborted(signal: Option<&AbortSignal>) -> Result<(), CoreError> {
+    if signal.is_some_and(|s| s.aborted()) {
+        return Err(CoreError::Aborted("Sync was cancelled".into()));
     }
     Ok(())
 }
 
-/// Get the current time in milliseconds (WASM-safe via js_sys).
+/// Get the current time in milliseconds (browser: [`crate::time_util::now_ms`]).
 pub fn now_ms() -> i64 {
-    js_sys::Date::now() as i64
+    crate::time_util::now_ms()
 }

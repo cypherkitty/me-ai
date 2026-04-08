@@ -1,24 +1,26 @@
 /**
- * Email utilities — browser-only helpers that require Intl/DOM APIs.
- * Pure functions delegate to me-ai-core; only formatDate stays in TS.
+ * Email utilities — display formatting defers to me-ai-core where epoch ms is known.
+ * Non-numeric date strings use `Date.parse` in TS, then Rust formatting via `getCore()`.
  */
 import { getCore } from "./store/core-store.js";
 import type { MessageLike } from "./core.js";
 
-/** Format a date string/number for display (browser locale). */
-export function formatDate(dateStr: string | number | null | undefined): string {
-  if (!dateStr) return "";
-  try {
-    return new Date(dateStr as string | number).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return String(dateStr);
+/** Format a date string/number/bigint (WASM i64) for list/detail (en-US style, UTC in core). */
+export function formatDate(dateStr: string | number | bigint | null | undefined): string {
+  if (dateStr === "" || dateStr == null) return "";
+  const c = getCore();
+  if (typeof dateStr === "bigint" || typeof dateStr === "number") {
+    const ms = typeof dateStr === "bigint" ? Number(dateStr) : dateStr;
+    return Number.isFinite(ms) ? c.formatDisplayDateEnUs(ms) : String(dateStr);
   }
+  const trimmed = dateStr.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? c.formatDisplayDateEnUs(n) : trimmed;
+  }
+  const parsed = Date.parse(trimmed);
+  if (Number.isFinite(parsed)) return c.formatDisplayDateEnUs(parsed);
+  return dateStr;
 }
 
 /** Extract display name from a "Name <email>" string. */
@@ -38,8 +40,10 @@ export function exportFilename(message: MessageLike, ext: string): string {
   const dateMs =
     message.date == null
       ? 0
-      : typeof message.date === "number"
-        ? message.date
-        : new Date(message.date).getTime();
+      : typeof message.date === "bigint"
+        ? Number(message.date)
+        : typeof message.date === "number"
+          ? message.date
+          : new Date(message.date).getTime();
   return getCore().exportFilename(message.subject ?? "", dateMs, ext);
 }

@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use js_sys::Array;
 
 #[wasm_bindgen(typescript_custom_section)]
 const LLM_RESULT_TYPES: &'static str = r#"
@@ -363,8 +362,8 @@ pub struct OllamaModel {
 #[wasm_bindgen]
 impl OllamaModel {
     #[wasm_bindgen(getter)]
-    pub fn tags(&self) -> Array {
-        self.tags.iter().map(|t| JsValue::from_str(t)).collect()
+    pub fn tags(&self) -> Vec<String> {
+        self.tags.clone()
     }
 }
 
