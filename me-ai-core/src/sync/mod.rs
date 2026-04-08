@@ -21,6 +21,7 @@ use crate::error::CoreError;
 // ── Shared constants ───────────────────────────────────────────────────
 
 /// Default number of items to sync per operation.
+#[allow(dead_code)]
 pub const DEFAULT_SYNC_LIMIT: u32 = 50;
 
 // ── SyncProgress ───────────────────────────────────────────────────────

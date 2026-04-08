@@ -144,7 +144,6 @@ async fn full_sync(
     // List message IDs up to `limit`
     let mut all_ids: Vec<String> = Vec::new();
     let mut page_token: Option<String> = None;
-    let mut next_page_after_limit: Option<String> = None;
 
     while (all_ids.len() as u32) < limit {
         check_aborted(signal)?;
@@ -183,7 +182,7 @@ async fn full_sync(
         }
     }
 
-    next_page_after_limit = page_token;
+    let next_page_after_limit = page_token;
 
     if all_ids.is_empty() {
         sync::upsert_sync_state(db, SOURCE_TYPE, &history_id, now_ms(), 0, "").await?;
@@ -233,8 +232,6 @@ async fn continue_fetch(
     } else {
         Some(state.oldest_page_token.clone())
     };
-    let mut next_page_after_limit: Option<String> = None;
-
     while (all_ids.len() as u32) < limit {
         check_aborted(signal)?;
         let remaining = limit - all_ids.len() as u32;
@@ -271,7 +268,7 @@ async fn continue_fetch(
         }
     }
 
-    next_page_after_limit = page_token;
+    let next_page_after_limit = page_token;
 
     if all_ids.is_empty() {
         sync::upsert_sync_state(
@@ -392,7 +389,7 @@ async fn incremental_sync(
                         .iter()
                         .filter_map(|m| m["message"]["id"].as_str())
                         .filter(|id| !id.is_empty())
-                        .map(|id| make_item_id(id))
+                        .map(make_item_id)
                         .collect();
 
                     if !deleted_ids.is_empty() {

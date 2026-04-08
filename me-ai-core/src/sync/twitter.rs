@@ -202,6 +202,7 @@ async fn full_sync(
 
 // ── Incremental sync ───────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn incremental_sync(
     db: &RexieDb,
     token: &str,
@@ -329,6 +330,7 @@ async fn incremental_sync(
 
 // ── Continue fetch (older tweets) ──────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn continue_fetch(
     db: &RexieDb,
     token: &str,
@@ -452,7 +454,7 @@ fn normalize_tweet(
         now_ms()
     };
 
-    let has_referenced = tweet["referenced_tweets"].as_array().map_or(false, |a| !a.is_empty());
+    let has_referenced = tweet["referenced_tweets"].as_array().is_some_and(|a| !a.is_empty());
     let item_type = if has_referenced { "retweet" } else { "tweet" };
 
     // Build labels from public_metrics

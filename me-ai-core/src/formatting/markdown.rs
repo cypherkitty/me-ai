@@ -32,7 +32,7 @@ pub fn email_to_markdown(
     lines.push("---".to_string());
     lines.push(String::new());
 
-    let body_md = html_body.and_then(|h| html_to_markdown_body(h));
+    let body_md = html_body.and_then(html_to_markdown_body);
     let content = body_md
         .as_deref()
         .or(body)
@@ -157,7 +157,7 @@ fn is_ci_tracker(lower: &str) -> bool {
     let bytes = lower.as_bytes();
     let mut i = 0;
     while i + 2 < bytes.len() {
-        if bytes[i] == b'c' && bytes[i + 1] == b'i' && bytes.get(i + 2).map_or(false, |b| b.is_ascii_digit()) {
+        if bytes[i] == b'c' && bytes[i + 1] == b'i' && bytes.get(i + 2).is_some_and(|b| b.is_ascii_digit()) {
             // Found "ci" + digit; check if ".com/" appears later
             if lower[i..].contains(".com/") {
                 return true;
