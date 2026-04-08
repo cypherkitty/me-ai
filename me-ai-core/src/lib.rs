@@ -1,11 +1,11 @@
-//! me-ai-core: business logic and IndexedDB persistence via Rexie (WASM).
+//! me-ai-core: business logic and `IndexedDB` persistence via Rexie (WASM).
 //!
 //! **Architecture: Rust owns all DB access; no JS adapter.**
-//! - Persistence is IndexedDB via the Rexie crate. No SQL; stores and indexes only.
+//! - Persistence is `IndexedDB` via the Rexie crate. No SQL; stores and indexes only.
 //! - TS calls core WASM methods only; no query/exec from the app layer.
 //!
 //! Error handling: [thiserror](https://docs.rs/thiserror) + [anyhow](https://docs.rs/anyhow) internally;
-//! errors are converted to JsValue at the WASM boundary.
+//! errors are converted to [`JsValue`](wasm_bindgen::JsValue) at the WASM boundary.
 
 mod api;
 mod db;

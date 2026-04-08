@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn normalize_title_strips_markdown() {
-        let raw = r#"**Hello** title"#;
+        let raw = r"**Hello** title";
         let out = normalize_generated_chat_title(raw, "[]");
         assert_eq!(out, "Hello title");
     }
