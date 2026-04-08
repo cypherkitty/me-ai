@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AuditLogEntry } from "$lib/types.js";
-  import { getAuditLog, clearAuditLog } from "../lib/store/audit.js";
+  import { getCore } from "../lib/store/core-store.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { FileText } from "lucide-svelte";
 
@@ -16,7 +16,10 @@
   async function load() {
     loading = true;
     try {
-      const result = await getAuditLog({ limit: 100, failuresOnly });
+      const result = (await getCore().getAuditLogParsed(100, 0, failuresOnly)) as {
+        entries: AuditLogEntry[];
+        total: number;
+      };
       entries = result.entries;
       total = result.total;
     } finally {
@@ -25,7 +28,7 @@
   }
 
   async function handleClear() {
-    await clearAuditLog();
+    await getCore().clearAuditLog();
     entries = [];
     total = 0;
     confirmClear = false;

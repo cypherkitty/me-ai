@@ -1,6 +1,6 @@
 <script lang="ts">
   import ScanLiveView from "./ScanLiveView.svelte";
-  import type { ScanProgress, ScanStats } from "../../lib/triage.js";
+  import type { ScanProgress, ScanStats } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { Search } from "lucide-svelte";
 

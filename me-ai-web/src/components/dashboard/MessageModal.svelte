@@ -5,7 +5,7 @@
   import DOMPurify from "dompurify";
   import { formatDate } from "../../lib/email-utils.js";
   import { emailToMarkdown, emailFilename, downloadText } from "../../lib/markdown-export.js";
-  import { emailToJsonString, emailJsonFilename } from "../../lib/json-export.js";
+  import { emailToJsonString, emailJsonFilename } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
 
   interface Props {

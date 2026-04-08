@@ -6,7 +6,7 @@ import {
   getCategoryForEventType,
   seedEventTypeFromLLM,
   getActionsForEvent,
-} from "../events.js";
+} from "../core.js";
 
 const mockCore = {
   categoryTierToName: (tier: string) => tier.toLowerCase(),

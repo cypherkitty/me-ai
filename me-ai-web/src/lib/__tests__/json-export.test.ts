@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { emailToJson, emailToJsonString, emailJsonFilename } from "../json-export.js";
+import { emailToJson, emailToJsonString, emailJsonFilename } from "../core.js";
 
 const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
   const slugify = (s: string) => {

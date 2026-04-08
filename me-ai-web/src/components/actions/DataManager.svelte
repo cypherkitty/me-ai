@@ -7,8 +7,7 @@
     clearClassifications,
     clearClassificationsByAction,
     getClassificationsByCategory,
-  } from "../../lib/triage.js";
-  import { clearAuditLog } from "../../lib/store/audit.js";
+  } from "../../lib/core.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { RefreshCw } from "lucide-svelte";
@@ -181,7 +180,7 @@
 
             <!-- Storage actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog() ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint() ) }] as item (item.key)}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => getCore().clearAuditLog() ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint() ) }] as item (item.key)}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"

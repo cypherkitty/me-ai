@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { EVENT_CATEGORY_TIERS } from "../../lib/events.js";
-  import type { ScanProgress } from "../../lib/triage.js";
+  import { EVENT_CATEGORY_TIERS } from "../../lib/core.js";
+  import type { ScanProgress } from "../../lib/core.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { cn } from "$lib/utils.js";
 

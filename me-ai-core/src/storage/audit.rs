@@ -224,6 +224,40 @@ pub async fn get_audit_log(
     Ok(GetAuditLogResult { entries, total })
 }
 
+/// Same as `get_audit_log` but with `steps` already parsed from JSON string
+/// into an array. Returns a JsValue (plain JS object) so the TS caller doesn't
+/// need to deserialize steps manually.
+pub async fn get_audit_log_parsed(
+    db: &RexieDb,
+    limit: i64,
+    offset: i64,
+    failures_only: bool,
+) -> Result<JsValue, CoreError> {
+    let result = get_audit_log(db, limit, offset, failures_only).await?;
+    let entries: Vec<serde_json::Value> = result
+        .entries
+        .into_iter()
+        .map(|r| {
+            let steps: serde_json::Value =
+                serde_json::from_str(&r.steps).unwrap_or(serde_json::Value::Array(vec![]));
+            serde_json::json!({
+                "id": r.id,
+                "emailId": r.email_id,
+                "subject": r.subject,
+                "from": r.from_addr,
+                "eventType": r.event_type,
+                "executedAt": r.executed_at,
+                "success": r.success,
+                "error": r.error,
+                "steps": steps,
+            })
+        })
+        .collect();
+    let out = serde_json::json!({ "entries": entries, "total": result.total });
+    serde_wasm_bindgen::to_value(&out)
+        .map_err(|e| CoreError::Serialize(e.to_string()))
+}
+
 pub async fn clear_audit_log(db: &RexieDb) -> Result<(), CoreError> {
     db.store_clear(store::AUDIT_LOG).await
 }

@@ -4,7 +4,7 @@
   import { cn } from "$lib/utils.js";
   import { ChevronDown } from "lucide-svelte";
   import PipelineGraph from "./PipelineGraph.svelte";
-  import { getActionsForEvent, getCategoryForEventType } from "../../lib/events.js";
+  import { getActionsForEvent, getCategoryForEventType } from "../../lib/core.js";
 
   interface ItemWithStatus extends StoredItem {
     status?: string;

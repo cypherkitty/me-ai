@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getCore } from "../lib/store/core-store.js";
   import { onMount } from "svelte";
-  import { getRules, createRule, updateRule, setRuleEnabled } from "../lib/rules.js";
+  import type { CreateRulePayload, RuleUpdateInput } from "../lib/core.js";
 
   import { Button } from "$lib/components/ui/button/index.js";
   import { Badge } from "$lib/components/ui/badge/index.js";
@@ -89,7 +89,7 @@
     loading = true;
     try {
       const [rulesRaw, eventTypesRaw, eventCatsRaw, actionsRaw] = await Promise.all([
-        getRules(),
+        getCore().getRules(),
         getCore().getEventTypes(),
         getCore().getEventCategories(),
         getCore().getActions(),
@@ -136,12 +136,8 @@
     if (!editing) return;
     saving = true;
     try {
-      if (isNew) await createRule(editing as unknown as Parameters<typeof createRule>[0]);
-      else
-        await updateRule(
-          String(editing.id),
-          editing as unknown as Parameters<typeof updateRule>[1]
-        );
+      if (isNew) await getCore().createRule(editing as unknown as CreateRulePayload);
+      else await getCore().updateRule(String(editing.id), editing as unknown as RuleUpdateInput);
 
       cancelEdit();
       await load();
@@ -152,7 +148,7 @@
   }
 
   async function toggleEnabled(rule: RuleItem) {
-    await setRuleEnabled(rule.id as string, !rule.enabled);
+    await getCore().setRuleEnabled(rule.id as string, !rule.enabled);
     rule.enabled = !rule.enabled;
   }
 

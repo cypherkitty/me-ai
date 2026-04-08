@@ -1,5 +1,7 @@
 //! Pure formatting utilities: byte sizes, truncation, string hashing, email utils.
 
+pub mod markdown;
+
 fn scale_bytes(bytes: u64) -> (f64, &'static str, usize) {
     const SIZES: [&str; 4] = ["B", "KB", "MB", "GB"];
     const K: u64 = 1024;

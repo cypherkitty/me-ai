@@ -13,7 +13,6 @@
   } from "../lib/google-auth.js";
 
   import { syncGmail, syncGmailMore, getGmailSyncStatus } from "../lib/store/gmail-sync.js";
-  import { getStoredEmails } from "../lib/store/query-layer.js";
   import {
     initTwitterAuth,
     requestTwitterAccessToken,
@@ -21,7 +20,6 @@
     revokeTwitterToken,
     handleTwitterCallback,
   } from "../lib/twitter-auth.js";
-  import { getMe as getTwitterMe } from "../lib/twitter-api.js";
   import {
     syncTwitter,
     syncTwitterMore,
@@ -296,11 +294,11 @@
     loadingMessages = true;
     try {
       const offset = append ? localOffset : 0;
-      const result = await getStoredEmails({
-        query: searchQuery || undefined,
-        limit: LOCAL_PAGE_SIZE,
-        offset,
-      });
+      const result = (await getCore().getStoredEmailsFiltered(
+        searchQuery || undefined,
+        LOCAL_PAGE_SIZE,
+        offset
+      )) as { items: StoredItem[]; total: number };
       emailMessages = append ? [...emailMessages, ...result.items] : result.items;
       totalLocalMessages = result.total;
       localOffset = emailMessages.length;
@@ -518,7 +516,7 @@
   async function twFetchProfile() {
     if (!twAccessToken) return;
     try {
-      const r = await getTwitterMe(twAccessToken);
+      const r = (await getCore().getTwitterMe(twAccessToken)) as { data: Record<string, unknown> };
       twProfile = r.data as unknown as Record<string, unknown>;
       const twProf = new TwitterProfile();
       const rd = r.data as { id?: string; name?: string; username?: string };
