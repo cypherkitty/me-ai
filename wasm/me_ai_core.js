@@ -2951,6 +2951,13 @@ export class MeAiCore {
     /**
      * @returns {Promise<void>}
      */
+    clearChatSessions() {
+        const ret = wasm.meaicore_clearChatSessions(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @returns {Promise<void>}
+     */
     clearContacts() {
         const ret = wasm.meaicore_clearContacts(this.__wbg_ptr);
         return ret;
@@ -3017,6 +3024,17 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * @param {number} now
+     * @returns {ChatSessionRecord}
+     */
+    createChatSession(now) {
+        const ret = wasm.meaicore_createChatSession(this.__wbg_ptr, now);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return takeFromExternrefTable0(ret[0]);
+    }
+    /**
      * @param {CreateRulePayload} payload
      * @returns {Promise<string>}
      */
@@ -3030,6 +3048,21 @@ export class MeAiCore {
     createSchemaAndMigrations() {
         const ret = wasm.meaicore_createSchemaAndMigrations(this.__wbg_ptr);
         return ret;
+    }
+    /**
+     * @returns {string}
+     */
+    defaultOllamaBaseUrl() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_defaultOllamaBaseUrl(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
      * @param {string} email_id
@@ -3102,6 +3135,15 @@ export class MeAiCore {
         return ret;
     }
     /**
+     * Parse an email `date` from JS to epoch ms (`0` if missing or unparseable). Used before `emailToMarkdown` / exports.
+     * @param {any} date
+     * @returns {number}
+     */
+    emailDateToEpochMs(date) {
+        const ret = wasm.meaicore_emailDateToEpochMs(this.__wbg_ptr, date);
+        return ret;
+    }
+    /**
      * Convert an email to Markdown with a metadata header table (`date_ms`: epoch ms, 0 = unknown).
      * @param {string} subject
      * @param {string} from
@@ -3166,6 +3208,29 @@ export class MeAiCore {
         const len2 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_executePipelineBatch(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, isLikeNone(on_progress) ? 0 : addToExternrefTable0(on_progress), isLikeNone(config) ? 0 : addToExternrefTable0(config));
         return ret;
+    }
+    /**
+     * Safe export filename from subject + JS date value (same parsing as [`Self::email_date_to_epoch_ms_js`]).
+     * @param {string} subject
+     * @param {any} date
+     * @param {string} ext
+     * @returns {string}
+     */
+    exportEmailFilename(subject, date, ext) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(subject, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passStringToWasm0(ext, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            const ret = wasm.meaicore_exportEmailFilename(this.__wbg_ptr, ptr0, len0, date, ptr1, len1);
+            deferred3_0 = ret[0];
+            deferred3_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
     }
     /**
      * @param {string} subject
@@ -3261,6 +3326,23 @@ export class MeAiCore {
         let deferred1_1;
         try {
             const ret = wasm.meaicore_formatDisplayDateEnUs(this.__wbg_ptr, ms);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Format an email `date` field from JS (`string | number | bigint | null | undefined`) for UI lists/detail.
+     * @param {any} date
+     * @returns {string}
+     */
+    formatEmailDisplayDate(date) {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.meaicore_formatEmailDisplayDate(this.__wbg_ptr, date);
             deferred1_0 = ret[0];
             deferred1_1 = ret[1];
             return getStringFromWasm0(ret[0], ret[1]);
@@ -3892,6 +3974,13 @@ export class MeAiCore {
         return v3;
     }
     /**
+     * @returns {Promise<string>}
+     */
+    getResolvedOllamaUrl() {
+        const ret = wasm.meaicore_getResolvedOllamaUrl(this.__wbg_ptr);
+        return ret;
+    }
+    /**
      * @param {string} id
      * @returns {Promise<RuleView | undefined>}
      */
@@ -4055,6 +4144,17 @@ export class MeAiCore {
         return v2;
     }
     /**
+     * Import chat sessions from a JSON snapshot string into IndexedDB.
+     * @param {string} json
+     * @returns {Promise<void>}
+     */
+    importChatSessionsFromJson(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_importChatSessionsFromJson(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
      * @param {string} from_str
      * @returns {string}
      */
@@ -4192,6 +4292,14 @@ export class MeAiCore {
         const ptr0 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_listOllamaModels(this.__wbg_ptr, ptr0, len0);
+        return ret;
+    }
+    /**
+     * Load chat sessions from IndexedDB (`settings` key `me_ai_chat_sessions_v1`).
+     * @returns {Promise<ChatSessionsLoadResult>}
+     */
+    loadChatSessions() {
+        const ret = wasm.meaicore_loadChatSessions(this.__wbg_ptr);
         return ret;
     }
     /**
@@ -4386,6 +4494,19 @@ export class MeAiCore {
         }
     }
     /**
+     * @param {string | null | undefined} active_chat_id
+     * @param {ChatSessionRecord[]} sessions
+     * @returns {Promise<void>}
+     */
+    saveChatSessions(active_chat_id, sessions) {
+        var ptr0 = isLikeNone(active_chat_id) ? 0 : passStringToWasm0(active_chat_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArrayJsValueToWasm0(sessions, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_saveChatSessions(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
      * @param {string} access_token
      * @param {number} expires_in
      * @returns {Promise<void>}
@@ -4412,6 +4533,19 @@ export class MeAiCore {
         _assertClass(sv, SettingValue);
         var ptr0 = sv.__destroy_into_raw();
         const ret = wasm.meaicore_saveSettings(this.__wbg_ptr, ptr0);
+        return ret;
+    }
+    /**
+     * @param {string} verifier
+     * @param {string} state
+     * @returns {Promise<void>}
+     */
+    saveTwitterPkcePending(verifier, state) {
+        const ptr0 = passStringToWasm0(verifier, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(state, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_saveTwitterPkcePending(this.__wbg_ptr, ptr0, len0, ptr1, len1);
         return ret;
     }
     /**
@@ -4454,6 +4588,16 @@ export class MeAiCore {
         const ptr1 = passStringToWasm0(category, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_seedEventTypeFromLLM(this.__wbg_ptr, ptr0, len0, ptr1, len1);
+        return ret;
+    }
+    /**
+     * @param {string} url
+     * @returns {Promise<void>}
+     */
+    setOllamaUrl(url) {
+        const ptr0 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_setOllamaUrl(this.__wbg_ptr, ptr0, len0);
         return ret;
     }
     /**
@@ -4538,6 +4682,23 @@ export class MeAiCore {
         const ptr2 = passArrayJsValueToWasm0(messages, wasm.__wbindgen_malloc);
         const len2 = WASM_VECTOR_LEN;
         const ret = wasm.meaicore_streamChat(this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2, options, on_token);
+        return ret;
+    }
+    /**
+     * `options` and `messages` are plain JS objects/arrays (`StreamOllamaOptions`, `OllamaChatMessage[]`).
+     * @param {string} model_name
+     * @param {any} messages
+     * @param {any} options
+     * @param {Function} on_token
+     * @param {string} url
+     * @returns {Promise<string>}
+     */
+    streamOllamaChat(model_name, messages, options, on_token, url) {
+        const ptr0 = passStringToWasm0(model_name, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.meaicore_streamOllamaChat(this.__wbg_ptr, ptr0, len0, messages, options, on_token, ptr1, len1);
         return ret;
     }
     /**
@@ -4635,6 +4796,13 @@ export class MeAiCore {
         } finally {
             wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
         }
+    }
+    /**
+     * @returns {Promise<TwitterPkcePending | undefined>}
+     */
+    takeTwitterPkcePending() {
+        const ret = wasm.meaicore_takeTwitterPkcePending(this.__wbg_ptr);
+        return ret;
     }
     /**
      * Test API connection for a provider
@@ -4744,7 +4912,7 @@ export class MeAiCore {
         return ret;
     }
     /**
-     * PKCE step: verifier, state, and Twitter authorize URL (store verifier/state in JS; then redirect).
+     * PKCE step: verifier, state, and Twitter authorize URL. Call `saveTwitterPkcePending` before redirect.
      * @param {string} client_id
      * @param {string} redirect_uri
      * @returns {TwitterOAuthLoginStart}
@@ -6939,6 +7107,13 @@ export class SettingValue {
     /**
      * @returns {boolean | undefined}
      */
+    get debugLogging() {
+        const ret = wasm.settingvalue_debugLogging(this.__wbg_ptr);
+        return ret === 0xFFFFFF ? undefined : ret !== 0;
+    }
+    /**
+     * @returns {boolean | undefined}
+     */
     get doSample() {
         const ret = wasm.settingvalue_doSample(this.__wbg_ptr);
         return ret === 0xFFFFFF ? undefined : ret !== 0;
@@ -7088,6 +7263,12 @@ export class SettingValue {
         const ptr0 = passStringToWasm0(v, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.settingvalue_set_anthropicApiKey(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {boolean} v
+     */
+    set debugLogging(v) {
+        wasm.settingvalue_set_debugLogging(this.__wbg_ptr, v);
     }
     /**
      * @param {boolean} v
@@ -8440,6 +8621,76 @@ export class TwitterOAuthTokens {
 if (Symbol.dispose) TwitterOAuthTokens.prototype[Symbol.dispose] = TwitterOAuthTokens.prototype.free;
 
 /**
+ * Ephemeral PKCE verifier + state read once after Twitter OAuth redirect (stored in `settings` store).
+ */
+export class TwitterPkcePending {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(TwitterPkcePending.prototype);
+        obj.__wbg_ptr = ptr;
+        TwitterPkcePendingFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TwitterPkcePendingFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_twitterpkcepending_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get state() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_twitterpkcepending_state(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    get verifier() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_twitterpkcepending_verifier(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set state(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_twitterpkcepending_state(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @param {string} arg0
+     */
+    set verifier(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_twitterpkcepending_verifier(this.__wbg_ptr, ptr0, len0);
+    }
+}
+if (Symbol.dispose) TwitterPkcePending.prototype[Symbol.dispose] = TwitterPkcePending.prototype.free;
+
+/**
  * Twitter/X user profile (common fields from Twitter API v2).
  */
 export class TwitterProfile {
@@ -8622,6 +8873,22 @@ export class TwitterToken {
 if (Symbol.dispose) TwitterToken.prototype[Symbol.dispose] = TwitterToken.prototype.free;
 
 /**
+ * @param {string} messages_json
+ * @returns {string | undefined}
+ */
+export function fallbackChatTitleFromMessagesJson(messages_json) {
+    const ptr0 = passStringToWasm0(messages_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.fallbackChatTitleFromMessagesJson(ptr0, len0);
+    let v2;
+    if (ret[0] !== 0) {
+        v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v2;
+}
+
+/**
  * @param {string} content
  * @returns {string | undefined}
  */
@@ -8654,7 +8921,6 @@ export function firstUserMessageContentForTitle(messages_json) {
 }
 
 /**
- * `prefix` + `_` + 32-char hex (browser `randomUUID`-like uniqueness).
  * @param {string} prefix
  * @returns {string}
  */
@@ -8680,6 +8946,19 @@ export function makeChatEntityId(prefix) {
 }
 
 /**
+ * @param {any} msg
+ * @param {number} fallback_time
+ * @returns {any}
+ */
+export function normalizeChatMessage(msg, fallback_time) {
+    const ret = wasm.normalizeChatMessage(msg, fallback_time);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {string} raw
  * @param {string} messages_json
  * @returns {string}
@@ -8699,6 +8978,20 @@ export function normalizeGeneratedChatTitle(raw, messages_json) {
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
+}
+
+/**
+ * @param {string} json
+ * @returns {ChatSessionsSnapshot}
+ */
+export function parseChatSessionsSnapshotJson(json) {
+    const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.parseChatSessionsSnapshotJson(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
 }
 
 /**
@@ -8886,6 +9179,10 @@ function __wbg_get_imports() {
             const ret = AuditStats.__wrap(arg0);
             return ret;
         },
+        __wbg_body_9a25d64338506fbe: function(arg0) {
+            const ret = arg0.body;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
         __wbg_buffer_a77cc90da4bdb503: function(arg0) {
             const ret = arg0.buffer;
             return ret;
@@ -8910,6 +9207,14 @@ function __wbg_get_imports() {
             const ret = arg0.call(arg1, arg2);
             return ret;
         }, arguments); },
+        __wbg_cancel_8314206ca10b9605: function(arg0) {
+            const ret = arg0.cancel();
+            return ret;
+        },
+        __wbg_catch_32d296b856e661d9: function(arg0, arg1) {
+            const ret = arg0.catch(arg1);
+            return ret;
+        },
         __wbg_classificationrow_new: function(arg0) {
             const ret = ClassificationRow.__wrap(arg0);
             return ret;
@@ -9053,6 +9358,10 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             arg0.getRandomValues(arg1);
         }, arguments); },
+        __wbg_getReader_b4b1868fbca77dbe: function() { return handleError(function (arg0) {
+            const ret = arg0.getReader();
+            return ret;
+        }, arguments); },
         __wbg_get_4848e350b40afc16: function(arg0, arg1) {
             const ret = arg0[arg1 >>> 0];
             return ret;
@@ -9068,6 +9377,10 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
+        __wbg_get_done_46f064515323cd59: function(arg0) {
+            const ret = arg0.done;
+            return isLikeNone(ret) ? 0xFFFFFF : ret ? 1 : 0;
+        },
         __wbg_get_ed0642c4b9d31ddf: function() { return handleError(function (arg0, arg1) {
             const ret = Reflect.get(arg0, arg1);
             return ret;
@@ -9078,6 +9391,10 @@ function __wbg_get_imports() {
         }, arguments); },
         __wbg_get_unchecked_7d7babe32e9e6a54: function(arg0, arg1) {
             const ret = arg0[arg1 >>> 0];
+            return ret;
+        },
+        __wbg_get_value_28b7deb73d356d88: function(arg0) {
+            const ret = arg0.value;
             return ret;
         },
         __wbg_get_with_ref_key_6412cf3094599694: function(arg0, arg1) {
@@ -9108,6 +9425,13 @@ function __wbg_get_imports() {
             const ret = arg0.headers;
             return ret;
         },
+        __wbg_hostname_a42f31a9081ac639: function() { return handleError(function (arg0, arg1) {
+            const ret = arg1.hostname;
+            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len1 = WASM_VECTOR_LEN;
+            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+        }, arguments); },
         __wbg_indexNames_82c4167bffa4c333: function(arg0) {
             const ret = arg0.indexNames;
             return ret;
@@ -9270,6 +9594,10 @@ function __wbg_get_imports() {
             const ret = arg0.length;
             return ret;
         },
+        __wbg_location_91b3fdbca3c76d9e: function(arg0) {
+            const ret = arg0.location;
+            return ret;
+        },
         __wbg_meaicore_new: function(arg0) {
             const ret = MeAiCore.__wrap(arg0);
             return ret;
@@ -9368,6 +9696,10 @@ function __wbg_get_imports() {
             const ret = arg0.now();
             return ret;
         },
+        __wbg_now_88621c9c9a4f3ffc: function() {
+            const ret = Date.now();
+            return ret;
+        },
         __wbg_objectStoreNames_990d8e55c661828b: function(arg0) {
             const ret = arg0.objectStoreNames;
             return ret;
@@ -9432,6 +9764,10 @@ function __wbg_get_imports() {
             const ret = arg0.open(getStringFromWasm0(arg1, arg2), arg3 >>> 0);
             return ret;
         }, arguments); },
+        __wbg_parse_71237dc6234c8d7f: function(arg0, arg1) {
+            const ret = Date.parse(getStringFromWasm0(arg0, arg1));
+            return ret;
+        },
         __wbg_performance_5ed3f6a3bbe36d0d: function(arg0) {
             const ret = arg0.performance;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
@@ -9493,6 +9829,13 @@ function __wbg_get_imports() {
         __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
             arg0.randomFillSync(arg1);
         }, arguments); },
+        __wbg_read_316bf844c93a6ccc: function(arg0) {
+            const ret = arg0.read();
+            return ret;
+        },
+        __wbg_releaseLock_b12f7593852f4c01: function(arg0) {
+            arg0.releaseLock();
+        },
         __wbg_request_e114ae47c8953a51: function(arg0) {
             const ret = arg0.request;
             return ret;
@@ -9705,6 +10048,10 @@ function __wbg_get_imports() {
             const ret = TwitterOAuthTokens.__wrap(arg0);
             return ret;
         },
+        __wbg_twitterpkcepending_new: function(arg0) {
+            const ret = TwitterPkcePending.__wrap(arg0);
+            return ret;
+        },
         __wbg_twittertoken_new: function(arg0) {
             const ret = TwitterToken.__wrap(arg0);
             return ret;
@@ -9737,156 +10084,161 @@ function __wbg_get_imports() {
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
         __wbindgen_cast_0000000000000001: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1452, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h8f3c5c7ac28fec1b);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1268, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0);
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1407, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hd535d1e147e1ca5b);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [Externref], shim_idx: 1513, ret: Result(Unit), inner_ret: Some(Result(Unit)) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h8f3c5c7ac28fec1b);
             return ret;
         },
         __wbindgen_cast_0000000000000003: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 9, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hee9203af10e354c8);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("Event")], shim_idx: 1468, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa);
             return ret;
         },
         __wbindgen_cast_0000000000000004: function(arg0, arg1) {
-            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1181, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
-            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hb5feff41d4a8d60c);
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [NamedExternref("IDBVersionChangeEvent")], shim_idx: 9, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4);
             return ret;
         },
-        __wbindgen_cast_0000000000000005: function(arg0) {
+        __wbindgen_cast_0000000000000005: function(arg0, arg1) {
+            // Cast intrinsic for `Closure(Closure { owned: true, function: Function { arguments: [], shim_idx: 1231, ret: Unit, inner_ret: Some(Unit) }, mutable: true }) -> Externref`.
+            const ret = makeMutClosure(arg0, arg1, wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19);
+            return ret;
+        },
+        __wbindgen_cast_0000000000000006: function(arg0) {
             // Cast intrinsic for `F64 -> Externref`.
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000006: function(arg0) {
+        __wbindgen_cast_0000000000000007: function(arg0) {
             // Cast intrinsic for `I64 -> Externref`.
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000007: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000008: function(arg0, arg1) {
             // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
             const ret = getArrayU8FromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000008: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000009: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000009: function(arg0) {
+        __wbindgen_cast_000000000000000a: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;
         },
-        __wbindgen_cast_000000000000000a: function(arg0, arg1) {
+        __wbindgen_cast_000000000000000b: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("ActionRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_000000000000000b: function(arg0, arg1) {
+        __wbindgen_cast_000000000000000c: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("CategoryPipelineView")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_000000000000000c: function(arg0, arg1) {
+        __wbindgen_cast_000000000000000d: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("ClassificationRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_000000000000000d: function(arg0, arg1) {
+        __wbindgen_cast_000000000000000e: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("EventCategoryRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_000000000000000e: function(arg0, arg1) {
+        __wbindgen_cast_000000000000000f: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("EventRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_000000000000000f: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000010: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("EventTypeRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000010: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000011: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("ItemRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000011: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000012: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("OllamaModelTag")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000012: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000013: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("PendingApprovalView")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000013: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000014: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("PendingItemByCategoryResult")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000014: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000015: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("PipelineActionDisplay")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000015: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000016: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("PipelineActionRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000016: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000017: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("PluginSummary")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000017: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000018: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("RuleView")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000018: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000019: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("SourceRow")) -> Externref`.
             const ret = v0;
             return ret;
         },
-        __wbindgen_cast_0000000000000019: function(arg0, arg1) {
+        __wbindgen_cast_000000000000001a: function(arg0, arg1) {
             var v0 = getArrayJsValueFromWasm0(arg0, arg1).slice();
             wasm.__wbindgen_free(arg0, arg1 * 4, 4);
             // Cast intrinsic for `Vector(NamedExternref("string")) -> Externref`.
@@ -9909,16 +10261,20 @@ function __wbg_get_imports() {
     };
 }
 
-function wasm_bindgen__convert__closures_____invoke__hb5feff41d4a8d60c(arg0, arg1) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hb5feff41d4a8d60c(arg0, arg1);
+function wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19(arg0, arg1) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hc8a27c2ac1fd5a19(arg0, arg1);
 }
 
-function wasm_bindgen__convert__closures_____invoke__hd535d1e147e1ca5b(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hd535d1e147e1ca5b(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h2f0294e5115f41e0(arg0, arg1, arg2);
 }
 
-function wasm_bindgen__convert__closures_____invoke__hee9203af10e354c8(arg0, arg1, arg2) {
-    wasm.wasm_bindgen__convert__closures_____invoke__hee9203af10e354c8(arg0, arg1, arg2);
+function wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__h9aedd728f99c26aa(arg0, arg1, arg2);
+}
+
+function wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4(arg0, arg1, arg2) {
+    wasm.wasm_bindgen__convert__closures_____invoke__hd0fcfa5be8d646b4(arg0, arg1, arg2);
 }
 
 function wasm_bindgen__convert__closures_____invoke__h8f3c5c7ac28fec1b(arg0, arg1, arg2) {
@@ -10099,6 +10455,9 @@ const TwitterOAuthLoginStartFinalization = (typeof FinalizationRegistry === 'und
 const TwitterOAuthTokensFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_twitteroauthtokens_free(ptr >>> 0, 1));
+const TwitterPkcePendingFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_twitterpkcepending_free(ptr >>> 0, 1));
 const TwitterProfileFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_twitterprofile_free(ptr >>> 0, 1));
