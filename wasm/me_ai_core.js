@@ -3660,19 +3660,16 @@ export class MeAiCore {
     }
     /**
      * @param {number} date_ms
-     * @returns {string}
+     * @returns {string | undefined}
      */
     shortDate(date_ms) {
-        let deferred1_0;
-        let deferred1_1;
-        try {
-            const ret = wasm.meaicore_shortDate(this.__wbg_ptr, date_ms);
-            deferred1_0 = ret[0];
-            deferred1_1 = ret[1];
-            return getStringFromWasm0(ret[0], ret[1]);
-        } finally {
-            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        const ret = wasm.meaicore_shortDate(this.__wbg_ptr, date_ms);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
         }
+        return v1;
     }
     /**
      * @param {string} subject
