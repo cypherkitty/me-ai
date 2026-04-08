@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { formatBytes } from "../../lib/format.js";
+  import { formatBytes } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
 
   interface GpuInfo {

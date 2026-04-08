@@ -5,7 +5,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::db::{store, RexieDb};
 use crate::error::CoreError;
-use crate::storage::schema::{remove_setting, set_setting, SettingRow};
+use crate::storage::schema::{get_setting, remove_setting, set_setting, SettingRow};
 
 // ── AiBackend enum ─────────────────────────────────────────────────────────
 
@@ -151,6 +151,14 @@ pub struct ScanHistory {
     pub total: f64,
 }
 
+/// Ephemeral PKCE verifier + state read once after Twitter OAuth redirect (stored in `settings` store).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct TwitterPkcePending {
+    pub verifier: String,
+    pub state: String,
+}
+
 #[wasm_bindgen]
 impl ScanHistory {
     #[wasm_bindgen(constructor)]
@@ -203,6 +211,9 @@ pub struct SettingValue {
 
     // Scan history
     scan_history: Option<ScanHistory>,
+
+    /// Verbose `[debug]` / mount logs (developer aid).
+    debug_logging: Option<bool>,
 }
 
 #[wasm_bindgen]
@@ -322,6 +333,11 @@ impl SettingValue {
     pub fn scan_history(&self) -> Option<ScanHistory> { self.scan_history.clone() }
     #[wasm_bindgen(setter, js_name = scanHistory)]
     pub fn set_scan_history(&mut self, h: ScanHistory) { self.scan_history = Some(h); }
+
+    #[wasm_bindgen(getter, js_name = debugLogging)]
+    pub fn debug_logging(&self) -> Option<bool> { self.debug_logging }
+    #[wasm_bindgen(setter, js_name = debugLogging)]
+    pub fn set_debug_logging(&mut self, v: bool) { self.debug_logging = Some(v); }
 }
 
 // ── Storage key mapping ────────────────────────────────────────────────────
@@ -347,6 +363,9 @@ const KEY_TWITTER_TOKEN: &str = "me-ai:twitter-token";
 const KEY_GMAIL_PROFILE: &str = "gmail-profile";
 const KEY_TWITTER_PROFILE: &str = "twitter-profile";
 const KEY_SCAN_HISTORY: &str = "me-ai-scan-history";
+const KEY_DEBUG_LOGGING: &str = "debugLogging";
+const KEY_TWITTER_PKCE_VERIFIER: &str = "twitterPkceVerifier";
+const KEY_TWITTER_PKCE_STATE: &str = "twitterPkceState";
 
 // ── Load / Save ─────────────────────────────────────────────────────────────
 
@@ -417,6 +436,7 @@ pub async fn load_settings(db: &RexieDb) -> Result<SettingValue, CoreError> {
     load_obj!(gmail_profile, KEY_GMAIL_PROFILE, GmailProfile);
     load_obj!(twitter_profile, KEY_TWITTER_PROFILE, TwitterProfile);
     load_obj!(scan_history, KEY_SCAN_HISTORY, ScanHistory);
+    load_bool!(debug_logging, KEY_DEBUG_LOGGING);
 
     Ok(sv)
 }
@@ -472,8 +492,38 @@ pub async fn save_settings(db: &RexieDb, sv: &SettingValue) -> Result<(), CoreEr
     save_obj!(sv.gmail_profile, KEY_GMAIL_PROFILE);
     save_obj!(sv.twitter_profile, KEY_TWITTER_PROFILE);
     save_obj!(sv.scan_history, KEY_SCAN_HISTORY);
+    save_prim!(sv.debug_logging, KEY_DEBUG_LOGGING);
 
     Ok(())
+}
+
+/// Persist PKCE verifier/state before redirecting to Twitter (cleared by [`take_twitter_pkce_pending`]).
+pub async fn save_twitter_pkce_pending(db: &RexieDb, verifier: &str, state: &str) -> Result<(), CoreError> {
+    let vj = serde_json::to_string(verifier).map_err(|e| CoreError::Serialize(e.to_string()))?;
+    let sj = serde_json::to_string(state).map_err(|e| CoreError::Serialize(e.to_string()))?;
+    set_setting(db, KEY_TWITTER_PKCE_VERIFIER, &vj).await?;
+    set_setting(db, KEY_TWITTER_PKCE_STATE, &sj).await?;
+    Ok(())
+}
+
+/// Read and delete pending PKCE data (single use). Returns `None` if missing or malformed.
+pub async fn take_twitter_pkce_pending(db: &RexieDb) -> Result<Option<TwitterPkcePending>, CoreError> {
+    let v_raw = get_setting(db, KEY_TWITTER_PKCE_VERIFIER).await?;
+    let s_raw = get_setting(db, KEY_TWITTER_PKCE_STATE).await?;
+    let had_any = v_raw.is_some() || s_raw.is_some();
+    if had_any {
+        let _ = remove_setting(db, KEY_TWITTER_PKCE_VERIFIER).await;
+        let _ = remove_setting(db, KEY_TWITTER_PKCE_STATE).await;
+    }
+    let (Some(vr), Some(sr)) = (v_raw, s_raw) else {
+        return Ok(None);
+    };
+    let verifier = serde_json::from_str::<String>(&vr).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+    let state = serde_json::from_str::<String>(&sr).map_err(|e| CoreError::Deserialize(e.to_string()))?;
+    if verifier.is_empty() || state.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(TwitterPkcePending { verifier, state }))
 }
 
 // ── Dedicated token accessors ────────────────────────────────────────────────
@@ -486,7 +536,7 @@ pub async fn get_google_token(db: &RexieDb) -> Result<Option<GoogleToken>, CoreE
     match sv.google_token {
         Some(ref t)
             if t.expires_at > 0.0
-                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+                && (crate::time_util::now_ms() as f64) < t.expires_at - EXPIRY_MARGIN_MS =>
         {
             Ok(Some(t.clone()))
         }
@@ -529,7 +579,7 @@ pub async fn is_google_token_valid(db: &RexieDb) -> Result<bool, CoreError> {
 pub async fn get_google_token_ttl(db: &RexieDb) -> Result<f64, CoreError> {
     match get_google_token_raw(db).await? {
         Some(t) if t.expires_at > 0.0 => {
-            let remaining = t.expires_at - EXPIRY_MARGIN_MS - js_sys::Date::now();
+            let remaining = t.expires_at - EXPIRY_MARGIN_MS - crate::time_util::now_ms() as f64;
             Ok(if remaining > 0.0 { remaining } else { 0.0 })
         }
         _ => Ok(0.0),
@@ -542,7 +592,7 @@ pub async fn get_twitter_token(db: &RexieDb) -> Result<Option<TwitterToken>, Cor
     match sv.twitter_token {
         Some(ref t)
             if t.expires_at > 0.0
-                && js_sys::Date::now() < t.expires_at - EXPIRY_MARGIN_MS =>
+                && (crate::time_util::now_ms() as f64) < t.expires_at - EXPIRY_MARGIN_MS =>
         {
             Ok(Some(t.clone()))
         }

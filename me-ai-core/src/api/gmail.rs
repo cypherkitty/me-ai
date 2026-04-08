@@ -1,17 +1,23 @@
 //! Gmail REST API v1 — read-only wrapper using reqwest.
 //! Matches the interface of me-ai-web/src/lib/gmail-api.ts.
 
-use base64::Engine as _;
+use std::sync::LazyLock;
 
+use base64::Engine as _;
+use regex_lite::Regex;
+
+use super::ApiJson;
 use crate::error::CoreError;
 
 const BASE: &str = "https://gmail.googleapis.com/gmail/v1/users/me";
 
 fn bearer(token: &str) -> reqwest::header::HeaderValue {
-    format!("Bearer {token}").parse().unwrap()
+    // `format!` only fails if `token` contains invalid header bytes (e.g. CR/LF).
+    reqwest::header::HeaderValue::from_str(&format!("Bearer {token}"))
+        .expect("Gmail OAuth token must not contain header-invalid bytes")
 }
 
-pub async fn get_profile(token: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_profile(token: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/profile");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -36,7 +42,7 @@ pub async fn list_messages(
     max_results: u32,
     page_token: Option<&str>,
     q: Option<&str>,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/messages");
     let mut req = reqwest::Client::new()
         .get(&url)
@@ -61,7 +67,7 @@ pub async fn list_messages(
     resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_message(token: &str, message_id: &str, format: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/messages/{message_id}");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -86,7 +92,7 @@ pub async fn get_messages_batch(
     token: &str,
     message_ids: Vec<String>,
     batch_size: u32,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let _ = batch_size; // sequential in WASM
     let client = reqwest::Client::new();
     let mut results: Vec<serde_json::Value> = Vec::with_capacity(message_ids.len());
@@ -104,7 +110,7 @@ pub async fn get_messages_batch(
             }
         }
     }
-    Ok(serde_json::Value::Array(results))
+    Ok(ApiJson::Array(results))
 }
 
 pub async fn list_history(
@@ -112,7 +118,7 @@ pub async fn list_history(
     start_history_id: &str,
     page_token: Option<&str>,
     max_results: u32,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}/history");
     let mut req = reqwest::Client::new()
         .get(&url)
@@ -158,14 +164,19 @@ fn decode_base64url(data: &str) -> String {
         .unwrap_or_default()
 }
 
+static STRIP_HTML_STYLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<style[^>]*>.*?</style>").expect("strip_html style regex")
+});
+static STRIP_HTML_SCRIPT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<script[^>]*>.*?</script>").expect("strip_html script regex")
+});
+static STRIP_HTML_TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<[^>]+>").expect("strip_html tags regex"));
+static STRIP_HTML_WS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s{2,}").expect("strip_html ws regex"));
+
 fn strip_html(html: &str) -> String {
-    let re_style = regex_lite::Regex::new(r"(?is)<style[^>]*>.*?</style>").unwrap();
-    let re_script = regex_lite::Regex::new(r"(?is)<script[^>]*>.*?</script>").unwrap();
-    let re_tags = regex_lite::Regex::new(r"<[^>]+>").unwrap();
-    let re_ws = regex_lite::Regex::new(r"\s{2,}").unwrap();
-    let mut s = re_style.replace_all(html, "").into_owned();
-    s = re_script.replace_all(&s, "").into_owned();
-    s = re_tags.replace_all(&s, " ").into_owned();
+    let mut s = STRIP_HTML_STYLE.replace_all(html, "").into_owned();
+    s = STRIP_HTML_SCRIPT.replace_all(&s, "").into_owned();
+    s = STRIP_HTML_TAGS.replace_all(&s, " ").into_owned();
     s = s
         .replace("&nbsp;", " ")
         .replace("&amp;", "&")
@@ -173,7 +184,7 @@ fn strip_html(html: &str) -> String {
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&apos;", "'");
-    re_ws.replace_all(s.trim(), " ").into_owned()
+    STRIP_HTML_WS.replace_all(s.trim(), " ").into_owned()
 }
 
 /// Recursively find a MIME part by mimeType within a `parts` JSON array.
@@ -259,14 +270,16 @@ pub fn get_gmail_header(message_json: &str, header_name: &str) -> String {
         Ok(v) => v,
         Err(_) => return String::new(),
     };
-    let lower = header_name.to_lowercase();
-    let headers = match msg["payload"]["headers"].as_array() {
-        Some(h) => h,
-        None => return String::new(),
+    let Some(headers) = msg["payload"]["headers"].as_array() else {
+        return String::new();
     };
     headers
         .iter()
-        .find(|h| h["name"].as_str().map(|s| s.to_lowercase()) == Some(lower.clone()))
+        .find(|h| {
+            h["name"]
+                .as_str()
+                .is_some_and(|n| n.eq_ignore_ascii_case(header_name))
+        })
         .and_then(|h| h["value"].as_str())
         .unwrap_or("")
         .to_string()

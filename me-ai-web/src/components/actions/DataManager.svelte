@@ -7,8 +7,7 @@
     clearClassifications,
     clearClassificationsByAction,
     getClassificationsByCategory,
-  } from "../../lib/triage.js";
-  import { clearAuditLog } from "../../lib/store/audit.js";
+  } from "../../lib/core.js";
   import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
   import { Button } from "$lib/components/ui/button/index.js";
   import { RefreshCw } from "lucide-svelte";
@@ -29,12 +28,14 @@
   let confirm = $state<string | null>(null);
   let busy = $state(false);
   let loading = $state(true);
+  let loadError = $state<string | null>(null);
   let categoryOrder = $state<string[]>([]);
   let storage = $state<StorageStats | null>(null);
   let idb = $state<IdbSummary | null>(null);
 
   async function load() {
     loading = true;
+    loadError = null;
     try {
       const [emailCount, classCount, contactCount] = await Promise.all([
         getCore()
@@ -47,12 +48,7 @@
           .getContactsCount()
           .then((n) => Number(n ?? 0)),
       ]);
-      let idbBytes = 0;
-      try {
-        idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
-      } catch {
-        /* no-op */
-      }
+      const idbBytes = (await navigator.storage?.estimate())?.usage ?? 0;
       idb = {
         emailCount,
         classCount,
@@ -67,6 +63,8 @@
         order: string[];
       };
       categoryOrder = result.order;
+    } catch (e) {
+      loadError = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
     }
@@ -131,6 +129,10 @@
         <div class="size-4 rounded-full border-2 border-border border-t-primary animate-spin"></div>
         <span class="text-xs">Loading…</span>
       </div>
+    {:else if loadError}
+      <div class="flex items-center gap-2 py-16 text-destructive text-xs">
+        <span>Failed to load storage data: {loadError}</span>
+      </div>
     {:else}
       <div class="flex flex-col gap-8 max-w-2xl relative">
         <!-- ── IndexedDB ───────────────────────────────────────────────── -->
@@ -178,7 +180,7 @@
 
             <!-- Storage actions -->
             <div class="flex flex-col gap-1">
-              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => clearAuditLog() ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint() ) }] as item (item.key)}
+              {#each [{ key: "clear-audit", label: "Clear execution log", desc: "Delete all auditLog entries (Event Stream / pipeline execution history).", action: () => run( () => getCore().clearAuditLog() ) }, { key: "clear-all", label: "Clear all data", desc: "Reset pipelines, rules, events, emails and classifications from IndexedDB.", action: () => run( () => clearAllDataAndCheckpoint() ) }] as item (item.key)}
                 {#if confirm === item.key}
                   <div
                     class="flex items-center flex-wrap gap-2 px-3 py-2.5 rounded border border-destructive/20 bg-destructive/5 text-[0.7rem] text-muted-foreground/60"
@@ -340,8 +342,8 @@
             >
               <span class="flex-1">
                 <strong class="text-destructive/80 font-semibold">This cannot be undone.</strong>
-                Deletes IndexedDB and caches, all cached model weights (Cache API), and localStorage.
-                The page will reload fresh.
+                Deletes all IndexedDB databases, caches, and cached model weights (Cache API). The page
+                will reload fresh.
               </span>
               <div class="flex items-center gap-3 shrink-0">
                 <button
@@ -376,7 +378,7 @@
             >
               <span class="text-xs text-destructive/80 font-semibold">Wipe everything</span>
               <span class="text-[0.65rem] text-muted-foreground/40"
-                >IndexedDB · model cache · localStorage — full reset.</span
+                >IndexedDB · model cache — full reset.</span
               >
             </button>
           {/if}

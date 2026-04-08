@@ -12,16 +12,7 @@ No backend server. The LLM runs entirely in the browser via WebGPU or Ollama, an
 
 ## Knowledge base: `.cortex/`
 
-The repository knowledge base lives in `.cortex/`. Start here, then follow links:
-
-- **[`.cortex/architecture.md`](.cortex/architecture.md)** — Package map, module layouts, dependency direction
-- **[`.cortex/core-beliefs.md`](.cortex/core-beliefs.md)** — Golden principles (no fallbacks, Rust owns persistence, etc.)
-- **[`.cortex/design-docs/`](.cortex/design-docs/index.md)** — n8n architecture, plugin system, event stream model
-- **[`.cortex/product-specs/`](.cortex/product-specs/index.md)** — Three-step user flow, feature specs
-- **[`.cortex/quality-score.md`](.cortex/quality-score.md)** — Health grades per domain
-- **[`.cortex/tech-debt-tracker.md`](.cortex/tech-debt-tracker.md)** — Known debt items
-- **[`.cortex/exec-plans/`](.cortex/exec-plans/README.md)** — Execution plans for complex work
-- **[`.cortex/references/`](.cortex/references/rexie-patterns.md)** — Rexie/IndexedDB conventions
+The repository knowledge base lives in `.cortex/`. See **[`.cortex/index.md`](.cortex/index.md)** for the full knowledge base and agent role index.
 
 ## Project layout
 

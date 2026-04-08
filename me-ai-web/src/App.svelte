@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import AppRouter from "./AppRouter.svelte";
-  import { getEventStats } from "./lib/rules.js";
+  import { getCore } from "./lib/store/core-store.js";
 
   const CP_PAGES = ["stream", "pipelines", "approvals", "audit", "settings"];
   const OAUTH_PAGES = ["auth", "oauth-redirect"];
@@ -49,7 +49,7 @@
 
   async function loadStats() {
     try {
-      stats = (await getEventStats()) as EventStats;
+      stats = (await getCore().getEventStats()) as EventStats;
     } catch {
       /* no-op */
     }

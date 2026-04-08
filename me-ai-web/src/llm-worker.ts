@@ -15,6 +15,7 @@ import {
 } from "@huggingface/transformers";
 import type { ChatMessage } from "me-ai-core";
 import type { PreTrainedTokenizer } from "@huggingface/transformers";
+import { TRANSFORMERS_CACHE_NAME } from "./lib/core.js";
 
 // WASM files are served from the site root (public/ in dev, copied in build).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -589,13 +590,17 @@ self.onmessage = async (e: MessageEvent<WorkerMessageData>) => {
     case "clearCache":
       try {
         if ("caches" in self) {
-          const cache = await caches.open("transformers-cache");
+          const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
           const requests = await cache.keys();
           const toDelete = modelId ? requests.filter((r) => r.url.includes(modelId)) : requests;
           await Promise.all(toDelete.map((r) => cache.delete(r)));
         }
-      } catch {
-        /* no-op */
+      } catch (e) {
+        reply({
+          status: "error",
+          data: `Cache deletion failed: ${(e as Error)?.message ?? String(e)}`,
+        });
+        break;
       }
       TextGenerationPipeline.tokenizer = null;
       TextGenerationPipeline.processor = null;

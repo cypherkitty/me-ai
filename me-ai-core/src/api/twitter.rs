@@ -1,11 +1,14 @@
 //! Twitter/X API v2 — wrapper using reqwest.
 //! Matches the interface of me-ai-web/src/lib/twitter-api.ts.
 
+use std::fmt::Write;
+
+use super::ApiJson;
 use crate::error::CoreError;
 
 const BASE: &str = "https://api.twitter.com/2";
 
-async fn twitter_get(token: &str, path: &str) -> Result<serde_json::Value, CoreError> {
+async fn twitter_get(token: &str, path: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}{path}");
     let resp = reqwest::Client::new()
         .get(&url)
@@ -29,8 +32,8 @@ async fn twitter_get(token: &str, path: &str) -> Result<serde_json::Value, CoreE
 async fn twitter_post(
     token: &str,
     path: &str,
-    body: Option<serde_json::Value>,
-) -> Result<serde_json::Value, CoreError> {
+    body: Option<ApiJson>,
+) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}{path}");
     let mut req = reqwest::Client::new()
         .post(&url)
@@ -53,7 +56,7 @@ async fn twitter_post(
     resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-async fn twitter_delete(token: &str, path: &str) -> Result<serde_json::Value, CoreError> {
+async fn twitter_delete(token: &str, path: &str) -> Result<ApiJson, CoreError> {
     let url = format!("{BASE}{path}");
     let resp = reqwest::Client::new()
         .delete(&url)
@@ -74,7 +77,7 @@ async fn twitter_delete(token: &str, path: &str) -> Result<serde_json::Value, Co
     resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-pub async fn get_me(token: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_me(token: &str) -> Result<ApiJson, CoreError> {
     twitter_get(
         token,
         "/users/me?user.fields=id,name,username,profile_image_url,public_metrics",
@@ -87,13 +90,13 @@ pub async fn get_user_timeline(
     user_id: &str,
     max_results: u32,
     pagination_token: Option<&str>,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let max = max_results.min(100);
     let mut path = format!(
         "/users/{user_id}/tweets?max_results={max}&tweet.fields=created_at,author_id,public_metrics,referenced_tweets,conversation_id,text&user.fields=username,name&expansions=author_id"
     );
     if let Some(pt) = pagination_token {
-        path += &format!("&pagination_token={pt}");
+        let _ = write!(path, "&pagination_token={pt}");
     }
     twitter_get(token, &path).await
 }
@@ -103,13 +106,13 @@ pub async fn get_user_mentions(
     user_id: &str,
     max_results: u32,
     pagination_token: Option<&str>,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let max = max_results.min(100);
     let mut path = format!(
         "/users/{user_id}/mentions?max_results={max}&tweet.fields=created_at,author_id,public_metrics,text&user.fields=username,name&expansions=author_id"
     );
     if let Some(pt) = pagination_token {
-        path += &format!("&pagination_token={pt}");
+        let _ = write!(path, "&pagination_token={pt}");
     }
     twitter_get(token, &path).await
 }
@@ -118,7 +121,7 @@ pub async fn search_recent_tweets(
     token: &str,
     query: &str,
     max_results: u32,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     let max = max_results.min(100);
     let url = format!("{BASE}/tweets/search/recent");
     let resp = reqwest::Client::new()
@@ -146,7 +149,7 @@ pub async fn search_recent_tweets(
     resp.json().await.map_err(|e| CoreError::Plugin(e.to_string()))
 }
 
-pub async fn get_tweet(token: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn get_tweet(token: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_get(
         token,
         &format!(
@@ -156,7 +159,7 @@ pub async fn get_tweet(token: &str, tweet_id: &str) -> Result<serde_json::Value,
     .await
 }
 
-pub async fn like_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn like_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_post(
         token,
         &format!("/users/{user_id}/likes"),
@@ -165,11 +168,11 @@ pub async fn like_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<se
     .await
 }
 
-pub async fn unlike_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn unlike_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_delete(token, &format!("/users/{user_id}/likes/{tweet_id}")).await
 }
 
-pub async fn retweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn retweet(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_post(
         token,
         &format!("/users/{user_id}/retweets"),
@@ -178,11 +181,11 @@ pub async fn retweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde
     .await
 }
 
-pub async fn unretweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn unretweet(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_delete(token, &format!("/users/{user_id}/retweets/{tweet_id}")).await
 }
 
-pub async fn bookmark_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn bookmark_tweet(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_post(
         token,
         &format!("/users/{user_id}/bookmarks"),
@@ -191,7 +194,7 @@ pub async fn bookmark_tweet(token: &str, user_id: &str, tweet_id: &str) -> Resul
     .await
 }
 
-pub async fn remove_bookmark(token: &str, user_id: &str, tweet_id: &str) -> Result<serde_json::Value, CoreError> {
+pub async fn remove_bookmark(token: &str, user_id: &str, tweet_id: &str) -> Result<ApiJson, CoreError> {
     twitter_delete(token, &format!("/users/{user_id}/bookmarks/{tweet_id}")).await
 }
 
@@ -199,7 +202,7 @@ pub async fn mute_user(
     token: &str,
     source_user_id: &str,
     target_user_id: &str,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     twitter_post(
         token,
         &format!("/users/{source_user_id}/muting"),
@@ -212,7 +215,7 @@ pub async fn block_user(
     token: &str,
     source_user_id: &str,
     target_user_id: &str,
-) -> Result<serde_json::Value, CoreError> {
+) -> Result<ApiJson, CoreError> {
     twitter_post(
         token,
         &format!("/users/{source_user_id}/blocking"),

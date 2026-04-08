@@ -17,8 +17,10 @@
 All persistence and domain logic is exposed through a single `MeAiCore` struct in `me-ai-core/src/lib.rs`.  
 TypeScript calls WASM methods only — no direct IndexedDB access from app code.
 
-**Persistence:** IndexedDB via the `rexie` crate. Stores and indexes only.  
-See [`.cortex/references/rexie-patterns.md`](references/rexie-patterns.md) for conventions.
+**Persistence:** IndexedDB via the `rexie` crate only (`me-ai` DB). The app does not use `localStorage` or `sessionStorage`; all durable state crosses the WASM API.  
+See [`.cortex/references/rexie-patterns.md`](references/rexie-patterns.md) for conventions and the storage policy table.
+
+**WASM / browser FFI:** Prefer pure Rust in `me-ai-core`; use `js-sys` / `web-sys` only in the rare host-only cases described in [`.cortex/coding-standards/rust.md`](coding-standards/rust.md).
 
 ## Navigating the code
 
@@ -53,3 +55,12 @@ Key tasks: `task install`, `task build`, `task test`, `task ci`, `task deploy-bu
 ## CI / CD
 
 See [`.cortex/ci-cd.md`](ci-cd.md) — workflow triggers, what each step does, deploy targets, and how to add new CI checks.
+
+## Coding standards
+
+Language-level rules that every contributor and agent must follow:
+
+- [`.cortex/coding-standards/typescript.md`](coding-standards/typescript.md) — no `null`, discriminated unions, `??` over `||`
+- [`.cortex/coding-standards/rust.md`](coding-standards/rust.md) — type-driven development, `enum` over strings, no `unwrap()` outside tests
+
+High-level statements are in [`.cortex/core-beliefs.md`](core-beliefs.md) §12–13.

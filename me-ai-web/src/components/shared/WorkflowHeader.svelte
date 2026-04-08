@@ -2,8 +2,8 @@
   import { onMount } from "svelte";
   import { getSavedToken, isTokenValid } from "../../lib/google-auth.js";
   import { getSavedTwitterToken } from "../../lib/twitter-auth.js";
-  import { getEventStats } from "../../lib/rules.js";
-  import { getClassificationCounts } from "../../lib/triage.js";
+  import { getClassificationCounts } from "../../lib/core.js";
+  import { getCore } from "../../lib/store/core-store.js";
   import { getGmailSyncStatus } from "../../lib/store/gmail-sync.js";
   import { getTwitterSyncStatus } from "../../lib/store/twitter-sync.js";
   import { getUnifiedEngine } from "../../lib/unified-engine.js";
@@ -21,7 +21,7 @@
 
   interface SyncStatus {
     synced: boolean;
-    totalItems: number;
+    totalItems: number | bigint;
     lastSyncAt: number | null;
     hasMore: boolean;
   }
@@ -40,6 +40,11 @@
   let scannedCount = $state(0);
   let pipelineCount = $state(0);
   let checking = $state(true);
+
+  function toCount(value: number | bigint | null | undefined): number {
+    if (typeof value === "bigint") return Number(value);
+    return Number(value ?? 0);
+  }
 
   const engine = getUnifiedEngine();
   let engineReady = $state(engine.isReady);
@@ -63,15 +68,15 @@
     }
 
     try {
-      const status = (await getGmailSyncStatus()) as SyncStatus;
-      emailCount = status.totalItems ?? 0;
+      const status = (await getGmailSyncStatus()) as unknown as SyncStatus;
+      emailCount = toCount(status.totalItems);
     } catch {
       /* no-op */
     }
 
     try {
-      const twStatus = (await getTwitterSyncStatus()) as SyncStatus;
-      emailCount += twStatus.totalItems ?? 0;
+      const twStatus = (await getTwitterSyncStatus()) as unknown as SyncStatus;
+      emailCount += toCount(twStatus.totalItems);
     } catch {
       /* no-op */
     }
@@ -99,7 +104,7 @@
     }
 
     try {
-      const stats = (await getEventStats()) as { total?: number };
+      const stats = (await getCore().getEventStats()) as { total?: number };
       pipelineCount = stats.total ?? 0;
     } catch {
       /* no-op */

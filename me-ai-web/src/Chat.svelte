@@ -4,20 +4,16 @@
   import type { ApiModel } from "./lib/core.js";
   import { coreStore, getCore } from "./lib/store/core-store.js";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
-  import { getPendingActions } from "./lib/store/query-layer.js";
-  import {
-    buildBatchEventMessage,
-    buildEventsByCategoryMessage,
-    type ByCategory,
-  } from "./lib/events.js";
-  import { getClassificationsByCategory } from "./lib/triage.js";
+  import { buildBatchEventMessage, buildEventsByCategoryMessage } from "./lib/core.js";
+  import type { ByCategory } from "./lib/core.js";
+  import { getClassificationsByCategory } from "./lib/core.js";
   import {
     updateClassificationStatus,
     deleteClassification,
     clearClassificationsByAction,
-    scanEmails,
     getScanStats,
-  } from "./lib/triage.js";
+  } from "./lib/core.js";
+  import { scanEmails } from "./lib/triage.js";
   import { executePipelineBatch } from "./lib/plugins/execution-service.js";
   import BackendSelector from "./components/chat/BackendSelector.svelte";
   import ModelSelector from "./components/chat/ModelSelector.svelte";
@@ -26,20 +22,25 @@
   import LoadingProgress from "./components/chat/LoadingProgress.svelte";
   import ChatView from "./components/chat/ChatView.svelte";
   import {
-    createChatSession,
-    fallbackChatTitle,
-    getSessionSubtitle,
-    loadChatSessions,
-    normalizeGeneratedTitle,
-    normalizeMessage,
-    saveChatSessions,
+    normalizeChatMessage,
+    fallbackChatTitleFromMessagesJson,
+    normalizeGeneratedChatTitle,
+    sessionSubtitleFromMessagesJson,
     type ChatSessionRecord,
-  } from "./lib/chat-sessions.js";
+  } from "me-ai-core";
 
   interface Props {
     onstagechange?: (stage: "configure" | "loading" | "chat") => void;
   }
   let { onstagechange }: Props = $props();
+
+  function fallbackChatTitle(messages: unknown[]) {
+    return fallbackChatTitleFromMessagesJson(JSON.stringify(messages));
+  }
+
+  function normalizeGeneratedTitle(text: string, messages: unknown[]) {
+    return normalizeGeneratedChatTitle(text, JSON.stringify(messages));
+  }
 
   const IS_WEBGPU_AVAILABLE = !!(navigator as unknown as { gpu?: unknown }).gpu;
   const HF_CACHE_NAME = "transformers-cache";
@@ -163,7 +164,10 @@
   function ensureMessageMetadata(nextMessages: ChatMsg[]): ChatMsg[] {
     let changed = false;
     const normalized = nextMessages.map((message, index) => {
-      const normalizedMessage = normalizeMessage(message, Date.now() + index) as ChatMsg;
+      const normalizedMessage = normalizeChatMessage(
+        message as object,
+        Date.now() + index
+      ) as ChatMsg;
       if (
         normalizedMessage.id === message.id &&
         normalizedMessage.createdAt === message.createdAt
@@ -208,7 +212,7 @@
   }
 
   function createAndActivateSession() {
-    const session = createChatSession();
+    const session = getCore().createChatSession(Date.now());
     chatSessions = sortSessions([session, ...chatSessions]);
     activateSession(session.id);
   }
@@ -218,7 +222,7 @@
     if (!session) return;
     const nextTitle = window.prompt(
       "Rename chat",
-      session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"
+      session.title || fallbackChatTitle(session.messages) || "Untitled chat"
     );
     if (!nextTitle) return;
     const trimmed = nextTitle.trim();
@@ -236,13 +240,13 @@
     const session = chatSessions.find((item) => item.id === sessionId);
     if (!session) return;
     const ok = window.confirm(
-      `Delete "${session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}"?`
+      `Delete "${session.title || fallbackChatTitle(session.messages) || "Untitled chat"}"?`
     );
     if (!ok) return;
 
     const remaining = chatSessions.filter((item) => item.id !== sessionId);
     if (remaining.length === 0) {
-      const empty = createChatSession();
+      const empty = getCore().createChatSession(Date.now());
       chatSessions = [empty];
       activateSession(empty.id);
       return;
@@ -268,7 +272,7 @@
       }
       return {
         ...session,
-        title: null,
+        title: "",
         titleStatus: "pending",
       };
     });
@@ -281,7 +285,7 @@
     if (session.titleSource === "manual" || session.titleSource === "model" || session.title)
       return;
 
-    const firstUserMessage = session.messages.find(
+    const firstUserMessage = (session.messages as ChatMsg[]).find(
       (message) =>
         message.role === "user" && typeof message.content === "string" && message.content.trim()
     );
@@ -427,19 +431,19 @@
     if (apiInfo.provider === "xai") return !!sv.xaiApiKey;
     return false;
   }
-
   // ── Shared engine listener ─────────────────────────────────────────
   let _engineUnsub: (() => void) | undefined;
   onMount(() => {
     (async () => {
       let savedSettings: SettingValue | null = null;
       showConfigureScreen = getPreferredHomeStage() !== "chat";
-      const savedChats = loadChatSessions();
+      const savedChats = await getCore().loadChatSessions();
       chatSessions = sortSessions(savedChats.sessions);
-      activeChatId = savedChats.activeChatId;
+      activeChatId = savedChats.activeChatId || null;
       const initialSession =
-        savedChats.sessions.find((session) => session.id === savedChats.activeChatId) ??
-        savedChats.sessions[0];
+        savedChats.sessions.find(
+          (session: ChatSessionRecord) => session.id === savedChats.activeChatId
+        ) ?? savedChats.sessions[0];
       messages = ensureMessageMetadata((initialSession?.messages ?? []) as ChatMsg[]);
       greetingShown = messages.length > 0;
 
@@ -757,7 +761,6 @@
       window.removeEventListener("me-ai:open-chat", handleOpenChat);
     };
   });
-
   $effect(() => {
     const normalized = ensureMessageMetadata(messages);
     if (normalized !== messages) {
@@ -809,15 +812,21 @@
       activeChatId,
       sessions: chatSessions,
     });
+    let parsed: { activeChatId: string | null; sessions: ChatSessionRecord[] };
     try {
-      const parsed = JSON.parse(snapshot) as {
+      parsed = JSON.parse(snapshot) as {
         activeChatId: string | null;
         sessions: ChatSessionRecord[];
       };
-      saveChatSessions(parsed.activeChatId, parsed.sessions);
     } catch {
       storageUnavailable = true;
+      return;
     }
+    void getCore()
+      .saveChatSessions(parsed.activeChatId ?? undefined, parsed.sessions)
+      .catch(() => {
+        storageUnavailable = true;
+      });
   });
 
   $effect(() => {
@@ -826,7 +835,7 @@
       (session) =>
         session.titleStatus === "pending" &&
         session.titleSource !== "manual" &&
-        session.messages.some((message) => message.role === "user")
+        (session.messages as ChatMsg[]).some((message) => message.role === "user")
     );
     if (!nextUntitledSession) return;
     void generateSessionTitle(nextUntitledSession.id);
@@ -835,12 +844,15 @@
   $effect(() => {
     onstagechange?.(inferChatStage());
   });
-
   // ── Dashboard / pending data ──────────────────────────────────────
   async function showDashboardIfNeeded() {
     if (greetingShown || messages.length > 0) return;
     try {
-      const pending = await getPendingActions();
+      const cbcResult = await getCore().getClassificationsByCategory(true);
+      const pending =
+        cbcResult.total === 0
+          ? null
+          : { categories: cbcResult.categories, order: cbcResult.order, total: cbcResult.total };
       pendingData = pending as PendingData | null;
       if (pending) {
         greetingShown = true;
@@ -857,7 +869,11 @@
 
   async function refreshPendingData() {
     try {
-      const pending = await getPendingActions();
+      const cbcResult = await getCore().getClassificationsByCategory(true);
+      const pending =
+        cbcResult.total === 0
+          ? null
+          : { categories: cbcResult.categories, order: cbcResult.order, total: cbcResult.total };
       pendingData = pending as PendingData | null;
 
       // Update the dashboard message in-place if it exists
@@ -1609,8 +1625,9 @@
         oneditlastuser={editLastUserMessage}
         onregenerate={regenerateLastAssistantMessage}
         onsessiontitle={(session) =>
-          session.title ?? fallbackChatTitle(session.messages) ?? "Untitled chat"}
-        onsessionsubtitle={(session) => getSessionSubtitle(session.messages)}
+          session.title || fallbackChatTitle(session.messages) || "Untitled chat"}
+        onsessionsubtitle={(session) =>
+          sessionSubtitleFromMessagesJson(JSON.stringify(session.messages))}
         onsessiondate={(session) => formatSessionDate(session.updatedAt)}
         onmarkacted={markActed}
         ondismiss={dismiss}

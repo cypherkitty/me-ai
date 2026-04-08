@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { actionColor } from "../../lib/triage.js";
-  import { getActionsForEvent, getCategoryForEventType } from "../../lib/events.js";
+  import { actionColor } from "../../lib/core.js";
+  import { getActionsForEvent, getCategoryForEventType } from "../../lib/core.js";
   import type { Action } from "$lib/types.js";
   import PipelineGraph from "../actions/PipelineGraph.svelte";
   import { cn } from "$lib/utils.js";

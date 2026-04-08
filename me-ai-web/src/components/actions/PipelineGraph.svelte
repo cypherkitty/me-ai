@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { EventCategory } from "$lib/types.js";
-  import { EVENT_CATEGORY_TIERS, DEFAULT_CATEGORY } from "../../lib/events.js";
+  import { EVENT_CATEGORY_TIERS, DEFAULT_CATEGORY } from "../../lib/core.js";
   import { getAvailableActions } from "../../lib/plugins/execution-service.js";
 
   interface CommandShape {

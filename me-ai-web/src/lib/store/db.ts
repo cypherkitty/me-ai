@@ -6,38 +6,41 @@
  */
 
 import { getCore } from "./core-store.js";
-import { clearSavedChatSessions } from "../chat-sessions.js";
 
 /**
  * Clear all user data via core (items, syncState, contacts, rules, events, etc.) and reload.
  */
 export async function wipeAllData(): Promise<void> {
-  await getCore().clearAllData();
-  clearSavedChatSessions();
+  const core = getCore();
+  await core.clearAllData();
+  await core.clearChatSessions();
   if (typeof window !== "undefined") {
     window.location.reload();
   }
 }
 
 /**
- * Delete the IndexedDB database "me-ai", clear caches and localStorage, then reload.
+ * Delete all IndexedDB databases, clear the Cache API (e.g. model weights), then reload.
+ * App state must use Rexie only — no web Storage API.
  */
 export async function nukeAllLocalData(): Promise<void> {
-  try {
-    const dbs = (await indexedDB.databases?.()) ?? [];
-    for (const { name } of dbs) {
-      if (name) {
-        await new Promise<void>((resolve) => {
-          const r = indexedDB.deleteDatabase(name);
-          r.onsuccess = () => resolve();
-          r.onerror = () => resolve();
-          r.onblocked = () => resolve();
-          setTimeout(resolve, 3000);
-        });
-      }
+  const dbs = (await indexedDB.databases?.()) ?? [];
+  for (const { name } of dbs) {
+    if (name) {
+      await new Promise<void>((resolve, reject) => {
+        const r = indexedDB.deleteDatabase(name);
+        r.onsuccess = () => resolve();
+        r.onerror = () =>
+          reject(
+            new Error(
+              `Failed to delete IndexedDB "${name}": ${r.error?.message ?? "unknown error"}`
+            )
+          );
+        r.onblocked = () =>
+          reject(new Error(`Deleting IndexedDB "${name}" is blocked by an open connection`));
+        setTimeout(() => reject(new Error(`Timeout deleting IndexedDB "${name}"`)), 3000);
+      });
     }
-  } catch (e) {
-    console.warn("[db] nukeAllLocalData: IDB sweep failed:", (e as Error)?.message);
   }
   try {
     if ("caches" in globalThis) {
@@ -47,12 +50,6 @@ export async function nukeAllLocalData(): Promise<void> {
   } catch (e) {
     console.warn("[db] nukeAllLocalData: Cache API failed:", (e as Error)?.message);
   }
-  try {
-    localStorage.clear();
-    sessionStorage.clear();
-  } catch {
-    /* ignore */
-  }
   if (typeof window !== "undefined") {
     window.location.reload();
   }
@@ -60,19 +57,6 @@ export async function nukeAllLocalData(): Promise<void> {
 
 // ─── Utilities (no DB) ─────────────────────────────────────────────────────
 
-export function makeItemId(sourceType: string, sourceId: string): string {
-  return `${sourceType}:${sourceId}`;
-}
-
 export function toJson(value: unknown): string {
   return JSON.stringify(value ?? null);
-}
-
-export function fromJson<T>(text: string | null | undefined, fallback: T): T {
-  if (text == null) return fallback;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return fallback;
-  }
 }

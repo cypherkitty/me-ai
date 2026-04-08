@@ -66,8 +66,8 @@ Never mock what you can instantiate.
 
 **TypeScript:** use real module functions with controlled inputs. Only mock
 at a true external boundary — specifically WASM (`me-ai-core`) and browser
-APIs (`IndexedDB`, `localStorage`, `fetch`) that cannot run in Vitest's
-node/jsdom environment.
+APIs (`fetch`, and IndexedDB when not going through WASM) that cannot run in Vitest's
+node/jsdom environment. Application data uses Rexie only via core; do not add `localStorage` or `sessionStorage`.
 
 When you reach for `vi.mock()`, ask first: can I pass a real value instead?
 If yes, do that. If the only reason to mock is to avoid a slow or complex
@@ -92,3 +92,22 @@ or file it generates at build/install time and make sure it is gitignored.
 - npm package → `node_modules/`, `dist/`, `.vite/` in its `.gitignore`
 - wasm-pack output → `pkg/` in the crate's `.gitignore` (already set for `me-ai-core`)
 - Editor/OS noise → root `.gitignore` (`.idea`, `.DS_Store`, `*.local`)
+
+## 12. No `null` in TypeScript — use `undefined`
+
+`null` is strictly prohibited in `me-ai-web`. The only permitted source of `null` is the
+WASM boundary, where Rust `Option<T>` serialises to JavaScript `null`. Convert it to
+`undefined` immediately at the call site — never let it propagate into application code.
+
+See [`.cortex/coding-standards/typescript.md`](coding-standards/typescript.md) for the
+full rule set, boundary exception, and enforcement details.
+
+## 13. Type-driven development in Rust
+
+The type system is the first line of defence. Design types so illegal states are
+unrepresentable: use `enum` over stringly-typed values, `Option<T>` over sentinel values,
+newtype wrappers for domain identifiers, and `Result<T, CoreError>` for every fallible
+operation. No `unwrap()` / `expect()` outside tests.
+
+See [`.cortex/coding-standards/rust.md`](coding-standards/rust.md) for the full rule set
+and Clippy enforcement details.

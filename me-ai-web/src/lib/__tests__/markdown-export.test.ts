@@ -1,6 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
-import { emailToMarkdown, emailFilename } from "../markdown-export.js";
-import type { MessageForMarkdown } from "../markdown-export.js";
+import type { MessageForMarkdown } from "../core.js";
+import { getCore } from "../store/core-store.js";
+
+const mockEmailDateToEpochMs = (d: unknown): number => {
+  if (d === "" || d == null) return 0;
+  if (typeof d === "number" && Number.isFinite(d)) return d;
+  if (typeof d === "bigint") return Number(d);
+  const s = String(d).trim();
+  if (!s) return 0;
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const parsed = Date.parse(s);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const mockExportFilename = (subject: string, dateMs: number, ext: string): string => {
   const slugify = (s: string) => {
@@ -21,10 +35,64 @@ const mockExportFilename = (subject: string, dateMs: number, ext: string): strin
   return `${shortDate(dateMs)}_${slugify(subject)}.${ext}`;
 };
 
+const mockEmailToMarkdown = (
+  subject: string,
+  from: string,
+  to: string,
+  dateMs: number,
+  body: string | undefined,
+  htmlBody: string | undefined
+): string => {
+  const escapeCell = (t: string) => (t || "").replace(/\|/g, "\\|");
+  const dateStr = dateMs > 0 && Number.isFinite(dateMs) ? new Date(dateMs).toISOString() : "";
+  const lines = [
+    `# ${subject}`,
+    "",
+    "| | |",
+    "|---|---|",
+    `| **From** | ${escapeCell(from)} |`,
+    `| **To** | ${escapeCell(to)} |`,
+    `| **Date** | ${dateStr} |`,
+    "",
+    "---",
+    "",
+    htmlBody ? "(html converted)" : body || "*(no body)*",
+    "",
+  ];
+  return lines.join("\n");
+};
+
 vi.mock("../store/core-store.js", () => ({
-  getCore: () => ({ exportFilename: mockExportFilename }),
+  getCore: () => ({
+    emailMessageToMarkdown: (msg: MessageForMarkdown) => {
+      const dateMs = mockEmailDateToEpochMs(msg.date);
+      const bodyRaw = msg.body;
+      const body =
+        bodyRaw != null && String(bodyRaw).trim().length > 0 ? String(bodyRaw).trim() : undefined;
+      const htmlRaw = msg.htmlBody;
+      const htmlBody =
+        htmlRaw != null && String(htmlRaw).trim().length > 0 ? String(htmlRaw).trim() : undefined;
+      return mockEmailToMarkdown(
+        msg.subject || "",
+        msg.from || "",
+        msg.to || "",
+        dateMs,
+        body,
+        htmlBody
+      );
+    },
+    exportEmailMessageFilename: (msg: MessageForMarkdown, ext: string) =>
+      mockExportFilename(msg.subject || "", mockEmailDateToEpochMs(msg.date), ext),
+    emailDateToEpochMs: mockEmailDateToEpochMs,
+    exportEmailFilename: (subject: string, date: unknown, ext: string) =>
+      mockExportFilename(subject, mockEmailDateToEpochMs(date), ext),
+    emailToMarkdown: mockEmailToMarkdown,
+  }),
   coreStore: { subscribe: vi.fn(), set: vi.fn(), update: vi.fn() },
 }));
+
+const emailToMarkdown = (m: MessageForMarkdown) => getCore().emailMessageToMarkdown(m);
+const emailFilename = (m: MessageForMarkdown) => getCore().exportEmailMessageFilename(m, "md");
 
 const BASIC_MESSAGE: MessageForMarkdown = {
   subject: "Hello World",

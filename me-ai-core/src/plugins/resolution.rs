@@ -32,6 +32,37 @@ pub struct PipelineActionForEvent {
     pub order: i64,
 }
 
+/// UI `Action` row built from a resolved pipeline (replaces TS `getActionsForEvent` mapping).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct PipelineActionDisplay {
+    pub id: String,
+    #[wasm_bindgen(js_name = pluginId)]
+    pub plugin_id: String,
+    #[wasm_bindgen(js_name = commandId)]
+    pub command_id: String,
+    pub name: String,
+    pub description: String,
+}
+
+pub fn pipeline_actions_to_display(actions: &[PipelineActionForEvent]) -> Vec<PipelineActionDisplay> {
+    actions
+        .iter()
+        .enumerate()
+        .map(|(i, a)| {
+            let cmd = a.command_id.as_str();
+            let base = if cmd.is_empty() { "cmd" } else { cmd };
+            PipelineActionDisplay {
+                id: format!("{base}_{i}"),
+                plugin_id: a.plugin_id.clone(),
+                command_id: a.command_id.clone(),
+                name: cmd.replace('_', " "),
+                description: String::new(),
+            }
+        })
+        .collect()
+}
+
 /// Resolve the pipeline (actions + policy) for a given event type.
 ///
 /// 1. Normalize the event type name (uppercase, spaces to underscores, ASCII alphanumeric + `_`).

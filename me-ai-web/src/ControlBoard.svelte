@@ -2,16 +2,18 @@
   import { getCore } from "./lib/store/core-store.js";
   import { onMount } from "svelte";
   import { getUnifiedEngine } from "./lib/unified-engine.js";
+  import { scanEmails } from "$lib/triage";
   import {
-    scanEmails,
     getClassificationsByCategory,
     getClassificationCounts,
     updateClassificationStatus,
     clearClassificationsByAction,
     deleteClassification,
     getScanStats,
-  } from "$lib/triage";
-  import { getCategoryForEventType, categoryTierToName } from "$lib/events";
+    getCategoryForEventType,
+    categoryTierToName,
+  } from "$lib/core";
+  import type { ScanProgress, ScanStats } from "$lib/core";
   import ControlBoardView from "./components/actions/ControlBoardView.svelte";
   import { SettingValue, ScanHistory } from "./lib/core.js";
 
@@ -24,11 +26,11 @@
   let categoryOrder = $state<string[]>([]);
   let eventTypeToCategory = $state<Record<string, string>>({});
   let counts = $state<Record<string, number> & { total: number }>({ total: 0 });
-  let stats = $state<unknown>(null);
+  let stats = $state<ScanStats | null>(null);
   let expandedCategory = $state<string | null>(null);
 
   let isScanning = $state(false);
-  let scanProgress = $state<Record<string, unknown> | null>(null);
+  let scanProgress = $state<ScanProgress | null>(null);
   let scanCount = $state(3);
   let error = $state<string | null>(null);
   let successMsg = $state<string | null>(null);
@@ -41,8 +43,8 @@
     return sv.scanHistory ?? null;
   }
 
-  async function saveScanHistory(progress: Record<string, unknown>) {
-    if (!progress || progress.phase !== "done") return;
+  async function saveScanHistory(progress: ScanProgress) {
+    if (progress.phase !== "done") return;
     const sv = new SettingValue();
     sv.scanHistory = new ScanHistory(
       Date.now(),
@@ -88,7 +90,6 @@
       if (saved) {
         scanProgress = {
           phase: "done",
-          timestamp: saved.timestamp,
           classified: saved.classified,
           errors: saved.errors,
           total: saved.total,
@@ -147,9 +148,8 @@
         force,
         signal: abort.signal,
         onProgress: (progress) => {
-          scanProgress = { ...(progress as unknown as Record<string, unknown>) };
-          if (progress.phase === "done")
-            saveScanHistory(progress as unknown as Record<string, unknown>);
+          scanProgress = progress;
+          if (progress.phase === "done") saveScanHistory(progress);
         },
       });
       await loadData();

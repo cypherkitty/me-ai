@@ -23,6 +23,9 @@ pub enum CoreError {
 
     #[error("auth: {0}")]
     Auth(String),
+
+    #[error("aborted: {0}")]
+    Aborted(String),
 }
 
 /// Format rexie/idb error message with user-friendly hints. Extracted for testability.

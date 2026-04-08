@@ -1,5 +1,7 @@
 //! Audit log: log execution, sync after execution, list and clear. Uses Rexie.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -7,6 +9,8 @@ use rexie::Direction;
 
 use crate::db::{store, RexieDb};
 use crate::error::CoreError;
+
+static AUDIT_LOG_ID_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[wasm_bindgen(typescript_custom_section)]
 const AUDIT_TYPES: &'static str = r#"
@@ -173,6 +177,73 @@ pub struct GetAuditLogResult {
     pub total: i64,
 }
 
+/// One step in an audit log entry after JSON parse (`steps` blob).
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct AuditLogStep {
+    #[wasm_bindgen(js_name = "actionId")]
+    pub action_id: String,
+    #[wasm_bindgen(js_name = "actionName")]
+    pub action_name: String,
+    #[wasm_bindgen(js_name = "commandId")]
+    pub command_id: String,
+    #[wasm_bindgen(js_name = "pluginId")]
+    pub plugin_id: String,
+    pub success: bool,
+    pub message: String,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct AuditLogEntryParsed {
+    pub id: String,
+    #[wasm_bindgen(js_name = "emailId")]
+    pub email_id: String,
+    pub subject: String,
+    #[wasm_bindgen(js_name = "from")]
+    pub from_addr: String,
+    #[wasm_bindgen(js_name = "eventType")]
+    pub event_type: String,
+    #[wasm_bindgen(js_name = "executedAt")]
+    pub executed_at: i64,
+    pub success: bool,
+    pub error: String,
+    pub steps: Vec<AuditLogStep>,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Debug)]
+pub struct GetAuditLogParsedResult {
+    pub entries: Vec<AuditLogEntryParsed>,
+    pub total: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AuditStepJson {
+    action_id: String,
+    action_name: String,
+    command_id: String,
+    plugin_id: String,
+    success: bool,
+    message: String,
+}
+
+fn parse_audit_steps_json(steps: &str) -> Vec<AuditLogStep> {
+    let parsed: Vec<AuditStepJson> = serde_json::from_str(steps).unwrap_or_default();
+    parsed
+        .into_iter()
+        .map(|s| AuditLogStep {
+            action_id: s.action_id,
+            action_name: s.action_name,
+            command_id: s.command_id,
+            plugin_id: s.plugin_id,
+            success: s.success,
+            message: s.message,
+        })
+        .collect()
+}
+
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize)]
 pub struct AuditStats {
@@ -222,6 +293,32 @@ pub async fn get_audit_log(
     };
 
     Ok(GetAuditLogResult { entries, total })
+}
+
+/// Same as `get_audit_log` but with `steps` already parsed from JSON string.
+pub async fn get_audit_log_parsed(
+    db: &RexieDb,
+    limit: i64,
+    offset: i64,
+    failures_only: bool,
+) -> Result<GetAuditLogParsedResult, CoreError> {
+    let result = get_audit_log(db, limit, offset, failures_only).await?;
+    let entries: Vec<AuditLogEntryParsed> = result
+        .entries
+        .into_iter()
+        .map(|r| AuditLogEntryParsed {
+            id: r.id,
+            email_id: r.email_id,
+            subject: r.subject,
+            from_addr: r.from_addr,
+            event_type: r.event_type,
+            executed_at: r.executed_at,
+            success: r.success,
+            error: r.error,
+            steps: parse_audit_steps_json(&r.steps),
+        })
+        .collect();
+    Ok(GetAuditLogParsedResult { entries, total: result.total })
 }
 
 pub async fn clear_audit_log(db: &RexieDb) -> Result<(), CoreError> {
@@ -293,8 +390,12 @@ pub async fn log_and_sync_execution(
         .collect();
 
     // 2. Generate ID and timestamp, then log
-    let id = js_sys::Math::random().to_string().replace("0.", "audit_");
-    let now = js_sys::Date::now() as i64;
+    let now = crate::time_util::now_ms();
+    let id = format!(
+        "audit_{}_{}",
+        now,
+        AUDIT_LOG_ID_SEQ.fetch_add(1, Ordering::Relaxed)
+    );
     let steps_json = serde_json::to_string(&steps).unwrap_or_else(|_| "[]".to_string());
     log_execution(db, &id, email_id, subject, from, event_type, now, success, "", &steps_json).await?;
 

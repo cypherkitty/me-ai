@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { formatBytesPrecise, progressPct } from "../../lib/format.js";
+  import { formatBytesPrecise, progressPct } from "../../lib/core.js";
   import { mountLog } from "../../lib/debug.js";
   import { Progress } from "$lib/components/ui/progress/index.js";
   import { Card, CardContent } from "$lib/components/ui/card/index.js";

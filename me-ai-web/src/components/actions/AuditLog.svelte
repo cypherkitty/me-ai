@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { AuditLogEntry } from "$lib/types.js";
-  import { getAuditLog, clearAuditLog } from "../../lib/store/audit.js";
+  import type { AuditLogEntryParsed } from "$lib/types.js";
+  import { getCore } from "$lib/store/core-store";
 
   interface Props {
     open?: boolean;
   }
   let { open = $bindable(false) }: Props = $props();
 
-  let entries = $state<AuditLogEntry[]>([]);
+  let entries = $state<AuditLogEntryParsed[]>([]);
   let total = $state(0);
   let loading = $state(false);
   let failuresOnly = $state(false);
@@ -21,16 +21,16 @@
   async function load() {
     loading = true;
     try {
-      const result = await getAuditLog({ limit: 100, failuresOnly });
+      const result = await getCore().getAuditLogParsed(100, 0, failuresOnly);
       entries = result.entries;
-      total = result.total;
+      total = Number(result.total);
     } finally {
       loading = false;
     }
   }
 
   async function handleClear() {
-    await clearAuditLog();
+    await getCore().clearAuditLog();
     entries = [];
     total = 0;
     confirmClear = false;
@@ -40,9 +40,9 @@
     expandedId = expandedId === id ? null : id;
   }
 
-  function formatTime(ts: number | null | undefined) {
-    if (!ts) return "—";
-    const d = new Date(ts);
+  function formatTime(ts: number | bigint | null | undefined) {
+    if (ts == null) return "—";
+    const d = new Date(typeof ts === "bigint" ? Number(ts) : ts);
     return d.toLocaleString("en-US", {
       month: "short",
       day: "numeric",

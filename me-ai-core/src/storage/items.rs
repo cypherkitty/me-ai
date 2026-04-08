@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{key_range_only, store, RexieDb};
 use crate::error::CoreError;
+use crate::storage::sync::{GetStoredEmailsResult, ItemRow, StoredItem};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
@@ -57,4 +58,49 @@ pub async fn get_items_date_max(db: &RexieDb) -> Result<Option<i64>, CoreError> 
         .index_get_all(store::ITEMS, "sourceType", Some(range), Some(5000))
         .await?;
     Ok(items.into_iter().filter_map(|i| i.date).max())
+}
+
+/// Fetch stored Gmail emails with optional text search filtering.
+pub async fn get_stored_emails_filtered(
+    db: &RexieDb,
+    query: Option<&str>,
+    limit: u32,
+    offset: u32,
+) -> Result<GetStoredEmailsResult, CoreError> {
+    let fetch_size = if query.is_some() { 2000 } else { limit + offset };
+    let range = key_range_only("gmail")?;
+    let mut rows: Vec<ItemRow> = db
+        .index_get_all(store::ITEMS, "sourceType", Some(range.clone()), Some(fetch_size))
+        .await?;
+    rows.sort_by(|a, b| b.date.unwrap_or(0).cmp(&a.date.unwrap_or(0)));
+
+    let filtered: Vec<&ItemRow> = if let Some(q) = query {
+        let q = q.to_lowercase();
+        rows.iter()
+            .filter(|r| {
+                r.subject.to_lowercase().contains(&q)
+                    || r.from.to_lowercase().contains(&q)
+                    || r.to.to_lowercase().contains(&q)
+                    || r.snippet.to_lowercase().contains(&q)
+            })
+            .collect()
+    } else {
+        rows.iter().collect()
+    };
+
+    let total = if query.is_some() {
+        filtered.len() as i64
+    } else {
+        let range2 = key_range_only("gmail")?;
+        db.index_count(store::ITEMS, "sourceType", Some(range2)).await? as i64
+    };
+
+    let page: Vec<StoredItem> = filtered
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .map(StoredItem::from_item_row)
+        .collect();
+
+    Ok(GetStoredEmailsResult { items: page, total })
 }

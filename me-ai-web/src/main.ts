@@ -2,11 +2,13 @@ import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
 import { initCore, getCore } from "$lib/core";
+import { refreshDebugFromSettings } from "$lib/debug";
 
 // Init core after document is ready so IndexedDB open runs in a valid browser context.
 async function startCoreInit() {
   try {
     await initCore();
+    await refreshDebugFromSettings();
   } catch (e) {
     console.error("[core] init failed", e);
   }
