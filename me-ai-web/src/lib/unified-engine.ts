@@ -11,8 +11,8 @@ import type {
   EngineMessage,
   EngineStatus,
   GenerateFullResult,
-  OllamaTokenData,
 } from "./core.js";
+import { OllamaLlmEngine } from "./core.js";
 
 type GenerateOptions = {
   maxTokens?: number;
@@ -316,128 +316,38 @@ function createCloudApiEngine(provider: ApiProvider) {
 }
 
 /**
- * Ollama engine: listener/TPS in the browser; HTTP streaming in me-ai-core (`streamOllamaChat`).
+ * Thin adapter: WASM [`OllamaLlmEngine`] fans out `EngineMessage` to multiple TS listeners.
  */
 function createOllamaEngine() {
-  let _status: EngineStatus = "idle";
-  let _modelName: string | null = null;
-  const _listeners = new Set<(msg: EngineMessage) => void>();
-
-  function broadcast(msg: EngineMessage): void {
-    for (const fn of _listeners) {
+  const wasm = new OllamaLlmEngine();
+  const listeners = new Set<(msg: EngineMessage) => void>();
+  wasm.setOnMessage((msg: EngineMessage) => {
+    for (const fn of listeners) {
       try {
         fn(msg);
       } catch {
         /* no-op */
       }
     }
-  }
+  });
+  const core = getCore();
 
   return {
-    async check(): Promise<void> {
-      _status = "loading";
-      broadcast({ status: "loading", data: "Testing Ollama connection..." });
-      const core = getCore();
-      const url = await core.getResolvedOllamaUrl();
-      const result = await core.testOllamaConnection(url);
-      if (result.connected) {
-        _status = "idle";
-        broadcast({
-          status: "ready",
-          data: { type: "ollama", version: result.version, url },
-        });
-      } else {
-        _status = "idle";
-        broadcast({
-          status: "error",
-          data: `Ollama not available: ${result.error}. Make sure Ollama is running.`,
-        });
-      }
+    check(): void {
+      void wasm.check(core);
     },
 
-    async loadModel(modelName: string): Promise<void> {
-      _modelName = modelName;
-      _status = "loading";
-      broadcast({
-        status: "loading",
-        data: `Connecting to Ollama model: ${modelName}...`,
-      });
-      const core = getCore();
-      const url = await core.getResolvedOllamaUrl();
-      const result = await core.testOllamaConnection(url);
-      if (!result.connected) {
-        _status = "idle";
-        _modelName = null;
-        broadcast({
-          status: "error",
-          data: `Ollama not available: ${result.error}`,
-        });
-        return;
-      }
-      _status = "ready";
-      broadcast({ status: "ready" });
+    loadModel(modelId: string): void {
+      void wasm.loadModel(core, modelId);
     },
 
-    async generate(
-      messages: { role: string; content: string }[],
-      options: Record<string, unknown> = {}
-    ): Promise<void> {
-      if (!_modelName) {
-        broadcast({ status: "error", data: "No Ollama model selected" });
-        return;
-      }
-      _status = "generating";
-      broadcast({ status: "start", inputTokens: 0 });
-      let tokenCount = 0;
-      const startTime = performance.now();
-      try {
-        const core = getCore();
-        const url = await core.getResolvedOllamaUrl();
-        await core.streamOllamaChat(
-          _modelName,
-          messages,
-          {
-            temperature: (options.temperature as number) ?? 0.7,
-            maxTokens: (options.maxTokens as number) ?? 4096,
-          },
-          (data: OllamaTokenData) => {
-            if (data.content) {
-              tokenCount++;
-              const elapsed = performance.now() - startTime;
-              const tps = elapsed > 0 ? (tokenCount / elapsed) * 1000 : 0;
-              broadcast({
-                status: "update",
-                output: data.content,
-                tps: Math.round(tps * 10) / 10,
-                numTokens: tokenCount,
-              });
-            }
-            if (data.done) {
-              _status = "ready";
-              broadcast({
-                status: "complete",
-                tps:
-                  data.eval_duration != null
-                    ? Math.round(((data.eval_count ?? 0) / (data.eval_duration / 1e9)) * 10) / 10
-                    : null,
-                numTokens: data.eval_count ?? tokenCount,
-              });
-            }
-          },
-          url
-        );
-      } catch (error) {
-        _status = "ready";
-        broadcast({
-          status: "error",
-          data: error instanceof Error ? error.message : String(error),
-        });
-      }
+    generate(messages: ChatMessage[], options: GenerateOptions = {}): void {
+      void wasm.generate(core, messages, options);
     },
 
     generateFull(
       messages: ChatMessage[],
-      options: Record<string, unknown>,
+      options: GenerateOptions,
       onToken?: (x: { tps: number | null; numTokens: number; text: string }) => void
     ): Promise<GenerateFullResult> {
       return new Promise((resolve, reject) => {
@@ -467,7 +377,7 @@ function createOllamaEngine() {
               }
               break;
             case "complete":
-              _listeners.delete(handler);
+              listeners.delete(handler);
               resolve({
                 text: output,
                 tps: lastTps,
@@ -476,51 +386,52 @@ function createOllamaEngine() {
               });
               break;
             case "error":
-              _listeners.delete(handler);
+              listeners.delete(handler);
               reject(new Error((msg.data as string) ?? "Unknown error"));
               break;
           }
         };
-        _listeners.add(handler);
-        void this.generate(messages, options);
+        listeners.add(handler);
+        void wasm.generate(core, messages, options);
       });
     },
 
     interrupt(): void {
-      console.warn("Ollama doesn't support generation interruption");
+      wasm.interrupt();
     },
 
-    reset(): void {},
+    reset(): void {
+      wasm.reset();
+    },
 
     onMessage(fn: (msg: EngineMessage) => void): () => void {
-      _listeners.add(fn);
-      return () => _listeners.delete(fn);
+      listeners.add(fn);
+      return () => listeners.delete(fn);
     },
 
     offMessage(fn: (msg: EngineMessage) => void): void {
-      _listeners.delete(fn);
+      listeners.delete(fn);
     },
 
     get status(): EngineStatus {
-      return _status;
+      return wasm.status as EngineStatus;
     },
     get isReady(): boolean {
-      return _status === "ready";
+      return wasm.isReady;
     },
     get isGenerating(): boolean {
-      return _status === "generating";
+      return wasm.isGenerating;
     },
     get modelId(): string | null {
-      return _modelName;
+      return wasm.modelId ?? null;
     },
     get backend(): "ollama" {
       return "ollama";
     },
 
     terminate(): void {
-      _status = "idle";
-      _modelName = null;
-      _listeners.clear();
+      wasm.terminate();
+      listeners.clear();
     },
   };
 }

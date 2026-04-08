@@ -8,6 +8,7 @@
 
 export {
   AiBackend,
+  OllamaLlmEngine,
   SettingValue,
   GoogleToken,
   TwitterOAuthLoginStart,

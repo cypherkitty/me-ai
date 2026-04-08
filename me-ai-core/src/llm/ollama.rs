@@ -5,7 +5,9 @@ use js_sys::Function;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
+use crate::db::RexieDb;
 use crate::error::CoreError;
+use crate::storage::settings;
 
 #[wasm_bindgen(typescript_custom_section)]
 const OLLAMA_STREAMING_TYPES: &'static str = r#"
@@ -65,6 +67,18 @@ pub fn default_ollama_base_url_for_hostname(hostname: &str) -> String {
 }
 
 /// Default Ollama base URL from `window.location.hostname` (WASM); localhost URL for native tests.
+/// Effective base URL: persisted non-empty `ollamaUrl` setting, else hostname default.
+pub async fn resolved_ollama_url(db: &RexieDb) -> Result<String, CoreError> {
+    let sv = settings::load_settings(db).await?;
+    if let Some(url) = sv.ollama_url() {
+        let t = url.trim();
+        if !t.is_empty() {
+            return Ok(t.to_string());
+        }
+    }
+    Ok(default_ollama_base_url())
+}
+
 pub fn default_ollama_base_url() -> String {
     #[cfg(target_arch = "wasm32")]
     {
@@ -96,7 +110,7 @@ struct StreamOllamaOptionsInput {
 }
 
 #[derive(Serialize)]
-struct OllamaChatMessageSer {
+pub(crate) struct OllamaChatMessageSer {
     role: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     content: Option<String>,
@@ -135,17 +149,18 @@ struct OllamaStreamMessage {
     content: Option<String>,
 }
 
+/// One chunk emitted while parsing the Ollama NDJSON stream (`/api/chat`).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct OllamaTokenEmit {
-    content: String,
-    done: bool,
+pub(crate) struct OllamaTokenEmit {
+    pub(crate) content: String,
+    pub(crate) done: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    total_duration: Option<f64>,
+    pub(crate) total_duration: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    eval_count: Option<u32>,
+    pub(crate) eval_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    eval_duration: Option<f64>,
+    pub(crate) eval_duration: Option<f64>,
 }
 
 fn emit_ollama_token(on_token: &Function, payload: &OllamaTokenEmit) {
@@ -154,31 +169,43 @@ fn emit_ollama_token(on_token: &Function, payload: &OllamaTokenEmit) {
     }
 }
 
-/// Stream `/api/chat` (NDJSON). Invokes `on_token` for each chunk; returns full concatenated text.
-pub async fn stream_ollama_chat(
-    url: &str,
-    model: &str,
-    messages_js: JsValue,
-    options_js: JsValue,
-    on_token: &Function,
-) -> Result<String, CoreError> {
+pub(crate) fn parse_stream_chat_js(
+    messages_js: &JsValue,
+    options_js: &JsValue,
+) -> Result<(Vec<OllamaChatMessageSer>, f64, u32, String), CoreError> {
     let messages_in: Vec<OllamaChatMessageInput> =
-        serde_wasm_bindgen::from_value(messages_js).map_err(|e| CoreError::Llm(e.to_string()))?;
+        serde_wasm_bindgen::from_value(messages_js.clone()).map_err(|e| CoreError::Llm(e.to_string()))?;
     let opts: StreamOllamaOptionsInput = if options_js.is_null() || options_js.is_undefined() {
         StreamOllamaOptionsInput::default()
     } else {
-        serde_wasm_bindgen::from_value(options_js).map_err(|e| CoreError::Llm(e.to_string()))?
+        serde_wasm_bindgen::from_value(options_js.clone()).map_err(|e| CoreError::Llm(e.to_string()))?
     };
 
     let temperature = opts.temperature.unwrap_or(0.7);
     let num_predict = opts.max_tokens.unwrap_or(4096);
-    let keep_alive = opts.keep_alive.as_deref().unwrap_or("10m");
+    let keep_alive = opts.keep_alive.unwrap_or_else(|| "10m".to_string());
 
     let messages: Vec<OllamaChatMessageSer> = messages_in
         .into_iter()
         .map(|m| OllamaChatMessageSer { role: m.role, content: m.content })
         .collect();
 
+    Ok((messages, temperature, num_predict, keep_alive))
+}
+
+/// Stream `/api/chat` (NDJSON). Invokes `on_emit` for each parsed chunk; returns full text.
+pub(crate) async fn stream_ollama_chat_with_emit<F>(
+    url: &str,
+    model: &str,
+    messages: Vec<OllamaChatMessageSer>,
+    temperature: f64,
+    num_predict: u32,
+    keep_alive: &str,
+    mut on_emit: F,
+) -> Result<String, CoreError>
+where
+    F: FnMut(&OllamaTokenEmit),
+{
     let body = OllamaChatRequest {
         model,
         messages,
@@ -230,31 +257,25 @@ pub async fn stream_ollama_chat(
                 if let Some(ref c) = msg.content {
                     if !c.is_empty() {
                         full_text.push_str(c);
-                        emit_ollama_token(
-                            on_token,
-                            &OllamaTokenEmit {
-                                content: c.clone(),
-                                done: false,
-                                total_duration: data.total_duration,
-                                eval_count: data.eval_count,
-                                eval_duration: data.eval_duration,
-                            },
-                        );
+                        on_emit(&OllamaTokenEmit {
+                            content: c.clone(),
+                            done: false,
+                            total_duration: data.total_duration,
+                            eval_count: data.eval_count,
+                            eval_duration: data.eval_duration,
+                        });
                     }
                 }
             }
 
             if data.done {
-                emit_ollama_token(
-                    on_token,
-                    &OllamaTokenEmit {
-                        content: String::new(),
-                        done: true,
-                        total_duration: data.total_duration,
-                        eval_count: data.eval_count,
-                        eval_duration: data.eval_duration,
-                    },
-                );
+                on_emit(&OllamaTokenEmit {
+                    content: String::new(),
+                    done: true,
+                    total_duration: data.total_duration,
+                    eval_count: data.eval_count,
+                    eval_duration: data.eval_duration,
+                });
                 finished = true;
                 break;
             }
@@ -266,6 +287,28 @@ pub async fn stream_ollama_chat(
     }
 
     Ok(full_text)
+}
+
+/// Stream `/api/chat` (NDJSON). Invokes `on_token` for each chunk; returns full concatenated text.
+pub async fn stream_ollama_chat(
+    url: &str,
+    model: &str,
+    messages_js: JsValue,
+    options_js: JsValue,
+    on_token: &Function,
+) -> Result<String, CoreError> {
+    let (messages, temperature, num_predict, keep_alive) =
+        parse_stream_chat_js(&messages_js, &options_js)?;
+    stream_ollama_chat_with_emit(
+        url,
+        model,
+        messages,
+        temperature,
+        num_predict,
+        keep_alive.as_str(),
+        |payload| emit_ollama_token(on_token, payload),
+    )
+    .await
 }
 
 pub async fn test_ollama_connection(url: &str) -> Result<OllamaConnectionResult, CoreError> {

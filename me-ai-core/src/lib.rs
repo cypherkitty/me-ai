@@ -53,10 +53,18 @@ use crate::storage::sync::{
 };
 use crate::sync::{SyncResult, SyncStatus};
 
+pub use llm::ollama_engine::OllamaLlmEngine;
+
 /// Core instance. Rexie is built once at init (meta-secret WasmRepo pattern).
 #[wasm_bindgen(js_name = MeAiCore)]
 pub struct MeAiCore {
     rexie_db: RexieDb,
+}
+
+impl MeAiCore {
+    pub(crate) fn rexie_db(&self) -> &RexieDb {
+        &self.rexie_db
+    }
 }
 
 #[wasm_bindgen(js_class = MeAiCore)]
@@ -1121,15 +1129,9 @@ impl MeAiCore {
 
     #[wasm_bindgen(js_name = getResolvedOllamaUrl)]
     pub async fn get_resolved_ollama_url(&self) -> Result<String, JsValue> {
-        let db = &self.rexie_db;
-        let sv = storage::settings::load_settings(db).await.map_err(|e| error_to_js(&e))?;
-        if let Some(url) = sv.ollama_url() {
-            let t = url.trim();
-            if !t.is_empty() {
-                return Ok(t.to_string());
-            }
-        }
-        Ok(llm::ollama::default_ollama_base_url())
+        llm::ollama::resolved_ollama_url(self.rexie_db())
+            .await
+            .map_err(|e| error_to_js(&e))
     }
 
     #[wasm_bindgen(js_name = setOllamaUrl)]
