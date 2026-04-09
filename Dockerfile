@@ -44,7 +44,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # --- Clippy (wasm32; same chef target/ as wasm-builder — CI runs this in Docker) ---
 FROM rust:${RUST_VERSION} AS wasm-clippy
-RUN rustup target add wasm32-unknown-unknown
+RUN rustup target add wasm32-unknown-unknown \
+    && rustup component add clippy
 WORKDIR /build/me-ai-core
 COPY --from=chef-cacher /build/me-ai-core/target target
 COPY me-ai-core/ .
