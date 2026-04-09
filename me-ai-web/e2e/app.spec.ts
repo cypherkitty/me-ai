@@ -165,7 +165,7 @@ test.describe("Pipeline sidebar", () => {
     await expect(page.getByRole("link", { name: /Pipelines/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Approvals/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Audit Trail/i })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Scan/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Scan", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: /Settings/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to Chat/i })).toBeVisible();
   });
