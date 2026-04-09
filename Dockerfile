@@ -56,6 +56,8 @@ FROM node:20-bookworm AS web-build
 
 WORKDIR /build/me-ai-web
 COPY me-ai-web/package.json ./
+# postinstall runs scripts/ensure-tslib.cjs and ensure-core.cjs before full tree copy
+COPY me-ai-web/scripts ./scripts/
 RUN mkdir -p node_modules/me-ai-core
 COPY --from=wasm-builder /build/me-ai-core/pkg ./node_modules/me-ai-core/
 RUN npm install --foreground-scripts
