@@ -11,7 +11,7 @@ Read this file, then follow the links relevant to your task.
 | [`core-beliefs.md`](core-beliefs.md) | Golden principles governing every line of code |
 | [`design-docs/`](design-docs/index.md) | n8n architecture, plugin system, event stream model |
 | [`product-specs/`](product-specs/index.md) | Three-step user flow, feature specs |
-| [`ci-cd.md`](ci-cd.md) | GitHub Actions workflows, deploy targets, how to add CI steps |
+| [`ci-cd.md`](ci-cd.md) | GitHub Actions workflows, deploy targets, optional Docker (Task + bake), how to add CI steps |
 | [`quality-score.md`](quality-score.md) | Health grades per domain |
 | [`tech-debt-tracker.md`](tech-debt-tracker.md) | Known debt items |
 | [`exec-plans/`](exec-plans/README.md) | Execution plans for complex work |

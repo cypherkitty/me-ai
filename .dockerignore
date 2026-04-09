@@ -1,0 +1,10 @@
+.git
+.github
+**/.cursor
+**/.DS_Store
+**/node_modules
+**/target
+me-ai-core/pkg
+me-ai-web/dist
+**/playwright-report
+**/test-results

@@ -6,11 +6,45 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    env:
+      CACHE_GHA: "1"
+      # Fork PRs cannot write Actions cache; still read upstream cache when available.
+      CACHE_GHA_RO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork && '1' || '' }}
+      REGISTRY: me-ai
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker bake (web image, rust tests, wasm clippy, wasm pkg export)
+        run: docker buildx bake ci
+
+      - name: Verify BuildKit cache reuse (second web-image bake)
+        run: |
+          set -euo pipefail
+          docker buildx bake web-image --progress=plain 2>&1 | tee /tmp/bake-verify.log
+          n=$(grep -c CACHED /tmp/bake-verify.log || true)
+          echo "Lines containing CACHED in second web-image bake: $n"
+          if [ "$n" -lt 8 ]; then
+            echo "::error::Expected cache-heavy second bake (>=8 CACHED lines); got $n. BuildKit may not be reusing layers."
+            exit 1
+          fi
+
+      - name: Sync wasm pkg from Docker export for web install
+        run: |
+          mkdir -p me-ai-core/pkg
+          cp -a me-ai-core/pkg-docker/. me-ai-core/pkg/
 
       - uses: actions/setup-node@v4
         with:
@@ -22,9 +56,7 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
       - uses: arduino/setup-task@v2
 
-      - run: task ci
+      - name: Web install + checks (Rust build, clippy, and tests already ran in Docker)
+        run: task ci:docker

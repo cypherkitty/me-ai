@@ -21,8 +21,19 @@ All build, test, and deploy steps use [Task](https://taskfile.dev) from the repo
 - `task test` — Run unit tests (Vitest, `npm run test:ci` in me-ai-web).
 - `task test:e2e` — Run E2E tests (Playwright); installs Chromium if needed.
 - `task check` — Run Svelte/TypeScript check in me-ai-web.
-- `task ci` — Full CI: install → unit tests → E2E tests. Same as GitHub Actions.
+- `task ci` — Alias for **`ci:full`** ([`Taskfile.ci.yml`](../Taskfile.ci.yml)): full **native** CI. GitHub Actions uses Docker + **`task ci:docker`** instead.
+- `task ci:full` — Same pipeline as `task ci` (explicit name in `Taskfile.ci.yml`).
+- `task ci:docker` — After `me-ai-core/pkg` exists (e.g. from `docker buildx bake ci` + copy from `pkg-docker/`): web install, cortex check, web checks, Vitest, Playwright — **no** `core:build` / `core:clippy` / `core:test` (those run in the Dockerfile on CI).
 - `task deploy-build` — Install then full build (for deploy/preview).
+
+**Docker** (requires Docker Buildx; tasks live in [`Taskfile.docker.yml`](../Taskfile.docker.yml), included as `docker:*`; see also [`docker-bake.hcl`](../docker-bake.hcl), [`Dockerfile`](../Dockerfile)):
+
+- `task docker:build` — Build and load `me-ai/web:latest` by default; override with `task docker:build REGISTRY=ghcr.io/org` (image is `REGISTRY/web:latest`).
+- `task docker:run` — `docker:build` then run the image (app on port 3000 → host 8080).
+- `task docker:push` — Push image tags (`PUSH_CACHE=1` enables registry cache write in bake).
+- `task docker:web-local` / `task docker:wasm-local` — Export `dist` / wasm `pkg` into `me-ai-web/dist-docker/` and `me-ai-core/pkg-docker/`.
+- `task docker:rust-test` — Run `cargo test --lib` for core inside a build stage.
+- `task docker:bake-ci` — `docker buildx bake ci` (web image, rust-test, wasm-clippy, wasm-local export). In CI, `CACHE_GHA=1` enables GitHub Actions cache.
 
 **Typical local workflow:**
 

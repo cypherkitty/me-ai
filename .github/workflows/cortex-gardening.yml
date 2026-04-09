@@ -74,7 +74,7 @@ jobs:
           The .cortex/ directory is the single source of truth for this project:
           - .cortex/architecture.md — package map, code navigation
           - .cortex/core-beliefs.md — golden principles every agent must follow
-          - .cortex/ci-cd.md — GitHub Actions workflows, what task ci does
+          - .cortex/ci-cd.md — GitHub Actions workflows, Taskfile.ci.yml (ci:full / ci:docker)
           - .cortex/quality-score.md — living quality grades per domain
           - .cortex/tech-debt-tracker.md — active debt items
           - .cortex/references/rexie-patterns.md — IndexedDB store inventory and conventions
