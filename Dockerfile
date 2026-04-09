@@ -58,8 +58,9 @@ WORKDIR /build/me-ai-web
 COPY me-ai-web/package.json ./
 # postinstall runs scripts/ensure-tslib.cjs and ensure-core.cjs before full tree copy
 COPY me-ai-web/scripts ./scripts/
-RUN mkdir -p node_modules/me-ai-core
-COPY --from=wasm-builder /build/me-ai-core/pkg ./node_modules/me-ai-core/
+# package.json uses file:../me-ai-core/pkg — layout must match repo (sibling me-ai-core/pkg)
+RUN mkdir -p /build/me-ai-core/pkg
+COPY --from=wasm-builder /build/me-ai-core/pkg /build/me-ai-core/pkg/
 RUN npm install --foreground-scripts
 COPY me-ai-web/ ./
 
