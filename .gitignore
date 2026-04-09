@@ -8,6 +8,8 @@ node_modules
 
 # Built artifacts (not committed)
 me-ai-core/pkg
+me-ai-core/pkg-docker
+me-ai-web/dist-docker
 me-ai-web/public/wasm
 
 tools/*/target

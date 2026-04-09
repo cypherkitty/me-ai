@@ -50,7 +50,9 @@ See [`.cortex/design-docs/plugin-system.md`](design-docs/plugin-system.md).
 
 All build/test/deploy goes through [Task](https://taskfile.dev). See `.agents/me-ai-builder.md`.
 
-Key tasks: `task install`, `task build`, `task test`, `task ci`, `task deploy-build`.
+Key tasks: `task install`, `task web:build`, `task web:test`, `task ci`, `task deploy-build`.
+
+**Docker (optional):** `task docker:build`, `task docker:run`, etc. — tasks live in [`Taskfile.docker.yml`](../Taskfile.docker.yml) (`docker:*` include). See [`.cortex/ci-cd.md`](ci-cd.md) § Docker builds and [namespaced task groups](references/taskfile-architecture.md#namespaced-task-groups).
 
 ## CI / CD
 

@@ -56,7 +56,7 @@ Run locally: `task cortex:check`
 1. Create `tools/<name>/Cargo.toml` with `edition = "2021"` and `[[bin]]`.
 2. Write `tools/<name>/src/main.rs` — no external crates unless essential; prefer `std`.
 3. Add a Taskfile task: `cargo run --manifest-path tools/<name>/Cargo.toml`.
-4. If it should run in CI, add it to the `ci` task in `Taskfile.yml`.
+4. If it should run in CI, add it to **`ci:full`** and/or **`ci:docker`** in [`Taskfile.ci.yml`](../../Taskfile.ci.yml) (see [ci-cd.md](../ci-cd.md)).
 
 ## Exceptions
 

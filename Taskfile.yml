@@ -6,6 +6,8 @@
 #   core:*    me-ai-core/Taskfile.yml   (runs from me-ai-core/)
 #   web:*     me-ai-web/Taskfile.yml    (runs from me-ai-web/)
 #   cortex:*  tools/cortex-check/Taskfile.yml  (runs from repo root)
+#   docker:*  Taskfile.docker.yml  (repo root; Buildx bake — see docker-bake.hcl)
+#   ci:*      Taskfile.ci.yml       (repo root; native + Docker-backed CI pipelines)
 version: "3"
 
 includes:
@@ -17,6 +19,12 @@ includes:
     dir: ./me-ai-web
   cortex:
     taskfile: ./tools/cortex-check/Taskfile.yml
+  docker:
+    taskfile: ./Taskfile.docker.yml
+    dir: .
+  ci:
+    taskfile: ./Taskfile.ci.yml
+    dir: .
 
 tasks:
   default:
@@ -49,24 +57,11 @@ tasks:
       - task: web:kill-dev
       - task: web:dev
 
-  # Cross-package: calls tasks from core:, web:, and cortex: namespaces.
+  # Alias: root `task ci` → included `ci:full` (Taskfile.ci.yml).
   ci:
-    desc: >
-      Full CI pipeline:
-      install:ci → cortex:check → core:clippy → web:format:check →
-      web:check → web:lint → web:knip → core:test → web:test → web:test:e2e
-    deps:
-      - task: install:ci
+    desc: "Native full CI — delegates to ci:full (see Taskfile.ci.yml)"
     cmds:
-      - task: cortex:check
-      - task: core:clippy
-      - task: web:format:check
-      - task: web:check
-      - task: web:lint
-      - task: web:knip
-      - task: core:test
-      - task: web:test
-      - task: web:test:e2e
+      - task: ci:full
 
   deploy-build:
     desc: "install:ci → web:build (used by deploy and preview workflows)"
