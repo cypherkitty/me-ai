@@ -35,7 +35,8 @@ jobs:
       - run: task deploy-build
         env:
           # Custom domain is served at site root; /me-ai/ base would 404 assets (HTML vs /assets/).
-          VITE_BASE: /
+          # Quote "/" — YAML 1.2 can treat a bare `/` as regex, dropping the value.
+          VITE_BASE: "/"
 
       - uses: peaceiris/actions-gh-pages@v4
         with:
