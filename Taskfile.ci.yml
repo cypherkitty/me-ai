@@ -1,6 +1,7 @@
 # https://taskfile.dev
 # CI pipelines — included from root Taskfile.yml as namespace `ci:`.
-# Invoke: `task ci` (alias → ci:full), `task ci:full`, `task ci:docker`.
+# Cross-namespace calls use shell `task …` because `task: web:foo` inside this
+# file would incorrectly resolve to `ci:web:foo`.
 version: "3"
 
 tasks:
@@ -9,29 +10,28 @@ tasks:
       Full native CI pipeline:
       install:ci → cortex:check → core:clippy → web:format:check →
       web:check → web:lint → web:knip → core:test → web:test → web:test:e2e
-    deps:
-      - task: install:ci
     cmds:
-      - task: cortex:check
-      - task: core:clippy
-      - task: web:format:check
-      - task: web:check
-      - task: web:lint
-      - task: web:knip
-      - task: core:test
-      - task: web:test
-      - task: web:test:e2e
+      - task install:ci
+      - task cortex:check
+      - task core:clippy
+      - task web:format:check
+      - task web:check
+      - task web:lint
+      - task web:knip
+      - task core:test
+      - task web:test
+      - task web:test:e2e
 
   docker:
     desc: >
       CI after Docker bake populated me-ai-core/pkg (GitHub Actions path).
       Skips core:build, core:clippy, core:test — those run inside the Dockerfile.
     cmds:
-      - task: web:install:ci
-      - task: cortex:check
-      - task: web:format:check
-      - task: web:check
-      - task: web:lint
-      - task: web:knip
-      - task: web:test
-      - task: web:test:e2e
+      - task web:install:ci
+      - task cortex:check
+      - task web:format:check
+      - task web:check
+      - task web:lint
+      - task web:knip
+      - task web:test
+      - task web:test:e2e

@@ -68,7 +68,7 @@ Single-package tasks belong in their own Taskfile.
 
 ### `ci:*` ([`Taskfile.ci.yml`](../../Taskfile.ci.yml))
 
-CI pipelines only; may call `core:*`, `web:*`, and `cortex:*`. See [ci-cd.md](../ci-cd.md).
+CI pipelines only. Tasks invoke other namespaces via **shell** lines (`task web:install:ci`, …) because a `task:` step like `web:install:ci` would wrongly resolve to `ci:web:install:ci` under this include. See [ci-cd.md](../ci-cd.md).
 
 | Task | What it does |
 |------|--------------|
